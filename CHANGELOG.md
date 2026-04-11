@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-04-11
+### Changed
+- Tracker templates rewritten for solo-dev workflow: removed enterprise gates ("reviewer noted", "Linux branch build"), JIRA/TFS URLs, and redundant `workflow_type` field
+- User-story template now includes `parent` field and normalized `type: user-story` (was `userstory`)
+- Template validation in track.md is now type-aware: defect/task no longer require PRD/ARCHITECTURE/TEST-SPEC templates
+
+### Removed
+- Review work item type: deleted tracker-review.md, doc-review-notes.md, doc-scrum.md, and TRACKER-TEMPLATE.md
+- Scrum subcommand and `review-*` branch pattern from workflow skill
+- 4 orphaned template references from skills-catalog.json
+
+### Added
+- 6 template content smoke tests in test.sh (enterprise gate checks, JIRA/TFS detection, gate count validation, review type removal)
+
 ## [0.2.0] - 2026-04-11
 ### Added
 - New `/docs` skill with two subcommands: `init` (generate PHILOSOPHY.md or OVERVIEW.md) and `check` (staleness detection + coherence)
