@@ -1,6 +1,7 @@
 ---
 name: test-align-contract
 description: "Unified test harness for /align-feature-contract: Tier 1 smoke tests + Tier 2 end-to-end execution."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

@@ -1,6 +1,7 @@
 ---
 name: work-implement
 description: "Structured implementation with root-cause debugging. Dual-mode: build-forward (features/tasks) or debug-backward (defects)."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

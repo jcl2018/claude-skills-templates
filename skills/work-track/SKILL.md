@@ -1,6 +1,7 @@
 ---
 name: work-track
 description: "Context-aware work item management: evidence synthesis, CRUD, lifecycle, manifest-driven scaffolding."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

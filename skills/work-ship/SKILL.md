@@ -1,6 +1,7 @@
 ---
 name: work-ship
 description: "Phase 4: ship wrapper. Validates TEST-SPEC acceptance criteria, writes journal entry, delegates to gstack /ship."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

@@ -1,6 +1,7 @@
 ---
 name: align-feature-contract
 description: "Doc triplet contract enforcement — template alignment, cross-doc traceability, and optional code verification for PRD + ARCHITECTURE + TEST-SPEC sets."
+version: 0.1.0
 ---
 
 # /align-feature-contract — Doc Triplet Contract Enforcement

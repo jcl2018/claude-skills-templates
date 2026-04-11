@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
-# Content-level linting for SKILL.md files. Advisory — always exits 0.
-# Usage: ./scripts/lint-skill.sh [skill-name]  (lints one or all)
+# Content-level linting for SKILL.md files.
+# Default: advisory (exits 0). With --strict: exits non-zero on issues.
+# Usage: ./scripts/lint-skill.sh [--strict] [skill-name]
 
 . "$(dirname "$0")/lib.sh"
 init
 
 ISSUES=0
+WARNINGS=0
+STRICT=0
+if [ "${1:-}" = "--strict" ]; then
+  STRICT=1
+  shift
+fi
 TARGET="${1:-}"
 
 lint_issue() { echo "  LINT: $1 — $2"; ISSUES=$((ISSUES + 1)); }
+lint_warn() { echo "  WARN: $1 — $2"; WARNINGS=$((WARNINGS + 1)); }
 lint_ok() { echo "  OK: $1"; }
 
 lint_skill() {
@@ -55,7 +63,7 @@ lint_skill() {
       has_error_handling=0
     elif echo "$line" | grep -qE '^\s*```' && [ "$in_bash" -eq 1 ]; then
       if [ "$bash_lines" -gt 5 ] && [ "$has_error_handling" -eq 0 ]; then
-        lint_issue "$name" "bash block at line $bash_start ($bash_lines lines) has no error handling (set -e or || exit)"
+        lint_warn "$name" "bash block at line $bash_start ($bash_lines lines) has no error handling (set -e or || exit)"
       fi
       in_bash=0
     elif [ "$in_bash" -eq 1 ]; then
@@ -84,12 +92,12 @@ lint_skill() {
     fi
   done
 
-  # Check 5: Missing recommended sections
+  # Check 5: Missing recommended sections (advisory only, not enforced in strict mode)
   for section in "## Error Handling" "## Usage"; do
     if grep -q "$section" "$skill_file" 2>/dev/null; then
       lint_ok "$name has $section section"
     else
-      lint_issue "$name" "missing recommended section: $section"
+      lint_warn "$name" "missing recommended section: $section"
     fi
   done
 }
@@ -111,6 +119,10 @@ fi
 
 echo ""
 echo "=== Lint Summary ==="
-echo "  Issues found: $ISSUES"
-echo "  (This is advisory — lint issues are suggestions, not failures)"
+echo "  Issues: $ISSUES | Warnings: $WARNINGS"
+if [ "$STRICT" -eq 1 ] && [ "$ISSUES" -gt 0 ]; then
+  echo "  STRICT MODE: failing due to $ISSUES issue(s)"
+  exit 1
+fi
+echo "  (Issues are enforced in --strict mode. Warnings are always advisory.)"
 exit 0
