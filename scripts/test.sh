@@ -10,6 +10,12 @@ ERRORS=0
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
+# Ensure git user config exists (required for commit in CI environments)
+if ! git config user.name >/dev/null 2>&1; then
+  git config user.name "test"
+  git config user.email "test@test.local"
+fi
+
 echo "=== Running validate.sh ==="
 if "$REPO_ROOT/scripts/validate.sh"; then
   ok "validate.sh passed"
@@ -218,8 +224,7 @@ if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
   # Reset any staged changes from the version bump
   git reset HEAD -- . >/dev/null 2>&1 || true
 
-  SHIP_OUTPUT=$("$REPO_ROOT/scripts/skill-ship.sh" zzz-test-scaffold 2>&1) || true
-  if echo "$SHIP_OUTPUT" | grep -q "=== Shipped"; then
+  if "$REPO_ROOT/scripts/skill-ship.sh" zzz-test-scaffold >/dev/null 2>&1; then
     ok "skill-ship.sh succeeded"
 
     # Verify tag was created
@@ -240,7 +245,6 @@ if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
     git reset --soft HEAD~1 >/dev/null 2>&1 || true
     git reset HEAD -- . >/dev/null 2>&1 || true
   else
-    echo "  skill-ship.sh output: $SHIP_OUTPUT" >&2
     fail_test "skill-ship.sh failed"
   fi
 fi
