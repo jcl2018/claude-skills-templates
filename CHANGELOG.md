@@ -3,6 +3,14 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-04-11
+### Added
+- New `/docs` skill with two subcommands: `init` (generate PHILOSOPHY.md or OVERVIEW.md) and `check` (staleness detection + coherence)
+- Claims sidecar (`.docs/claims.json`) maps doc sections to evidence files with commit SHAs for diff-based staleness detection
+- Unreachable commit guard for rebase/force-push resilience in staleness checks
+- Schema validation for claims.json on read with clear error messages
+- Quick Start workflow example in SKILL.md
+
 ## [0.1.0] - 2026-04-11
 ### Added
 - Collection versioning with VERSION file at repo root
