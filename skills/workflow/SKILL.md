@@ -53,7 +53,6 @@ and follow its instructions. The file path is relative to this SKILL.md:
 - `/workflow track milestones` -> track.md, milestones subcommand
 - `/workflow track list` -> track.md, list subcommand
 - `/workflow track close` -> track.md, close subcommand
-- `/workflow track scrum` -> track.md, scrum subcommand
 - `/workflow track child-items` -> track.md, child-items subcommand
 - `/workflow track` (no sub) -> track.md, evidence synthesis (default)
 
@@ -73,7 +72,6 @@ Match against these patterns:
 - `defect-*` or `fix-*` or `fix/*` or `bugfix-*` -> type=defect, slug=remainder
 - `task-*` or `chore-*` or `chore/*` -> type=task, slug=remainder
 - `story-*` -> type=user-story, slug=remainder
-- `review-*` -> type=review, slug=remainder
 
 If no pattern matches and the user gave a subcommand, warn:
 "Branch `{BRANCH}` doesn't match a work item pattern. Create one with
@@ -135,7 +133,7 @@ When the user selects, dispatch to the corresponding subcommand.
 ## Template Reference
 
 All templates live in the repo root `templates/` directory:
-- `tracker-*.md` for work item trackers (feature, defect, task, user-story, review)
+- `tracker-*.md` for work item trackers (feature, defect, task, user-story)
 - `doc-*.md` for doc artifacts (PRD, ARCHITECTURE, TEST-SPEC, RCA, etc.)
 - `contract-*.md` for contract enforcement templates
 
