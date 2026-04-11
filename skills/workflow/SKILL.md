@@ -147,8 +147,12 @@ Subcommands reference templates by name. Resolution order:
 ## No Work Items Directory
 
 If `./work-items/` does not exist:
-"This project has no work-items/ directory. Start with `/workflow track create`
-to create your first work item. The directory will be created automatically."
+"This project has no work-items/ directory yet.
+To get started:
+1. Create a feature branch: `git checkout -b feat/your-feature-name`
+2. Run: `/workflow track create --type feature`
+This creates work-items/{slug}/ with TRACKER.md and doc artifacts.
+The directory is meant to be committed to git for team visibility."
 
 ## Rules
 
