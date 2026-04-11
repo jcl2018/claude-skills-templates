@@ -18,6 +18,12 @@ echo "=== Validating skills-catalog.json ==="
 echo ""
 echo "Checking catalog entries have SKILL.md files..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
+  # Skip templates-only entries (empty files array, no SKILL.md expected)
+  files_count=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG")
+  if [ "$files_count" -eq 0 ]; then
+    pass "$name is a templates-only entry (no SKILL.md expected)"
+    continue
+  fi
   if [ -f "$SKILLS_DIR/$name/SKILL.md" ]; then
     pass "$name has SKILL.md"
   else
@@ -143,18 +149,7 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 done
 
-# Warning check 1: Enforcement templates exist in canonical location
-echo ""
-echo "Checking enforcement templates..."
-for tmpl in "contract-PRD.md" "contract-ARCHITECTURE.md" "contract-TEST-SPEC.md"; do
-  if [ -f "$TEMPLATES_DIR/$tmpl" ]; then
-    pass "templates/$tmpl exists"
-  else
-    warn "templates/$tmpl missing (enforcement template for /contracts)"
-  fi
-done
-
-# Warning check 2: Orphan doc directories
+# Warning check: Orphan doc directories
 echo ""
 echo "Checking for orphan doc directories..."
 for dir in "$DOCS_DIR"/*/; do

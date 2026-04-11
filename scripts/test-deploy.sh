@@ -19,6 +19,7 @@ setup_env() {
   export SKILLS_DEPLOY_TARGET="$tmp_dir"
   export SKILLS_DEPLOY_MANIFEST="$SKILLS_DEPLOY_TARGET/.skills-templates.json"
   export SKILLS_DEPLOY_TEMPLATES_TARGET="$SKILLS_DEPLOY_TARGET/templates"
+  export SKILLS_DEPLOY_RULES_TARGET="$SKILLS_DEPLOY_TARGET/rules"
   mkdir -p "$SKILLS_DEPLOY_TEMPLATES_TARGET"
   _CLEANUP_DIRS+=("$SKILLS_DEPLOY_TARGET")
 }
@@ -30,7 +31,8 @@ teardown_env() {
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
-SKILL_COUNT=$(jq 'length' "$CATALOG")
+# Count catalog entries that have skill files (exclude templates-only entries)
+SKILL_COUNT=$(jq '[.[] | select(.files | length > 0)] | length' "$CATALOG")
 
 echo "=== Deploy script tests ==="
 echo ""
@@ -39,9 +41,7 @@ echo ""
 echo "Test 1: Install all skills"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
-count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
-# Subtract 1 for the templates/ dir
-count=$((count))
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" ! -path "$SKILLS_DEPLOY_RULES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$count" -eq "$SKILL_COUNT" ]; then
   ok "Installed $SKILL_COUNT skill directories"
 else
@@ -50,25 +50,27 @@ fi
 teardown_env
 
 # Test 2: Multi-file skill gets all .md files
-echo "Test 2: Multi-file skill (workflow)"
+echo "Test 2: Multi-file skill (docs)"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
-md_count=$(find "$SKILLS_DEPLOY_TARGET/workflow" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
+"$DEPLOY" install docs >/dev/null 2>&1
+md_count=$(find "$SKILLS_DEPLOY_TARGET/docs" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
 if [ "$md_count" -ge 3 ]; then
-  ok "workflow has $md_count .md symlinks"
+  ok "docs has $md_count .md symlinks"
 else
   fail_test "Expected 3+ .md symlinks, got $md_count"
 fi
 teardown_env
 
-# Test 3: Dependency resolution (workflow -> contracts)
-echo "Test 3: Dependency resolution"
+# Test 3: Templates-only catalog entry (no SKILL.md, just templates)
+echo "Test 3: Templates-only catalog entry"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
-if [ -d "$SKILLS_DEPLOY_TARGET/contracts" ]; then
-  ok "Dependency contracts installed"
+"$DEPLOY" install templates >/dev/null 2>&1
+tpl_count=$(jq -r '.[] | select(.name == "templates") | .templates | length' "$CATALOG")
+actual_count=$(find "$SKILLS_DEPLOY_TEMPLATES_TARGET" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+if [ "$actual_count" -eq "$tpl_count" ]; then
+  ok "Templates entry deployed $tpl_count templates"
 else
-  fail_test "Dependency contracts missing"
+  fail_test "Expected $tpl_count templates, got $actual_count"
 fi
 teardown_env
 
@@ -77,7 +79,7 @@ echo "Test 4: Idempotent install"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
 "$DEPLOY" install >/dev/null 2>&1
-count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" ! -path "$SKILLS_DEPLOY_RULES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$count" -eq "$SKILL_COUNT" ]; then
   ok "Second install still has $SKILL_COUNT skills"
 else
@@ -114,7 +116,7 @@ setup_env
 "$DEPLOY" install >/dev/null 2>&1
 "$DEPLOY" remove --all --force >/dev/null 2>&1
 # Only templates/ dir should remain (empty)
-skill_count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d -not -name "templates" 2>/dev/null | wc -l | tr -d ' ')
+skill_count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d -not -name "templates" -not -name "rules" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$skill_count" -eq 0 ]; then
   ok "All skills removed"
 else
@@ -196,14 +198,11 @@ echo ""
 # Test T1: Install deploys templates
 echo "Test T1: Install deploys templates"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
-# workflow has 8 templates + contracts (dependency) has 3 = 11 total
-wf_count=$(jq -r '.[] | select(.name == "workflow") | .templates | length' "$CATALOG")
-ct_count=$(jq -r '.[] | select(.name == "contracts") | .templates | length' "$CATALOG")
-expected_count=$((wf_count + ct_count))
+"$DEPLOY" install templates >/dev/null 2>&1
+expected_count=$(jq -r '.[] | select(.name == "templates") | .templates | length' "$CATALOG")
 actual_count=$(find "$SKILLS_DEPLOY_TEMPLATES_TARGET" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 if [ "$actual_count" -eq "$expected_count" ]; then
-  ok "Workflow + contracts deployed $expected_count templates"
+  ok "Templates entry deployed $expected_count templates"
 else
   fail_test "Expected $expected_count templates, got $actual_count"
 fi
@@ -218,23 +217,21 @@ teardown_env
 # Test T2: Shared ownership (synthetic fixture)
 echo "Test T2: Shared ownership"
 setup_env
-# Install workflow (gets doc-PRD.md among others)
-"$DEPLOY" install workflow >/dev/null 2>&1
-# Manually add contracts as owner of doc-PRD.md (simulating shared template)
-# First install contracts normally
-"$DEPLOY" install contracts >/dev/null 2>&1
-# Now manually make contracts also own doc-PRD.md in the manifest
-jq '.templates["doc-PRD.md"].owners += ["contracts"] | .templates["doc-PRD.md"].owners = (.templates["doc-PRD.md"].owners | unique)' \
+# Install both templates and skill-author
+"$DEPLOY" install templates >/dev/null 2>&1
+"$DEPLOY" install skill-author >/dev/null 2>&1
+# Manually add skill-author as co-owner of doc-PRD.md (simulating shared template)
+jq '.templates["doc-PRD.md"].owners += ["skill-author"] | .templates["doc-PRD.md"].owners = (.templates["doc-PRD.md"].owners | unique)' \
   "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.tmp" && mv "$SKILLS_DEPLOY_MANIFEST.tmp" "$SKILLS_DEPLOY_MANIFEST"
-# Remove workflow — doc-PRD.md should persist (contracts still owns it)
-"$DEPLOY" remove workflow --force >/dev/null 2>&1
+# Remove templates — doc-PRD.md should persist (skill-author still owns it)
+"$DEPLOY" remove templates --force >/dev/null 2>&1
 if [ -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md" ]; then
-  ok "doc-PRD.md persists (contracts still owns it)"
+  ok "doc-PRD.md persists (skill-author still owns it)"
 else
-  fail_test "doc-PRD.md was deleted despite contracts ownership"
+  fail_test "doc-PRD.md was deleted despite skill-author ownership"
 fi
-# Remove contracts — now doc-PRD.md should be cleaned up
-"$DEPLOY" remove contracts --force >/dev/null 2>&1
+# Remove skill-author — now doc-PRD.md should be cleaned up
+"$DEPLOY" remove skill-author --force >/dev/null 2>&1
 if [ ! -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md" ]; then
   ok "doc-PRD.md removed when last owner removed"
 else
@@ -264,7 +261,7 @@ teardown_env
 # Test T4: Doctor detects missing template
 echo "Test T4: Doctor detects missing template"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
+"$DEPLOY" install templates >/dev/null 2>&1
 rm -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md"
 output=$("$DEPLOY" doctor 2>&1)
 if echo "$output" | grep -q "FAIL.*doc-PRD.md"; then
@@ -277,7 +274,7 @@ teardown_env
 # Test T5: Doctor detects drifted template
 echo "Test T5: Doctor detects drifted template"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
+"$DEPLOY" install templates >/dev/null 2>&1
 echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md"
 output=$("$DEPLOY" doctor 2>&1)
 if echo "$output" | grep -q "WARN.*doc-PRD.md"; then
@@ -290,17 +287,17 @@ teardown_env
 # Test T6: --overwrite replaces drifted template
 echo "Test T6: --overwrite replaces drifted template"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
+"$DEPLOY" install templates >/dev/null 2>&1
 echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md"
 # Re-install without --overwrite — should skip
-output=$("$DEPLOY" install workflow 2>&1)
+output=$("$DEPLOY" install templates 2>&1)
 if echo "$output" | grep -q "exists with different content"; then
   ok "Install warns about drifted template"
 else
   fail_test "Install did not warn about drifted template"
 fi
 # Now with --overwrite
-"$DEPLOY" install workflow --overwrite >/dev/null 2>&1
+"$DEPLOY" install templates --overwrite >/dev/null 2>&1
 if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md" "$REPO_ROOT/templates/doc-PRD.md" >/dev/null 2>&1; then
   ok "--overwrite restored template to source content"
 else
@@ -311,11 +308,11 @@ teardown_env
 # Test T7: Idempotent install (no duplicate owners)
 echo "Test T7: Idempotent install"
 setup_env
-"$DEPLOY" install workflow >/dev/null 2>&1
-"$DEPLOY" install workflow >/dev/null 2>&1
+"$DEPLOY" install templates >/dev/null 2>&1
+"$DEPLOY" install templates >/dev/null 2>&1
 # shellcheck disable=SC2034  # dup_count used for debug inspection
 dup_count=$(jq '[.templates // {} | .[] | .owners | length] | map(select(. > 1)) | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
-# Each template should have exactly 1 owner (workflow), not 2
+# Each template should have exactly 1 owner (templates), not 2
 owner_count=$(jq '.templates["doc-PRD.md"].owners | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
 if [ "$owner_count" -eq 1 ]; then
   ok "No duplicate owners after double install"

@@ -44,26 +44,16 @@
     "status": "experimental"
   },
   {
-    "name": "workflow",
+    "name": "templates",
     "version": "0.1.0",
-    "description": "Dev workflow pipeline: track, implement, review, ship. Branch-aware routing with doc contract quality gates.",
+    "description": "Work item and doc triplet templates for doc-first development. Scaffolds features, defects, tasks, and user stories with type-aware artifact sets.",
     "source": "local",
     "depends": {
-      "skills": [
-        "contracts"
-      ],
-      "tools": [
-        "jq"
-      ]
+      "skills": [],
+      "tools": []
     },
-    "portability": "pipeline",
-    "files": [
-      "skills/workflow/SKILL.md",
-      "skills/workflow/track.md",
-      "skills/workflow/implement.md",
-      "skills/workflow/review.md",
-      "skills/workflow/ship.md"
-    ],
+    "portability": "standalone",
+    "files": [],
     "templates": [
       "doc-PRD.md",
       "doc-ARCHITECTURE.md",
@@ -74,24 +64,7 @@
       "tracker-user-story.md",
       "doc-milestones.md",
       "doc-RCA.md",
-      "doc-test-plan.md"
-    ],
-    "status": "active"
-  },
-  {
-    "name": "contracts",
-    "version": "0.1.0",
-    "description": "Doc triplet contract enforcement: template alignment, cross-doc traceability, and test harness for PRD + ARCHITECTURE + TEST-SPEC sets.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/contracts/SKILL.md"
-    ],
-    "templates": [
+      "doc-test-plan.md",
       "contract-PRD.md",
       "contract-ARCHITECTURE.md",
       "contract-TEST-SPEC.md"

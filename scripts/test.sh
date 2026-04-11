@@ -100,7 +100,7 @@ else
 fi
 
 if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
-  if echo "$deps_output" | grep -q "work"; then
+  if echo "$deps_output" | grep -q "docs\|system-health"; then
     ok "deps.sh runs and output contains known skills"
   else
     fail_test "deps.sh runs but output missing expected skill names"

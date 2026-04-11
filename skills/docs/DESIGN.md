@@ -8,9 +8,9 @@ date: 2026-04-11
 
 ## Problem
 
-No tool generates the "why" documentation. `/contracts` checks format. `/document-release`
-updates post-ship. Neither can look at a repo with zero philosophy docs and produce a
-narrative that captures design intent, tradeoffs, and rationale.
+No tool generates the "why" documentation. `/document-release` updates post-ship.
+But neither it nor CLAUDE.md validation rules can look at a repo with zero philosophy
+docs and produce a narrative that captures design intent, tradeoffs, and rationale.
 
 Primary audience: future-self. Coming back to a repo in 6 months and needing to remember
 why decisions were made.
@@ -26,7 +26,7 @@ Staleness is `git diff <stored-sha>..HEAD -- <evidence-path>`. Precise. No times
 
 ## Key Decisions
 
-1. **init+check only, no enforce/sync** — Reviewed by 6 independent model voices (3 Claude, 3 Codex). All recommended keeping /contracts standalone and not wrapping /document-release.
+1. **init+check only, no enforce/sync** — /docs focuses on narrative generation. Format enforcement moved to CLAUDE.md validation rules (formerly /contracts).
 2. **File-level evidence, not line-level** — Line-level is too brittle. Any edit triggers false positives.
 3. **Flag-only staleness** — No auto-regeneration. Philosophy docs need the user's voice.
 4. **claims.json in repo root** — `.docs/claims.json` committed to git. Only option for portability.

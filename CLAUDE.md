@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 8 custom skills (work lifecycle pipeline, doc contract enforcement, system health), 15+ templates, and the tooling to author, validate, test, and distribute skills like real software.
+A skill development workbench for Claude Code. Contains 3 custom skills (doc intelligence, skill authoring, system health), a template library for doc-first development, and tooling to author, validate, test, and distribute skills.
 
 ## Quick start
 
@@ -18,14 +18,13 @@ cd claude-skills-templates
 
 When the user's request matches an available skill, invoke it:
 
-- "scaffold a work item", "create a feature" -> /workflow track create
-- "implement this", "build this feature" -> /workflow implement
-- "review this code" -> /workflow review
-- "ship this", "create a PR" -> /workflow ship
-- "check doc quality", "align contracts" -> /contracts check
-- "test the contracts" -> /contracts test
 - "health check", "system status" -> /system-health
-- "what phase am I in" -> /workflow
+
+## Work item templates
+
+Work item template rules are delivered globally via `skills-deploy install` to
+`~/.claude/rules/work-items.md`. The source lives at `rules/work-items.md` in this repo.
+See `artifact-manifests.json` for the canonical type-to-artifact mapping.
 
 ## Conventions
 
@@ -38,9 +37,9 @@ skills/{skill-name}/
 
 ### Template naming
 Templates live in `templates/` with prefixes:
-- `doc-*.md` for scaffolding templates (used by /workflow track to create new docs)
-- `contract-*.md` for enforcement templates (used by /contracts to validate existing docs)
-- `tracker-*.md` for work item templates (feature, defect, task, etc.)
+- `doc-*.md` for scaffolding templates (used when creating new work item docs)
+- `contract-*.md` for enforcement reference templates (document what good docs look like)
+- `tracker-*.md` for work item templates (feature, defect, task, user-story)
 - `*-GENERATION-GUIDE.md` for doc generation instructions
 - `GENERATION-GUIDE.md` is a meta-template for doc generation instructions
 
