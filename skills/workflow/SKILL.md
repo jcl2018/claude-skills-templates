@@ -14,6 +14,15 @@ allowed-tools:
   - Skill
 ---
 
+## Preamble
+
+Log skill usage so `/system-health` can track which skills are actually used:
+
+```bash
+mkdir -p ~/.gstack/analytics
+echo '{"skill":"workflow","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","repo":"'"$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo unknown)"'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+```
+
 # /workflow — Dev Workflow Pipeline
 
 Single entry point for the 4-phase dev workflow: track, implement, review, ship.
