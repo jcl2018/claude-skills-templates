@@ -10,6 +10,15 @@ allowed-tools:
   - AskUserQuestion
 ---
 
+## Preamble
+
+Log skill usage so the usage trends section can track this skill too:
+
+```bash
+mkdir -p ~/.gstack/analytics
+echo '{"skill":"system-health","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","repo":"'"$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo unknown)"'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+```
+
 # /system-health — ~/.claude/ Health Dashboard
 
 Checks the physical health of your `~/.claude/` folder and surfaces skill usage

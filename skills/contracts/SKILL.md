@@ -10,6 +10,15 @@ allowed-tools:
   - AskUserQuestion
 ---
 
+## Preamble
+
+Log skill usage so `/system-health` can track which skills are actually used:
+
+```bash
+mkdir -p ~/.gstack/analytics
+echo '{"skill":"contracts","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","repo":"'"$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo unknown)"'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+```
+
 # /contracts — Doc Triplet Contract Enforcement
 
 Enforces doc triplet contracts (PRD + ARCHITECTURE + TEST-SPEC) and provides a test
