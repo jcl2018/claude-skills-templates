@@ -9,6 +9,8 @@ CATALOG="$REPO_ROOT/skills-catalog.json"
 SKILLS_SRC="$REPO_ROOT/skills"
 SKILLS_TARGET="${SKILLS_DEPLOY_TARGET:-$HOME/.claude/skills}"
 MANIFEST="${SKILLS_DEPLOY_MANIFEST:-$HOME/.claude/.skills-templates.json}"
+TEMPLATES_SRC="$REPO_ROOT/templates"
+TEMPLATES_TARGET="${SKILLS_DEPLOY_TEMPLATES_TARGET:-$HOME/.claude/templates}"
 
 # --- helpers ---
 
@@ -66,11 +68,37 @@ reverse_deps() {
   jq -r --arg n "$name" '.[] | select(.depends.skills // [] | index($n)) | .name' "$CATALOG" 2>/dev/null || true
 }
 
+# Read templates array for a skill from catalog
+skill_templates() {
+  local name="$1"
+  [ -f "$CATALOG" ] || return 0
+  jq -r --arg n "$name" '.[] | select(.name == $n) | .templates // [] | .[]' "$CATALOG" 2>/dev/null || true
+}
+
+# SHA256 of a file (portable: macOS shasum, Linux sha256sum)
+file_checksum() {
+  (shasum -a 256 "$1" 2>/dev/null || sha256sum "$1" 2>/dev/null) | awk '{print $1}'
+}
+
+# Validate template name is safe (no path traversal)
+validate_template_name() {
+  [[ "$1" =~ ^[a-zA-Z0-9_.-]+\.md$ ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
+}
+
 # --- install ---
 
 do_install() {
   require_jq
-  local skills=()
+  local skills=() overwrite=false
+  local args=()
+  for arg in "$@"; do
+    case "$arg" in
+      --overwrite) overwrite=true ;;
+      *) args+=("$arg") ;;
+    esac
+  done
+  set -- "${args[@]+"${args[@]}"}"
+
   if [ $# -gt 0 ]; then
     skills=("$@")
     # Resolve dependencies
@@ -161,6 +189,68 @@ do_install() {
     installed=$((installed + 1))
   done
 
+  # Deploy templates for installed skills
+  local tpl_installed=0 tpl_skipped=0
+  mkdir -p "$TEMPLATES_TARGET"
+
+  for name in "${skills[@]}"; do
+    local src="$SKILLS_SRC/$name"
+    [ -d "$src" ] || continue
+    # Skip skills we didn't actually install (gstack/other owned)
+    local owner
+    owner=$(skill_owner "$name")
+    case "$owner" in gstack|other) continue ;; esac
+
+    for tpl in $(skill_templates "$name"); do
+      validate_template_name "$tpl" || { tpl_skipped=$((tpl_skipped + 1)); continue; }
+
+      local tpl_src="$TEMPLATES_SRC/$tpl"
+      local tpl_dst="$TEMPLATES_TARGET/$tpl"
+
+      # Check for shadowing by higher-priority path
+      if [ -f "$HOME/.claude/spec/templates/$tpl" ]; then
+        echo "  WARN: $tpl — shadowed by ~/.claude/spec/templates/$tpl (takes priority; remove it to use deployed version)"
+      fi
+
+      if [ ! -f "$tpl_src" ]; then
+        echo "  WARN: $tpl — source not found at $tpl_src, skipping"
+        tpl_skipped=$((tpl_skipped + 1))
+        continue
+      fi
+
+      local src_sum
+      src_sum=$(file_checksum "$tpl_src")
+      if [ "$src_sum" = "" ]; then src_sum="unknown"; fi
+
+      if [ -f "$tpl_dst" ]; then
+        local dst_sum
+        dst_sum=$(file_checksum "$tpl_dst")
+        if [ "$src_sum" = "$dst_sum" ]; then
+          # Same content — just update ownership
+          manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s]) | .templates[$t].source_checksum = $sum')
+        elif [ "$overwrite" = true ]; then
+          cp "$tpl_src" "$tpl_dst" || { echo "  WARN: failed to copy $tpl"; tpl_skipped=$((tpl_skipped + 1)); continue; }
+          echo "  OVERWRITE: $tpl (checksum differs, --overwrite used)"
+          manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s]) | .templates[$t].source_checksum = $sum')
+          tpl_installed=$((tpl_installed + 1))
+        else
+          echo "  WARN: $tpl — exists with different content (use --overwrite to replace)"
+          # Still update ownership even if we skip the copy
+          manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$dst_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s])')
+          tpl_skipped=$((tpl_skipped + 1))
+        fi
+      else
+        cp "$tpl_src" "$tpl_dst" || { echo "  WARN: failed to copy $tpl"; tpl_skipped=$((tpl_skipped + 1)); continue; }
+        manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s]) | .templates[$t].source_checksum = $sum')
+        tpl_installed=$((tpl_installed + 1))
+      fi
+    done
+  done
+
   # Write manifest
   echo "$manifest" | jq --arg s "$REPO_ROOT" --arg r "jcl2018/claude-skills-templates" \
     --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
@@ -168,7 +258,8 @@ do_install() {
     '. + {source: $s, repo: $r, commit: $c, installed_at: $t}' | manifest_write
 
   echo ""
-  echo "Installed: $installed  Migrated: $migrated  Skipped: $skipped"
+  echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
+  echo "Templates — Installed: $tpl_installed  Skipped: $tpl_skipped"
 }
 
 # --- remove ---
@@ -193,7 +284,7 @@ do_remove() {
     exit 1
   fi
 
-  local manifest removed=0
+  local manifest removed=0 template_errors=0
   manifest=$(manifest_read)
 
   for name in "${skills[@]}"; do
@@ -221,14 +312,46 @@ do_remove() {
     done
     rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
 
+    # Clean up templates owned by this skill
+    for tpl in $(skill_templates "$name"); do
+      validate_template_name "$tpl" || continue
+      # Remove this skill from owners
+      manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" \
+        'if .templates[$t] then .templates[$t].owners = [.templates[$t].owners // [] | .[] | select(. != $s)] else . end')
+      # If no owners left, delete template file and manifest entry
+      local owner_count
+      owner_count=$(echo "$manifest" | jq --arg t "$tpl" '.templates[$t].owners // [] | length')
+      if [ "$owner_count" -eq 0 ]; then
+        if [ -f "$TEMPLATES_TARGET/$tpl" ]; then
+          rm -f "$TEMPLATES_TARGET/$tpl" && echo "  TEMPLATE: removed $tpl" || { echo "  WARN: failed to remove $tpl"; template_errors=$((template_errors + 1)); }
+        fi
+        manifest=$(echo "$manifest" | jq --arg t "$tpl" 'del(.templates[$t])')
+      fi
+    done
+
     manifest=$(echo "$manifest" | jq --arg n "$name" 'del(.skills[$n])')
     removed=$((removed + 1))
   done
 
+  # Prune orphaned template owners (owners referencing skills no longer installed)
+  local installed_skills
+  installed_skills=$(echo "$manifest" | jq -r '[.skills // {} | keys[]] | join(",")')
+  for tpl in $(echo "$manifest" | jq -r '.templates // {} | keys[]'); do
+    manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg installed "$installed_skills" \
+      '.templates[$t].owners = [.templates[$t].owners // [] | .[] | select(. as $o | ($installed | split(",")) | index($o))]')
+    local owner_count
+    owner_count=$(echo "$manifest" | jq --arg t "$tpl" '.templates[$t].owners // [] | length')
+    if [ "$owner_count" -eq 0 ]; then
+      [ -f "$TEMPLATES_TARGET/$tpl" ] && rm -f "$TEMPLATES_TARGET/$tpl"
+      manifest=$(echo "$manifest" | jq --arg t "$tpl" 'del(.templates[$t])')
+    fi
+  done
+
   # Write manifest or remove if empty
-  local remaining
+  local remaining tpl_remaining
   remaining=$(echo "$manifest" | jq '.skills // {} | length')
-  if [ "$remaining" -eq 0 ]; then
+  tpl_remaining=$(echo "$manifest" | jq '.templates // {} | length')
+  if [ "$remaining" -eq 0 ] && [ "$tpl_remaining" -eq 0 ] && [ "$template_errors" -eq 0 ]; then
     rm -f "$MANIFEST"
     echo "Removed: $removed (manifest cleaned up)"
   else
@@ -275,7 +398,43 @@ do_relink() {
     done
   done
 
-  echo "Relinked: $fixed fixed, $ok already correct"
+  # Repair templates
+  local tpl_fixed=0 tpl_ok=0
+  for tpl in $(echo "$manifest" | jq -r '.templates // {} | keys[]'); do
+    local tpl_file="$TEMPLATES_TARGET/$tpl"
+    local tpl_src="$TEMPLATES_SRC/$tpl"
+
+    if [ ! -f "$tpl_file" ]; then
+      # Missing — re-copy if source exists
+      if [ -f "$tpl_src" ]; then
+        mkdir -p "$TEMPLATES_TARGET"
+        cp "$tpl_src" "$tpl_file" && tpl_fixed=$((tpl_fixed + 1)) || echo "  WARN: failed to restore $tpl"
+        # Update checksum in manifest
+        local new_sum
+        new_sum=$(file_checksum "$tpl_src")
+        manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg sum "$new_sum" '.templates[$t].source_checksum = $sum')
+      else
+        echo "  WARN: $tpl — source not found at $tpl_src, cannot restore"
+      fi
+    else
+      local expected actual
+      expected=$(echo "$manifest" | jq -r --arg t "$tpl" '.templates[$t].source_checksum // ""')
+      actual=$(file_checksum "$tpl_file")
+      if [ -n "$expected" ] && [ "$expected" != "$actual" ] && [ "$expected" != "unknown" ]; then
+        echo "  WARN: $tpl has local changes. Use 'skills-deploy install --overwrite' to reset."
+      else
+        tpl_ok=$((tpl_ok + 1))
+      fi
+    fi
+  done
+
+  # Write updated manifest if templates were repaired
+  if [ "$tpl_fixed" -gt 0 ]; then
+    echo "$manifest" | manifest_write
+  fi
+
+  echo "Skills — Relinked: $fixed fixed, $ok already correct"
+  echo "Templates — Restored: $tpl_fixed, OK: $tpl_ok"
 }
 
 # --- doctor ---
@@ -342,11 +501,56 @@ do_doctor() {
     fi
   done
 
+  # Check templates
+  local tpl_count
+  tpl_count=$(echo "$manifest" | jq '.templates // {} | length')
+  if [ "$tpl_count" -gt 0 ]; then
+    echo "--- Templates ---"
+    for tpl in $(echo "$manifest" | jq -r '.templates // {} | keys[]'); do
+      local tpl_file="$TEMPLATES_TARGET/$tpl"
+      if [ ! -f "$tpl_file" ]; then
+        echo "  FAIL: $tpl — file missing at $tpl_file (run 'skills-deploy install' to restore)"
+        errors=$((errors + 1))
+      else
+        local expected actual
+        expected=$(echo "$manifest" | jq -r --arg t "$tpl" '.templates[$t].source_checksum // ""')
+        actual=$(file_checksum "$tpl_file")
+        if [ -n "$expected" ] && [ "$expected" != "$actual" ] && [ "$expected" != "unknown" ]; then
+          echo "  WARN: $tpl — content differs from source (local changes or outdated)"
+          warnings=$((warnings + 1))
+        else
+          echo "  OK: $tpl"
+        fi
+      fi
+
+      # Check for orphaned owners
+      for owner in $(echo "$manifest" | jq -r --arg t "$tpl" '.templates[$t].owners // [] | .[]'); do
+        if ! echo "$manifest" | jq -e --arg n "$owner" '.skills[$n]' >/dev/null 2>&1; then
+          echo "  WARN: $tpl — owner '$owner' is not an installed skill (orphaned)"
+          warnings=$((warnings + 1))
+        fi
+      done
+    done
+
+    # Check for catalog templates not in manifest (for installed skills)
+    for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
+      for tpl in $(skill_templates "$name"); do
+        if ! echo "$manifest" | jq -e --arg t "$tpl" '.templates[$t]' >/dev/null 2>&1; then
+          echo "  WARN: $tpl — declared by $name but not deployed (run 'skills-deploy install' to deploy)"
+          warnings=$((warnings + 1))
+        fi
+      done
+    done
+    echo ""
+  fi
+
   echo ""
+  local skills_count
+  skills_count=$(echo "$manifest" | jq '.skills // {} | length')
   if [ "$errors" -eq 0 ] && [ "$warnings" -eq 0 ]; then
-    echo "Health: OK ($(echo "$manifest" | jq '.skills | length') skills installed)"
+    echo "Health: OK ($skills_count skills, $tpl_count templates installed)"
   else
-    echo "Health: $errors errors, $warnings warnings"
+    echo "Health: $errors errors, $warnings warnings ($skills_count skills, $tpl_count templates)"
   fi
 }
 
@@ -361,10 +565,10 @@ case "${1:-}" in
     echo "Usage: skills-deploy <install|remove|relink|doctor> [options]"
     echo ""
     echo "Commands:"
-    echo "  install [skill...]    Install skills (all if none specified)"
-    echo "  remove <skill...>     Remove specific skills (--all for all, --force to skip dep check)"
-    echo "  relink                Repair broken/missing symlinks"
-    echo "  doctor                Check installation health"
+    echo "  install [skill...] [--overwrite]  Install skills + templates (all if none specified)"
+    echo "  remove <skill...>                 Remove skills + templates (--all for all, --force to skip dep check)"
+    echo "  relink                            Repair broken/missing symlinks + templates"
+    echo "  doctor                            Check installation health (skills + templates)"
     exit 1
     ;;
 esac

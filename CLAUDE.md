@@ -44,6 +44,14 @@ Templates live in `templates/` with prefixes:
 - `*-GENERATION-GUIDE.md` for doc generation instructions
 - `GENERATION-GUIDE.md` and `TRACKER-TEMPLATE.md` are meta-templates
 
+### Template deployment
+`skills-deploy install` copies per-skill templates to `~/.claude/templates/` (global).
+Templates resolve via fallback chain: `$REPO_ROOT/templates/` -> `~/.claude/spec/templates/` -> `~/.claude/templates/`.
+- Use `--overwrite` to force-replace templates with local modifications
+- `skills-deploy doctor` reports template health (missing, drifted, orphaned)
+- `skills-deploy remove` cleans up templates when no installed skill needs them
+- Templates are tracked in the manifest with SHA256 checksums and per-skill ownership
+
 ### Catalog format
 `skills-catalog.json` is a bare JSON array of skill objects. Each entry has:
 name, version, description, source, depends, portability, files, templates, status.
