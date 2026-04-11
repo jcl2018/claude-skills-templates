@@ -248,6 +248,54 @@ if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
   fi
 fi
 
+# Template content smoke tests (S000002 TEST-SPEC)
+echo ""
+echo "Checking tracker template content..."
+
+# S1: No "reviewer noted" in any tracker
+if grep -rl "reviewer noted" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise gate 'reviewer noted' still present in tracker templates"
+else
+  ok "No 'reviewer noted' in tracker templates"
+fi
+
+# S2: No "Linux branch" in any tracker
+if grep -rl "Linux branch" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise gate 'Linux branch' still present in tracker templates"
+else
+  ok "No 'Linux branch' in tracker templates"
+fi
+
+# S3: No JIRA/TFS in any tracker
+if grep -rl "JIRA\|TFS" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise references (JIRA/TFS) still present in tracker templates"
+else
+  ok "No JIRA/TFS references in tracker templates"
+fi
+
+# S4: No workflow_type in any tracker
+if grep -rl "workflow_type" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Redundant field 'workflow_type' still present in tracker templates"
+else
+  ok "No workflow_type in tracker templates"
+fi
+
+# S6: Task total gate count <= feature total gate count (lighter lifecycle)
+task_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/tracker-task.md" || true)
+feat_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/tracker-feature.md" || true)
+if [ "$task_total" -le "$feat_total" ] 2>/dev/null; then
+  ok "Task total gates ($task_total) <= feature total gates ($feat_total)"
+else
+  fail_test "Task total gates ($task_total) > feature total gates ($feat_total)"
+fi
+
+# No review tracker template should exist
+if [ -f "$REPO_ROOT/templates/tracker-review.md" ]; then
+  fail_test "tracker-review.md should not exist (review type removed)"
+else
+  ok "No tracker-review.md (review type correctly removed)"
+fi
+
 # Negative test: create orphan directory, verify validate catches it
 echo ""
 echo "Negative test: orphan directory detection..."

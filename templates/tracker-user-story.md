@@ -1,12 +1,11 @@
 ---
 name: "{STORY_NAME}"
-type: userstory
-workflow_type: userstory
+type: user-story
 id: "{STORY_ID}"
 status: active
 created: "{YYYY-MM-DD}"
 updated: "{YYYY-MM-DD}"
-url: "{JIRA_OR_TFS_URL}"
+parent: "{PARENT_ID}"
 repo: "{REPO_PATH}"
 branch: "{BRANCH_NAME}"
 blocked_by: ""
@@ -15,27 +14,25 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
-- [ ] Story scoped (acceptance criteria defined)
+- [ ] Acceptance criteria defined
 - [ ] Working branch created (`branch` field populated)
-- [ ] Tasks broken down (child task items created if needed)
+- [ ] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
+- [ ] Milestones created
+- [ ] Tasks broken down (if needed)
 
 ### Phase 2: Implement
-- [ ] Core implementation committed (>=1 commit SHA in Log)
-- [ ] Acceptance criteria met
-- [ ] Files section updated with all changed files
+- [ ] Build-forward mode (from doc triplet + acceptance criteria)
+- [ ] Implementation committed (>=1 commit SHA in Log)
+- [ ] Acceptance criteria verified met
 
 ### Phase 3: Review
-- [ ] Code review requested (reviewer noted)
-- [ ] Review feedback captured (suggestions + resolutions in Journal)
-- [ ] All review suggestions resolved or marked won't-fix
+- [ ] Doc review completed
+- [ ] Doc generation finalized
+- [ ] Doc triplet alignment check (TEST-SPEC)
 
 ### Phase 4: Ship
-- [ ] Linux branch build passes
-- [ ] Regression tests pass
-- [ ] Code review completed (reviewer noted in Journal)
-- [ ] PR description generated
-- [ ] PR created (PR link in PRs section)
-- [ ] Merged to target branch
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 

@@ -10,7 +10,7 @@ Shared context (branch, work item, phase) is already resolved by SKILL.md.
 1. Read tracker frontmatter: type, name, status
 2. Read Acceptance Criteria section from tracker
 3. Check for doc triplet (PRD.md, ARCHITECTURE.md, TEST-SPEC.md) in work item directory
-4. Check for additional artifacts: milestones.md, test-plan.md, review-notes.md, RCA.md
+4. Check for additional artifacts: milestones.md, test-plan.md, RCA.md
 
 ## Mode Detection
 

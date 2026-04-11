@@ -1,12 +1,10 @@
 ---
 name: "{TASK_NAME}"
 type: task
-workflow_type: task
 id: "{TASK_ID}"
 status: active
 created: "{YYYY-MM-DD}"
 updated: "{YYYY-MM-DD}"
-url: "{JIRA_OR_TFS_URL}"
 parent: "{PARENT_ID}"
 repo: "{REPO_PATH}"
 branch: "{BRANCH_NAME}"
@@ -16,27 +14,23 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
-- [ ] Scope understood from parent work item (parent tracker read)
+- [ ] Parent scope read (parent tracker reviewed)
 - [ ] Working branch created (`branch` field populated)
-- [ ] Files section has >=1 entry
+- [ ] Files section populated
 
 ### Phase 2: Implement
 - [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] Files section updated with all changed files
 - [ ] Todos section reflects remaining work (no stale items)
+- [ ] Files section updated with changed files
 
 ### Phase 3: Review
-- [ ] Code review requested (reviewer noted)
-- [ ] Review feedback captured (suggestions + resolutions in Journal)
-- [ ] All review suggestions resolved or marked won't-fix
+- [ ] Doc review completed
+- [ ] Doc generation finalized
+- [ ] Test verification passed
 
 ### Phase 4: Ship
-- [ ] Linux branch build passes
-- [ ] Regression tests pass
-- [ ] Code review completed (reviewer noted in Journal)
-- [ ] PR description generated
-- [ ] PR created (PR link in PRs section)
-- [ ] Merged to target branch
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -58,7 +52,7 @@ blocked_by: ""
 
 ## Files
 
-<!-- Affected file paths. Populated during Plan phase, updated during Implement. -->
+<!-- Affected file paths. Populated during Track phase, updated during Implement. -->
 
 ## Insights
 

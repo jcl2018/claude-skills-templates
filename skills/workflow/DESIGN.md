@@ -16,9 +16,9 @@ The original 5-skill approach caused routing confusion, duplicated context resol
 
 ## Behavior
 
-1. **Routing (SKILL.md):** Detects branch pattern (feature-*, fix-*, task-*, story-*, review-*), resolves the active work item from work-items/, and dispatches to the appropriate subcommand. If no subcommand given, shows a status menu with phase progress.
+1. **Routing (SKILL.md):** Detects branch pattern (feature-*, fix-*, task-*, story-*), resolves the active work item from work-items/, and dispatches to the appropriate subcommand. If no subcommand given, shows a status menu with phase progress.
 
-2. **track (track.md):** Handles work item scaffolding (create), evidence synthesis (default), journal entries, milestones CRUD, list, close, scrum notes, and child-items. Manifest-driven scaffolding reads artifact-manifests.json. Template validation checks templates/ then ~/.claude/spec/templates/ as fallback.
+2. **track (track.md):** Handles work item scaffolding (create), evidence synthesis (default), journal entries, milestones CRUD, list, close, and child-items. Manifest-driven scaffolding reads artifact-manifests.json. Template validation checks templates/ then ~/.claude/spec/templates/ then ~/.claude/templates/ as fallback.
 
 3. **implement (implement.md):** Dual-mode execution. Build-forward for features/tasks: read plan from doc triplet, draft implementation plan, execute, verify. Debug-backward for defects: collect symptoms, form 3 hypotheses, test systematically with 3-strike rule, root-cause-before-fix gate.
 
@@ -55,4 +55,4 @@ Write and Edit are needed for tracker mutations (journal, handoff blocks, scaffo
 - `/workflow review` triggers contract quality gate before delegating to /review
 - `/workflow ship` blocks on P0 TEST-SPEC failures
 - `/workflow ship` runs contract check + test gate before delegating to /ship
-- Shared context resolution works for all branch patterns (feature-*, fix-*, task-*, story-*, review-*)
+- Shared context resolution works for all branch patterns (feature-*, fix-*, task-*, story-*)

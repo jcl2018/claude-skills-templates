@@ -15,13 +15,12 @@ Detect from user input after `/workflow track`:
 - `milestones` — CRUD milestone entries
 - `list` — list all work items with status and risk badges
 - `close` — close a work item
-- `scrum` — generate scrum notes
 - `child-items` — create sub-tasks under a feature
 
 ## Create
 
 ### Parse arguments
-- `--type` or `-t`: feature | defect | task | user-story | review (required, ask if missing)
+- `--type` or `-t`: feature | defect | task | user-story (required, ask if missing)
 - `--slug` or `-s`: work item slug (default: from branch name)
 - `--parent`: parent work item ID (required for user-story and task)
 
@@ -37,7 +36,6 @@ If found, extract required/optional artifacts for the type. Fallback defaults:
 - defect: TRACKER.md, RCA.md, test-plan.md
 - task: TRACKER.md, test-plan.md
 - user-story: TRACKER.md, PRD.md, ARCHITECTURE.md, TEST-SPEC.md, milestones.md
-- review: TRACKER.md, review-notes.md
 
 ### Validate templates
 Check templates via 3-level fallback chain (matches contracts/SKILL.md pattern):
@@ -47,7 +45,15 @@ for dir in "$REPO_ROOT/templates" "$HOME/.claude/spec/templates" "$HOME/.claude/
   [ -d "$dir" ] && TEMPLATE_DIR="$dir" && break
 done
 [ -n "$TEMPLATE_DIR" ] && echo "TEMPLATES: $TEMPLATE_DIR"
-for t in tracker-{type}.md doc-PRD.md doc-ARCHITECTURE.md doc-TEST-SPEC.md; do
+# Type-aware template validation: check only templates required for this type
+# Read required artifacts from manifest if available, otherwise use fallback defaults
+REQUIRED_TEMPLATES="tracker-{type}.md"
+case "{type}" in
+  feature|user-story) REQUIRED_TEMPLATES="$REQUIRED_TEMPLATES doc-PRD.md doc-ARCHITECTURE.md doc-TEST-SPEC.md doc-milestones.md" ;;
+  defect) REQUIRED_TEMPLATES="$REQUIRED_TEMPLATES doc-RCA.md doc-test-plan.md" ;;
+  task) REQUIRED_TEMPLATES="$REQUIRED_TEMPLATES doc-test-plan.md" ;;
+esac
+for t in $REQUIRED_TEMPLATES; do
   [ -f "$TEMPLATE_DIR/$t" ] && echo "OK: $t" || echo "MISSING: $t"
 done
 ```
@@ -119,11 +125,6 @@ Display as table: `| # | Name | Type | Status | Branch | Risk | Updated |`
 1. Set `status: done` and add `closed: {date}` in frontmatter
 2. Add Log entry: `- {date}: Closed.`
 3. Regenerate INDEX.md if it exists
-
-## Scrum
-
-Generate scrum notes from milestones + git activity + journal since last scrum.
-Write to `$ITEM_DIR/scrum-{date}.md`.
 
 ## Child Items
 
