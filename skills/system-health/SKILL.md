@@ -1,6 +1,6 @@
 ---
 name: system-health
-description: "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds a dependency graph, checks filesystem health, and surfaces skill usage analytics with behavioral topology overlay. Produces a scored report with trend tracking."
+description: "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds a dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, and optionally invokes waza for config hygiene. Produces a scored report with trend tracking."
 version: 0.3.0
 allowed-tools:
   - Bash
@@ -25,17 +25,20 @@ Checks the physical health of your `~/.claude/` folder and surfaces skill usage
 trends. Scans all installed skills, builds a dependency graph, detects orphans and
 broken references, checks filesystem hygiene, overlays actual usage data from
 `~/.gstack/analytics/` to show which skills you use (and which you don't), and
+optionally invokes waza for config correctness.
+
 **Not** a per-repo code quality check (that's gstack `/health`).
-This is the filesystem, topology, and usage analytics layer.
+**Not** a per-project config audit (that's waza `/health`).
+This is the filesystem, topology, and usage analytics layer that sits between them.
 
 ## Usage
 
 - `/system-health` — full health check with dependency graph
-- `/system-health --quick` — filesystem checks only, skip usage trends
+- `/system-health --quick` — skip waza integration, filesystem checks only
 
 ## Step 0: Parse arguments
 
-Check if the user passed `--quick`. If so, skip Step 4.5 (usage trends).
+Check if the user passed `--quick`. If so, skip Step 4 (waza integration).
 
 ## Step 1: Scan ~/.claude/
 
@@ -258,10 +261,36 @@ echo "CONFIG FILES:"
 [ -f ~/.claude/settings.local.json ] && echo "  settings.local.json:OK" || echo "  settings.local.json:MISSING"
 ```
 
+## Step 4: Waza Integration (optional, unscored)
+
+Skip this step if `--quick` was passed or if waza is not installed.
+
+```bash
+if [ -f ~/.claude/skills/waza/health/scripts/collect-data.sh ]; then
+  echo "WAZA_AVAILABLE"
+else
+  echo "WAZA_NOT_INSTALLED"
+fi
+```
+
+If available, run waza's data collection:
+
+```bash
+bash ~/.claude/skills/waza/health/scripts/collect-data.sh
+```
+
+Include the output as an **unscored appendix** in the report. Do NOT fold waza's
+findings into the scored composite. Waza output is CWD-dependent (reflects the
+current project's config, not ~/.claude/ globally), so including it in the trend
+score would make scores fluctuate based on which directory the user runs from.
+
+If waza is not installed: "Waza not installed. Config hygiene checks skipped.
+Install waza for config correctness auditing."
+
 ## Step 4.5: Usage Trends (unscored)
 
 Reads `~/.gstack/analytics/skill-usage.jsonl` and produces a usage analytics
-dashboard. This section is **unscored** because the data
+dashboard. This section is **unscored** (same pattern as waza) because the data
 lives in `~/.gstack/`, not `~/.claude/`. Does not affect the 4-bucket composite.
 
 Skip this step if `--quick` was passed. Skip if jq is not available (print:
@@ -494,7 +523,7 @@ recompute any numbers. Specific interpretation guidance:
 
 ## Step 5: Score + Trend
 
-Score across 4 buckets (each 0-10). Usage trends are excluded from the scored composite.
+Score across 4 buckets (each 0-10). Waza is excluded from the scored composite.
 
 | Bucket | What it measures | Weight | Calibration |
 |--------|-----------------|--------|-------------|
@@ -590,6 +619,11 @@ Never used: {comma-separated list from USAGE_NEVER_USED, max 10 with (+N more)}
 
 INSIGHTS
 {! lines from USAGE_ANOMALY, or "No anomalies detected." if none}
+
+{If waza ran:}
+WAZA CONFIG HEALTH (unscored, CWD-dependent)
+=============================================
+{waza output verbatim}
 ```
 
 Status labels: 10 = CLEAN, 7-9 = WARNING, 4-6 = NEEDS WORK, 0-3 = CRITICAL.
@@ -631,14 +665,16 @@ USAGE INSIGHTS (unscored)
 - **Graph computation in bash.** Adjacency lists, in-degree, orphan detection, and
   broken symlink detection are all done in bash. Claude interprets the structured
   output and presents findings. Claude does NOT perform graph algorithms mentally.
+- **Waza is unscored.** Waza output appears as an appendix but does not affect the
+  composite score. This is because waza's output is CWD-dependent.
 - **Usage trends are unscored.** Usage data lives in `~/.gstack/analytics/`, not
-  `~/.claude/`. Unscored appendix with separate recommendations.
+  `~/.claude/`. Same pattern as waza: unscored appendix with separate recommendations.
 - **Usage computation in bash/jq.** All aggregation, normalization, and anomaly
   detection is done in the bash/jq reducer script. Claude interprets the structured
   `USAGE_*` output lines. Claude does NOT compute stats, percentages, or anomalies.
-- **Graceful degradation.** If jq is missing, skip structural settings extraction
-  and usage trends. If history is corrupt, treat as first run. If usage data is
-  missing or corrupt, skip with message.
+- **Graceful degradation.** If waza is missing, skip it with a message. If jq is
+  missing, skip structural settings extraction and usage trends. If history is
+  corrupt, treat as first run. If usage data is missing or corrupt, skip with message.
 
 ## Changes in v0.3.0
 
@@ -655,4 +691,4 @@ USAGE INSIGHTS (unscored)
   for doc triplet checks instead.
 - `--layer` flag removed. The 9-layer model is replaced by a 5-step architecture
   with 4 scored buckets.
-- Waza integration removed (was an unscored appendix in v0.2.0).
+- Waza integration is now an unscored appendix, not a scored layer.
