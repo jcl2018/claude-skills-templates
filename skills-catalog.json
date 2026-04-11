@@ -35,7 +35,12 @@
       "skills/skill-author/SKILL.md"
     ],
     "templates": [
-      "doc-SKILL-DESIGN.md"
+      "doc-SKILL-DESIGN.md",
+      "GENERATION-GUIDE.md",
+      "TRACKER-TEMPLATE.md",
+      "architecture-GENERATION-GUIDE.md",
+      "prd-GENERATION-GUIDE.md",
+      "test-spec-GENERATION-GUIDE.md"
     ],
     "status": "experimental"
   },
@@ -68,7 +73,12 @@
       "tracker-defect.md",
       "tracker-task.md",
       "tracker-user-story.md",
-      "tracker-review.md"
+      "tracker-review.md",
+      "doc-milestones.md",
+      "doc-RCA.md",
+      "doc-review-notes.md",
+      "doc-scrum.md",
+      "doc-test-plan.md"
     ],
     "status": "active"
   },
