@@ -1,73 +1,92 @@
 # claude-skills-templates
 
-Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench for Claude Code.
+Custom skills and development tooling for Claude Code. Work lifecycle pipeline, doc contract enforcement, system health monitoring, and a skill authoring pipeline.
+
+## Install
+
+```bash
+git clone https://github.com/jcl2018/claude-skills-templates.git ~/.claude/skills-templates
+~/.claude/skills-templates/scripts/setup.sh
+```
+
+This symlinks all skills into `~/.claude/skills/` so Claude Code discovers them automatically. Updates are just `cd ~/.claude/skills-templates && git pull`.
+
+```bash
+# Manage installed skills
+./scripts/skills-deploy install              # Install all skills
+./scripts/skills-deploy install skill-author # Install one (resolves deps)
+./scripts/skills-deploy remove skill-author  # Remove a skill
+./scripts/skills-deploy doctor               # Check health
+```
 
 ## Skills
 
-| Name | Description | Status | Portability | Version |
-|------|-------------|--------|-------------|---------|
-| work | Work item router: auto-detect from branch, show menu, suggest phase skill. No mutations. | active | pipeline | 0.1.0 |
-| work-track | Context-aware work item management: evidence synthesis, CRUD, lifecycle, manifest-driven scaffolding. | active | pipeline | 0.1.0 |
-| work-implement | Structured implementation with root-cause debugging. Dual-mode: build-forward or debug-backward. | active | pipeline | 0.1.0 |
-| work-review | Phase 3: code review wrapper. Loads work item context, delegates to gstack /review. | active | pipeline | 0.1.0 |
-| work-ship | Phase 4: ship wrapper. Validates TEST-SPEC acceptance criteria, delegates to gstack /ship. | active | pipeline | 0.1.0 |
-| system-health | ~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene. | active | standalone | 0.2.0 |
-| align-feature-contract | Doc triplet contract enforcement: template alignment, cross-doc traceability, code verification. | active | standalone | 0.1.0 |
-| test-align-contract | Unified test harness for /align-feature-contract: Tier 1 smoke tests + Tier 2 end-to-end execution. | active | standalone | 0.1.0 |
-| skill-author | Guided skill authoring pipeline: scaffold, write, validate, version, and ship a new skill in one conversation. | experimental | standalone | 0.1.0 |
-| workflow | Dev workflow pipeline: track, implement, review, ship. Branch-aware routing with doc contract quality gates. | experimental | pipeline | 0.1.0 |
-| contracts | TODO: describe what this skill does | experimental | standalone | 0.1.0 |
+### Work Lifecycle Pipeline
 
-## Quick Start
+Structured feature development in 4 phases: track, implement, review, ship.
 
-```bash
-# Clone the repo
-git clone https://github.com/jcl2018/claude-skills-templates.git
-cd claude-skills-templates
+| Skill | What it does |
+|-------|-------------|
+| `/work` | Router. Detects your branch, shows where you are, suggests the next phase. |
+| `/work-track` | Create and manage work items. Scaffolds PRD + ARCHITECTURE + TEST-SPEC doc triplets. |
+| `/work-implement` | Structured implementation. Build-forward for features, debug-backward for defects. |
+| `/work-review` | Code review wrapper. Loads work item context, delegates to gstack `/review`. |
+| `/work-ship` | Ship wrapper. Validates TEST-SPEC acceptance criteria, delegates to gstack `/ship`. |
 
-# Validate the repo
-./scripts/validate.sh
+### Doc Contract Enforcement
 
-# Create a new skill
-./scripts/create-skill.sh my-new-skill
+| Skill | What it does |
+|-------|-------------|
+| `/align-feature-contract` | Validates PRD + ARCHITECTURE + TEST-SPEC against templates. Checks cross-doc traceability. |
+| `/test-align-contract` | Test harness for the contract enforcer. Tier 1 smoke + Tier 2 end-to-end. |
 
-# Run full test suite
-./scripts/test.sh
+### Tooling
+
+| Skill | What it does |
+|-------|-------------|
+| `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. |
+| `/skill-author` | Guided pipeline to create a new skill: intake, scaffold, author, validate, ship. |
+
+## Creating a New Skill
+
+```
+/skill-author my-new-skill
 ```
 
-## Installation
+Walks you through 5 stages:
 
-### As a Claude Code plugin
+1. **Intake** -- validate name, check for conflicts
+2. **Scaffold** -- create DESIGN.md, SKILL.md, CHANGELOG.md, catalog entry
+3. **Author** -- write the skill content (the creative part)
+4. **Check** -- validate frontmatter, lint content, run tests
+5. **Ship** -- version bump, hand off to `/ship` for commit + PR
+
+Or do it manually:
 
 ```bash
-claude plugin install claude-skills-templates@your-marketplace
-```
-
-### Via git clone
-
-```bash
-git clone https://github.com/jcl2018/claude-skills-templates.git
-claude --plugin-dir ./claude-skills-templates
+./scripts/skill-design.sh my-skill       # Create DESIGN.md
+./scripts/create-skill.sh my-skill       # Scaffold SKILL.md + catalog entry
+# ... write the skill ...
+./scripts/skill-check.sh my-skill        # Validate
+./scripts/skill-version.sh my-skill patch  # Bump version
+./scripts/skill-ship.sh my-skill         # Commit + tag
 ```
 
 ## Scripts
 
-| Script | Purpose | Exit code |
-|--------|---------|-----------|
-| `validate.sh` | Catalog-to-filesystem validation | 1 on error |
-| `test.sh` | Smoke tests (superset of validate) | 1 on failure |
-| `skill-design.sh` | Scaffold DESIGN.md for a new skill | 1 on error |
-| `create-skill.sh` | Scaffold SKILL.md + CHANGELOG.md + catalog entry | 1 on error |
-| `skill-check.sh` | Per-skill lifecycle validation | 1 on error |
-| `skill-version.sh` | Bump skill version (major/minor/patch) | 1 on error |
-| `skill-ship.sh` | Commit, tag, and ship a skill release | 1 on error |
-| `doctor.sh` | Skill health diagnostics | 0 (advisory) |
-| `lint-skill.sh` | Content-level skill linting | 0 (advisory) |
-| `deps.sh` | Dependency graph visualization | 0 (advisory) |
-| `generate-readme.sh` | Auto-generate this README | 1 on write failure |
-| `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
-| `setup-hooks.sh` | Install pre-commit hook | 0 |
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full authoring guide.
+| Script | Purpose |
+|--------|---------|
+| `setup.sh` | Bootstrap installer (clone + deploy symlinks) |
+| `skills-deploy` | Manage installed skills (install/remove/relink/doctor) |
+| `validate.sh` | Catalog-to-filesystem validation |
+| `test.sh` | Full test suite |
+| `test-deploy.sh` | Deploy pipeline tests |
+| `create-skill.sh` | Scaffold a new skill |
+| `skill-design.sh` | Scaffold DESIGN.md |
+| `skill-check.sh` | Per-skill validation |
+| `skill-version.sh` | Bump version (major/minor/patch) |
+| `skill-ship.sh` | Commit, tag, release |
+| `doctor.sh` | Skill health diagnostics |
+| `lint-skill.sh` | Content-level linting |
+| `deps.sh` | Dependency graph |
+| `generate-readme.sh` | Auto-generate skills table |
