@@ -11,10 +11,12 @@ Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench
 | work-implement | Structured implementation with root-cause debugging. Dual-mode: build-forward or debug-backward. | active | pipeline | 0.1.0 |
 | work-review | Phase 3: code review wrapper. Loads work item context, delegates to gstack /review. | active | pipeline | 0.1.0 |
 | work-ship | Phase 4: ship wrapper. Validates TEST-SPEC acceptance criteria, delegates to gstack /ship. | active | pipeline | 0.1.0 |
-| system-health | Unified health dashboard: config hygiene, governance checks, doc quality, deploy state. | active | standalone | 0.1.0 |
+| system-health | ~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene. | active | standalone | 0.2.0 |
 | align-feature-contract | Doc triplet contract enforcement: template alignment, cross-doc traceability, code verification. | active | standalone | 0.1.0 |
 | test-align-contract | Unified test harness for /align-feature-contract: Tier 1 smoke tests + Tier 2 end-to-end execution. | active | standalone | 0.1.0 |
 | skill-author | Guided skill authoring pipeline: scaffold, write, validate, version, and ship a new skill in one conversation. | experimental | standalone | 0.1.0 |
+| workflow | Dev workflow pipeline: track, implement, review, ship. Branch-aware routing with doc contract quality gates. | experimental | pipeline | 0.1.0 |
+| contracts | TODO: describe what this skill does | experimental | standalone | 0.1.0 |
 
 ## Quick Start
 

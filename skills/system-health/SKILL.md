@@ -1,259 +1,392 @@
 ---
 name: system-health
-description: "Unified health dashboard: Waza config hygiene (layers 1-6) + governance checks (layer 7) + doc quality (layer 8) + deploy state (layer 9). Replaces /project:audit."
-version: 0.1.0
+description: "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds a dependency graph, checks filesystem health, and optionally invokes waza for config hygiene. Produces a scored report with trend tracking."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
-  - Edit
   - Glob
   - Grep
-  - Skill
   - AskUserQuestion
 ---
 
-# /health — Unified Health Dashboard
+# /system-health — ~/.claude/ Health Dashboard
 
-9-layer health check for home-setup. Layers 1-6 come from Waza's config hygiene
-checks (inlined). Layers 7-9 are custom governance, doc quality, and deploy state.
+Checks the physical health of your `~/.claude/` folder. Scans all installed skills,
+builds a dependency graph, detects orphans and broken references, checks filesystem
+hygiene, and optionally invokes waza for config correctness.
 
-Replaces: /project:audit. Calls /align-feature-contract for doc triplet checks.
+**Not** a per-repo code quality check (that's gstack `/health`).
+**Not** a per-project config audit (that's waza `/health`).
+This is the filesystem and topology layer that sits between them.
 
 ## Usage
 
-- `/health` — full 9-layer audit
-- `/health --scope docs/<family>/` — doc triplet quality only (layer 8)
-- `/health --scope work-items/<slug>/` — work item quality (tracker + triplet)
-- `/health --layer config` — Waza config hygiene only (layers 1-6)
-- `/health --layer governance` — governance + deploy only (layers 7, 9)
-- `/health --layer docs` — doc quality only (layer 8)
+- `/system-health` — full health check with dependency graph
+- `/system-health --quick` — skip waza integration, filesystem checks only
 
-## Step 0: Parse arguments and detect scope
+## Step 0: Parse arguments
 
-Parse the user's invocation for `--scope <path>` and `--layer <name>` arguments.
-Default: all 9 layers, no scope restriction.
+Check if the user passed `--quick`. If so, skip Step 4 (waza integration).
 
-Valid `--layer` values: `config` (1-6), `governance` (7, 9), `docs` (8), `all` (1-9).
+## Step 1: Scan ~/.claude/
 
-If `--scope` is provided, only layer 8 checks run, scoped to that directory.
-
-## Step 1: Collect data (deterministic)
-
-Run the deterministic health checks script:
+Run a single consolidated bash command to collect all skill metadata and cross-references.
+This avoids 80-100+ sequential tool calls.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-bash "$REPO_ROOT/scripts/health-checks.sh"
+#!/usr/bin/env bash
+# Scan ~/.claude/ for skill metadata and cross-references
+set -euo pipefail
+shopt -s nullglob  # handle empty globs gracefully
+
+echo "=== SKILL INVENTORY ==="
+for d in ~/.claude/skills/*/; do
+  name=$(basename "$d")
+  echo "SKILL:$name"
+
+  # Frontmatter extraction
+  if [ -f "$d/SKILL.md" ]; then
+    sed -n '/^---$/,/^---$/p' "$d/SKILL.md" | grep -E '^(name|version|description):' | sed 's/^/  FM:/'
+  else
+    echo "  NO_SKILLMD"
+  fi
+
+  # Symlink check
+  if [ -L "$d" ]; then
+    target=$(readlink "$d")
+    echo "  SYMLINK:$target"
+    if [ -e "$d" ]; then
+      echo "  SYMLINK_OK"
+    else
+      echo "  SYMLINK_BROKEN"
+    fi
+  fi
+
+  # Cross-references: grep *.md and *.json only for skill references
+  grep -rh --include='*.md' --include='*.json' 'skills/[a-z0-9][-a-z0-9_]*' "$d" 2>/dev/null \
+    | grep -oE 'skills/[a-z0-9][-a-z0-9_]*' | sort -u | sed 's/^/  REF:/' || true
+done
+
+echo ""
+echo "=== SETTINGS ==="
+# Extract structural info only (no raw credentials)
+if [ -f ~/.claude/settings.json ]; then
+  echo "SETTINGS:settings.json"
+  if command -v jq >/dev/null 2>&1; then
+    echo "  HOOKS:$(jq -r '.hooks // {} | keys | join(",")' ~/.claude/settings.json 2>/dev/null || echo "none")"
+    echo "  MCP:$(jq -r '.mcpServers // {} | keys | join(",")' ~/.claude/settings.json 2>/dev/null || echo "none")"
+    echo "  PERMISSIONS:$(jq -r '.permissions // {} | keys | join(",")' ~/.claude/settings.json 2>/dev/null || echo "none")"
+  else
+    echo "  JQ_UNAVAILABLE"
+  fi
+else
+  echo "SETTINGS:MISSING"
+fi
+if [ -f ~/.claude/settings.local.json ]; then
+  echo "SETTINGS:settings.local.json"
+  if command -v jq >/dev/null 2>&1; then
+    echo "  HOOKS:$(jq -r '.hooks // {} | keys | join(",")' ~/.claude/settings.local.json 2>/dev/null || echo "none")"
+    echo "  MCP:$(jq -r '.mcpServers // {} | keys | join(",")' ~/.claude/settings.local.json 2>/dev/null || echo "none")"
+  else
+    echo "  JQ_UNAVAILABLE"
+  fi
+fi
+
+echo ""
+echo "=== RULES ==="
+if [ -d ~/.claude/rules ]; then
+  find ~/.claude/rules -name '*.md' -exec echo "RULE:{}" \;
+else
+  echo "NO_RULES_DIR"
+fi
+
+echo ""
+echo "=== TEMPLATES ==="
+if [ -d ~/.claude/templates ]; then
+  find ~/.claude/templates -type f -exec echo "TEMPLATE:{}" \;
+else
+  echo "NO_TEMPLATES_DIR"
+fi
 ```
 
-This produces structured output for layers 7 and 9. Capture and parse the results.
+Capture the full output. This is the raw data for Steps 2 and 3.
 
-## Step 2: Layers 1-6 — Config Hygiene (from Waza)
+## Step 2: Graph Analysis
 
-Skip if `--layer governance` or `--layer docs` or `--scope` is set.
-
-Run Waza's data collection to gather config state:
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-bash "$REPO_ROOT/skills/waza/health/scripts/collect-data.sh"
-```
-
-Then apply the 6-layer Waza rubric to the collected data:
-
-### Layer 1: CLAUDE.md Quality
-- Is it short and executable (not prose-heavy)?
-- Does it have build/test commands?
-- Are there nested CLAUDE.md conflicts (global vs local)?
-- Are there duplicate or conflicting rules between global and local?
-
-### Layer 2: Rules Structure
-- Are rules properly split by concern (not monolithic)?
-- Do rule `paths:` globs match at least one file?
-- Are language-specific rules in separate files?
-
-### Layer 3: Skills
-- Are skill descriptions under 12 words and trigger-specific?
-- Do all skills have valid SKILL.md frontmatter?
-- Are there orphan skills (installed but not in catalog)?
-
-### Layer 4: Hooks
-- Are hooks present if the project needs them?
-- Do configured hooks reference scripts that exist?
-- Are there dead hooks pointing to missing scripts?
-
-### Layer 5: Sub-agents
-- Are sub-agents properly configured (if used)?
-
-### Layer 6: Verifiers
-- MCP servers: are they configured and responsive?
-- settings.json: does it exist and validate?
-
-Score each layer 0-10. Aggregate as config hygiene score (35% weight).
-
-## Step 3: Layer 7 — Governance
-
-Skip if `--layer config` or `--layer docs` or `--scope` is set.
-
-Read the output from scripts/health-checks.sh for these checks:
-
-- **Upstream freshness:** Is gstack version current? Is Waza version current?
-- **Skill usage analytics:** Check `~/.gstack/analytics/skill-usage.jsonl` for unused skills
-- **Template coverage:** All artifact types in artifact-manifests.json have templates
-- **Contract coverage:** All active custom skills have entries in skill-contracts.json
-- **Principle alignment:** CLAUDE.md rules match the 5 active principles
-- **Contract validation:** Run `bash scripts/validate-skill-contracts.sh`
-- **CLI dependencies:** git, gh, jq, codex available?
-- **Commands non-empty:** All command .md files have content
-- **Overlapping scope:** No skill/rule duplication
-
-Score 0-10. Weight: 20%.
-
-## Step 4: Layer 8 — Doc Quality
-
-Skip if `--layer config` or `--layer governance` is set.
-
-If `--scope` is provided, run only on the scoped directory.
-Otherwise, discover all doc triplet families:
+Run a second bash command that takes the SKILL/REF lines from Step 1 and builds
+the dependency graph deterministically in awk/jq. Claude interprets results,
+does NOT compute them.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-for dir in "$REPO_ROOT"/docs/*/; do
-  [ -f "$dir/PRD.md" ] && [ -f "$dir/ARCHITECTURE.md" ] && [ -f "$dir/TEST-SPEC.md" ] && echo "TRIPLET: $dir"
+#!/usr/bin/env bash
+# Build dependency graph from scan output
+# Expects Step 1 output piped or stored in a variable
+set -euo pipefail
+shopt -s nullglob
+
+# Collect edges: for each skill, list what it references
+echo "=== ADJACENCY LIST ==="
+current=""
+for d in ~/.claude/skills/*/; do
+  name=$(basename "$d")
+  refs=$(grep -rh --include='*.md' --include='*.json' 'skills/[a-z0-9][-a-z0-9_]*' "$d" 2>/dev/null \
+    | grep -oE 'skills/[a-z0-9][-a-z0-9_]*' | sed 's|skills/||' | sort -u \
+    | while read ref; do
+        # Filter: only count if the referenced skill dir actually exists
+        [ -d "$HOME/.claude/skills/$ref" ] && [ "$ref" != "$name" ] && echo "$ref"
+      done | tr '\n' ',' | sed 's/,$//')
+  if [ -n "$refs" ]; then
+    echo "EDGE:$name -> $refs"
+  else
+    echo "EDGE:$name -> (none)"
+  fi
+done
+
+echo ""
+echo "=== IN-DEGREE ==="
+# Compute in-degree for each skill
+declare -A indeg 2>/dev/null || true
+for d in ~/.claude/skills/*/; do
+  target=$(basename "$d")
+  count=$(grep -rl --include='*.md' --include='*.json' "skills/$target" ~/.claude/skills/*/  2>/dev/null \
+    | grep -v "/$target/" | wc -l | tr -d ' ')
+  echo "INDEG:$target=$count"
+done
+
+echo ""
+echo "=== ORPHANS ==="
+# Skills with zero in-degree (never referenced by another skill)
+for d in ~/.claude/skills/*/; do
+  name=$(basename "$d")
+  count=$(grep -rl --include='*.md' --include='*.json' "skills/$name" ~/.claude/skills/*/ 2>/dev/null \
+    | grep -v "/$name/" | wc -l | tr -d ' ')
+  [ "$count" -eq 0 ] && echo "ORPHAN:$name"
+done
+
+echo ""
+echo "=== BROKEN SYMLINKS ==="
+find ~/.claude/skills/ -maxdepth 1 -type l ! -exec test -e {} \; -print 2>/dev/null \
+  | while read lnk; do
+      echo "BROKEN:$(basename "$lnk") -> $(readlink "$lnk")"
+    done
+
+echo ""
+echo "=== DEAD REFERENCES ==="
+# References to skills that don't exist
+for d in ~/.claude/skills/*/; do
+  name=$(basename "$d")
+  grep -rh --include='*.md' --include='*.json' 'skills/[a-z0-9][-a-z0-9_]*' "$d" 2>/dev/null \
+    | grep -oE 'skills/[a-z0-9][-a-z0-9_]*' | sed 's|skills/||' | sort -u \
+    | while read ref; do
+        [ ! -d "$HOME/.claude/skills/$ref" ] && echo "DEAD:$name references skills/$ref (not installed)"
+      done || true
 done
 ```
 
-For each family, evaluate 5 dimensions:
-- **Readability (1-5):** Clear, concise, jargon-free
-- **Completeness (1-5):** All sections filled, no placeholders
-- **Consistency (1-5):** Docs agree with each other
-- **Staleness:** Last updated vs recent commits in affected files
-- **Coverage (1-5):** P0 stories have tests, components have owners
+Analyze the output:
+1. **Hub nodes:** List the top 3 skills by in-degree. Any with in-degree > 5 = HIGH FRAGILITY.
+2. **Orphans:** Skills with zero in-degree. These are installed but nothing references them.
+   Note: some orphans are expected (top-level entry points like `office-hours`).
+3. **Broken symlinks:** Symlinks in skills/ that point to non-existent targets.
+4. **Dead references:** Skills that reference other skills that aren't installed.
+5. **Circular dependencies:** If the adjacency list shows A -> B and B -> A, flag it.
+   Best-effort detection in v0.2.0.
 
-Also check (from audit-spec.json governance pass):
-- Broken links in docs (G1.1)
-- CLAUDE.md layout tree vs actual repo (G1.2)
-- TODOS.md staleness >30 days (G1.5)
-- Factual claims vs current state (G2.1)
-- Doc lane compliance (G2.4)
-- Cross-doc consistency (G2.5)
-- Empty .md files (4.3)
-- Hardcoded counts (2.6, D9 rule)
+Present findings in a clear summary.
 
-Invoke `/align-feature-contract` on each triplet via the Skill tool for template
-alignment and cross-doc traceability checks.
+## Step 3: Filesystem Health
 
-If `--scope work-items/<slug>/` is set, also check:
-- Tracker frontmatter (required fields present)
-- Lifecycle section (4 phases with checkboxes)
-- Log non-empty
-- AC defined
-- Write findings to the work item's journal (preserves /work-audit behavior)
+Run filesystem health checks:
 
-Score 0-10. Weight: 25%.
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-## Step 5: Layer 9 — Deploy State
+echo "=== FILESYSTEM HEALTH ==="
 
-Skip if `--layer config` or `--layer docs` or `--scope` is set.
+# Disk usage per subdirectory
+echo "DISK USAGE:"
+du -sh ~/.claude/ 2>/dev/null | sed 's/^/  TOTAL:/'
+for subdir in skills plans file-history sessions session-env shell-snapshots ide cache downloads backups plugins projects spec tasks telemetry templates rules; do
+  [ -d "$HOME/.claude/$subdir" ] && du -sh "$HOME/.claude/$subdir" 2>/dev/null | sed "s/^/  $subdir:/"
+done
 
-Read the output from scripts/health-checks.sh for these checks:
+# history.jsonl
+echo ""
+echo "HISTORY:"
+if [ -f ~/.claude/history.jsonl ]; then
+  size=$(du -sh ~/.claude/history.jsonl 2>/dev/null | awk '{print $1}')
+  lines=$(wc -l < ~/.claude/history.jsonl 2>/dev/null | tr -d ' ')
+  echo "  SIZE:$size"
+  echo "  LINES:$lines"
+else
+  echo "  MISSING"
+fi
 
-- **Deploy drift:** `bash scripts/deploy.sh --dry-run` and diff against installed
-- **Skill sync:** Every skill in catalog is deployed to ~/.claude/skills/
-- **Bin scripts:** skills/bin/* scripts exist where expected
-- **Settings:** baseline + override match installed settings.json
-- **Orphan skills:** installed skill dirs not in catalog
-- **Stale sessions:** ~/.gstack/sessions files >24h old
-- **Temp files:** .tmp, .pending-*, .bak accumulation
-- **Oversized files:** >10MB detection
-- **Empty dirs:** incomplete cleanup
-- **~/.claude/ size:** disk usage tracking
-- **~/.gstack/ size:** working dir growth
-- **Analytics volume:** JSONL file growth
-- **Active sessions:** leaked process detection
-- **Memory files:** auto-memory accumulation
-- **settings.json exists:** must exist for Claude Code to work
-- **Repo status:** uncommitted changes (P11)
+# Stale sessions (mtime > 24h)
+echo ""
+echo "SESSIONS:"
+total=$(find ~/.claude/sessions/ -type f 2>/dev/null | wc -l | tr -d ' ')
+stale=$(find ~/.claude/sessions/ -type f -mtime +1 2>/dev/null | wc -l | tr -d ' ')
+echo "  TOTAL:$total"
+echo "  STALE:$stale"
 
-Score 0-10. Weight: 20%.
+# Temp files
+echo ""
+echo "TEMP FILES:"
+tmp_count=$(find ~/.claude/ -maxdepth 2 \( -name '*.tmp' -o -name '*.bak' -o -name '.pending-*' \) 2>/dev/null | wc -l | tr -d ' ')
+echo "  COUNT:$tmp_count"
 
-## Step 6: Score and Dashboard
+# Empty directories
+echo ""
+echo "EMPTY DIRS:"
+find ~/.claude/ -maxdepth 2 -type d -empty 2>/dev/null | wc -l | tr -d ' ' | sed 's/^/  COUNT:/'
 
-Compute weighted composite score:
+# Settings files exist
+echo ""
+echo "CONFIG FILES:"
+[ -f ~/.claude/settings.json ] && echo "  settings.json:OK" || echo "  settings.json:MISSING"
+[ -f ~/.claude/settings.local.json ] && echo "  settings.local.json:OK" || echo "  settings.local.json:MISSING"
+```
 
-| Layer Group | Layers | Weight |
-|-------------|--------|--------|
-| Config hygiene | 1-6 | 35% |
-| Governance | 7 | 20% |
-| Doc quality | 8 | 25% |
-| Deploy state | 9 | 20% |
+## Step 4: Waza Integration (optional, unscored)
 
-If a layer group was skipped (via --layer or --scope), redistribute weight
-proportionally among remaining groups.
+Skip this step if `--quick` was passed or if waza is not installed.
 
-Present results:
+```bash
+if [ -f ~/.claude/skills/waza/health/scripts/collect-data.sh ]; then
+  echo "WAZA_AVAILABLE"
+else
+  echo "WAZA_NOT_INSTALLED"
+fi
+```
+
+If available, run waza's data collection:
+
+```bash
+bash ~/.claude/skills/waza/health/scripts/collect-data.sh
+```
+
+Include the output as an **unscored appendix** in the report. Do NOT fold waza's
+findings into the scored composite. Waza output is CWD-dependent (reflects the
+current project's config, not ~/.claude/ globally), so including it in the trend
+score would make scores fluctuate based on which directory the user runs from.
+
+If waza is not installed: "Waza not installed. Config hygiene checks skipped.
+Install waza for config correctness auditing."
+
+## Step 5: Score + Trend
+
+Score across 4 buckets (each 0-10). Waza is excluded from the scored composite.
+
+| Bucket | What it measures | Weight | Calibration |
+|--------|-----------------|--------|-------------|
+| Structure | Proper skill organization | 25% | 10 = all skills have SKILL.md with name+version+description; 7 = 1-3 missing version; 4 = 5+ missing SKILL.md |
+| References | No dead refs, no circulars | 35% | 10 = zero dead refs, zero orphans worth flagging; 7 = 1-2 orphans only; 4 = 3+ dead refs or circulars |
+| Integrity | No broken symlinks | 25% | 10 = zero broken symlinks; 7 = 1 broken; 4 = 3+ broken or unreadable SKILL.md |
+| Hygiene | No stale sessions, temp files | 15% | 10 = zero stale sessions, history.jsonl < 1MB; 7 = some stale; 4 = history > 10MB or 50+ stale |
+
+Compute composite: `(Structure * 0.25) + (References * 0.35) + (Integrity * 0.25) + (Hygiene * 0.15)`
+
+**Trend tracking:** Save a snapshot after scoring:
+
+```bash
+mkdir -p ~/.gstack/health
+SNAPSHOT='{"ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","score":SCORE,"structure":S,"references":R,"integrity":I,"hygiene":H,"skills":N}'
+echo "$SNAPSHOT" >> ~/.gstack/health/claude-home-health-history.jsonl
+```
+
+Replace SCORE, S, R, I, H, N with actual values.
+
+If prior history exists, show delta:
+
+```bash
+if [ -f ~/.gstack/health/claude-home-health-history.jsonl ]; then
+  PREV=$(tail -2 ~/.gstack/health/claude-home-health-history.jsonl | head -1 | jq -r '.score' 2>/dev/null || echo "")
+  [ -n "$PREV" ] && echo "PREVIOUS_SCORE:$PREV" || echo "FIRST_RUN"
+else
+  echo "FIRST_RUN"
+fi
+```
+
+If `jq` fails to parse (corrupt JSONL), fall back to "First run (no prior data)."
+
+## Step 6: Present Dashboard
+
+Present the final report in this format:
 
 ```
-UNIFIED HEALTH DASHBOARD
-========================
+~/.CLAUDE HEALTH DASHBOARD
+===========================
 
-Project: home-setup
-Branch:  {branch}
 Date:    {date}
+Skills:  {N} installed
+Score:   {X.X} / 10 {(up/down Y.Y from last run) or (first run)}
 
-Layer Group      Layers    Score   Status     Details
------------      ------    -----   ------     -------
-Config hygiene   1-6       8/10    WARNING    2 rule scope issues
-Governance       7         9/10    WARNING    1 unused skill
-Doc quality      8         7/10    WARNING    infrastructure staleness
-Deploy state     9         10/10   CLEAN      Zero drift
+Bucket         Score   Status     Details
+------         -----   ------     -------
+Structure      X/10    STATUS     {details}
+References     X/10    STATUS     {details}
+Integrity      X/10    STATUS     {details}
+Hygiene        X/10    STATUS     {details}
 
-COMPOSITE SCORE: 8.3 / 10
+DEPENDENCY GRAPH
+=================
+Hubs:    {top 3 by in-degree}
+Orphans: {list or "none"}
+Dead refs: {count and details or "none"}
+Broken symlinks: {list or "none"}
+Circular deps: {list or "none detected"}
 
-Per-family doc quality:
-  align-feature-contract  4.8/5
-  audit                   5.0/5
-  infrastructure          4.0/5
-  upstream-skills          5.0/5
-  work-pipeline           4.4/5
+FILESYSTEM
+===========
+Total size: {du output}
+  {per-subdirectory breakdown}
+History: {size, line count}
+Sessions: {total active, stale count}
+Temp files: {count}
+
+{If waza ran:}
+WAZA CONFIG HEALTH (unscored, CWD-dependent)
+=============================================
+{waza output verbatim}
 ```
 
 Status labels: 10 = CLEAN, 7-9 = WARNING, 4-6 = NEEDS WORK, 0-3 = CRITICAL.
 
-## Step 7: Persist and Trend
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
-```
-
-Append one JSONL line to `~/.gstack/projects/$SLUG/health-history.jsonl`:
-
-```json
-{"ts":"ISO8601","branch":"main","score":8.3,"config":8,"governance":9,"docs":7,"deploy":10,"duration_s":N}
-```
-
-If prior entries exist, show trend (last 5 runs).
-
-## Step 8: Recommendations
+## Step 7: Recommendations
 
 List top issues by impact (weight * score deficit), highest first:
 
 ```
-RECOMMENDATIONS (by impact)
-============================
-1. [HIGH] Fix 2 rule scope issues (Config: 8/10, weight 35%)
-2. [MED]  Address infrastructure doc staleness (Docs: 7/10, weight 25%)
-3. [LOW]  Remove 1 unused skill (Governance: 9/10, weight 20%)
+RECOMMENDATIONS
+================
+1. [HIGH] {description} ({bucket}: {score}/10, weight {weight}%)
+2. [MED]  {description}
+3. [LOW]  {description}
 ```
 
-Save a snapshot to `docs/inspections/health-{date}.md`.
+If all buckets score 9+, print: "Your ~/.claude/ setup looks healthy. No action needed."
 
 ## Rules
 
-- **Read-only by default.** Report findings, don't auto-fix.
-- **Deterministic checks in bash.** scripts/health-checks.sh handles file existence,
-  version comparison, deploy drift. The SKILL.md handles analysis and scoring.
-- **Delegate doc triplet checks.** Call /align-feature-contract, don't duplicate its logic.
-- **Preserve journal-writing.** When --scope targets a work item, write findings to its journal.
-- **audit-spec.json is source of truth.** The 38 checks defined there map to layers 7-9.
-  When audit-spec.json changes, update the checks in this skill accordingly.
+- **Read-only.** Report findings, do not fix anything automatically.
+- **No raw credentials.** Never dump settings.json or settings.local.json in full.
+  Extract structural keys only (hook names, MCP server names, permission patterns).
+- **Graph computation in bash.** Adjacency lists, in-degree, orphan detection, and
+  broken symlink detection are all done in bash. Claude interprets the structured
+  output and presents findings. Claude does NOT perform graph algorithms mentally.
+- **Waza is unscored.** Waza output appears as an appendix but does not affect the
+  composite score. This is because waza's output is CWD-dependent.
+- **Graceful degradation.** If waza is missing, skip it with a message. If jq is
+  missing, skip structural settings extraction. If history is corrupt, treat as first run.
+
+## Breaking Changes from v0.1.0
+
+- `--scope` flag removed. The old `--scope docs/<family>/` targeted home-setup's
+  doc families. This skill now targets ~/.claude/ globally. Use `/align-feature-contract`
+  for doc triplet checks instead.
+- `--layer` flag removed. The 9-layer model is replaced by a 5-step architecture
+  with 4 scored buckets.
+- Waza integration is now an unscored appendix, not a scored layer.
