@@ -1,0 +1,5 @@
+# Changelog: test-align-contract
+
+## [0.1.0] - 2026-04-10
+### Added
+- Initial version (retroactively documented)

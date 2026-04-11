@@ -1,6 +1,7 @@
 ---
 name: work-review
 description: "Phase 3: code review wrapper. Loads work item context, writes journal entry, delegates to gstack /review."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

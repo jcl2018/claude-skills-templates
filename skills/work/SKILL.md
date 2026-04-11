@@ -1,6 +1,7 @@
 ---
 name: work
 description: "Work item router: auto-detect from branch, show menu, suggest phase skill. No mutations."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read

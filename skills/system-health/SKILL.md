@@ -1,6 +1,7 @@
 ---
 name: system-health
 description: "Unified health dashboard: Waza config hygiene (layers 1-6) + governance checks (layer 7) + doc quality (layer 8) + deploy state (layer 9). Replaces /project:audit."
+version: 0.1.0
 allowed-tools:
   - Bash
   - Read
