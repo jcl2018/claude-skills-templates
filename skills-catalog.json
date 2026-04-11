@@ -5,11 +5,18 @@
     "description": "Work item router: auto-detect from branch, show menu, suggest phase skill. No mutations.",
     "source": "local",
     "depends": {
-      "skills": ["work-track", "work-implement", "work-review", "work-ship"],
+      "skills": [
+        "work-track",
+        "work-implement",
+        "work-review",
+        "work-ship"
+      ],
       "tools": []
     },
     "portability": "pipeline",
-    "files": ["skills/work/SKILL.md"],
+    "files": [
+      "skills/work/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
   },
@@ -20,11 +27,20 @@
     "source": "local",
     "depends": {
       "skills": [],
-      "tools": ["jq"]
+      "tools": [
+        "jq"
+      ]
     },
     "portability": "pipeline",
-    "files": ["skills/work-track/SKILL.md"],
-    "templates": ["doc-PRD.md", "doc-ARCHITECTURE.md", "doc-TEST-SPEC.md", "tracker-feature.md"],
+    "files": [
+      "skills/work-track/SKILL.md"
+    ],
+    "templates": [
+      "doc-PRD.md",
+      "doc-ARCHITECTURE.md",
+      "doc-TEST-SPEC.md",
+      "tracker-feature.md"
+    ],
     "status": "active"
   },
   {
@@ -37,7 +53,9 @@
       "tools": []
     },
     "portability": "pipeline",
-    "files": ["skills/work-implement/SKILL.md"],
+    "files": [
+      "skills/work-implement/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
   },
@@ -51,7 +69,9 @@
       "tools": []
     },
     "portability": "pipeline",
-    "files": ["skills/work-review/SKILL.md"],
+    "files": [
+      "skills/work-review/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
   },
@@ -65,7 +85,9 @@
       "tools": []
     },
     "portability": "pipeline",
-    "files": ["skills/work-ship/SKILL.md"],
+    "files": [
+      "skills/work-ship/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
   },
@@ -79,7 +101,9 @@
       "tools": []
     },
     "portability": "standalone",
-    "files": ["skills/system-health/SKILL.md"],
+    "files": [
+      "skills/system-health/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
   },
@@ -102,7 +126,11 @@
       "skills/align-feature-contract/architecture-GENERATION-GUIDE.md",
       "skills/align-feature-contract/test-spec-GENERATION-GUIDE.md"
     ],
-    "templates": ["doc-PRD.md", "doc-ARCHITECTURE.md", "doc-TEST-SPEC.md"],
+    "templates": [
+      "doc-PRD.md",
+      "doc-ARCHITECTURE.md",
+      "doc-TEST-SPEC.md"
+    ],
     "status": "active"
   },
   {
@@ -111,12 +139,37 @@
     "description": "Unified test harness for /align-feature-contract: Tier 1 smoke tests + Tier 2 end-to-end execution.",
     "source": "local",
     "depends": {
-      "skills": ["align-feature-contract"],
+      "skills": [
+        "align-feature-contract"
+      ],
       "tools": []
     },
     "portability": "standalone",
-    "files": ["skills/test-align-contract/SKILL.md"],
+    "files": [
+      "skills/test-align-contract/SKILL.md"
+    ],
     "templates": [],
     "status": "active"
+  },
+  {
+    "name": "skill-author",
+    "version": "0.1.0",
+    "description": "Guided skill authoring pipeline: scaffold, write, validate, version, and ship a new skill in one conversation.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "jq",
+        "git"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/skill-author/SKILL.md"
+    ],
+    "templates": [
+      "doc-SKILL-DESIGN.md"
+    ],
+    "status": "experimental"
   }
 ]
