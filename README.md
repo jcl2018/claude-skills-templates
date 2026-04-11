@@ -1,6 +1,6 @@
 # claude-skills-templates
 
-Custom skills and development tooling for Claude Code. Work lifecycle pipeline, doc contract enforcement, system health monitoring, and a skill authoring pipeline.
+Custom skills, templates, and development tooling for Claude Code. Doc-first development templates, doc intelligence, system health monitoring, and a skill authoring pipeline.
 
 ## Install
 
@@ -19,31 +19,24 @@ This symlinks all skills into `~/.claude/skills/` so Claude Code discovers them 
 ./scripts/skills-deploy doctor               # Check health
 ```
 
+## Templates
+
+Doc-first development templates for structured work tracking. Create work items with type-aware artifact sets via CLAUDE.md rules (no skill needed).
+
+| Type | Artifacts |
+|------|-----------|
+| Feature | TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones |
+| Defect | TRACKER + RCA + test-plan |
+| Task | TRACKER + test-plan |
+| User Story | TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones |
+
+See `artifact-manifests.json` for the canonical type-to-artifact mapping.
+
 ## Skills
 
-### Work Lifecycle Pipeline
-
-Structured feature development in 4 phases: track, implement, review, ship.
-
 | Skill | What it does |
 |-------|-------------|
-| `/work` | Router. Detects your branch, shows where you are, suggests the next phase. |
-| `/work-track` | Create and manage work items. Scaffolds PRD + ARCHITECTURE + TEST-SPEC doc triplets. |
-| `/work-implement` | Structured implementation. Build-forward for features, debug-backward for defects. |
-| `/work-review` | Code review wrapper. Loads work item context, delegates to gstack `/review`. |
-| `/work-ship` | Ship wrapper. Validates TEST-SPEC acceptance criteria, delegates to gstack `/ship`. |
-
-### Doc Contract Enforcement
-
-| Skill | What it does |
-|-------|-------------|
-| `/align-feature-contract` | Validates PRD + ARCHITECTURE + TEST-SPEC against templates. Checks cross-doc traceability. |
-| `/test-align-contract` | Test harness for the contract enforcer. Tier 1 smoke + Tier 2 end-to-end. |
-
-### Tooling
-
-| Skill | What it does |
-|-------|-------------|
+| `/docs` | Doc intelligence. Generates narrative docs (PHILOSOPHY.md, OVERVIEW.md) with claims sidecar for staleness detection. |
 | `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. |
 | `/skill-author` | Guided pipeline to create a new skill: intake, scaffold, author, validate, ship. |
 

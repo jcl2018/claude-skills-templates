@@ -50,8 +50,8 @@ synthesizes a narrative that captures design intent, tradeoffs, and philosophy. 
 claims sidecar (`.docs/claims.json`) maps each doc section to its code evidence, so
 `/docs check` can tell you exactly which sections went stale after code changes.
 
-This is NOT a format checker (that's `/contracts`) or a post-ship doc updater (that's
-`/document-release`). This generates the "why" docs that neither of those tools produce.
+This is NOT a post-ship doc updater (that's `/document-release`). This generates the
+"why" docs that post-ship updates don't produce.
 
 ## Subcommand Routing
 

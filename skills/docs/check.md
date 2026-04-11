@@ -72,12 +72,12 @@ If multiple docs reference a version number (e.g., in frontmatter `version:` fie
 check they agree. Flag conflicts.
 
 **4c. References to deleted files/functions:**
-If docs reference specific file paths (e.g., `skills/contracts/SKILL.md`) or function
+If docs reference specific file paths (e.g., `skills/docs/SKILL.md`) or function
 names, check they still exist via Glob/Grep. Flag references to missing targets.
 
 ## Step 5: Output Report
 
-Format the report to match the `/contracts check` output style:
+Format the report as a structured staleness check:
 
 ```
 === /docs check ===
