@@ -124,8 +124,22 @@ echo "Integration test: create-skill.sh scaffold cycle..."
 
 # Backup catalog for safe restore
 cp "$CATALOG" "/tmp/catalog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$"' EXIT
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true' EXIT
 
+# Step 1: scaffold DESIGN.md first (required by lifecycle pipeline)
+if "$REPO_ROOT/scripts/skill-design.sh" zzz-test-scaffold >/dev/null 2>&1; then
+  ok "skill-design.sh scaffolded DESIGN.md"
+else
+  fail_test "skill-design.sh failed to scaffold DESIGN.md"
+fi
+
+# Fill in required DESIGN.md sections so skill-check passes
+sed -i '' 's/What problem does this skill solve.*/Test skill for integration testing/' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md" 2>/dev/null || \
+sed -i 's/What problem does this skill solve.*/Test skill for integration testing/' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md"
+sed -i '' 's/What does the skill do, step by step.*/Runs integration tests./' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md" 2>/dev/null || \
+sed -i 's/What does the skill do, step by step.*/Runs integration tests./' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md"
+
+# Step 2: scaffold SKILL.md + CHANGELOG.md
 if "$REPO_ROOT/scripts/create-skill.sh" zzz-test-scaffold >/dev/null 2>&1; then
   ok "create-skill.sh scaffolded zzz-test-scaffold"
 
@@ -134,6 +148,13 @@ if "$REPO_ROOT/scripts/create-skill.sh" zzz-test-scaffold >/dev/null 2>&1; then
     ok "validate.sh passes with scaffolded skill"
   else
     fail_test "validate.sh fails after scaffolding zzz-test-scaffold"
+  fi
+
+  # Step 3: skill-check should pass
+  if "$REPO_ROOT/scripts/skill-check.sh" zzz-test-scaffold >/dev/null 2>&1; then
+    ok "skill-check.sh passes for scaffolded skill"
+  else
+    fail_test "skill-check.sh fails for scaffolded skill"
   fi
 else
   fail_test "create-skill.sh failed to scaffold zzz-test-scaffold"
