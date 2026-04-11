@@ -1,0 +1,370 @@
+#!/usr/bin/env bash
+# skills-deploy — install, remove, relink, and diagnose skills from this repo.
+# Usage: skills-deploy <install|remove|relink|doctor> [options]
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CATALOG="$REPO_ROOT/skills-catalog.json"
+SKILLS_SRC="$REPO_ROOT/skills"
+SKILLS_TARGET="${SKILLS_DEPLOY_TARGET:-$HOME/.claude/skills}"
+MANIFEST="${SKILLS_DEPLOY_MANIFEST:-$HOME/.claude/.skills-templates.json}"
+
+# --- helpers ---
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required" >&2; exit 1; }
+}
+
+manifest_read() {
+  [ -f "$MANIFEST" ] && cat "$MANIFEST" || echo '{}'
+}
+
+manifest_write() {
+  local tmp
+  tmp=$(mktemp "${MANIFEST}.tmp.XXXXXX")
+  cat > "$tmp"
+  mv "$tmp" "$MANIFEST"
+}
+
+# List all skill dirs in the repo that have SKILL.md
+discover_skills() {
+  for d in "$SKILLS_SRC"/*/; do
+    [ -f "$d/SKILL.md" ] && basename "$d"
+  done
+}
+
+# Read skill dependencies from catalog
+skill_deps() {
+  local name="$1"
+  [ -f "$CATALOG" ] || return 0
+  jq -r --arg n "$name" '.[] | select(.name == $n) | .depends.skills // [] | .[]' "$CATALOG" 2>/dev/null || true
+}
+
+# Check who owns a skill directory
+skill_owner() {
+  local name="$1" target="$SKILLS_TARGET/$name/SKILL.md"
+  if [ ! -e "$SKILLS_TARGET/$name" ]; then
+    echo "none"
+  elif [ -L "$target" ]; then
+    local link
+    link=$(readlink "$target" 2>/dev/null || true)
+    case "$link" in
+      */skills/gstack/*) echo "gstack" ;;
+      "$REPO_ROOT"/*|"$HOME/.claude/skills-templates/"*) echo "ours" ;;
+      *) echo "other" ;;
+    esac
+  else
+    echo "manual"
+  fi
+}
+
+# Reverse dependencies: skills that depend on $1
+reverse_deps() {
+  local name="$1"
+  [ -f "$CATALOG" ] || return 0
+  jq -r --arg n "$name" '.[] | select(.depends.skills // [] | index($n)) | .name' "$CATALOG" 2>/dev/null || true
+}
+
+# --- install ---
+
+do_install() {
+  require_jq
+  local skills=()
+  if [ $# -gt 0 ]; then
+    skills=("$@")
+    # Resolve dependencies
+    local resolved=()
+    for s in "${skills[@]}"; do
+      for dep in $(skill_deps "$s"); do
+        # Add dep if not already in list
+        local found=0
+        for r in "${resolved[@]+"${resolved[@]}"}"; do [ "$r" = "$dep" ] && found=1; done
+        [ "$found" -eq 0 ] && resolved+=("$dep")
+      done
+      resolved+=("$s")
+    done
+    skills=("${resolved[@]}")
+  else
+    while IFS= read -r s; do skills+=("$s"); done < <(discover_skills)
+  fi
+
+  local manifest installed=0 skipped=0 migrated=0
+  manifest=$(manifest_read)
+
+  for name in "${skills[@]}"; do
+    local src="$SKILLS_SRC/$name"
+    if [ ! -d "$src" ]; then
+      echo "  SKIP: $name not found in repo" >&2
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    local owner
+    owner=$(skill_owner "$name")
+
+    case "$owner" in
+      gstack)
+        echo "  SKIP: $name is owned by gstack"
+        skipped=$((skipped + 1))
+        continue
+        ;;
+      other)
+        echo "  SKIP: $name is owned by another tool"
+        skipped=$((skipped + 1))
+        continue
+        ;;
+      manual)
+        # Migration: check if files match repo
+        local dominated=true
+        for f in "$SKILLS_TARGET/$name"/*.md; do
+          [ -f "$f" ] || continue
+          local fname
+          fname=$(basename "$f")
+          if [ -f "$src/$fname" ]; then
+            if ! diff -q "$f" "$src/$fname" >/dev/null 2>&1; then
+              echo "  WARN: $name/$fname has local modifications, skipping migration"
+              dominated=false
+              break
+            fi
+          fi
+        done
+        if [ "$dominated" = false ]; then
+          skipped=$((skipped + 1))
+          continue
+        fi
+        echo "  MIGRATE: $name (flat copy -> symlinks)"
+        migrated=$((migrated + 1))
+        # Remove old files, recreate as symlinks below
+        rm -f "$SKILLS_TARGET/$name"/*.md 2>/dev/null || true
+        ;;
+      ours)
+        # Update existing symlinks
+        ;;
+      none)
+        mkdir -p "$SKILLS_TARGET/$name"
+        ;;
+    esac
+
+    # Symlink all .md files from source
+    for f in "$src"/*.md; do
+      [ -f "$f" ] || continue
+      local fname
+      fname=$(basename "$f")
+      # Skip dev-only files
+      case "$fname" in CHANGELOG.md|DESIGN.md) continue ;; esac
+      ln -snf "$f" "$SKILLS_TARGET/$name/$fname"
+    done
+
+    manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "skills/$name/SKILL.md" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '.skills[$n] = {path: $p, installed_at: $t}')
+    installed=$((installed + 1))
+  done
+
+  # Write manifest
+  echo "$manifest" | jq --arg s "$REPO_ROOT" --arg r "jcl2018/claude-skills-templates" \
+    --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+    --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '. + {source: $s, repo: $r, commit: $c, installed_at: $t}' | manifest_write
+
+  echo ""
+  echo "Installed: $installed  Migrated: $migrated  Skipped: $skipped"
+}
+
+# --- remove ---
+
+do_remove() {
+  require_jq
+  local force=false
+  local skills=()
+
+  for arg in "$@"; do
+    case "$arg" in
+      --all) while IFS= read -r s; do skills+=("$s"); done < <(manifest_read | jq -r '.skills // {} | keys[]'); continue ;;
+      --force) force=true; continue ;;
+      *) skills+=("$arg") ;;
+    esac
+  done
+
+  if [ ${#skills[@]} -eq 0 ]; then
+    echo "ERROR: specify skill names or --all" >&2
+    echo "Usage: skills-deploy remove <skill...> [--force]" >&2
+    echo "       skills-deploy remove --all [--force]" >&2
+    exit 1
+  fi
+
+  local manifest removed=0
+  manifest=$(manifest_read)
+
+  for name in "${skills[@]}"; do
+    # Check reverse dependencies
+    if [ "$force" = false ]; then
+      for rdep in $(reverse_deps "$name"); do
+        if echo "$manifest" | jq -e --arg n "$rdep" '.skills[$n]' >/dev/null 2>&1; then
+          echo "  WARN: $name is required by $rdep (installed). Use --force to remove anyway."
+          continue 2
+        fi
+      done
+    fi
+
+    # Verify ownership before removing
+    local owner
+    owner=$(skill_owner "$name")
+    if [ "$owner" != "ours" ]; then
+      echo "  SKIP: $name is not owned by this repo (owner: $owner)"
+      continue
+    fi
+
+    # Remove symlinks only (not regular files)
+    for f in "$SKILLS_TARGET/$name"/*.md; do
+      [ -L "$f" ] && rm -f "$f"
+    done
+    rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+
+    manifest=$(echo "$manifest" | jq --arg n "$name" 'del(.skills[$n])')
+    removed=$((removed + 1))
+  done
+
+  # Write manifest or remove if empty
+  local remaining
+  remaining=$(echo "$manifest" | jq '.skills // {} | length')
+  if [ "$remaining" -eq 0 ]; then
+    rm -f "$MANIFEST"
+    echo "Removed: $removed (manifest cleaned up)"
+  else
+    echo "$manifest" | manifest_write
+    echo "Removed: $removed"
+  fi
+}
+
+# --- relink ---
+
+do_relink() {
+  require_jq
+  local manifest fixed=0 ok=0
+  manifest=$(manifest_read)
+
+  if [ "$(echo "$manifest" | jq '.skills // {} | length')" -eq 0 ]; then
+    echo "No skills in manifest. Run 'skills-deploy install' first."
+    return
+  fi
+
+  local source
+  source=$(echo "$manifest" | jq -r '.source // ""')
+
+  for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
+    local src="$source/skills/$name"
+    if [ ! -d "$src" ]; then
+      echo "  WARN: $name source missing at $src"
+      continue
+    fi
+
+    mkdir -p "$SKILLS_TARGET/$name"
+    for f in "$src"/*.md; do
+      [ -f "$f" ] || continue
+      local fname
+      fname=$(basename "$f")
+      case "$fname" in CHANGELOG.md|DESIGN.md) continue ;; esac
+      local target="$SKILLS_TARGET/$name/$fname"
+      if [ -L "$target" ] && [ "$(readlink "$target")" = "$f" ]; then
+        ok=$((ok + 1))
+      else
+        ln -snf "$f" "$target"
+        fixed=$((fixed + 1))
+      fi
+    done
+  done
+
+  echo "Relinked: $fixed fixed, $ok already correct"
+}
+
+# --- doctor ---
+
+do_doctor() {
+  require_jq
+  local errors=0 warnings=0
+
+  if [ ! -f "$MANIFEST" ]; then
+    echo "No manifest found at $MANIFEST"
+    echo "Run 'skills-deploy install' to create one."
+    return
+  fi
+
+  local manifest
+  manifest=$(cat "$MANIFEST")
+  local source
+  source=$(echo "$manifest" | jq -r '.source // ""')
+
+  echo "=== skills-deploy doctor ==="
+  echo "Source: $source"
+  echo "Manifest: $MANIFEST"
+  echo ""
+
+  # Check each installed skill
+  for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
+    local src="$source/skills/$name"
+    local target_dir="$SKILLS_TARGET/$name"
+    local skill_md="$target_dir/SKILL.md"
+
+    if [ ! -d "$target_dir" ]; then
+      echo "  FAIL: $name — target directory missing"
+      errors=$((errors + 1))
+    elif [ ! -L "$skill_md" ]; then
+      echo "  WARN: $name — SKILL.md is not a symlink"
+      warnings=$((warnings + 1))
+    elif [ ! -e "$skill_md" ]; then
+      echo "  FAIL: $name — broken symlink"
+      errors=$((errors + 1))
+    elif [ ! -d "$src" ]; then
+      echo "  WARN: $name — source directory missing in repo"
+      warnings=$((warnings + 1))
+    else
+      echo "  OK: $name"
+    fi
+  done
+
+  # Check for orphans (symlinks to our repo not in manifest)
+  echo ""
+  for d in "$SKILLS_TARGET"/*/; do
+    [ -d "$d" ] || continue
+    local name
+    name=$(basename "$d")
+    local skill_md="$d/SKILL.md"
+    if [ -L "$skill_md" ]; then
+      local link
+      link=$(readlink "$skill_md" 2>/dev/null || true)
+      if [[ "$link" == "$source"/* ]] || [[ "$link" == "$REPO_ROOT"/* ]]; then
+        if ! echo "$manifest" | jq -e --arg n "$name" '.skills[$n]' >/dev/null 2>&1; then
+          echo "  ORPHAN: $name — symlinks to our repo but not in manifest"
+          warnings=$((warnings + 1))
+        fi
+      fi
+    fi
+  done
+
+  echo ""
+  if [ "$errors" -eq 0 ] && [ "$warnings" -eq 0 ]; then
+    echo "Health: OK ($(echo "$manifest" | jq '.skills | length') skills installed)"
+  else
+    echo "Health: $errors errors, $warnings warnings"
+  fi
+}
+
+# --- main ---
+
+case "${1:-}" in
+  install) shift; do_install "$@" ;;
+  remove)  shift; do_remove "$@" ;;
+  relink)  do_relink ;;
+  doctor)  do_doctor ;;
+  *)
+    echo "Usage: skills-deploy <install|remove|relink|doctor> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  install [skill...]    Install skills (all if none specified)"
+    echo "  remove <skill...>     Remove specific skills (--all for all, --force to skip dep check)"
+    echo "  relink                Repair broken/missing symlinks"
+    echo "  doctor                Check installation health"
+    exit 1
+    ;;
+esac
