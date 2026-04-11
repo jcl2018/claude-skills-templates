@@ -1,8 +1,8 @@
 [
   {
     "name": "system-health",
-    "version": "0.2.0",
-    "description": "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene.",
+    "version": "0.3.0",
+    "description": "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, invokes waza for config hygiene.",
     "source": "local",
     "depends": {
       "skills": [],
