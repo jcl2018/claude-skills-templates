@@ -6,9 +6,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CATALOG="$REPO_ROOT/skills-catalog.json"
-SKILLS_DIR="$REPO_ROOT/skills"
-TEMPLATES_DIR="$REPO_ROOT/templates"
-DOCS_DIR="$REPO_ROOT/docs"
+SKILLS_DIR="$REPO_ROOT/skills"       # used by sourcing scripts
+TEMPLATES_DIR="$REPO_ROOT/templates" # used by sourcing scripts
+DOCS_DIR="$REPO_ROOT/docs"           # used by sourcing scripts
+export SKILLS_DIR TEMPLATES_DIR DOCS_DIR
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
@@ -56,6 +57,44 @@ validate_version_string() {
     echo "ERROR: invalid version format: '$version' (expected X.Y.Z)" >&2
     return 1
   fi
+}
+
+VERSION_FILE="${COLLECTION_VERSION_FILE:-$REPO_ROOT/VERSION}"
+
+# Read VERSION file, trimming whitespace
+read_version() {
+  [ -f "$VERSION_FILE" ] || {
+    echo "ERROR: VERSION file not found at $VERSION_FILE" >&2
+    echo "  Fix: create it with a semver string, e.g. echo '0.1.0' > $VERSION_FILE" >&2
+    return 1
+  }
+  local ver
+  ver=$(tr -d '[:space:]' < "$VERSION_FILE")
+  [ -n "$ver" ] || {
+    echo "ERROR: VERSION file is empty" >&2
+    echo "  Fix: write a semver string, e.g. echo '0.1.0' > $VERSION_FILE" >&2
+    return 1
+  }
+  echo "$ver"
+}
+
+# SHA256 of a file (portable: macOS shasum, Linux sha256sum)
+file_checksum() {
+  (shasum -a 256 "$1" 2>/dev/null || sha256sum "$1" 2>/dev/null) | awk '{print $1}'
+}
+
+# Compare two semver strings: returns 0 if $1 >= $2
+version_gte() {
+  local a1 a2 a3 b1 b2 b3
+  IFS='.' read -r a1 a2 a3 <<< "$1"
+  IFS='.' read -r b1 b2 b3 <<< "$2"
+  if [ "${a1:-0}" -gt "${b1:-0}" ]; then return 0; fi
+  if [ "${a1:-0}" -lt "${b1:-0}" ]; then return 1; fi
+  if [ "${a2:-0}" -gt "${b2:-0}" ]; then return 0; fi
+  if [ "${a2:-0}" -lt "${b2:-0}" ]; then return 1; fi
+  if [ "${a3:-0}" -gt "${b3:-0}" ]; then return 0; fi
+  if [ "${a3:-0}" -lt "${b3:-0}" ]; then return 1; fi
+  return 0  # equal
 }
 
 init() {

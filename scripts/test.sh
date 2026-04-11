@@ -10,6 +10,12 @@ ERRORS=0
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
+# Ensure git user config exists (required for commit in CI environments)
+if ! git config user.name >/dev/null 2>&1; then
+  git config user.name "test"
+  git config user.email "test@test.local"
+fi
+
 echo "=== Running validate.sh ==="
 if "$REPO_ROOT/scripts/validate.sh"; then
   ok "validate.sh passed"
@@ -93,8 +99,7 @@ else
   fail_test "lint-skill.sh crashed"
 fi
 
-deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1)
-if [ $? -eq 0 ]; then
+if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
   if echo "$deps_output" | grep -q "work"; then
     ok "deps.sh runs and output contains known skills"
   else
@@ -125,7 +130,9 @@ echo "Integration test: create-skill.sh scaffold cycle..."
 # Backup catalog for safe restore
 cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true' EXIT
+[ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
+[ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true; git tag -l "v[0-9]*" 2>/dev/null | grep -v "^v0\.1\.0$" | xargs -I{} git tag -d {} 2>/dev/null || true' EXIT
 
 # Step 1: scaffold DESIGN.md first (required by lifecycle pipeline)
 if "$REPO_ROOT/scripts/skill-design.sh" zzz-test-scaffold >/dev/null 2>&1; then

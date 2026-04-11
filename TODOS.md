@@ -8,11 +8,10 @@ Reads command markdown, extracts frontmatter, creates `skills/name/SKILL.md`, ad
 **When:** Add when a second repo wants to consume skills from this workbench.
 **Depends on:** create-skill.sh
 
-### Template version tracking (P3, S)
-Add `version` field to template frontmatter and `template_version` to catalog entries.
-`validate.sh` checks that a skill's template_version matches the current template version.
-**When:** Add when templates start changing frequently (>6 templates, active iteration).
-**Depends on:** validate.sh
+### ~~Template version tracking (P3, S)~~ RETIRED
+Superseded by collection versioning. Templates are covered by the collection version
+(VERSION file at repo root). Template checksums in collection-manifest.json provide
+per-template tracking when drift detection is needed.
 
 ### ~~Skill authoring harness skill (P1, M)~~ DONE
 Shipped as `skills/skill-author/SKILL.md` v0.1.0. 5-stage pipeline (intake, scaffold,
@@ -50,7 +49,7 @@ error production."
 **When:** Next priority after skill-author ships.
 **Depends on:** skill-check.sh
 
-### Batch version mode for multi-skill commits (P3, S)
-When a change touches multiple skills, allow bumping all at once.
-**When:** When cross-cutting refactors become frequent.
-**Depends on:** skill-version.sh, deps.sh
+### ~~Batch version mode for multi-skill commits (P3, S)~~ SIMPLIFIED
+Simplified by collection versioning. Use `skill-ship.sh <name> --no-collection-bump`
+for each skill, then `collection-version.sh bump patch` once at the end.
+**Depends on:** collection-version.sh

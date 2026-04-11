@@ -10,10 +10,13 @@ CATALOG="$REPO_ROOT/skills-catalog.json"
 ERRORS=0
 _CLEANUP_DIRS=()
 
+# shellcheck disable=SC2154
 trap 'for d in "${_CLEANUP_DIRS[@]+"${_CLEANUP_DIRS[@]}"}"; do rm -rf "$d" 2>/dev/null; done' EXIT
 
 setup_env() {
-  export SKILLS_DEPLOY_TARGET=$(mktemp -d)
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+  export SKILLS_DEPLOY_TARGET="$tmp_dir"
   export SKILLS_DEPLOY_MANIFEST="$SKILLS_DEPLOY_TARGET/.skills-templates.json"
   export SKILLS_DEPLOY_TEMPLATES_TARGET="$SKILLS_DEPLOY_TARGET/templates"
   mkdir -p "$SKILLS_DEPLOY_TEMPLATES_TARGET"
@@ -36,7 +39,7 @@ echo ""
 echo "Test 1: Install all skills"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
-count=$(ls -d "$SKILLS_DEPLOY_TARGET"/*/ 2>/dev/null | grep -v "^$SKILLS_DEPLOY_TEMPLATES_TARGET" | wc -l | tr -d ' ')
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 # Subtract 1 for the templates/ dir
 count=$((count))
 if [ "$count" -eq "$SKILL_COUNT" ]; then
@@ -74,7 +77,7 @@ echo "Test 4: Idempotent install"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
 "$DEPLOY" install >/dev/null 2>&1
-count=$(ls -d "$SKILLS_DEPLOY_TARGET"/*/ 2>/dev/null | grep -cv "^$SKILLS_DEPLOY_TEMPLATES_TARGET" || true)
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$count" -eq "$SKILL_COUNT" ]; then
   ok "Second install still has $SKILL_COUNT skills"
 else
@@ -310,6 +313,7 @@ echo "Test T7: Idempotent install"
 setup_env
 "$DEPLOY" install workflow >/dev/null 2>&1
 "$DEPLOY" install workflow >/dev/null 2>&1
+# shellcheck disable=SC2034  # dup_count used for debug inspection
 dup_count=$(jq '[.templates // {} | .[] | .owners | length] | map(select(. > 1)) | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
 # Each template should have exactly 1 owner (workflow), not 2
 owner_count=$(jq '.templates["doc-PRD.md"].owners | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")

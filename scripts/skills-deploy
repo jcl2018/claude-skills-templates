@@ -251,11 +251,18 @@ do_install() {
     done
   done
 
+  # Read collection version if available
+  local col_ver="unknown"
+  if [ -f "$REPO_ROOT/VERSION" ]; then
+    col_ver=$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")
+  fi
+
   # Write manifest
   echo "$manifest" | jq --arg s "$REPO_ROOT" --arg r "jcl2018/claude-skills-templates" \
     --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
     --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '. + {source: $s, repo: $r, commit: $c, installed_at: $t}' | manifest_write
+    --arg cv "$col_ver" \
+    '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv}' | manifest_write
 
   echo ""
   echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
@@ -457,6 +464,26 @@ do_doctor() {
   echo "=== skills-deploy doctor ==="
   echo "Source: $source"
   echo "Manifest: $MANIFEST"
+
+  # Collection version check
+  local installed_cv
+  installed_cv=$(echo "$manifest" | jq -r '.collection_version // "unknown"')
+  echo "Collection version (installed): $installed_cv"
+  if [ -n "$source" ] && [ -f "$source/VERSION" ]; then
+    local current_cv
+    current_cv=$(tr -d '[:space:]' < "$source/VERSION")
+    echo "Collection version (current):   $current_cv"
+    if [ "$installed_cv" = "$current_cv" ]; then
+      echo "  OK: up to date"
+    elif [ "$installed_cv" = "unknown" ]; then
+      echo "  WARN: installed before collection versioning. Run 'skills-deploy install' to update."
+      warnings=$((warnings + 1))
+    else
+      echo "  WARN: installed version ($installed_cv) differs from current ($current_cv)."
+      echo "  Fix: run 'skills-deploy install' to update, or 'cd $source && git pull' first."
+      warnings=$((warnings + 1))
+    fi
+  fi
   echo ""
 
   # Check each installed skill
