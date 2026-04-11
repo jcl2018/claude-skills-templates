@@ -29,11 +29,15 @@ manifest_write() {
   mv "$tmp" "$MANIFEST"
 }
 
-# List all skill dirs in the repo that have SKILL.md
+# List all installable entries: skill dirs with SKILL.md + templates-only catalog entries
 discover_skills() {
   for d in "$SKILLS_SRC"/*/; do
     [ -f "$d/SKILL.md" ] && basename "$d"
   done
+  # Also include templates-only catalog entries (empty files array)
+  if [ -f "$CATALOG" ]; then
+    jq -r '.[] | select(.files | length == 0) | .name' "$CATALOG" 2>/dev/null || true
+  fi
 }
 
 # Read skill dependencies from catalog
@@ -122,6 +126,16 @@ do_install() {
 
   for name in "${skills[@]}"; do
     local src="$SKILLS_SRC/$name"
+    # Templates-only catalog entries have no skill directory (empty files array)
+    local files_count
+    files_count=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
+    if [ "$files_count" -eq 0 ]; then
+      echo "  OK: $name is templates-only (no skill directory)"
+      manifest=$(echo "$manifest" | jq --arg n "$name" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.skills[$n] = {templates_only: true, installed_at: $t}')
+      installed=$((installed + 1))
+      continue
+    fi
     if [ ! -d "$src" ]; then
       echo "  SKIP: $name not found in repo" >&2
       skipped=$((skipped + 1))
@@ -195,11 +209,16 @@ do_install() {
 
   for name in "${skills[@]}"; do
     local src="$SKILLS_SRC/$name"
-    [ -d "$src" ] || continue
-    # Skip skills we didn't actually install (gstack/other owned)
-    local owner
-    owner=$(skill_owner "$name")
-    case "$owner" in gstack|other) continue ;; esac
+    # Templates-only entries have no skill directory but still deploy templates
+    local fc
+    fc=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
+    if [ "$fc" -ne 0 ]; then
+      [ -d "$src" ] || continue
+      # Skip skills we didn't actually install (gstack/other owned)
+      local owner
+      owner=$(skill_owner "$name")
+      case "$owner" in gstack|other) continue ;; esac
+    fi
 
     for tpl in $(skill_templates "$name"); do
       validate_template_name "$tpl" || { tpl_skipped=$((tpl_skipped + 1)); continue; }
@@ -305,19 +324,27 @@ do_remove() {
       done
     fi
 
-    # Verify ownership before removing
-    local owner
-    owner=$(skill_owner "$name")
-    if [ "$owner" != "ours" ]; then
-      echo "  SKIP: $name is not owned by this repo (owner: $owner)"
-      continue
-    fi
+    # Check if this is a templates-only entry
+    local tpl_only=false
+    local fc_rm
+    fc_rm=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
+    [ "$fc_rm" -eq 0 ] && tpl_only=true
 
-    # Remove symlinks only (not regular files)
-    for f in "$SKILLS_TARGET/$name"/*.md; do
-      [ -L "$f" ] && rm -f "$f"
-    done
-    rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+    if [ "$tpl_only" = false ]; then
+      # Verify ownership before removing
+      local owner
+      owner=$(skill_owner "$name")
+      if [ "$owner" != "ours" ]; then
+        echo "  SKIP: $name is not owned by this repo (owner: $owner)"
+        continue
+      fi
+
+      # Remove symlinks only (not regular files)
+      for f in "$SKILLS_TARGET/$name"/*.md; do
+        [ -L "$f" ] && rm -f "$f"
+      done
+      rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+    fi
 
     # Clean up templates owned by this skill
     for tpl in $(skill_templates "$name"); do
@@ -492,6 +519,11 @@ do_doctor() {
     local target_dir="$SKILLS_TARGET/$name"
     local skill_md="$target_dir/SKILL.md"
 
+    # Templates-only entries have no target directory
+    if echo "$manifest" | jq -e --arg n "$name" '.skills[$n].templates_only' >/dev/null 2>&1; then
+      echo "  OK: $name (templates-only)"
+      continue
+    fi
     if [ ! -d "$target_dir" ]; then
       echo "  FAIL: $name — target directory missing"
       errors=$((errors + 1))
