@@ -1,12 +1,15 @@
 [
   {
     "name": "system-health",
-    "version": "0.1.0",
-    "description": "Unified health dashboard: config hygiene, governance checks, doc quality, deploy state.",
+    "version": "0.2.0",
+    "description": "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene.",
     "source": "local",
     "depends": {
       "skills": [],
-      "tools": []
+      "tools": [
+        "jq",
+        "waza"
+      ]
     },
     "portability": "standalone",
     "files": [
