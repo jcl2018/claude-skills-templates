@@ -58,6 +58,42 @@ validate_version_string() {
   fi
 }
 
+VERSION_FILE="${COLLECTION_VERSION_FILE:-$REPO_ROOT/VERSION}"
+
+# Read VERSION file, trimming whitespace
+read_version() {
+  [ -f "$VERSION_FILE" ] || {
+    echo "ERROR: VERSION file not found at $VERSION_FILE" >&2
+    echo "  Fix: create it with a semver string, e.g. echo '0.1.0' > $VERSION_FILE" >&2
+    return 1
+  }
+  local ver
+  ver=$(tr -d '[:space:]' < "$VERSION_FILE")
+  [ -n "$ver" ] || {
+    echo "ERROR: VERSION file is empty" >&2
+    echo "  Fix: write a semver string, e.g. echo '0.1.0' > $VERSION_FILE" >&2
+    return 1
+  }
+  echo "$ver"
+}
+
+# SHA256 of a file (portable: macOS shasum, Linux sha256sum)
+file_checksum() {
+  (shasum -a 256 "$1" 2>/dev/null || sha256sum "$1" 2>/dev/null) | awk '{print $1}'
+}
+
+# Compare two semver strings: returns 0 if $1 >= $2
+version_gte() {
+  local IFS='.'
+  local -a a=($1) b=($2)
+  local i
+  for i in 0 1 2; do
+    if [ "${a[$i]:-0}" -gt "${b[$i]:-0}" ]; then return 0; fi
+    if [ "${a[$i]:-0}" -lt "${b[$i]:-0}" ]; then return 1; fi
+  done
+  return 0  # equal
+}
+
 init() {
   require_jq
   require_catalog

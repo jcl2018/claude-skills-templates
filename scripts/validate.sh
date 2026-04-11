@@ -99,6 +99,50 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   done
 done
 
+# Error check 7: VERSION file exists and contains valid semver
+echo ""
+echo "Checking VERSION file..."
+COLLECTION_VER=""
+if [ -f "$VERSION_FILE" ]; then
+  COLLECTION_VER=$(read_version 2>/dev/null)
+  if [ -n "$COLLECTION_VER" ] && validate_version_string "$COLLECTION_VER" 2>/dev/null; then
+    pass "VERSION file contains valid semver: $COLLECTION_VER"
+  else
+    fail "VERSION file exists but contains invalid semver: '$(cat "$VERSION_FILE" 2>/dev/null)'"
+  fi
+else
+  fail "VERSION file not found at $VERSION_FILE"
+fi
+
+# Error check 8: VERSION >= latest collection v-tag (no regression)
+echo ""
+echo "Checking VERSION against git tags..."
+LATEST_VTAG=$(git tag -l 'v[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+if [ -n "$LATEST_VTAG" ] && [ -n "$COLLECTION_VER" ]; then
+  TAG_VER="${LATEST_VTAG#v}"
+  if ! validate_version_string "$TAG_VER" 2>/dev/null; then
+    warn "Latest v-tag '$LATEST_VTAG' is not valid semver (skipping regression check)"
+  elif version_gte "$COLLECTION_VER" "$TAG_VER"; then
+    pass "VERSION $COLLECTION_VER >= latest tag $LATEST_VTAG"
+  else
+    fail "VERSION $COLLECTION_VER is behind latest tag $LATEST_VTAG (version regression)"
+  fi
+else
+  pass "No collection v-tags found yet (skipping regression check)"
+fi
+
+# Error check 9: All skill versions in catalog are valid semver
+echo ""
+echo "Checking catalog skill versions..."
+for name in $(jq -r '.[].name' "$CATALOG"); do
+  skill_ver=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .version' "$CATALOG")
+  if validate_version_string "$skill_ver" 2>/dev/null; then
+    pass "$name version $skill_ver is valid semver"
+  else
+    fail "$name has invalid version in catalog: '$skill_ver'"
+  fi
+done
+
 # Warning check 1: Enforcement templates exist in canonical location
 echo ""
 echo "Checking enforcement templates..."
