@@ -14,8 +14,8 @@ allowed-tools:
 
 # /skill-author
 
-Chains the lifecycle scripts into one guided workflow. 5 stages: intake, scaffold,
-author, check, ship. Invoke with `/skill-author <name>` or `/skill-author` to be prompted.
+Chains the lifecycle scripts into one guided workflow. 6 stages: intake, scaffold,
+author, check, ship, install. Invoke with `/skill-author <name>` or `/skill-author` to be prompted.
 
 ## Stage 1: Intake
 
@@ -41,7 +41,7 @@ author, check, ship. Invoke with `/skill-author <name>` or `/skill-author` to be
    ```
    If found, read it for context during the Author stage. If not found, proceed without it.
 
-4. Print: "Starting /skill-author for `<name>`. Stages: scaffold, author, check, ship."
+4. Print: "Starting /skill-author for `<name>`. Stages: intake, scaffold, author, check, ship, install."
 
 ## Stage 2: Scaffold
 
@@ -176,6 +176,39 @@ Version bump and release.
    Commit: <short-hash>
    Tag: <name>-v<version>
    Don't forget: git push && git push --tags
+   ```
+
+## Stage 6: Install
+
+Deploy the newly created skill to `~/.claude/skills/` so it's immediately usable.
+
+1. **Re-derive REPO_ROOT** (Claude does not share shell state between tool calls):
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   ```
+
+2. **Resume guard.** Check if already installed:
+   ```bash
+   if [ -L "$HOME/.claude/skills/<name>/SKILL.md" ]; then
+     echo "Skill <name> already installed, skipping."
+   fi
+   ```
+   If the symlink exists, print the step 4 success message and skip to end of stage.
+
+3. **Run install:**
+   ```bash
+   "$REPO_ROOT/scripts/skills-deploy" install <name>
+   ```
+
+4. If install succeeds, print:
+   ```
+   Skill <name> installed to ~/.claude/skills/<name>/
+   ```
+
+5. If install fails (non-zero exit), print a warning but do NOT exit with error:
+   ```
+   WARNING: Auto-install failed. The skill is committed and shipped.
+   Run manually: scripts/skills-deploy install <name>
    ```
 
 ## Error Handling
