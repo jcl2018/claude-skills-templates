@@ -266,7 +266,7 @@ echo "CONFIG FILES:"
 Skip this step if `--quick` was passed or if waza is not installed.
 
 ```bash
-if [ -f ~/.claude/skills/waza/health/scripts/collect-data.sh ]; then
+if [ -f ~/.claude/skills/waza/skills/health/scripts/collect-data.sh ]; then
   echo "WAZA_AVAILABLE"
 else
   echo "WAZA_NOT_INSTALLED"
@@ -276,7 +276,7 @@ fi
 If available, run waza's data collection:
 
 ```bash
-bash ~/.claude/skills/waza/health/scripts/collect-data.sh
+bash ~/.claude/skills/waza/skills/health/scripts/collect-data.sh
 ```
 
 Include the output as an **unscored appendix** in the report. Do NOT fold waza's
@@ -285,7 +285,7 @@ current project's config, not ~/.claude/ globally), so including it in the trend
 score would make scores fluctuate based on which directory the user runs from.
 
 If waza is not installed: "Waza not installed. Config hygiene checks skipped.
-Install waza for config correctness auditing."
+Install: `git clone https://github.com/tw93/Waza.git ~/.claude/skills/waza`"
 
 ## Step 4.5: Usage Trends (unscored)
 
