@@ -84,13 +84,15 @@ file_checksum() {
 
 # Compare two semver strings: returns 0 if $1 >= $2
 version_gte() {
-  local IFS='.'
-  local -a a=($1) b=($2)
-  local i
-  for i in 0 1 2; do
-    if [ "${a[$i]:-0}" -gt "${b[$i]:-0}" ]; then return 0; fi
-    if [ "${a[$i]:-0}" -lt "${b[$i]:-0}" ]; then return 1; fi
-  done
+  local a1 a2 a3 b1 b2 b3
+  IFS='.' read -r a1 a2 a3 <<< "$1"
+  IFS='.' read -r b1 b2 b3 <<< "$2"
+  if [ "${a1:-0}" -gt "${b1:-0}" ]; then return 0; fi
+  if [ "${a1:-0}" -lt "${b1:-0}" ]; then return 1; fi
+  if [ "${a2:-0}" -gt "${b2:-0}" ]; then return 0; fi
+  if [ "${a2:-0}" -lt "${b2:-0}" ]; then return 1; fi
+  if [ "${a3:-0}" -gt "${b3:-0}" ]; then return 0; fi
+  if [ "${a3:-0}" -lt "${b3:-0}" ]; then return 1; fi
   return 0  # equal
 }
 
