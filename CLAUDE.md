@@ -18,14 +18,14 @@ cd claude-skills-templates
 
 When the user's request matches an available skill, invoke it:
 
-- "scaffold a work item", "create a feature" -> /work-track
-- "implement this", "build this feature" -> /work-implement
-- "review this code" -> /work-review
-- "ship this", "create a PR" -> /work-ship
-- "check doc quality", "align contracts" -> /align-feature-contract
-- "test the contracts" -> /test-align-contract
+- "scaffold a work item", "create a feature" -> /workflow track create
+- "implement this", "build this feature" -> /workflow implement
+- "review this code" -> /workflow review
+- "ship this", "create a PR" -> /workflow ship
+- "check doc quality", "align contracts" -> /contracts check
+- "test the contracts" -> /contracts test
 - "health check", "system status" -> /system-health
-- "what phase am I in" -> /work
+- "what phase am I in" -> /workflow
 
 ## Conventions
 
@@ -38,8 +38,10 @@ skills/{skill-name}/
 
 ### Template naming
 Templates live in `templates/` with prefixes:
-- `doc-*.md` for document templates (PRD, ARCHITECTURE, TEST-SPEC, RCA, etc.)
+- `doc-*.md` for scaffolding templates (used by /workflow track to create new docs)
+- `contract-*.md` for enforcement templates (used by /contracts to validate existing docs)
 - `tracker-*.md` for work item templates (feature, defect, task, etc.)
+- `*-GENERATION-GUIDE.md` for doc generation instructions
 - `GENERATION-GUIDE.md` and `TRACKER-TEMPLATE.md` are meta-templates
 
 ### Catalog format
