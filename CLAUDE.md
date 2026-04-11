@@ -75,7 +75,8 @@ Templates at `~/.claude/templates/`. Upstream skills sync via git pull.
 | `create-skill.sh` | Scaffolds SKILL.md + CHANGELOG.md | After DESIGN.md exists |
 | `skill-check.sh` | Validates skill lifecycle compliance | Before version bump or ship |
 | `skill-version.sh` | Bumps skill version (major/minor/patch) | When ready to version |
-| `skill-ship.sh` | Commits and tags a skill release | When ready to ship |
+| `skill-ship.sh` | Commits, tags skill + bumps collection version | When ready to ship |
+| `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
 | `skill-migrate.sh` | Migrates existing skills to lifecycle format | One-time migration |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
