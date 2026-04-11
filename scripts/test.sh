@@ -125,7 +125,9 @@ echo "Integration test: create-skill.sh scaffold cycle..."
 # Backup catalog for safe restore
 cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true' EXIT
+[ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
+[ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true; for vtag in $(git tag -l "v[0-9]*" 2>/dev/null | grep -v "^v0\.1\.0$"); do git tag -d "$vtag" 2>/dev/null || true; done' EXIT
 
 # Step 1: scaffold DESIGN.md first (required by lifecycle pipeline)
 if "$REPO_ROOT/scripts/skill-design.sh" zzz-test-scaffold >/dev/null 2>&1; then
