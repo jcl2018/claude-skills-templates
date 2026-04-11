@@ -101,5 +101,25 @@
       "contract-TEST-SPEC.md"
     ],
     "status": "active"
+  },
+  {
+    "name": "docs",
+    "version": "0.1.0",
+    "description": "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection. Runtime dependency on gstack /document-release for post-ship workflow.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "git"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/docs/SKILL.md",
+      "skills/docs/init.md",
+      "skills/docs/check.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]
