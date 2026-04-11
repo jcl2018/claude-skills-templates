@@ -19,6 +19,7 @@ setup_env() {
   export SKILLS_DEPLOY_TARGET="$tmp_dir"
   export SKILLS_DEPLOY_MANIFEST="$SKILLS_DEPLOY_TARGET/.skills-templates.json"
   export SKILLS_DEPLOY_TEMPLATES_TARGET="$SKILLS_DEPLOY_TARGET/templates"
+  export SKILLS_DEPLOY_RULES_TARGET="$SKILLS_DEPLOY_TARGET/rules"
   mkdir -p "$SKILLS_DEPLOY_TEMPLATES_TARGET"
   _CLEANUP_DIRS+=("$SKILLS_DEPLOY_TARGET")
 }
@@ -40,9 +41,7 @@ echo ""
 echo "Test 1: Install all skills"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
-count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
-# Subtract 1 for the templates/ dir
-count=$((count))
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" ! -path "$SKILLS_DEPLOY_RULES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$count" -eq "$SKILL_COUNT" ]; then
   ok "Installed $SKILL_COUNT skill directories"
 else
@@ -80,7 +79,7 @@ echo "Test 4: Idempotent install"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
 "$DEPLOY" install >/dev/null 2>&1
-count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
+count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d ! -path "$SKILLS_DEPLOY_TEMPLATES_TARGET" ! -path "$SKILLS_DEPLOY_RULES_TARGET" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$count" -eq "$SKILL_COUNT" ]; then
   ok "Second install still has $SKILL_COUNT skills"
 else
@@ -117,7 +116,7 @@ setup_env
 "$DEPLOY" install >/dev/null 2>&1
 "$DEPLOY" remove --all --force >/dev/null 2>&1
 # Only templates/ dir should remain (empty)
-skill_count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d -not -name "templates" 2>/dev/null | wc -l | tr -d ' ')
+skill_count=$(find "$SKILLS_DEPLOY_TARGET" -mindepth 1 -maxdepth 1 -type d -not -name "templates" -not -name "rules" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$skill_count" -eq 0 ]; then
   ok "All skills removed"
 else

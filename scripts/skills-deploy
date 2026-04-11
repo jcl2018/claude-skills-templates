@@ -11,6 +11,8 @@ SKILLS_TARGET="${SKILLS_DEPLOY_TARGET:-$HOME/.claude/skills}"
 MANIFEST="${SKILLS_DEPLOY_MANIFEST:-$HOME/.claude/.skills-templates.json}"
 TEMPLATES_SRC="$REPO_ROOT/templates"
 TEMPLATES_TARGET="${SKILLS_DEPLOY_TEMPLATES_TARGET:-$HOME/.claude/templates}"
+RULES_SRC="$REPO_ROOT/rules"
+RULES_TARGET="${SKILLS_DEPLOY_RULES_TARGET:-$HOME/.claude/rules}"
 
 # --- helpers ---
 
@@ -270,6 +272,36 @@ do_install() {
     done
   done
 
+  # Deploy rules files (global Claude Code rules from rules/ directory)
+  local rules_installed=0
+  if [ -d "$RULES_SRC" ]; then
+    mkdir -p "$RULES_TARGET"
+    for rule_file in "$RULES_SRC"/*.md; do
+      [ -f "$rule_file" ] || continue
+      local rule_name
+      rule_name=$(basename "$rule_file")
+      local rule_dst="$RULES_TARGET/$rule_name"
+      if [ -f "$rule_dst" ]; then
+        local rule_src_sum rule_dst_sum
+        rule_src_sum=$(file_checksum "$rule_file")
+        rule_dst_sum=$(file_checksum "$rule_dst")
+        if [ "$rule_src_sum" = "$rule_dst_sum" ]; then
+          continue
+        elif [ "$overwrite" = true ]; then
+          cp "$rule_file" "$rule_dst"
+          echo "  RULE: updated $rule_name"
+          rules_installed=$((rules_installed + 1))
+        else
+          echo "  WARN: $rule_name — rule exists with different content (use --overwrite to replace)"
+        fi
+      else
+        cp "$rule_file" "$rule_dst"
+        echo "  RULE: installed $rule_name"
+        rules_installed=$((rules_installed + 1))
+      fi
+    done
+  fi
+
   # Read collection version if available
   local col_ver="unknown"
   if [ -f "$REPO_ROOT/VERSION" ]; then
@@ -286,6 +318,7 @@ do_install() {
   echo ""
   echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
   echo "Templates — Installed: $tpl_installed  Skipped: $tpl_skipped"
+  [ "$rules_installed" -gt 0 ] && echo "Rules — Installed: $rules_installed" || true
 }
 
 # --- remove ---
@@ -362,6 +395,18 @@ do_remove() {
         manifest=$(echo "$manifest" | jq --arg t "$tpl" 'del(.templates[$t])')
       fi
     done
+
+    # Clean up rules files for templates-only entries
+    if [ "$tpl_only" = true ] && [ -d "$RULES_SRC" ]; then
+      for rule_file in "$RULES_SRC"/*.md; do
+        [ -f "$rule_file" ] || continue
+        local rule_name
+        rule_name=$(basename "$rule_file")
+        if [ -f "$RULES_TARGET/$rule_name" ]; then
+          rm -f "$RULES_TARGET/$rule_name" && echo "  RULE: removed $rule_name"
+        fi
+      done
+    fi
 
     manifest=$(echo "$manifest" | jq --arg n "$name" 'del(.skills[$n])')
     removed=$((removed + 1))
