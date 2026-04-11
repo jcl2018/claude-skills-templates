@@ -141,41 +141,32 @@ Run validation in a fix loop.
 
 ## Stage 5: Ship
 
-Version bump and release.
+Delegate to gstack `/ship` for the commit, PR creation, and release workflow.
 
-1. **Check for existing version bump.** Read the current version from SKILL.md frontmatter
-   and check if a git tag already exists for it:
+1. **Version bump.** Read the current version from SKILL.md frontmatter:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
    VERSION=$(sed -n '/^---$/,/^---$/p' "$REPO_ROOT/skills/<name>/SKILL.md" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
    TAG="<name>-v$VERSION"
    git tag -l "$TAG" | grep -q "$TAG" && echo "TAG_EXISTS" || echo "NO_TAG"
    ```
-
-2. **Version bump** (only if tag does NOT exist for a bumped version):
-   - If this is the initial version (0.1.0) and no tag exists, ask: "Ready to ship
-     `<name>` v0.1.0? This will commit and tag."
-   - If a tag for 0.1.0 already exists (re-run scenario), skip the bump.
-   - Otherwise, ask: "What kind of change? (patch / minor / major)" and run:
+   - If `TAG_EXISTS`: ask "What kind of change? (patch / minor / major)" and run:
      ```bash
      "$REPO_ROOT/scripts/skill-version.sh" <name> <bump-type>
      ```
+   - If `NO_TAG` and version is 0.1.0: this is the initial ship, no bump needed.
 
-3. **Fill changelog.** After version bump, the CHANGELOG.md has a placeholder entry.
-   Fill it with a real description of what was added/changed.
+2. **Fill changelog.** If a version bump created a placeholder CHANGELOG entry,
+   fill it with a real description of what was added/changed.
 
-4. **Ship:**
-   ```bash
-   "$REPO_ROOT/scripts/skill-ship.sh" <name>
+3. **Invoke `/ship`.** Tell the user: "Handing off to `/ship` for commit, review, and PR creation."
+   Then invoke the `/ship` skill using the Skill tool. `/ship` handles: committing changes,
+   running tests, pre-landing review, creating the PR, and updating documentation.
+
+4. After `/ship` completes, print:
    ```
-   This commits, tags, and regenerates README.md.
-
-5. Print the result:
-   ```
-   Shipped <name> v<version>
-   Commit: <short-hash>
-   Tag: <name>-v<version>
-   Don't forget: git push && git push --tags
+   Skill <name> shipped via /ship.
+   Tag the release: git tag <name>-v<version> && git push --tags
    ```
 
 ## Error Handling
