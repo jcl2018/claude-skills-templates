@@ -1,0 +1,2 @@
+# lib.sh is sourced at runtime; shellcheck can't follow dynamic source paths
+disable=SC1091

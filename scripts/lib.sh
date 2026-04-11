@@ -6,9 +6,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CATALOG="$REPO_ROOT/skills-catalog.json"
-SKILLS_DIR="$REPO_ROOT/skills"
-TEMPLATES_DIR="$REPO_ROOT/templates"
-DOCS_DIR="$REPO_ROOT/docs"
+SKILLS_DIR="$REPO_ROOT/skills"       # used by sourcing scripts
+TEMPLATES_DIR="$REPO_ROOT/templates" # used by sourcing scripts
+DOCS_DIR="$REPO_ROOT/docs"           # used by sourcing scripts
+export SKILLS_DIR TEMPLATES_DIR DOCS_DIR
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {

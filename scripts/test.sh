@@ -99,8 +99,7 @@ else
   fail_test "lint-skill.sh crashed"
 fi
 
-deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1)
-if [ $? -eq 0 ]; then
+if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
   if echo "$deps_output" | grep -q "work"; then
     ok "deps.sh runs and output contains known skills"
   else
