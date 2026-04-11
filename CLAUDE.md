@@ -42,7 +42,7 @@ Templates live in `templates/` with prefixes:
 - `contract-*.md` for enforcement templates (used by /contracts to validate existing docs)
 - `tracker-*.md` for work item templates (feature, defect, task, etc.)
 - `*-GENERATION-GUIDE.md` for doc generation instructions
-- `GENERATION-GUIDE.md` and `TRACKER-TEMPLATE.md` are meta-templates
+- `GENERATION-GUIDE.md` is a meta-template for doc generation instructions
 
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/` (global).
