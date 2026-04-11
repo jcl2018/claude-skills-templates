@@ -3,6 +3,24 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.2] - 2026-04-11
+### Removed
+- `/workflow` skill (7 files): implement, review, and ship phases were redundant with gstack; track phase replaced by CLAUDE.md rules
+- `/contracts` skill (3 files): doc triplet enforcement replaced by CLAUDE.md validation rules
+- Orphan doc directories for deleted skills (docs/workflow/, docs/contracts/)
+
+### Added
+- `## Work Item Templates` section in CLAUDE.md: type-aware scaffolding, 3-level template fallback, branch conventions, ID generation, git-journal synthesis, contract validation
+- `templates` catalog entry: templates-only distribution vehicle (no SKILL.md, 13 templates)
+- `artifact-manifests.json` at repo root: canonical type-to-artifact mapping (previously external-only)
+- Templates-only support in skills-deploy: install, remove, and doctor handle catalog entries with no SKILL.md
+
+### Changed
+- skills-catalog.json: workflow and contracts entries replaced by templates entry
+- test-deploy.sh: test fixtures rewritten from workflow/contracts to docs/templates
+- README.md: updated to template library identity (3 skills + template library)
+- skills/docs references to /contracts updated to reflect removal
+
 ## [0.2.1] - 2026-04-11
 ### Changed
 - Tracker templates rewritten for solo-dev workflow: removed enterprise gates ("reviewer noted", "Linux branch build"), JIRA/TFS URLs, and redundant `workflow_type` field
