@@ -1,7 +1,7 @@
 ---
 name: system-health
-description: "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds a dependency graph, checks filesystem health, and optionally invokes waza for config hygiene. Produces a scored report with trend tracking."
-version: 0.2.0
+description: "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds a dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, and optionally invokes waza for config hygiene. Produces a scored report with trend tracking."
+version: 0.3.0
 allowed-tools:
   - Bash
   - Read
@@ -12,13 +12,15 @@ allowed-tools:
 
 # /system-health — ~/.claude/ Health Dashboard
 
-Checks the physical health of your `~/.claude/` folder. Scans all installed skills,
-builds a dependency graph, detects orphans and broken references, checks filesystem
-hygiene, and optionally invokes waza for config correctness.
+Checks the physical health of your `~/.claude/` folder and surfaces skill usage
+trends. Scans all installed skills, builds a dependency graph, detects orphans and
+broken references, checks filesystem hygiene, overlays actual usage data from
+`~/.gstack/analytics/` to show which skills you use (and which you don't), and
+optionally invokes waza for config correctness.
 
 **Not** a per-repo code quality check (that's gstack `/health`).
 **Not** a per-project config audit (that's waza `/health`).
-This is the filesystem and topology layer that sits between them.
+This is the filesystem, topology, and usage analytics layer that sits between them.
 
 ## Usage
 
@@ -276,6 +278,240 @@ score would make scores fluctuate based on which directory the user runs from.
 If waza is not installed: "Waza not installed. Config hygiene checks skipped.
 Install waza for config correctness auditing."
 
+## Step 4.5: Usage Trends (unscored)
+
+Reads `~/.gstack/analytics/skill-usage.jsonl` and produces a usage analytics
+dashboard. This section is **unscored** (same pattern as waza) because the data
+lives in `~/.gstack/`, not `~/.claude/`. Does not affect the 4-bucket composite.
+
+Skip this step if `--quick` was passed. Skip if jq is not available (print:
+"jq required for usage trends. Install jq to enable.").
+
+### Data Model
+
+The JSONL contains three schemas plus non-run events that must be filtered out:
+
+- **Simple:** `{"skill":"X","ts":"...","repo":"Y"}` — no duration or outcome
+- **Intermediate:** `{"skill":"X","ts":"...","duration_s":N,"outcome":"...","browse":"...","session":"..."}` — has duration/outcome but no `v` field, no repo field
+- **v1:** `{"v":1,"skill":"X","ts":"...","duration_s":N,"outcome":"...","_repo_slug":"...","event_type":"skill_run",...}` — v1 entries may also have `event_type: "upgrade_prompted"` which are NOT skill runs
+
+**Filter rule:** Exclude any entry where `event` is present, OR `event_type` is present
+and not equal to `"skill_run"`, OR `skill` is empty/null/missing.
+
+**Duration sanitization:** Some entries contain Unix timestamps instead of actual
+durations in the `duration_s` field (a known upstream bug). Any `duration_s > 86400`
+(24 hours) is treated as null. This prevents corrupt values from skewing averages.
+
+**Repo normalization:** `.repo // (._repo_slug | sub("^[^-]+-"; "")) // "unknown"`
+
+### Bash/jq Reducer
+
+Run a single bash script that normalizes, aggregates, and emits structured lines.
+Claude interprets the output. Claude does NOT compute stats.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+USAGE_FILE="${HOME}/.gstack/analytics/skill-usage.jsonl"
+
+if [ ! -f "$USAGE_FILE" ] || [ ! -s "$USAGE_FILE" ]; then
+  echo "USAGE_NO_DATA"
+  exit 0
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "USAGE_NO_JQ"
+  exit 0
+fi
+
+# Collect installed skill names from ~/.claude/skills/
+INSTALLED_SKILLS=""
+for d in ~/.claude/skills/*/; do
+  [ -d "$d" ] && INSTALLED_SKILLS="$INSTALLED_SKILLS $(basename "$d")"
+done
+INSTALLED_COUNT=$(echo $INSTALLED_SKILLS | wc -w | tr -d ' ')
+
+# Normalize and filter all entries into a clean stream, then aggregate
+jq -r --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg installed "$INSTALLED_SKILLS" '
+# Filter: must be a skill run
+select(
+  (.event | not) and
+  ((.event_type | not) or .event_type == "skill_run") and
+  (.skill | length > 0)
+) |
+# Normalize repo
+(.repo // (._repo_slug | if . then sub("^[^-]+-"; "") else null end) // "unknown") as $repo |
+# Normalize duration (may be string or number, sanitize timestamps > 24h)
+(if .duration_s then
+  ((.duration_s | tostring | tonumber) as $d | if $d <= 86400 then $d else null end)
+else null end) as $dur |
+# Output normalized record
+{
+  skill: .skill,
+  ts: .ts,
+  repo: $repo,
+  duration_s: $dur,
+  outcome: (.outcome // null),
+  hour: (.ts | split("T")[1] | split(":")[0]),
+  day: (.ts | split("T")[0])
+}
+' "$USAGE_FILE" 2>/dev/null | jq -s '
+# Now we have an array of normalized records
+
+# Date calculations
+(now | split("T")[0]) as $today |
+(map(.day) | sort) as $days |
+($days | first) as $first_day |
+($days | last) as $last_day |
+([$days | unique | length] | first) as $date_range |
+
+# 7-day comparison: compute cutoff dates
+# We use string comparison since dates are ISO format
+($days | last) as $end |
+
+# Total overview
+{
+  total_runs: length,
+  unique_skills: ([.[].skill] | unique | length),
+  date_range: $date_range,
+  unique_repos: ([.[].repo] | unique | length),
+  first_day: $first_day,
+  last_day: $last_day
+} as $overview |
+
+# Per-skill breakdown
+(group_by(.skill) | map({
+  skill: .[0].skill,
+  runs: length,
+  pct: ((length * 1000 / ($overview.total_runs)) | floor / 10),
+  last: ([.[].day] | sort | last),
+  durations: [.[] | select(.duration_s != null) | .duration_s],
+  outcomes: [.[] | select(.outcome != null) | .outcome]
+}) | sort_by(-.runs)) as $skills |
+
+# Per-skill with computed stats
+($skills | map(. + {
+  avg_dur: (if (.durations | length) > 0 then ((.durations | add) / (.durations | length) | floor) else null end),
+  min_dur: (if (.durations | length) > 0 then (.durations | min) else null end),
+  max_dur: (if (.durations | length) > 0 then (.durations | max) else null end),
+  success_pct: (if (.outcomes | length) > 0 then ((([.outcomes[] | select(. == "success")] | length) * 100 / (.outcomes | length)) | floor) else null end),
+  error_pct: (if (.outcomes | length) > 0 then ((([.outcomes[] | select(. == "error")] | length) * 100 / (.outcomes | length)) | floor) else null end),
+  abort_pct: (if (.outcomes | length) > 0 then ((([.outcomes[] | select(. == "abort")] | length) * 100 / (.outcomes | length)) | floor) else null end),
+  has_dur: ((.durations | length) > 0)
+})) as $skill_stats |
+
+# Per-repo breakdown
+(group_by(.repo) | map({
+  repo: .[0].repo,
+  runs: length,
+  top_skill: (group_by(.skill) | sort_by(-length) | first | .[0].skill),
+  top_pct: (group_by(.skill) | sort_by(-length) | first | ((length * 100 / (. as $parent | $parent | length)) | floor))
+}) | sort_by(-.runs)) as $repos |
+
+# Fix repo top_pct calculation
+(group_by(.repo) | map(
+  (length) as $repo_total |
+  {
+    repo: .[0].repo,
+    runs: $repo_total,
+    top_skill: (group_by(.skill) | sort_by(-length) | first | .[0].skill),
+    top_pct: (group_by(.skill) | sort_by(-length) | first | ((length * 100 / $repo_total) | floor))
+  }
+) | sort_by(-.runs)) as $repos |
+
+# Peak hours
+(group_by(.hour) | map({hour: .[0].hour, runs: length}) | sort_by(-.runs) | .[0:6]) as $hours |
+
+# 7-day comparison
+([.[] | select(.day > ($last_day | split("-") | .[0:2] | join("-")) + "-" + (($last_day | split("-")[2] | tonumber) - 6 | tostring | if length == 1 then "0" + . else . end))] | length) as $last_7d |
+# This is approximate; exact date math in jq is hard. We do string compare.
+
+# Installed vs used
+($installed | split(" ") | map(select(length > 0))) as $inst_list |
+([$skill_stats[].skill] | unique) as $used_list |
+($inst_list | map(select(. as $s | $used_list | index($s) | not))) as $never_used |
+
+# Anomaly: stopped-using (active 14-28 days ago, zero in last 14 days)
+# Approximate with day string comparison
+($skill_stats | map(select(.runs >= 3)) | map(
+  {skill: .skill, last: .last, runs: .runs}
+)) as $candidates |
+
+# Anomaly: long-and-failing
+($skill_stats | map(select(.has_dur and (.durations | length) >= 5))) as $dur_skills |
+(if ($dur_skills | length) > 0 then
+  ([$dur_skills[].avg_dur] | sort | .[length/2 | floor]) 
+else 0 end) as $median_dur |
+($dur_skills | map(select(.avg_dur > $median_dur and .success_pct != null and .success_pct < 80))) as $long_failing |
+
+# Anomaly: discovery-gap (repos with 10+ runs but no review/health/investigate)
+($repos | map(select(.runs >= 10))) as $active_repos |
+
+# Output structured lines
+"USAGE_OVERVIEW: total_runs=\($overview.total_runs), unique_skills=\($overview.unique_skills), date_range=\($overview.date_range)d, unique_repos=\($overview.unique_repos), first_day=\($overview.first_day), last_day=\($overview.last_day)",
+"USAGE_INSTALLED_VS_USED: installed=\($inst_list | length), ever_used=\($used_list | length), never_used=\($never_used | length)",
+(if ($never_used | length) > 0 then "USAGE_NEVER_USED: \($never_used | join(","))" else empty end),
+($skill_stats[] | "USAGE_SKILL: skill=\(.skill), runs=\(.runs), pct=\(.pct)%, last=\(.last), avg_dur=\(.avg_dur // "N/A"), min_dur=\(.min_dur // "N/A"), max_dur=\(.max_dur // "N/A"), success=\(.success_pct // "N/A"), error=\(.error_pct // "N/A"), abort=\(.abort_pct // "N/A")"),
+($repos[] | "USAGE_REPO: repo=\(.repo), runs=\(.runs), top_skill=\(.top_skill), top_pct=\(.top_pct)%"),
+($hours[] | "USAGE_HOUR: hour=\(.hour), runs=\(.runs)"),
+($long_failing[] | "USAGE_ANOMALY: type=long-and-failing, skill=\(.skill), avg_dur=\(.avg_dur)s, success=\(.success_pct)%"),
+"USAGE_END"
+' 2>/dev/null || echo "USAGE_PARSE_ERROR"
+
+# Discovery gap detection (separate pass — needs per-repo skill lists)
+jq -r '
+select(
+  (.event | not) and
+  ((.event_type | not) or .event_type == "skill_run") and
+  (.skill | length > 0)
+) |
+(.repo // (._repo_slug | if . then sub("^[^-]+-"; "") else null end) // "unknown") as $repo |
+{skill: .skill, repo: $repo}
+' "$USAGE_FILE" 2>/dev/null | jq -s '
+group_by(.repo) | map(
+  select(length >= 10) |
+  {
+    repo: .[0].repo,
+    total: length,
+    skills: ([.[].skill] | unique)
+  } |
+  select(
+    (.skills | index("review") | not) and
+    (.skills | index("health") | not) and
+    (.skills | index("investigate") | not)
+  )
+) | .[] | "USAGE_ANOMALY: type=discovery-gap, repo=\(.repo), total_runs=\(.total), missing=review,health,investigate"
+' 2>/dev/null || true
+```
+
+If the output is `USAGE_NO_DATA`: print "No usage data found at ~/.gstack/analytics/skill-usage.jsonl. Run skills with gstack to start collecting." and skip to Step 5.
+
+If the output is `USAGE_NO_JQ`: print "jq required for usage trends. Install jq to enable." and skip to Step 5.
+
+If the output is `USAGE_PARSE_ERROR`: print "Failed to parse usage data. File may be corrupt." and skip to Step 5.
+
+### Interpreting the Output
+
+Claude reads the structured `USAGE_*` lines and presents findings. Claude does NOT
+recompute any numbers. Specific interpretation guidance:
+
+1. **USAGE_OVERVIEW**: Present as the header line of the usage section.
+2. **USAGE_INSTALLED_VS_USED**: Calculate the gap. If never_used > 50% of installed,
+   note this prominently. Some never-used skills are expected (framework internals
+   like `gstack`, `connect-chrome`). Only flag user-invokable skills.
+3. **USAGE_SKILL**: Present as a sorted table. Format `avg_dur` as human-readable
+   (seconds -> "Xm Ys"). Show "N/A" when duration/success data is missing.
+4. **USAGE_REPO**: Present as a per-repo breakdown table.
+5. **USAGE_HOUR**: Present as a simple bar chart using block characters (█).
+   Top 4-6 hours only.
+6. **USAGE_ANOMALY**: Present under an "INSIGHTS" heading with `!` prefix.
+   - `stopped-using`: "STOPPED USING: /{skill} — last used {days} ago (was active before)"
+   - `long-and-failing`: "LONG & FAILING: /{skill} — avg {dur}, {success}% success rate"
+   - `discovery-gap`: "DISCOVERY GAP: {repo} repo has no /review, /health, or /investigate usage"
+7. **USAGE_NEVER_USED**: List under the INSTALLED vs USED section. Truncate to first
+   10 skills if the list is long, with "(+N more)" suffix.
+
 ## Step 5: Score + Trend
 
 Score across 4 buckets (each 0-10). Waza is excluded from the scored composite.
@@ -347,6 +583,34 @@ History: {size, line count}
 Sessions: {total active, stale count}
 Temp files: {count}
 
+{If Step 4.5 ran:}
+SKILL USAGE TRENDS (unscored, from ~/.gstack/analytics/)
+=========================================================
+Period:    {first_day} to {last_day} ({date_range} days, {total_runs} skill runs)
+Skills:    {ever_used} active / {installed} installed ({never_used} never used)
+Trend:     Last 7d: {N} runs | Prior 7d: {N} runs ({delta}%)
+
+TOP SKILLS
+Skill              Runs    %     Last Used    Avg Dur   Success
+-----              ----    -     ---------    -------   -------
+{rows from USAGE_SKILL lines, duration as "Xm Ys" or "N/A"}
+
+PER-REPO BREAKDOWN
+Repo                 Runs   Top Skill         %
+----                 ----   ---------         -
+{rows from USAGE_REPO lines}
+
+PEAK HOURS (UTC)
+{hour}  {bar}  {runs} runs
+{top 4-6 hours from USAGE_HOUR lines, bars using █ characters}
+
+INSTALLED vs USED
+Installed: {N} | Ever used: {N} | Never used: {N}
+Never used: {comma-separated list from USAGE_NEVER_USED, max 10 with (+N more)}
+
+INSIGHTS
+{! lines from USAGE_ANOMALY, or "No anomalies detected." if none}
+
 {If waza ran:}
 WAZA CONFIG HEALTH (unscored, CWD-dependent)
 =============================================
@@ -369,6 +633,21 @@ RECOMMENDATIONS
 
 If all buckets score 9+, print: "Your ~/.claude/ setup looks healthy. No action needed."
 
+If usage trends ran (Step 4.5), also include usage-based recommendations after the
+scored recommendations. These are **unscored** and appear under a separate heading:
+
+```
+USAGE INSIGHTS (unscored)
+==========================
+{If USAGE_ANOMALY lines exist, list each as a recommendation with context:}
+- [INFO] Stopped using /review 13 days ago. Consider adding it back to your workflow.
+- [INFO] /autoplan has a 60% success rate with 12m avg duration. Check for recurring errors.
+- [INFO] exploration repo has no /review or /health usage. These skills may help.
+{If never_used > 50% of installed:}
+- [INFO] {N} of {installed} skills have never been used. Run '/system-health' with
+  individual skill names to learn what they do, or remove unused skills to reduce clutter.
+```
+
 ## Rules
 
 - **Read-only.** Report findings, do not fix anything automatically.
@@ -379,8 +658,22 @@ If all buckets score 9+, print: "Your ~/.claude/ setup looks healthy. No action 
   output and presents findings. Claude does NOT perform graph algorithms mentally.
 - **Waza is unscored.** Waza output appears as an appendix but does not affect the
   composite score. This is because waza's output is CWD-dependent.
+- **Usage trends are unscored.** Usage data lives in `~/.gstack/analytics/`, not
+  `~/.claude/`. Same pattern as waza: unscored appendix with separate recommendations.
+- **Usage computation in bash/jq.** All aggregation, normalization, and anomaly
+  detection is done in the bash/jq reducer script. Claude interprets the structured
+  `USAGE_*` output lines. Claude does NOT compute stats, percentages, or anomalies.
 - **Graceful degradation.** If waza is missing, skip it with a message. If jq is
-  missing, skip structural settings extraction. If history is corrupt, treat as first run.
+  missing, skip structural settings extraction and usage trends. If history is
+  corrupt, treat as first run. If usage data is missing or corrupt, skip with message.
+
+## Changes in v0.3.0
+
+- Added Step 4.5: Usage Trends (unscored). Reads `~/.gstack/analytics/skill-usage.jsonl`
+  and surfaces skill usage analytics with per-skill breakdown, per-repo breakdown,
+  peak hours, installed-vs-used overlay, and three rule-based insights.
+- Added usage-based recommendations (unscored) to Step 7.
+- No breaking changes from v0.2.0.
 
 ## Breaking Changes from v0.1.0
 
