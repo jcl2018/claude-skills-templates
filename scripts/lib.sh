@@ -35,6 +35,27 @@ validate_skill_name() {
     echo "  Got: '$name'" >&2
     exit 1
   fi
+  # Reject names that collide with git tag namespace ({name}-v{version})
+  if echo "$name" | grep -qE -- '-v[0-9]+$'; then
+    echo "ERROR: skill name must not end with -v followed by digits (collides with git tag namespace)" >&2
+    echo "  Got: '$name'" >&2
+    exit 1
+  fi
+}
+
+# Extract version from SKILL.md frontmatter
+extract_frontmatter_version() {
+  local skill_file="$1"
+  sed -n '/^---$/,/^---$/p' "$skill_file" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//'
+}
+
+# Validate a version string matches semver format
+validate_version_string() {
+  local version="$1"
+  if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "ERROR: invalid version format: '$version' (expected X.Y.Z)" >&2
+    return 1
+  fi
 }
 
 init() {
