@@ -93,12 +93,15 @@
   },
   {
     "name": "system-health",
-    "version": "0.1.0",
-    "description": "Unified health dashboard: config hygiene, governance checks, doc quality, deploy state.",
+    "version": "0.2.0",
+    "description": "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene.",
     "source": "local",
     "depends": {
       "skills": [],
-      "tools": []
+      "tools": [
+        "jq",
+        "waza"
+      ]
     },
     "portability": "standalone",
     "files": [
@@ -169,6 +172,59 @@
     ],
     "templates": [
       "doc-SKILL-DESIGN.md"
+    ],
+    "status": "experimental"
+  },
+  {
+    "name": "workflow",
+    "version": "0.1.0",
+    "description": "Dev workflow pipeline: track, implement, review, ship. Branch-aware routing with doc contract quality gates.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "contracts"
+      ],
+      "tools": [
+        "jq"
+      ]
+    },
+    "portability": "pipeline",
+    "files": [
+      "skills/workflow/SKILL.md",
+      "skills/workflow/track.md",
+      "skills/workflow/implement.md",
+      "skills/workflow/review.md",
+      "skills/workflow/ship.md"
+    ],
+    "templates": [
+      "doc-PRD.md",
+      "doc-ARCHITECTURE.md",
+      "doc-TEST-SPEC.md",
+      "tracker-feature.md",
+      "tracker-defect.md",
+      "tracker-task.md",
+      "tracker-user-story.md",
+      "tracker-review.md"
+    ],
+    "status": "experimental"
+  },
+  {
+    "name": "contracts",
+    "version": "0.1.0",
+    "description": "TODO: describe what this skill does",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": []
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/contracts/SKILL.md"
+    ],
+    "templates": [
+      "doc-PRD.md",
+      "doc-ARCHITECTURE.md",
+      "doc-TEST-SPEC.md"
     ],
     "status": "experimental"
   }
