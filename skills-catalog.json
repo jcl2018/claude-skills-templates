@@ -1,97 +1,5 @@
 [
   {
-    "name": "work",
-    "version": "0.1.0",
-    "description": "Work item router: auto-detect from branch, show menu, suggest phase skill. No mutations.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "work-track",
-        "work-implement",
-        "work-review",
-        "work-ship"
-      ],
-      "tools": []
-    },
-    "portability": "pipeline",
-    "files": [
-      "skills/work/SKILL.md"
-    ],
-    "templates": [],
-    "status": "active"
-  },
-  {
-    "name": "work-track",
-    "version": "0.1.0",
-    "description": "Context-aware work item management: evidence synthesis, CRUD, lifecycle, manifest-driven scaffolding.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": [
-        "jq"
-      ]
-    },
-    "portability": "pipeline",
-    "files": [
-      "skills/work-track/SKILL.md"
-    ],
-    "templates": [
-      "doc-PRD.md",
-      "doc-ARCHITECTURE.md",
-      "doc-TEST-SPEC.md",
-      "tracker-feature.md"
-    ],
-    "status": "active"
-  },
-  {
-    "name": "work-implement",
-    "version": "0.1.0",
-    "description": "Structured implementation with root-cause debugging. Dual-mode: build-forward or debug-backward.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "pipeline",
-    "files": [
-      "skills/work-implement/SKILL.md"
-    ],
-    "templates": [],
-    "status": "active"
-  },
-  {
-    "name": "work-review",
-    "version": "0.1.0",
-    "description": "Phase 3: code review wrapper. Loads work item context, delegates to gstack /review.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "pipeline",
-    "files": [
-      "skills/work-review/SKILL.md"
-    ],
-    "templates": [],
-    "status": "active"
-  },
-  {
-    "name": "work-ship",
-    "version": "0.1.0",
-    "description": "Phase 4: ship wrapper. Validates TEST-SPEC acceptance criteria, delegates to gstack /ship.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "pipeline",
-    "files": [
-      "skills/work-ship/SKILL.md"
-    ],
-    "templates": [],
-    "status": "active"
-  },
-  {
     "name": "system-health",
     "version": "0.2.0",
     "description": "~/.claude/ health dashboard with dependency graph. Scans installed skills, builds dependency graph, checks filesystem health, invokes waza for config hygiene.",
@@ -106,50 +14,6 @@
     "portability": "standalone",
     "files": [
       "skills/system-health/SKILL.md"
-    ],
-    "templates": [],
-    "status": "active"
-  },
-  {
-    "name": "align-feature-contract",
-    "version": "0.1.0",
-    "description": "Doc triplet contract enforcement: template alignment, cross-doc traceability, code verification.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/align-feature-contract/SKILL.md",
-      "skills/align-feature-contract/PRD-TEMPLATE.md",
-      "skills/align-feature-contract/ARCHITECTURE-TEMPLATE.md",
-      "skills/align-feature-contract/TEST-SPEC-TEMPLATE.md",
-      "skills/align-feature-contract/prd-GENERATION-GUIDE.md",
-      "skills/align-feature-contract/architecture-GENERATION-GUIDE.md",
-      "skills/align-feature-contract/test-spec-GENERATION-GUIDE.md"
-    ],
-    "templates": [
-      "doc-PRD.md",
-      "doc-ARCHITECTURE.md",
-      "doc-TEST-SPEC.md"
-    ],
-    "status": "active"
-  },
-  {
-    "name": "test-align-contract",
-    "version": "0.1.0",
-    "description": "Unified test harness for /align-feature-contract: Tier 1 smoke tests + Tier 2 end-to-end execution.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "align-feature-contract"
-      ],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/test-align-contract/SKILL.md"
     ],
     "templates": [],
     "status": "active"
@@ -206,12 +70,12 @@
       "tracker-user-story.md",
       "tracker-review.md"
     ],
-    "status": "experimental"
+    "status": "active"
   },
   {
     "name": "contracts",
     "version": "0.1.0",
-    "description": "TODO: describe what this skill does",
+    "description": "Doc triplet contract enforcement: template alignment, cross-doc traceability, and test harness for PRD + ARCHITECTURE + TEST-SPEC sets.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -222,10 +86,10 @@
       "skills/contracts/SKILL.md"
     ],
     "templates": [
-      "doc-PRD.md",
-      "doc-ARCHITECTURE.md",
-      "doc-TEST-SPEC.md"
+      "contract-PRD.md",
+      "contract-ARCHITECTURE.md",
+      "contract-TEST-SPEC.md"
     ],
-    "status": "experimental"
+    "status": "active"
   }
 ]

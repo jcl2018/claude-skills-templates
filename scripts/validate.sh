@@ -99,22 +99,14 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   done
 done
 
-# Warning check 1: Template sync drift (align-feature-contract only)
+# Warning check 1: Enforcement templates exist in canonical location
 echo ""
-echo "Checking template sync (align-feature-contract)..."
-for pair in "PRD-TEMPLATE.md:doc-PRD.md" "ARCHITECTURE-TEMPLATE.md:doc-ARCHITECTURE.md" "TEST-SPEC-TEMPLATE.md:doc-TEST-SPEC.md"; do
-  skill_tmpl="${pair%%:*}"
-  canon_tmpl="${pair##*:}"
-  skill_file="$SKILLS_DIR/align-feature-contract/$skill_tmpl"
-  canon_file="$TEMPLATES_DIR/$canon_tmpl"
-  if [ -f "$skill_file" ] && [ -f "$canon_file" ]; then
-    skill_hash=$(shasum -a 256 "$skill_file" | awk '{print $1}')
-    canon_hash=$(shasum -a 256 "$canon_file" | awk '{print $1}')
-    if [ "$skill_hash" = "$canon_hash" ]; then
-      pass "align-feature-contract/$skill_tmpl matches templates/$canon_tmpl"
-    else
-      warn "align-feature-contract/$skill_tmpl differs from templates/$canon_tmpl (template drift)"
-    fi
+echo "Checking enforcement templates..."
+for tmpl in "contract-PRD.md" "contract-ARCHITECTURE.md" "contract-TEST-SPEC.md"; do
+  if [ -f "$TEMPLATES_DIR/$tmpl" ]; then
+    pass "templates/$tmpl exists"
+  else
+    warn "templates/$tmpl missing (enforcement template for /contracts)"
   fi
 done
 
