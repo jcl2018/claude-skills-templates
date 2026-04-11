@@ -1,0 +1,9 @@
+{
+  "name": "claude-skills-templates",
+  "version": "0.1.0",
+  "description": "Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench for Claude Code",
+  "author": {
+    "name": "jcl2018"
+  },
+  "repository": "https://github.com/jcl2018/claude-skills-templates"
+}

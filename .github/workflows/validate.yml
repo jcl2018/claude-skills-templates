@@ -1,0 +1,23 @@
+name: Validate Skills
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y jq shellcheck
+
+      - name: Validate catalog
+        run: ./scripts/validate.sh
+
+      - name: Run tests
+        run: ./scripts/test.sh
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh
