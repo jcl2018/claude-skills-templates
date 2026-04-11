@@ -6,6 +6,7 @@
 
 ## ~~skill-author~~ DONE
 
+- [x] **P2:** Auto-install newly created skills to `~/.claude/skills/` as the final stage of the skill-author pipeline. After authoring and validation, deploy the symlink so the skill is immediately usable without a manual install step.
 - [x] **P3:** Delegate to gstack `/ship` skill for the ship stage instead of using the custom `skill-ship.sh` script. Reuse the existing `/ship` workflow (commit, version bump, PR creation) rather than reimplementing it.
 
 ## ~~Deploy logic (gstack-style)~~ DONE
