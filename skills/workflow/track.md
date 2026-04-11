@@ -40,15 +40,28 @@ If found, extract required/optional artifacts for the type. Fallback defaults:
 - review: TRACKER.md, review-notes.md
 
 ### Validate templates
-Check templates/ directory first, then ~/.claude/spec/templates/ as fallback:
+Check templates via 3-level fallback chain (matches contracts/SKILL.md pattern):
 ```bash
-TEMPLATE_DIR="$REPO_ROOT/templates"
-[ -d "$TEMPLATE_DIR" ] || TEMPLATE_DIR=~/.claude/spec/templates
+TEMPLATE_DIR=""
+for dir in "$REPO_ROOT/templates" "$HOME/.claude/spec/templates" "$HOME/.claude/templates"; do
+  [ -d "$dir" ] && TEMPLATE_DIR="$dir" && break
+done
+[ -n "$TEMPLATE_DIR" ] && echo "TEMPLATES: $TEMPLATE_DIR"
 for t in tracker-{type}.md doc-PRD.md doc-ARCHITECTURE.md doc-TEST-SPEC.md; do
   [ -f "$TEMPLATE_DIR/$t" ] && echo "OK: $t" || echo "MISSING: $t"
 done
 ```
-If required templates are missing, report error and stop.
+If TEMPLATE_DIR is empty (no directory found), report:
+"Templates not found in:
+  - $REPO_ROOT/templates/ (repo-local)
+  - ~/.claude/spec/templates/ (user spec)
+  - ~/.claude/templates/ (skills-deploy)
+Run `skills-deploy install` from your claude-skills-templates clone,
+or copy the templates/ directory into your repo root."
+Stop. Do not proceed without templates.
+
+If TEMPLATE_DIR is found but required templates are missing, report which
+templates are missing and stop.
 
 ### Scaffold
 ```bash

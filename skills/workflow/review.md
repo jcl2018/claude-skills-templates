@@ -21,12 +21,17 @@ Before code review, check doc contracts via the /contracts skill.
 
 ### Check if contracts skill exists
 ```bash
-SKILL_DIR=$(git rev-parse --show-toplevel 2>/dev/null)/skills/contracts
-[ -f "$SKILL_DIR/SKILL.md" ] && echo "CONTRACTS_AVAILABLE" || echo "CONTRACTS_MISSING"
+CONTRACTS_FOUND="no"
+for dir in "$(git rev-parse --show-toplevel 2>/dev/null)/skills/contracts" "$HOME/.claude/skills/contracts"; do
+  [ -f "$dir/SKILL.md" ] && CONTRACTS_FOUND="yes" && break
+done
+[ "$CONTRACTS_FOUND" = "yes" ] && echo "CONTRACTS_AVAILABLE" || echo "CONTRACTS_MISSING"
 ```
 
 ### Failure mode A: Contracts skill missing
-- Log: "WARN: /contracts skill not found. Skipping contract quality gate."
+- Log: "WARN: /contracts skill not installed. Skipping doc quality gate.
+  To enable: run `skills-deploy install` from your claude-skills-templates clone,
+  or verify ~/.claude/skills/contracts/SKILL.md exists."
 - Write journal: `### {date} -- review-gate\nContract gate skipped: skill not installed.`
 - Proceed to Step 3.
 
