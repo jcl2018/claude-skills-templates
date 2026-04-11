@@ -2,36 +2,38 @@
 
 ## Creating a new skill
 
-1. **Scaffold:** Run `./scripts/create-skill.sh your-skill-name`
+1. **Design:** Run `./scripts/skill-design.sh your-skill-name`
+   - Creates `skills/your-skill-name/DESIGN.md` from template
+   - Fill in Purpose and Behavior sections (required)
+
+2. **Scaffold:** Run `./scripts/create-skill.sh your-skill-name`
    - Creates `skills/your-skill-name/SKILL.md` with frontmatter skeleton
-   - Creates `docs/your-skill-name/PRD.md`, `ARCHITECTURE.md`, `TEST-SPEC.md`
+   - Creates `skills/your-skill-name/CHANGELOG.md` with initial entry
    - Adds an entry to `skills-catalog.json`
 
-2. **Write the skill:** Edit `skills/your-skill-name/SKILL.md`
+3. **Write the skill:** Edit `skills/your-skill-name/SKILL.md`
    - Fill in the `description` field (be specific, >5 words)
    - Add `allowed-tools` frontmatter to restrict tool access
    - Write the skill instructions
 
-3. **Fill in docs:** Edit the doc triplet in `docs/your-skill-name/`
-   - PRD.md: problem statement, requirements, acceptance criteria
-   - ARCHITECTURE.md: technical approach, component boundaries
-   - TEST-SPEC.md: test matrix, coverage plan
-
-4. **Validate:** Run `./scripts/validate.sh` to check everything is consistent
+4. **Validate:** Run `./scripts/skill-check.sh your-skill-name` to check lifecycle compliance
 
 5. **Lint:** Run `./scripts/lint-skill.sh your-skill-name` for content quality checks
+
+6. **Version:** Run `./scripts/skill-version.sh your-skill-name patch` to bump the version
+
+7. **Ship:** Run `./scripts/skill-ship.sh your-skill-name` to commit, tag, and release
+
+Or use `/skill-author your-skill-name` to run all stages in one guided conversation.
 
 ## Skill directory structure
 
 ```
 skills/your-skill-name/
-  SKILL.md              # required: skill instructions
+  DESIGN.md             # required: design rationale (created by skill-design.sh)
+  SKILL.md              # required: skill instructions (created by create-skill.sh)
+  CHANGELOG.md          # required: version history (created by create-skill.sh)
   *.md                  # optional: supporting files
-
-docs/your-skill-name/
-  PRD.md                # product requirements
-  ARCHITECTURE.md       # technical architecture
-  TEST-SPEC.md          # test specification
 ```
 
 ## Naming conventions
@@ -69,6 +71,6 @@ Before pushing:
 - [ ] `test.sh` passes (required)
 - [ ] `lint-skill.sh` is clean (recommended, not required)
 - [ ] `doctor.sh` shows no errors (recommended)
-- [ ] New skill has doc triplet (PRD, ARCHITECTURE, TEST-SPEC)
+- [ ] New skill has DESIGN.md, SKILL.md, CHANGELOG.md
 - [ ] `skills-catalog.json` updated if skill added/modified
 - [ ] `README.md` regenerated if catalog changed (`./scripts/generate-readme.sh > README.md`)

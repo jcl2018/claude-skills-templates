@@ -124,7 +124,8 @@ echo "Integration test: create-skill.sh scaffold cycle..."
 
 # Backup catalog for safe restore
 cp "$CATALOG" "/tmp/catalog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true' EXIT
+cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true' EXIT
 
 # Step 1: scaffold DESIGN.md first (required by lifecycle pipeline)
 if "$REPO_ROOT/scripts/skill-design.sh" zzz-test-scaffold >/dev/null 2>&1; then
@@ -161,6 +162,84 @@ else
 fi
 
 # Trap EXIT restores catalog and cleans up dirs
+
+# Integration test: version bump cycle
+echo ""
+echo "Integration test: skill-version.sh bump cycle..."
+
+if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
+  # Current version should be 0.1.0
+  CURRENT_VER=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
+  if [ "$CURRENT_VER" = "0.1.0" ]; then
+    ok "initial version is 0.1.0"
+  else
+    fail_test "expected initial version 0.1.0, got: $CURRENT_VER"
+  fi
+
+  # Bump patch version
+  if "$REPO_ROOT/scripts/skill-version.sh" zzz-test-scaffold patch >/dev/null 2>&1; then
+    ok "skill-version.sh patch bump succeeded"
+
+    # Verify SKILL.md frontmatter updated
+    NEW_VER=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
+    if [ "$NEW_VER" = "0.1.1" ]; then
+      ok "SKILL.md version bumped to 0.1.1"
+    else
+      fail_test "expected version 0.1.1, got: $NEW_VER"
+    fi
+
+    # Verify catalog updated
+    CAT_VER=$(jq -r '.[] | select(.name == "zzz-test-scaffold") | .version' "$CATALOG")
+    if [ "$CAT_VER" = "0.1.1" ]; then
+      ok "catalog version bumped to 0.1.1"
+    else
+      fail_test "expected catalog version 0.1.1, got: $CAT_VER"
+    fi
+
+    # Verify CHANGELOG has new entry
+    if grep -q '## \[0.1.1\]' "$SKILLS_DIR/zzz-test-scaffold/CHANGELOG.md"; then
+      ok "CHANGELOG.md has [0.1.1] entry"
+    else
+      fail_test "CHANGELOG.md missing [0.1.1] entry"
+    fi
+  else
+    fail_test "skill-version.sh patch bump failed"
+  fi
+fi
+
+# Integration test: ship cycle (uses git, so we need to be careful)
+echo ""
+echo "Integration test: skill-ship.sh cycle..."
+
+if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
+  # skill-ship.sh requires no staged changes and a clean skill-check
+  # Reset any staged changes from the version bump
+  git reset HEAD -- . >/dev/null 2>&1 || true
+
+  if "$REPO_ROOT/scripts/skill-ship.sh" zzz-test-scaffold >/dev/null 2>&1; then
+    ok "skill-ship.sh succeeded"
+
+    # Verify tag was created
+    if git tag -l "zzz-test-scaffold-v0.1.1" | grep -q "zzz-test-scaffold-v0.1.1"; then
+      ok "git tag zzz-test-scaffold-v0.1.1 created"
+    else
+      fail_test "git tag zzz-test-scaffold-v0.1.1 not found"
+    fi
+
+    # Verify commit was created
+    if git log -1 --oneline | grep -q "zzz-test-scaffold"; then
+      ok "commit message references zzz-test-scaffold"
+    else
+      fail_test "latest commit doesn't reference zzz-test-scaffold"
+    fi
+
+    # Clean up: remove the commit and tag (restore previous state)
+    git reset --soft HEAD~1 >/dev/null 2>&1 || true
+    git reset HEAD -- . >/dev/null 2>&1 || true
+  else
+    fail_test "skill-ship.sh failed"
+  fi
+fi
 
 # Negative test: create orphan directory, verify validate catches it
 echo ""

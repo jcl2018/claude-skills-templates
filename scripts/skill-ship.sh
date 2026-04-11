@@ -52,7 +52,7 @@ git add "skills/$SKILL_NAME/" "skills-catalog.json"
 
 # Regenerate README if generate-readme.sh exists (version appears in README table)
 if [ -x "$REPO_ROOT/scripts/generate-readme.sh" ]; then
-  "$REPO_ROOT/scripts/generate-readme.sh" >/dev/null 2>&1
+  "$REPO_ROOT/scripts/generate-readme.sh" > "$REPO_ROOT/README.md" 2>/dev/null
   git add README.md 2>/dev/null || true
 fi
 

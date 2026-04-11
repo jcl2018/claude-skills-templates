@@ -59,7 +59,11 @@ claude --plugin-dir ./claude-skills-templates
 |--------|---------|-----------|
 | `validate.sh` | Catalog-to-filesystem validation | 1 on error |
 | `test.sh` | Smoke tests (superset of validate) | 1 on failure |
-| `create-skill.sh` | Scaffold new skill + doc triplet | 1 on error |
+| `skill-design.sh` | Scaffold DESIGN.md for a new skill | 1 on error |
+| `create-skill.sh` | Scaffold SKILL.md + CHANGELOG.md + catalog entry | 1 on error |
+| `skill-check.sh` | Per-skill lifecycle validation | 1 on error |
+| `skill-version.sh` | Bump skill version (major/minor/patch) | 1 on error |
+| `skill-ship.sh` | Commit, tag, and ship a skill release | 1 on error |
 | `doctor.sh` | Skill health diagnostics | 0 (advisory) |
 | `lint-skill.sh` | Content-level skill linting | 0 (advisory) |
 | `deps.sh` | Dependency graph visualization | 0 (advisory) |
