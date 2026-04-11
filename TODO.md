@@ -1,5 +1,13 @@
 # TODO
 
+## ~~Documentation~~ DONE
+
+- [x] **P2:** Write a proper README with: overview of all 9 skills and what each does, the skill authoring workflow (design, scaffold, author, check, ship), install instructions (`setup.sh` / `skills-deploy`), and how to create a new skill from scratch using `/skill-author`.
+
+## ~~skill-author~~ DONE
+
+- [x] **P3:** Delegate to gstack `/ship` skill for the ship stage instead of using the custom `skill-ship.sh` script. Reuse the existing `/ship` workflow (commit, version bump, PR creation) rather than reimplementing it.
+
 ## ~~Deploy logic (gstack-style)~~ DONE
 
 Build a deploy/install pipeline modeled after gstack's `setup` script. The target machine should NOT need this repo cloned manually — the installer handles everything.
