@@ -19,34 +19,9 @@
     "status": "active"
   },
   {
-    "name": "skill-author",
-    "version": "0.1.0",
-    "description": "Guided skill authoring pipeline: scaffold, write, validate, version, and ship a new skill in one conversation.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": [
-        "jq",
-        "git"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/skill-author/SKILL.md"
-    ],
-    "templates": [
-      "doc-SKILL-DESIGN.md",
-      "GENERATION-GUIDE.md",
-      "architecture-GENERATION-GUIDE.md",
-      "prd-GENERATION-GUIDE.md",
-      "test-spec-GENERATION-GUIDE.md"
-    ],
-    "status": "experimental"
-  },
-  {
     "name": "templates",
     "version": "0.1.0",
-    "description": "Work item and doc triplet templates for doc-first development. Scaffolds features, defects, tasks, and user stories with type-aware artifact sets.",
+    "description": "Work item, doc triplet, and skill authoring templates for doc-first development. Scaffolds features, defects, tasks, user stories, and new skills with type-aware artifact sets.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -67,7 +42,12 @@
       "doc-test-plan.md",
       "contract-PRD.md",
       "contract-ARCHITECTURE.md",
-      "contract-TEST-SPEC.md"
+      "contract-TEST-SPEC.md",
+      "doc-SKILL-DESIGN.md",
+      "GENERATION-GUIDE.md",
+      "architecture-GENERATION-GUIDE.md",
+      "prd-GENERATION-GUIDE.md",
+      "test-spec-GENERATION-GUIDE.md"
     ],
     "status": "active"
   },

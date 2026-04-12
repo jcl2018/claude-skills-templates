@@ -2,39 +2,34 @@
 
 ## Creating a new skill
 
-1. **Design:** Run `./scripts/skill-design.sh your-skill-name`
-   - Creates `skills/your-skill-name/DESIGN.md` from template
-   - Fill in Purpose and Behavior sections (required)
+1. **Design:** Use `/office-hours` to produce a design doc, or create `skills/your-skill-name/DESIGN.md` manually using `templates/doc-SKILL-DESIGN.md`
 
-2. **Scaffold:** Run `./scripts/create-skill.sh your-skill-name`
-   - Creates `skills/your-skill-name/SKILL.md` with frontmatter skeleton
-   - Creates `skills/your-skill-name/CHANGELOG.md` with initial entry
-   - Adds an entry to `skills-catalog.json`
+2. **Create the skill directory and files:**
+   ```
+   skills/your-skill-name/
+     SKILL.md              # required: skill instructions with YAML frontmatter
+     DESIGN.md             # recommended: design rationale
+     CHANGELOG.md          # recommended: version history
+     *.md                  # optional: supporting files
+   ```
 
-3. **Write the skill:** Edit `skills/your-skill-name/SKILL.md`
-   - Fill in the `description` field (be specific, >5 words)
-   - Add `allowed-tools` frontmatter to restrict tool access
-   - Write the skill instructions
+3. **Write SKILL.md** with required YAML frontmatter:
+   ```yaml
+   ---
+   name: your-skill-name
+   description: "One-line description of what this skill does."
+   version: 0.1.0
+   allowed-tools:
+     - Bash
+     - Read
+   ---
+   ```
 
-4. **Validate:** Run `./scripts/skill-check.sh your-skill-name` to check lifecycle compliance
+4. **Add a catalog entry** to `skills-catalog.json` (see CLAUDE.md for the JSON schema)
 
-5. **Lint:** Run `./scripts/lint-skill.sh your-skill-name` for content quality checks
+5. **Validate:** Run `./scripts/validate.sh` to check catalog consistency
 
-6. **Version:** Run `./scripts/skill-version.sh your-skill-name patch` to bump the version
-
-7. **Ship:** Run `./scripts/skill-ship.sh your-skill-name` to commit, tag, and release
-
-Or use `/skill-author your-skill-name` to run all stages in one guided conversation.
-
-## Skill directory structure
-
-```
-skills/your-skill-name/
-  DESIGN.md             # required: design rationale (created by skill-design.sh)
-  SKILL.md              # required: skill instructions (created by create-skill.sh)
-  CHANGELOG.md          # required: version history (created by create-skill.sh)
-  *.md                  # optional: supporting files
-```
+6. **Ship:** Use `/ship` to commit and create a PR
 
 ## Naming conventions
 
@@ -71,6 +66,5 @@ Before pushing:
 - [ ] `test.sh` passes (required)
 - [ ] `lint-skill.sh` is clean (recommended, not required)
 - [ ] `doctor.sh` shows no errors (recommended)
-- [ ] New skill has DESIGN.md, SKILL.md, CHANGELOG.md
+- [ ] New skill has SKILL.md with valid frontmatter
 - [ ] `skills-catalog.json` updated if skill added/modified
-- [ ] `README.md` regenerated if catalog changed (`./scripts/generate-readme.sh > README.md`)
