@@ -1,5 +1,24 @@
 # Changelog: system-health
 
+## [1.0.0] - 2026-04-11
+### Added
+- Feature work item (F000002) with full artifact set: TRACKER, PRD, ARCHITECTURE, TEST-SPEC, milestones
+- V1 version cut — no functional changes from 0.3.0
+
+## [0.3.0] - 2026-04-11
+### Added
+- Step 4.5: Usage Trends (unscored). Reads `~/.gstack/analytics/skill-usage.jsonl`
+  and surfaces skill usage analytics with per-skill breakdown, per-repo breakdown,
+  peak hours, installed-vs-used overlay, and three rule-based insights
+  (stopped-using, long-and-failing, discovery-gap)
+- Usage-based recommendations (unscored) in Step 7
+- 3-schema JSONL normalization (simple, intermediate, v1)
+- Duration sanitization (duration_s > 86400 treated as null)
+- Usage telemetry preamble
+
+### Fixed
+- Waza path corrected with install instructions
+
 ## [0.2.0] - 2026-04-11
 ### Changed
 - Complete rewrite targeting ~/.claude/ filesystem health instead of home-setup repo
