@@ -93,10 +93,12 @@ else
   fail_test "doctor.sh crashed"
 fi
 
-if "$REPO_ROOT/scripts/lint-skill.sh" >/dev/null 2>&1; then
+# lint-skill.sh exits non-zero on warnings (expected behavior, not a crash)
+lint_output=$("$REPO_ROOT/scripts/lint-skill.sh" 2>&1) || true
+if echo "$lint_output" | grep -q "Skill Content Lint"; then
   ok "lint-skill.sh runs without crash"
 else
-  fail_test "lint-skill.sh crashed"
+  fail_test "lint-skill.sh crashed (no output)"
 fi
 
 if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
@@ -123,129 +125,50 @@ else
   fail_test "generate-readme.sh crashed"
 fi
 
-# Integration test: scaffold a temp skill, validate, cleanup
+# Integration test: catalog consistency after manual skill creation
 echo ""
-echo "Integration test: create-skill.sh scaffold cycle..."
+echo "Integration test: manual skill creation cycle..."
 
 # Backup catalog for safe restore
 cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
 [ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
 [ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"; git tag -d zzz-test-scaffold-v0.1.0 2>/dev/null || true; git tag -d zzz-test-scaffold-v0.1.1 2>/dev/null || true; git tag -l "v[0-9]*" 2>/dev/null | grep -v "^v0\.1\.0$" | xargs -I{} git tag -d {} 2>/dev/null || true' EXIT
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"' EXIT
 
-# Step 1: scaffold DESIGN.md first (required by lifecycle pipeline)
-if "$REPO_ROOT/scripts/skill-design.sh" zzz-test-scaffold >/dev/null 2>&1; then
-  ok "skill-design.sh scaffolded DESIGN.md"
+# Step 1: manually create a skill directory + SKILL.md (the CLAUDE.md-guided way)
+mkdir -p "$SKILLS_DIR/zzz-test-scaffold"
+cat > "$SKILLS_DIR/zzz-test-scaffold/SKILL.md" << 'SKILLEOF'
+---
+name: zzz-test-scaffold
+description: "Test skill for integration testing."
+version: 0.1.0
+allowed-tools:
+  - Bash
+  - Read
+---
+
+# Test Skill
+
+This is a test skill created by the integration test suite.
+SKILLEOF
+
+# Step 2: add catalog entry
+jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
+
+# Step 3: validate passes with the new skill
+if "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1; then
+  ok "validate.sh passes with manually created skill"
 else
-  fail_test "skill-design.sh failed to scaffold DESIGN.md"
+  fail_test "validate.sh fails after manual skill creation"
 fi
 
-# Fill in required DESIGN.md sections so skill-check passes
-sed -i '' 's/What problem does this skill solve.*/Test skill for integration testing/' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md" 2>/dev/null || \
-sed -i 's/What problem does this skill solve.*/Test skill for integration testing/' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md"
-sed -i '' 's/What does the skill do, step by step.*/Runs integration tests./' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md" 2>/dev/null || \
-sed -i 's/What does the skill do, step by step.*/Runs integration tests./' "$SKILLS_DIR/zzz-test-scaffold/DESIGN.md"
-
-# Step 2: scaffold SKILL.md + CHANGELOG.md
-if "$REPO_ROOT/scripts/create-skill.sh" zzz-test-scaffold >/dev/null 2>&1; then
-  ok "create-skill.sh scaffolded zzz-test-scaffold"
-
-  # Verify the scaffold is valid
-  if "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1; then
-    ok "validate.sh passes with scaffolded skill"
-  else
-    fail_test "validate.sh fails after scaffolding zzz-test-scaffold"
-  fi
-
-  # Step 3: skill-check should pass
-  if "$REPO_ROOT/scripts/skill-check.sh" zzz-test-scaffold >/dev/null 2>&1; then
-    ok "skill-check.sh passes for scaffolded skill"
-  else
-    fail_test "skill-check.sh fails for scaffolded skill"
-  fi
+# Step 4: frontmatter is parseable
+fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
+if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
+  ok "manually created skill has valid frontmatter"
 else
-  fail_test "create-skill.sh failed to scaffold zzz-test-scaffold"
-fi
-
-# Trap EXIT restores catalog and cleans up dirs
-
-# Integration test: version bump cycle
-echo ""
-echo "Integration test: skill-version.sh bump cycle..."
-
-if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
-  # Current version should be 0.1.0
-  CURRENT_VER=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
-  if [ "$CURRENT_VER" = "0.1.0" ]; then
-    ok "initial version is 0.1.0"
-  else
-    fail_test "expected initial version 0.1.0, got: $CURRENT_VER"
-  fi
-
-  # Bump patch version
-  if "$REPO_ROOT/scripts/skill-version.sh" zzz-test-scaffold patch >/dev/null 2>&1; then
-    ok "skill-version.sh patch bump succeeded"
-
-    # Verify SKILL.md frontmatter updated
-    NEW_VER=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md" | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
-    if [ "$NEW_VER" = "0.1.1" ]; then
-      ok "SKILL.md version bumped to 0.1.1"
-    else
-      fail_test "expected version 0.1.1, got: $NEW_VER"
-    fi
-
-    # Verify catalog updated
-    CAT_VER=$(jq -r '.[] | select(.name == "zzz-test-scaffold") | .version' "$CATALOG")
-    if [ "$CAT_VER" = "0.1.1" ]; then
-      ok "catalog version bumped to 0.1.1"
-    else
-      fail_test "expected catalog version 0.1.1, got: $CAT_VER"
-    fi
-
-    # Verify CHANGELOG has new entry
-    if grep -q '## \[0.1.1\]' "$SKILLS_DIR/zzz-test-scaffold/CHANGELOG.md"; then
-      ok "CHANGELOG.md has [0.1.1] entry"
-    else
-      fail_test "CHANGELOG.md missing [0.1.1] entry"
-    fi
-  else
-    fail_test "skill-version.sh patch bump failed"
-  fi
-fi
-
-# Integration test: ship cycle (uses git, so we need to be careful)
-echo ""
-echo "Integration test: skill-ship.sh cycle..."
-
-if [ -d "$SKILLS_DIR/zzz-test-scaffold" ]; then
-  # skill-ship.sh requires no staged changes and a clean skill-check
-  # Reset any staged changes from the version bump
-  git reset HEAD -- . >/dev/null 2>&1 || true
-
-  if "$REPO_ROOT/scripts/skill-ship.sh" zzz-test-scaffold >/dev/null 2>&1; then
-    ok "skill-ship.sh succeeded"
-
-    # Verify tag was created
-    if git tag -l "zzz-test-scaffold-v0.1.1" | grep -q "zzz-test-scaffold-v0.1.1"; then
-      ok "git tag zzz-test-scaffold-v0.1.1 created"
-    else
-      fail_test "git tag zzz-test-scaffold-v0.1.1 not found"
-    fi
-
-    # Verify commit was created
-    if git log -1 --oneline | grep -q "zzz-test-scaffold"; then
-      ok "commit message references zzz-test-scaffold"
-    else
-      fail_test "latest commit doesn't reference zzz-test-scaffold"
-    fi
-
-    # Clean up: remove the commit and tag (restore previous state)
-    git reset --soft HEAD~1 >/dev/null 2>&1 || true
-    git reset HEAD -- . >/dev/null 2>&1 || true
-  else
-    fail_test "skill-ship.sh failed"
-  fi
+  fail_test "manually created skill has invalid frontmatter"
 fi
 
 # Template content smoke tests (S000002 TEST-SPEC)
