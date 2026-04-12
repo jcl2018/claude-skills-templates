@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0.0] - 2026-04-11
+### Added
+- `/docs check` now validates work items against their templates: template compliance, lifecycle consistency, and PRD-to-TEST-SPEC traceability
+- Normalization layer handles type spelling mismatches and ID-prefixed filenames automatically
+- P0-only traceability enforcement (P1/P2 stories get advisory-level flags, not warnings)
+- Defensive error handling for missing manifests, templates, and malformed frontmatter
+
+### Fixed
+- Removed stale review-type references from F000001 work items (leftover from /workflow deletion)
+
 ## [0.2.4] - 2026-04-11
 ### Added
 - system-health V1: feature work item (F000002) with TRACKER, PRD, ARCHITECTURE, TEST-SPEC, and milestones
