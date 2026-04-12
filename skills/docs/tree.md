@@ -103,7 +103,7 @@ mkdir -p "$REPO_ROOT/.docs"
 
 Write `.docs/work-item-tree.md` with this structure:
 
-```markdown
+````markdown
 # Work Item Tree
 
 Generated: {ISO-8601 timestamp}
@@ -118,7 +118,7 @@ Commit: {short SHA or "unknown"}
 - **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
 - **Incomplete:** {N}
 - **Misplaced:** {N}
-```
+````
 
 This is the structural-only view. No badge summary table, no findings grouping.
 For the full report with all badges and findings, run `/docs check`.

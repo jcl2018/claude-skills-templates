@@ -461,7 +461,7 @@ mkdir -p "$REPO_ROOT/.docs"
 
 Write `.docs/work-item-report.md` with this structure:
 
-```markdown
+````markdown
 # Work Item Health Report
 
 Generated: {ISO-8601 timestamp}
@@ -479,7 +479,7 @@ Repo: {repo name from basename of REPO_ROOT}
 | Item | Type | State | Template | Lifecycle | Traceability | Structure |
 |------|------|-------|----------|-----------|--------------|-----------|
 | {slug} | {type} | {state} | {badge} | {badge} | {badge} | {badge} |
-```
+````
 
 One row per work item, in tree order (depth-first, alphabetical siblings). The tree shows hierarchy with inline badges; the table provides a flat, sortable view for quick scanning.
 

@@ -34,9 +34,9 @@ blocked_by: "T000002"
 4. Update Files section with actual changed files
 
 **Gates:**
-- [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Core changes committed (>=1 commit SHA in Log)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Review
 
