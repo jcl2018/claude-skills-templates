@@ -1,0 +1,124 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-04-12T06:50:00Z",
+  "generated_commit": "e48cbc1",
+  "nodes": [
+    {
+      "id": "F000001",
+      "slug": "F000001_workflow_alpha",
+      "type": "feature",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha",
+      "parent": null,
+      "children": ["S000001", "S000002", "S000003"],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "PASS",
+        "structure": "PASS"
+      },
+      "completeness": {"count": 3, "min": 1, "required_child": "user-story"}
+    },
+    {
+      "id": "S000001",
+      "slug": "S000001_four_phase",
+      "type": "user-story",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000001_four_phase",
+      "parent": "F000001",
+      "children": ["T000001"],
+      "badges": {
+        "template": "MISSING",
+        "lifecycle": "PASS",
+        "traceability": "—",
+        "structure": "PASS"
+      },
+      "completeness": {"count": 1, "min": 1, "required_child": "task"}
+    },
+    {
+      "id": "T000001",
+      "slug": "T000001_router_implementation",
+      "type": "task",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000001_four_phase/T000001_router_implementation",
+      "parent": "S000001",
+      "children": [],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "—",
+        "structure": "PASS"
+      },
+      "completeness": null
+    },
+    {
+      "id": "S000002",
+      "slug": "S000002_template_consolidation",
+      "type": "user-story",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000002_template_consolidation",
+      "parent": "F000001",
+      "children": [],
+      "badges": {
+        "template": "DRIFT",
+        "lifecycle": "PASS",
+        "traceability": "PASS",
+        "structure": "INCOMPLETE"
+      },
+      "completeness": {"count": 0, "min": 1, "required_child": "task"}
+    },
+    {
+      "id": "S000003",
+      "slug": "S000003_structural_completeness",
+      "type": "user-story",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000003_structural_completeness",
+      "parent": "F000001",
+      "children": ["T000002"],
+      "badges": {
+        "template": "DRIFT",
+        "lifecycle": "WARN",
+        "traceability": "PASS",
+        "structure": "PASS"
+      },
+      "completeness": {"count": 1, "min": 1, "required_child": "task"}
+    },
+    {
+      "id": "T000002",
+      "slug": "T000002_implement_structural_check",
+      "type": "task",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000003_structural_completeness/T000002_implement_structural_check",
+      "parent": "S000003",
+      "children": [],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "—",
+        "structure": "PASS"
+      },
+      "completeness": null
+    },
+    {
+      "id": "F000002",
+      "slug": "F000002_system_health_v1",
+      "type": "feature",
+      "state": "Closed",
+      "path": "work-items/F000002_system_health_v1",
+      "parent": null,
+      "children": [],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "LIFECYCLE_INCONSISTENT",
+        "traceability": "PASS",
+        "structure": "INCOMPLETE"
+      },
+      "completeness": {"count": 0, "min": 1, "required_child": "user-story"}
+    }
+  ],
+  "edges": [],
+  "structural_rules": {
+    "feature": {"required_child": "user-story", "min": 1},
+    "user-story": {"required_child": "task", "min": 1}
+  }
+}
