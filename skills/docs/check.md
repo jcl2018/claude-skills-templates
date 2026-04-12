@@ -487,10 +487,10 @@ One row per work item, in tree order (depth-first, alphabetical siblings). The t
 ## Findings
 
 ### Critical
-{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED findings}
+{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
 
 ### Warnings
-{list all INCOMPLETE (non-root), DRIFT, UNTESTED findings}
+{list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
 
 ### Advisory
 {list all INFO, EXTRA, WARN findings}
