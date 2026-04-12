@@ -1,6 +1,6 @@
 ---
 skill-name: "system-health"
-version: 0.2.0
+version: 1.0.0
 status: ACTIVE
 created: "2026-04-10"
 last-updated: "2026-04-11"

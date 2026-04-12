@@ -1,7 +1,7 @@
 ---
 name: system-health
 description: "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds a dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, and optionally invokes waza for config hygiene. Produces a scored report with trend tracking."
-version: 0.3.0
+version: 1.0.0
 allowed-tools:
   - Bash
   - Read

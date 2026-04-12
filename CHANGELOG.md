@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.4] - 2026-04-11
+### Added
+- system-health V1: feature work item (F000002) with TRACKER, PRD, ARCHITECTURE, TEST-SPEC, and milestones
+- system-health version bump to 1.0.0 (no functional changes from 0.3.0)
+- Backfilled missing system-health [0.3.0] CHANGELOG entry (usage trends, anomaly detection)
+
 ## [0.2.3] - 2026-04-11
 ### Removed
 - `/skill-author` skill: 6-stage guided pipeline replaced by CLAUDE.md "Creating a new skill" section + direct script usage
