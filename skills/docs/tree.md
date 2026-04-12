@@ -91,3 +91,36 @@ TREE SUMMARY: {N} items, {N} incomplete, {N} misplaced
 
 Non-structural badges (template, lifecycle, traceability) always show "—" in `/docs tree`.
 For full badges, run `/docs check`.
+
+## Step 6: Lightweight Report
+
+After rendering the tree, write a lightweight report to `.docs/work-item-tree.md`.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-tree.md` with this structure:
+
+```markdown
+# Work Item Tree
+
+Generated: {ISO-8601 timestamp}
+Commit: {short SHA or "unknown"}
+
+```
+{exact same tree visualization from Step 5}
+```
+
+## Summary
+
+- **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
+- **Incomplete:** {N}
+- **Misplaced:** {N}
+```
+
+This is the structural-only view. No badge summary table, no findings grouping.
+For the full report with all badges and findings, run `/docs check`.
+
+Print: "Tree report written to .docs/work-item-tree.md"
