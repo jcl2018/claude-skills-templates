@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 3 custom skills (doc intelligence, skill authoring, system health), a template library for doc-first development, and tooling to author, validate, test, and distribute skills.
+A skill development workbench for Claude Code. Contains 2 custom skills (doc intelligence, system health), a template library for doc-first development, and tooling to validate, test, and distribute skills.
 
 ## Quick start
 
@@ -10,7 +10,6 @@ A skill development workbench for Claude Code. Contains 3 custom skills (doc int
 git clone https://github.com/jcl2018/claude-skills-templates.git
 cd claude-skills-templates
 ./scripts/validate.sh          # check repo health
-./scripts/create-skill.sh my-skill  # scaffold a new skill
 ./scripts/test.sh              # run full test suite
 ```
 
@@ -64,19 +63,50 @@ Every SKILL.md must have YAML frontmatter with at least `name` and `description`
 No $AI_CONTENT_DIR indirection. Work items live at `./work-items/` per repo.
 Templates at `~/.claude/templates/`. Upstream skills sync via git pull.
 
+## Creating a new skill
+
+To create a new skill, create the directory and files manually (no scaffolding scripts needed):
+
+1. Create `skills/{name}/SKILL.md` with YAML frontmatter:
+   ```yaml
+   ---
+   name: my-skill
+   description: "One-line description of what this skill does."
+   version: 0.1.0
+   allowed-tools:
+     - Bash
+     - Read
+     - Glob
+     - Grep
+     - AskUserQuestion
+   ---
+   ```
+2. Write the skill instructions below the frontmatter
+3. Add a catalog entry to `skills-catalog.json`:
+   ```json
+   {
+     "name": "my-skill",
+     "version": "0.1.0",
+     "description": "Same as frontmatter description.",
+     "source": "local",
+     "depends": { "skills": [], "tools": [] },
+     "portability": "standalone",
+     "files": ["skills/my-skill/SKILL.md"],
+     "templates": [],
+     "status": "experimental"
+   }
+   ```
+4. Optionally create `skills/{name}/DESIGN.md` using `templates/doc-SKILL-DESIGN.md`
+5. Run `./scripts/validate.sh` to verify everything is consistent
+6. Use `/ship` to commit and create a PR
+
 ## Scripts reference
 
 | Script | What it does | When to run |
 |--------|-------------|-------------|
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
-| `skill-design.sh` | Scaffolds DESIGN.md for a new skill | First step of new skill |
-| `create-skill.sh` | Scaffolds SKILL.md + CHANGELOG.md | After DESIGN.md exists |
-| `skill-check.sh` | Validates skill lifecycle compliance | Before version bump or ship |
-| `skill-version.sh` | Bumps skill version (major/minor/patch) | When ready to version |
-| `skill-ship.sh` | Commits, tags skill + bumps collection version | When ready to ship |
 | `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
-| `skill-migrate.sh` | Migrates existing skills to lifecycle format | One-time migration |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
 | `deps.sh` | Shows dependency graph | When changing deps |

@@ -1,6 +1,6 @@
 # claude-skills-templates
 
-Custom skills, templates, and development tooling for Claude Code. Doc-first development templates, doc intelligence, system health monitoring, and a skill authoring pipeline.
+Custom skills, templates, and development tooling for Claude Code. Doc-first development templates, doc intelligence, and system health monitoring.
 
 ## Install
 
@@ -13,9 +13,8 @@ This symlinks all skills into `~/.claude/skills/` so Claude Code discovers them 
 
 ```bash
 # Manage installed skills
-./scripts/skills-deploy install              # Install all skills
-./scripts/skills-deploy install skill-author # Install one (resolves deps)
-./scripts/skills-deploy remove skill-author  # Remove a skill
+./scripts/skills-deploy install              # Install all skills + templates
+./scripts/skills-deploy remove docs          # Remove a skill
 ./scripts/skills-deploy doctor               # Check health
 ```
 
@@ -38,32 +37,15 @@ See `artifact-manifests.json` for the canonical type-to-artifact mapping.
 |-------|-------------|
 | `/docs` | Doc intelligence. Generates narrative docs (PHILOSOPHY.md, OVERVIEW.md) with claims sidecar for staleness detection. |
 | `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. |
-| `/skill-author` | Guided pipeline to create a new skill: intake, scaffold, author, validate, ship. |
 
 ## Creating a New Skill
 
-```
-/skill-author my-new-skill
-```
+Create the directory and files directly (see CLAUDE.md "Creating a new skill" section for the full guide):
 
-Walks you through 5 stages:
-
-1. **Intake** -- validate name, check for conflicts
-2. **Scaffold** -- create DESIGN.md, SKILL.md, CHANGELOG.md, catalog entry
-3. **Author** -- write the skill content (the creative part)
-4. **Check** -- validate frontmatter, lint content, run tests
-5. **Ship** -- version bump, hand off to `/ship` for commit + PR
-
-Or do it manually:
-
-```bash
-./scripts/skill-design.sh my-skill       # Create DESIGN.md
-./scripts/create-skill.sh my-skill       # Scaffold SKILL.md + catalog entry
-# ... write the skill ...
-./scripts/skill-check.sh my-skill        # Validate
-./scripts/skill-version.sh my-skill patch  # Bump version
-./scripts/skill-ship.sh my-skill         # Commit + tag
-```
+1. Create `skills/{name}/SKILL.md` with YAML frontmatter (name, description, version, allowed-tools)
+2. Add a catalog entry to `skills-catalog.json`
+3. Run `./scripts/validate.sh` to verify
+4. Use `/ship` to commit and create a PR
 
 ## Scripts
 
@@ -74,11 +56,7 @@ Or do it manually:
 | `validate.sh` | Catalog-to-filesystem validation |
 | `test.sh` | Full test suite |
 | `test-deploy.sh` | Deploy pipeline tests |
-| `create-skill.sh` | Scaffold a new skill |
-| `skill-design.sh` | Scaffold DESIGN.md |
-| `skill-check.sh` | Per-skill validation |
-| `skill-version.sh` | Bump version (major/minor/patch) |
-| `skill-ship.sh` | Commit, tag, release |
+| `collection-version.sh` | Get/bump/manifest for collection version |
 | `doctor.sh` | Skill health diagnostics |
 | `lint-skill.sh` | Content-level linting |
 | `deps.sh` | Dependency graph |
