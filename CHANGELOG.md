@@ -3,6 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.3] - 2026-04-12
+### Added
+- Company-workflow skill: company work item spec with structural validation against contract.json
+- 13 company templates at `templates/company-workflow/` (5 trackers + 8 docs, including review, scrum, review-notes types)
+- `template-registry.json` declaring workbench and company-workflow template sets with tracker_types and doc_types
+- SKILL.md with 2-level fallback chain (repo then ~/.claude/) and validate subcommand
+- 7 AI generation guides, 3 lifecycle philosophy docs, 3 validation fixtures bundled in skill
+- Work items F000003 (feature), S000003-S000005 (stories), T000002-T000004 (tasks) for company-spec system
+
+### Changed
+- `skills-catalog.json`: added company-workflow entry (templates: [] per skills-deploy constraint)
+- `TODOS.md`: added T000003 (skills-deploy subfolder template support)
+
 ## [0.3.2] - 2026-04-12
 ### Added
 - `/docs check` now enforces structural completeness: features must have user stories, stories must have tasks
