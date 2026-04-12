@@ -21,8 +21,8 @@ blocked_by: ""
 - [ ] Tasks broken down (if needed)
 
 ### Phase 2: Implement
-- [ ] Build-forward mode (from doc triplet + acceptance criteria)
-- [ ] Implementation committed (>=1 commit SHA in Log)
+- [x] Build-forward mode (from doc triplet + acceptance criteria)
+- [x] Implementation committed (>=1 commit SHA in Log)
 - [ ] Acceptance criteria verified met
 
 ### Phase 3: Review
