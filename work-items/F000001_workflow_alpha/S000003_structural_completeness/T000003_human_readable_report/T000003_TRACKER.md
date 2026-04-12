@@ -2,7 +2,7 @@
 name: "Human-readable work item health report"
 type: task
 id: "T000003_human_readable_report"
-status: active
+status: closed
 created: "2026-04-12"
 updated: "2026-04-12"
 parent: "S000003_structural_completeness"
@@ -59,7 +59,7 @@ blocked_by: "T000002"
 
 **Gates:**
 - [x] `/ship` — PR created (#24)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
