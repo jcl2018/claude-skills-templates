@@ -47,8 +47,8 @@ blocked_by: "T000002"
 ❌ If tests fail: fix, re-run
 
 **Gates:**
-- [ ] `/docs check` — validation passed
-- [ ] Test verification passed
+- [x] `/docs check` — validation passed
+- [x] Test verification passed
 
 ### Phase 4: Ship
 
@@ -58,7 +58,7 @@ blocked_by: "T000002"
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/ship` — PR created
+- [x] `/ship` — PR created (#24)
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Todos
