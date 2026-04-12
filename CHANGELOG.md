@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.3] - 2026-04-11
+### Removed
+- `/skill-author` skill: 6-stage guided pipeline replaced by CLAUDE.md "Creating a new skill" section + direct script usage
+- 6 lifecycle scripts: `skill-design.sh`, `create-skill.sh`, `skill-check.sh`, `skill-version.sh`, `skill-ship.sh`, `skill-migrate.sh`
+
+### Changed
+- Moved skill-author's 5 templates (doc-SKILL-DESIGN.md, generation guides) to the `templates` catalog entry
+- Rewrote test.sh integration tests to use manual skill creation instead of deleted scaffolding scripts
+- Fixed lint-skill.sh exit code handling in test.sh (pre-existing issue, warnings are non-zero exit)
+- Updated CLAUDE.md, README.md, CONTRIBUTING.md to reflect 2-skill repo
+
+### Added
+- CLAUDE.md "Creating a new skill" section with frontmatter schema, catalog JSON format, and validation instructions
+
 ## [0.2.2] - 2026-04-11
 ### Removed
 - `/workflow` skill (7 files): implement, review, and ship phases were redundant with gstack; track phase replaced by CLAUDE.md rules
