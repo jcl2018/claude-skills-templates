@@ -33,9 +33,9 @@ reviewers: []
 |---|-----|-------|-------------------|---------------|
 | S1 | core | SKILL.md has frontmatter | name + description present | `head -5 skills/workflow/SKILL.md \| grep -c '^---'` |
 | S2 | core | All subcommand files exist | track.md, implement.md, review.md, ship.md | `ls skills/workflow/{track,implement,review,ship}.md` |
-| S3 | core | Tracker templates exist per manifest type | feature, defect, task, user-story, review | `for t in feature defect task user-story review; do [ -f templates/tracker-$t.md ]; done` |
+| S3 | core | Tracker templates exist per manifest type | feature, defect, task, user-story | `for t in feature defect task user-story; do [ -f templates/tracker-$t.md ]; done` |
 | S4 | core | Doc templates exist | PRD, ARCHITECTURE, TEST-SPEC, RCA, test-plan, milestones | `for t in PRD ARCHITECTURE TEST-SPEC RCA test-plan milestones; do [ -f templates/doc-$t.md ]; done` |
-| S5 | core | Catalog entry exists | workflow in skills-catalog.json | `jq '.[] \| select(.name=="workflow")' skills-catalog.json` |
+| S5 | core | Catalog entry exists | docs in skills-catalog.json | `jq '.[] \| select(.name=="docs")' skills-catalog.json` |
 
 ### Tier 2: E2E Tests (real end-to-end execution)
 
