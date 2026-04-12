@@ -49,6 +49,7 @@ blocked_by: ""
 - [ ] `/docs check` — validation passed
 - [ ] Regression test passing
 - [ ] Test verification passed
+- [ ] `/review` — code review passed
 
 ### Phase 4: Ship
 

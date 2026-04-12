@@ -49,6 +49,7 @@ blocked_by: ""
 **Gates:**
 - [ ] `/docs check` — validation passed
 - [ ] Test verification passed
+- [ ] `/review` — code review passed
 
 ### Phase 4: Ship
 

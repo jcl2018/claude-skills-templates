@@ -61,6 +61,7 @@ blocked_by: ""
 - [ ] `/docs tree` — structure verified
 - [ ] Test verification passed
 - [ ] Doc triplet alignment verified (TEST-SPEC covers P0 stories)
+- [ ] `/review` — code review passed
 
 ### Phase 4: Ship
 

@@ -49,6 +49,7 @@ blocked_by: ""
 - [ ] `/docs check` — all children pass validation
 - [ ] `/docs tree` — structure complete
 - [ ] All children have passed Phase 3: Review
+- [ ] `/review` — code review passed
 
 ### Phase 4: Ship
 
