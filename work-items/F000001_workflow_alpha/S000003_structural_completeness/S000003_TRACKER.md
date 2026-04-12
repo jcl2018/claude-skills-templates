@@ -18,7 +18,7 @@ blocked_by: ""
 - [x] Working branch created (`branch` field populated)
 - [x] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
 - [x] Milestones created
-- [ ] Tasks broken down (if needed)
+- [x] Tasks broken down (if needed)
 
 ### Phase 2: Implement
 - [x] Build-forward mode (from doc triplet + acceptance criteria)

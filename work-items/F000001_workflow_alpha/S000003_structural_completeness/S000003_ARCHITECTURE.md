@@ -145,3 +145,17 @@ After: Steps 1-5 (staleness) skip with note if claims.json missing. Steps 6+ (wo
 - Step 10 Actual Model (existing, no changes needed)
 - artifact-manifests.json (add hierarchy field)
 - Normalization rules from Step 8 (existing, reused)
+
+## Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Hierarchy field missing in foreign repos | Medium | Low | Warn and skip structural checks gracefully |
+| Badge taxonomy incomplete for future check statuses | Low | Low | New statuses added to mapping table when introduced |
+| Graph artifact schema changes breaking consumers | Low | Medium | Version field enables forward compatibility |
+
+## Design Decisions
+
+1. **Hierarchy rules in manifest, not hard-coded:** Enables per-project customization. Required field (no fallback) forces repos to be explicit about their hierarchy expectations.
+2. **Badge taxonomy with severity ordering:** Worst-severity aggregation gives a single-glance health indicator per node without losing detail in the flat check output.
+3. **Separate /docs tree subcommand:** Quick structural view without running all 14+ check steps. Structural badges only, others show "—".
