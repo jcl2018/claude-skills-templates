@@ -3,7 +3,35 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.3.0.0] - 2026-04-11
+## [0.3.2] - 2026-04-12
+### Added
+- `/docs check` now enforces structural completeness: features must have user stories, stories must have tasks
+- `/docs tree` standalone subcommand for quick hierarchy view with structural badges
+- Work item tree report with per-node badges (template, lifecycle, traceability, structure)
+- Machine-readable `.docs/work-item-graph.json` artifact with nodes, badges, completeness, and structural rules
+- Hierarchy and placement rules in `artifact-manifests.json` (configurable per-project)
+- Orphan/misplaced item detection (tasks under features flagged as MISPLACED)
+- Lifecycle cross-reference: "broken down" checked with 0 children flags LIFECYCLE_INCONSISTENT
+- Badge taxonomy mapping all check statuses to 4 categories with severity ordering
+- S000003 work item (structural completeness) with T000002 (implementation) and T000003 (human-readable report)
+
+### Changed
+- `/docs check` no longer stops when claims.json is missing; staleness checks skip, work item checks run independently
+- docs skill bumped to v0.3.0
+
+## [0.3.1] - 2026-04-11
+### Added
+- PHILOSOPHY.md with claims sidecar for staleness detection
+- S000002 milestones and T000001 test-plan (scaffolded from templates)
+- F000001 and S000002 TEST-SPEC traceability entries for untested P0 stories
+
+### Fixed
+- S000001 and S000002 tracker type spelling ("userstory" to "user-story")
+- S000001 and S000002 missing parent field in tracker frontmatter
+- S000002 TEST-SPEC stale references to deleted tracker-review.md
+- VERSION format (4-digit to semver)
+
+## [0.3.0] - 2026-04-11
 ### Added
 - `/docs check` now validates work items against their templates: template compliance, lifecycle consistency, and PRD-to-TEST-SPEC traceability
 - Normalization layer handles type spelling mismatches and ID-prefixed filenames automatically

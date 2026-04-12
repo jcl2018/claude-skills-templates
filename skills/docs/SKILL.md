@@ -1,7 +1,7 @@
 ---
 name: docs
 description: "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection. Work item validation against templates."
-version: 0.2.0
+version: 0.3.0
 allowed-tools:
   - Bash
   - Read
@@ -32,14 +32,15 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /docs requires a git repository. Run 
 # /docs — Doc Intelligence
 
 Generate narrative documentation with a claims sidecar for diff-based staleness detection.
-Two subcommands: init (default) and check.
+Three subcommands: init (default), check, and tree.
 
 ## Quick Start
 
 ```
 /docs init                    # Generate PHILOSOPHY.md + .docs/claims.json
 # ... make changes to code ...
-/docs check                   # See which sections are now stale
+/docs check                   # Staleness + work item validation + structural completeness
+/docs tree                    # Quick hierarchy view with structural badges
 /docs init overview           # Generate OVERVIEW.md
 ```
 
@@ -58,7 +59,8 @@ This is NOT a post-ship doc updater (that's `/document-release`). This generates
 Detect the subcommand from the user's input:
 
 - `/docs` or `/docs init [type]` — generate documentation (read init.md and follow it)
-- `/docs check` — staleness + coherence checking (read check.md and follow it)
+- `/docs check` — staleness + coherence + work item validation + structural completeness (read check.md and follow it)
+- `/docs tree` — quick hierarchy view with structural badges (read tree.md and follow it)
 
 For each subcommand, read the corresponding .md file in this skill directory
 and follow its instructions.

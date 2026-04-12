@@ -22,8 +22,9 @@ reviewers: []
 | 4 | core | Branch auto-detection | AC-6 | On feat/workflow-alpha | `/workflow` | Resolves type=feature, slug=workflow-alpha | P0 | E2E |
 | 5 | core | Contract gate at review | AC-4 | Work item with doc triplet | `/workflow review` | /contracts check invoked | P0 | E2E |
 | 6 | core | Contract gate at ship | AC-4 | Work item with doc triplet | `/workflow ship` | /contracts check+test invoked | P0 | E2E |
-| 7 | core | Evidence synthesis | AC-7 | Work item on branch with commits | `/workflow track` | Journal entries proposed from git log | P1 | E2E |
-| 8 | core | Debug-backward mode | AC-8 | Defect work item | `/workflow implement` | 3-hypothesis testing, not build-forward | P1 | E2E |
+| 7 | core | Spec-guided implementation | AC-3 | Feature with PRD + ARCHITECTURE | `/workflow implement` | Reads doc triplet before executing | P0 | E2E |
+| 8 | core | Evidence synthesis | AC-7 | Work item on branch with commits | `/workflow track` | Journal entries proposed from git log | P1 | E2E |
+| 9 | core | Debug-backward mode | AC-8 | Defect work item | `/workflow implement` | 3-hypothesis testing, not build-forward | P1 | E2E |
 
 ## Test Tiers
 

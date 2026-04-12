@@ -20,10 +20,16 @@ reviewers: []
 | 2 | core | No enterprise gates in defect tracker | AC-1,2 | Updated tracker-defect.md | grep for "reviewer noted", "Linux branch" | Zero matches | P0 | Smoke |
 | 3 | core | No enterprise gates in task tracker | AC-1,2 | Updated tracker-task.md | grep for "reviewer noted", "Linux branch" | Zero matches | P0 | Smoke |
 | 4 | core | No enterprise gates in user-story tracker | AC-1,2 | Updated tracker-user-story.md | grep for "reviewer noted", "Linux branch" | Zero matches | P0 | Smoke |
-| 5 | core | No enterprise gates in review tracker | AC-1,2 | Updated tracker-review.md | grep for "reviewer noted", "Linux branch" | Zero matches | P0 | Smoke |
+| 5 | core | Review tracker removed | AC-3 | After consolidation | `[ ! -f templates/tracker-review.md ]` | File does not exist | P0 | Smoke |
 | 6 | core | Clean frontmatter across all templates | AC-4 | All 5 templates updated | grep for "JIRA", "TFS", "workflow_type" | Zero matches | P0 | Smoke |
 | 7 | core | Task tracker is lighter | AC-3 | Updated tracker-task.md | Count Phase 3+4 checkboxes vs tracker-feature.md | Task has fewer or equal gates | P0 | Smoke |
-| 8 | resilience | Phase detection works with new gates | AC-6 | Work item using new template | Run `/workflow` | Correct phase displayed | P0 | E2E |
+| 8 | core | Scrum removed | AC-2 | Codebase after consolidation | Search for scrum subcommand, template, notes generation | Zero references to scrum | P0 | Smoke |
+| 9 | core | Defect tracker gates match spec | AC-5 | Updated tracker-defect.md | Verify Track+Implement gates match PRD story #5 | Gates include reproduction steps, debug-backward, 3-strike, RCA | P0 | Smoke |
+| 10 | core | Task tracker gates match spec | AC-7 | Updated tracker-task.md | Verify Track+Implement gates match PRD story #7 | Gates include read parent scope, commit changes, update Files | P0 | Smoke |
+| 11 | core | Ship phase is two steps | AC-8 | All 4 tracker templates | Verify Phase 4 has exactly /ship + /land-and-deploy | Two gates per template | P0 | Smoke |
+| 12 | core | Review phase per-type gates | AC-9 | All 4 tracker templates | Compare Phase 3 gates across types | Feature=doc review+gen, Task/Defect add test, Story adds alignment | P0 | Smoke |
+| 13 | core | Child item completeness | AC-10 | Feature with children | Verify Phase 3 checks child completion + doc presence | Required docs validated per manifest | P0 | E2E |
+| 14 | resilience | Phase detection works with new gates | AC-6 | Work item using new template | Run `/workflow` | Correct phase displayed | P0 | E2E |
 
 ## Test Tiers
 
@@ -35,7 +41,7 @@ reviewers: []
 | S2 | core | No "Linux branch" in any tracker | Platform-specific gates removed | `grep -rl "Linux branch" templates/tracker-*.md` returns empty |
 | S3 | core | No JIRA/TFS in any tracker | Enterprise URL fields removed | `grep -rl "JIRA\|TFS" templates/tracker-*.md` returns empty |
 | S4 | core | No workflow_type in any tracker | Redundant field removed | `grep -rl "workflow_type" templates/tracker-*.md` returns empty |
-| S5 | core | Review tracker has sub-gates | Consistent style | `grep -c "^- \[ \]" templates/tracker-review.md` returns > 4 |
+| S5 | core | Review tracker removed | Review type eliminated | `[ ! -f templates/tracker-review.md ]` returns true |
 | S6 | core | Task Phase 3 gate count | Lighter lifecycle | `sed -n '/Phase 3/,/Phase 4/p' templates/tracker-task.md \| grep -c "^- \[ \]"` ≤ feature count |
 
 ### Tier 2: E2E Tests (real end-to-end execution)

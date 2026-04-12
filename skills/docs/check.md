@@ -10,9 +10,9 @@ CLAIMS="$REPO_ROOT/.docs/claims.json"
 [ -f "$CLAIMS" ] && echo "FOUND: $CLAIMS" || echo "MISSING"
 ```
 
-**If MISSING:** Tell the user:
-"No .docs/claims.json found. Run `/docs init` first to generate documentation and the claims sidecar."
-Stop.
+**If MISSING:** Print:
+"No .docs/claims.json found. Skipping staleness check (Steps 2-5). Run `/docs init` to generate documentation and the claims sidecar."
+Skip to Step 6 (work item validation runs independently of staleness checks).
 
 ## Step 2: Validate Claims Schema
 
@@ -271,10 +271,189 @@ WORK ITEM SUMMARY: {N} items checked, {N} drift issues, {N} missing artifacts, {
 
 Items should be listed in tree order: parent first, then children (depth-first).
 
+## Step 15: Check 4 — Structural Completeness + Orphan Detection
+
+### 15a: Load Hierarchy Rules
+
+Read the `hierarchy` field from artifact-manifests.json (already loaded in Step 7).
+
+**If `hierarchy` field is missing:** Print "Warning: artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks." and skip to Step 16 (tree report still renders, structure badge shows "—" for all nodes).
+
+**If `hierarchy` field is malformed** (not a valid JSON object, or entries lack `required_child`/`min`): Print "Warning: artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks." and skip to Step 16.
+
+Also read the `placement` field if present. If missing, use defaults:
+```
+feature: root, defect: root, user-story: feature, task: user-story
+```
+
+### 15b: Structural Completeness Check
+
+For each work item in the Actual Model:
+1. Look up its normalized type in the hierarchy rules
+2. If the type has a `required_child`:
+   - Count children whose normalized type matches `required_child`
+   - If count == 0: flag `[INCOMPLETE] {slug} — {type} has 0 {required_child} children (minimum: {min})`
+   - If 0 < count < min: flag `[INCOMPLETE] {slug} — {type} has {count} {required_child} child(ren) (minimum: {min})`
+   - If count >= min: `[PASS] {slug} — {count} {required_child} child(ren)`
+   - Use "child" when count == 1, "children" when count > 1
+   - Always use the singular form of the type name (e.g., "2 user-story children")
+3. If the type has no required_child entry in hierarchy: `[PASS] {slug} — no structural requirements`
+
+### 15c: Placement Check
+
+For each work item in the Actual Model:
+1. Look up its normalized type in the placement rules
+2. If placement is `root`: the item must be a direct child of `work-items/` (depth 1 from work-items root). If nested deeper, flag `[MISPLACED] {slug} — {type} must be at root level of work-items/, found inside {parent_slug}`
+3. If placement names a parent type (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
+4. Items at the correct placement: no output (implicit pass)
+
+### 15d: Stray Directory Detection
+
+Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix):
+
+Flag: `[STRAY] {directory_name} — contains .md files but no TRACKER.md (not a work item)`
+
+### 15e: Lifecycle Cross-Reference
+
+For each work item in the Actual Model that has a structural requirement (per 15b):
+
+1. Read the TRACKER.md lifecycle section
+2. Search for a checkbox line containing "broken down" or "tasks broken down" (case-insensitive)
+3. If such a checkbox is checked (`- [x]`) AND the structural check from 15b found 0 children of the required type:
+   - Flag `[LIFECYCLE_INCONSISTENT] {slug} — "broken down" is checked but has 0 {required_child} children`
+
+This flag appears in the lifecycle badge category, not the structure badge category.
+
+## Step 16: Badge Taxonomy + Tree Report
+
+### 16a: Badge Taxonomy Mapping
+
+Map all check statuses to 4 badge categories with severity ordering.
+
+**Badge categories and their status values (lowest to highest severity):**
+
+| Badge | Statuses (severity order) | Source checks |
+|-------|--------------------------|---------------|
+| template | PASS < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 11) |
+| lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open, or broken-down cross-ref) | Check 2 (Step 12) + Step 15e |
+| traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) | Check 3 (Step 13) |
+| structure | PASS < INCOMPLETE (missing required children) < MISPLACED (wrong hierarchy level) | Check 4 (Step 15b/15c) |
+
+Each badge for a node shows the **worst** (highest severity) status from its category.
+
+For work item types that don't participate in a check (e.g., tasks have no traceability check because they lack PRD/TEST-SPEC): show "—" for that badge.
+
+### 16b: Tree Report
+
+After all checks complete, emit a unified tree view. Walk `work-items/` depth-first, sorting siblings alphabetically by slug at each level.
+
+```
+WORK ITEM TREE:
+  F000001_workflow_alpha (feature) [In Progress]  completeness: 3/1 user-story
+    template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+    S000001_four_phase (user-story) [In Progress]  completeness: 1/1 task
+      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+      T000001_router_implementation (task) [Open]
+        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+    S000002_template_consolidation (user-story) [In Progress]  completeness: 0/1 task
+      template: PASS  lifecycle: PASS  traceability: PASS  structure: INCOMPLETE (0 task children)
+    S000003_structural_completeness (user-story) [In Progress]  completeness: 1/1 task
+      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+      T000002_implement_structural_check (task) [Open]
+        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+
+  F000002_system_health_v1 (feature) [Open]  completeness: 0/1 user-story
+    template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+```
+
+For each node:
+- Line 1: `{indent}{slug} ({type}) [{state}]  completeness: {count}/{min} {required_child}` (omit completeness for types with no structural requirement)
+- Line 2: `{indent}  template: {badge}  lifecycle: {badge}  traceability: {badge}  structure: {badge}`
+
+Indent is 2 spaces per nesting level from work-items root.
+
+## Step 17: Graph Artifact
+
+After the tree report, emit `work-item-graph.json` to the `.docs/` directory.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-graph.json` with this schema (v1.0.0):
+
+```json
+{
+  "version": "1.0.0",
+  "generated_at": "ISO-8601-TIMESTAMP",
+  "generated_commit": "SHORT-SHA-or-unknown",
+  "nodes": [
+    {
+      "id": "F000001",
+      "slug": "F000001_workflow_alpha",
+      "type": "feature",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha",
+      "parent": null,
+      "children": ["S000001", "S000002", "S000003"],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "PASS",
+        "structure": "PASS"
+      },
+      "completeness": {"count": 3, "min": 1, "required_child": "user-story"}
+    }
+  ],
+  "edges": [],
+  "structural_rules": {}
+}
+```
+
+**Node fields:**
+- `id`: work item ID extracted from slug (e.g., "F000001" from "F000001_workflow_alpha")
+- `slug`: directory name
+- `type`: normalized type (hyphenated form: "user-story")
+- `state`: "Open" / "In Progress" / "Closed"
+- `path`: relative path from repo root
+- `parent`: parent ID or null (for root items)
+- `children`: array of child IDs
+- `badges`: per-check badge (worst severity per category). Use "—" for non-applicable badges.
+- `completeness`: `{"count": N, "min": M, "required_child": "type"}` or null for types with no structural requirement
+
+**Top-level fields:**
+- `structural_rules`: copy the `hierarchy` object from artifact-manifests.json verbatim
+- `edges`: empty array (reserved for dependency graph v2)
+- `generated_commit`: output of `git rev-parse --short HEAD 2>/dev/null` or "unknown"
+
+Print: "Graph artifact written to .docs/work-item-graph.json"
+
+## Step 18: Structural Completeness Output
+
+Append to the report after the WORK ITEM VALIDATION section:
+
+```
+STRUCTURAL COMPLETENESS:
+  [INCOMPLETE] F000002_system_health_v1 — feature has 0 user-story children (minimum: 1)
+  [INCOMPLETE] S000002_template_consolidation — user-story has 0 task children (minimum: 1)
+  [PASS] F000001_workflow_alpha — 3 user-story children
+  [PASS] S000001_four_phase — 1 task child
+  [PASS] S000003_structural_completeness — 1 task child
+  [LIFECYCLE_INCONSISTENT] F000002_system_health_v1 — "broken down" is checked but has 0 user-story children
+
+WORK ITEM TREE:
+  [... tree visualization from Step 16b ...]
+
+Graph artifact written to .docs/work-item-graph.json
+
+STRUCTURAL SUMMARY: {N} items, {N} incomplete, {N} misplaced, {N} stray, {N} lifecycle cross-ref issues
+```
+
 ## Error Messages
 
 - **Not a git repo:** "Error: /docs requires a git repository."
-- **No claims.json:** "No .docs/claims.json found. Run /docs init first."
+- **No claims.json:** "No .docs/claims.json found. Skipping staleness check. Run /docs init to generate."
 - **Malformed claims.json:** "Error: .docs/claims.json is not valid JSON or has an invalid schema. Cause: merge conflict, manual edit, or corruption. Fix: run /docs init to regenerate."
 - **Unreachable commit:** "{section}: stored commit {sha} not in history. Likely cause: rebase or force-push. Fix: run /docs init to rebuild baseline."
 - **No work-items/:** "No work-items/ directory found. Skipping work item validation."
@@ -282,3 +461,5 @@ Items should be listed in tree order: parent first, then children (depth-first).
 - **Malformed manifest:** "Warning: artifact-manifests.json is not valid JSON. Skipping work item validation."
 - **Template not found:** "Warning: template {filename} not found. Skipping validation for this artifact."
 - **Unparseable frontmatter:** "Warning: could not parse frontmatter in {path}. Skipping."
+- **No hierarchy field:** "Warning: artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks."
+- **Malformed hierarchy:** "Warning: artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks."
