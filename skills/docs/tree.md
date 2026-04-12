@@ -39,10 +39,11 @@ Walk `./work-items/` recursively (max depth 3 from work-items root).
 For each directory containing a TRACKER.md file (with or without ID prefix):
 
 1. Read the TRACKER.md file
-2. Parse YAML frontmatter, extract `type` field
-3. Normalize type spelling (remove hyphens for comparison, display hyphenated)
-4. Determine parent (directory nesting) and children (subdirectories with TRACKER.md)
-5. Determine state from lifecycle checkboxes:
+2. If YAML frontmatter cannot be parsed: warn "Warning: could not parse frontmatter in {path}. Skipping this work item." and skip
+3. Parse YAML frontmatter, extract `type` field
+4. Normalize type spelling (remove hyphens for comparison, display hyphenated)
+5. Determine parent (directory nesting) and children (subdirectories with TRACKER.md)
+6. Determine state from lifecycle checkboxes:
    - All `- [ ]` = Open
    - Mix of `- [x]` and `- [ ]` = In Progress
    - All `- [x]` = Closed

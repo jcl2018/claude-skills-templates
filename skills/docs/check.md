@@ -293,6 +293,7 @@ For each work item in the Actual Model:
 2. If the type has a `required_child`:
    - Count children whose normalized type matches `required_child`
    - If count == 0: flag `[INCOMPLETE] {slug} — {type} has 0 {required_child} children (minimum: {min})`
+   - If 0 < count < min: flag `[INCOMPLETE] {slug} — {type} has {count} {required_child} child(ren) (minimum: {min})`
    - If count >= min: `[PASS] {slug} — {count} {required_child} child(ren)`
    - Use "child" when count == 1, "children" when count > 1
    - Always use the singular form of the type name (e.g., "2 user-story children")

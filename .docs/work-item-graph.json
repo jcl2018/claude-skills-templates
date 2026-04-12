@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-04-12T06:50:00Z",
-  "generated_commit": "e48cbc1",
+  "generated_at": "2026-04-12T07:10:00Z",
+  "generated_commit": "1169ba3",
   "nodes": [
     {
       "id": "F000001",
@@ -74,14 +74,14 @@
       "state": "In Progress",
       "path": "work-items/F000001_workflow_alpha/S000003_structural_completeness",
       "parent": "F000001",
-      "children": ["T000002"],
+      "children": ["T000002", "T000003"],
       "badges": {
         "template": "DRIFT",
-        "lifecycle": "WARN",
+        "lifecycle": "PASS",
         "traceability": "PASS",
         "structure": "PASS"
       },
-      "completeness": {"count": 1, "min": 1, "required_child": "task"}
+      "completeness": {"count": 2, "min": 1, "required_child": "task"}
     },
     {
       "id": "T000002",
@@ -89,6 +89,22 @@
       "type": "task",
       "state": "In Progress",
       "path": "work-items/F000001_workflow_alpha/S000003_structural_completeness/T000002_implement_structural_check",
+      "parent": "S000003",
+      "children": [],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "—",
+        "structure": "PASS"
+      },
+      "completeness": null
+    },
+    {
+      "id": "T000003",
+      "slug": "T000003_human_readable_report",
+      "type": "task",
+      "state": "In Progress",
+      "path": "work-items/F000001_workflow_alpha/S000003_structural_completeness/T000003_human_readable_report",
       "parent": "S000003",
       "children": [],
       "badges": {
