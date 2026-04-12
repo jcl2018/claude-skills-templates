@@ -70,5 +70,21 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "company-workflow",
+    "version": "1.0.0",
+    "description": "Company work item specification with structural validation. Scaffolds work items from company templates and validates tracker frontmatter, section ordering, and lifecycle phases against contract.json.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": []
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/company-workflow/SKILL.md"
+    ],
+    "templates": [],
+    "status": "active"
   }
 ]

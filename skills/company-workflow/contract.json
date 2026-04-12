@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "frontmatter": {
+    "required": ["name", "type", "status", "created", "updated"],
+    "recommended": ["repo", "branch"]
+  },
+  "sections": {
+    "required": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Journal", "Handoff"],
+    "optional": ["Meetings", "Insights"],
+    "expected_order": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Meetings", "Insights", "Journal", "Handoff"]
+  },
+  "lifecycle": {
+    "min_checkboxes": 4,
+    "phases": ["Track", "Implement", "Review", "Ship"]
+  },
+  "overdue": {
+    "field": "deadline",
+    "skip_status": ["done"]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "sets": {
+    "workbench": {
+      "description": "This repo's development workflow templates",
+      "version": "1.0.0",
+      "path": "templates/",
+      "contract": null,
+      "tracker_types": ["feature", "defect", "task", "user-story"],
+      "doc_types": ["prd", "architecture", "test-spec", "milestones", "rca", "test-plan"]
+    },
+    "company-workflow": {
+      "description": "Company work item specification with structural validation",
+      "version": "1.0.0",
+      "path": "templates/company-workflow/",
+      "contract": "skills/company-workflow/contract.json",
+      "tracker_types": ["feature", "defect", "task", "userstory", "review"],
+      "doc_types": ["prd", "architecture", "test-spec", "milestones", "rca", "test-plan", "review-notes", "scrum-meeting"],
+      "guides": "skills/company-workflow/reference/"
+    }
+  }
+}
