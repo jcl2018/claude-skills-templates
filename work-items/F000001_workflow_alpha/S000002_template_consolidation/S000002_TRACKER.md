@@ -1,10 +1,11 @@
 ---
 name: "Work Item Template Consolidation"
-type: userstory
+type: user-story
 id: "S000002_template_consolidation"
 status: active
 created: "2026-04-11"
 updated: "2026-04-11"
+parent: "F000001_workflow_alpha"
 repo: "claude-skills-templates"
 branch: "feat/workflow-alpha"
 blocked_by: ""

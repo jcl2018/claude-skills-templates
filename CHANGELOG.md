@@ -3,7 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.3.0.0] - 2026-04-11
+## [0.3.1] - 2026-04-11
+### Added
+- PHILOSOPHY.md with claims sidecar for staleness detection
+- S000002 milestones and T000001 test-plan (scaffolded from templates)
+- F000001 and S000002 TEST-SPEC traceability entries for untested P0 stories
+
+### Fixed
+- S000001 and S000002 tracker type spelling ("userstory" to "user-story")
+- S000001 and S000002 missing parent field in tracker frontmatter
+- S000002 TEST-SPEC stale references to deleted tracker-review.md
+- VERSION format (4-digit to semver)
+
+## [0.3.0] - 2026-04-11
 ### Added
 - `/docs check` now validates work items against their templates: template compliance, lifecycle consistency, and PRD-to-TEST-SPEC traceability
 - Normalization layer handles type spelling mismatches and ID-prefixed filenames automatically
