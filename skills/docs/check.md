@@ -450,6 +450,86 @@ Graph artifact written to .docs/work-item-graph.json
 STRUCTURAL SUMMARY: {N} items, {N} incomplete, {N} misplaced, {N} stray, {N} lifecycle cross-ref issues
 ```
 
+## Step 19: Human-Readable Report
+
+After all checks complete, write a human-readable markdown report to `.docs/work-item-report.md`. This report consumes all data from Steps 1-18.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-report.md` with this structure:
+
+````markdown
+# Work Item Health Report
+
+Generated: {ISO-8601 timestamp}
+Commit: {short SHA from git rev-parse --short HEAD, or "unknown"}
+Repo: {repo name from basename of REPO_ROOT}
+
+## Tree
+
+```
+{exact same tree visualization from Step 16b}
+```
+
+## Badge Summary
+
+| Item | Type | State | Template | Lifecycle | Traceability | Structure |
+|------|------|-------|----------|-----------|--------------|-----------|
+| {slug} | {type} | {state} | {badge} | {badge} | {badge} | {badge} |
+````
+
+One row per work item, in tree order (depth-first, alphabetical siblings). The tree shows hierarchy with inline badges; the table provides a flat, sortable view for quick scanning.
+
+```markdown
+## Findings
+
+### Critical
+{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
+
+### Warnings
+{list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
+
+### Advisory
+{list all INFO, EXTRA, WARN findings}
+```
+
+"Root items" = work items whose placement rule is `root` (features and defects by default, per artifact-manifests.json placement rules).
+
+If no findings exist in a severity category, omit that subsection. If no findings at all, write: "No issues found."
+
+```markdown
+## Structural Summary
+
+- **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
+- **Incomplete:** {N}
+- **Misplaced:** {N}
+- **Lifecycle issues:** {N}
+- **Stray directories:** {N}
+```
+
+Include staleness and coherence results from Steps 3-5 if they ran (claims.json was present):
+
+```markdown
+## Staleness
+
+- **Stale sections:** {N}
+- **Fresh sections:** {N}
+- **Unverifiable sections:** {N}
+
+## Coherence
+
+- **Broken links:** {N}
+- **Version conflicts:** {N}
+- **Dead references:** {N}
+```
+
+If staleness checks were skipped (no claims.json), omit the Staleness and Coherence sections entirely.
+
+Print: "Report written to .docs/work-item-report.md"
+
 ## Error Messages
 
 - **Not a git repo:** "Error: /docs requires a git repository."

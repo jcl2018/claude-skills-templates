@@ -3,6 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.3] - 2026-04-12
+### Added
+- `/docs check` now writes a human-readable health report to `.docs/work-item-report.md` (tree, badge summary table, findings by severity, structural summary)
+- `/docs tree` now writes a lightweight tree report to `.docs/work-item-tree.md`
+- Runbook-style lifecycle phases in all 4 tracker templates: numbered procedural steps with exact commands + checkbox completion gates
+- Each work item type gets its own runbook (feature coordinates via children, user-story uses `/office-hours` + doc triplet, task is simpler, defect uses `/investigate`)
+
+### Changed
+- All 8 existing trackers migrated to runbook format with checkbox states preserved
+- Feature Phase 2 shifts from hands-on implementation to child coordination
+- `.docs/` directory now gitignored (generated artifacts, regenerated each run)
+- `MISSING` and `STRAY` statuses now included in report severity mapping
+
 ## [0.3.2] - 2026-04-12
 ### Added
 - `/docs check` now enforces structural completeness: features must have user stories, stories must have tasks
