@@ -1,7 +1,7 @@
 ---
 name: docs
-description: "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection."
-version: 0.1.0
+description: "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection. Work item validation against templates."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read

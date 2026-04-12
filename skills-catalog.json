@@ -53,8 +53,8 @@
   },
   {
     "name": "docs",
-    "version": "0.1.0",
-    "description": "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection. Runtime dependency on gstack /document-release for post-ship workflow.",
+    "version": "0.2.0",
+    "description": "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with a claims sidecar for diff-based staleness detection. Work item validation against templates. Runtime dependency on gstack /document-release for post-ship workflow.",
     "source": "local",
     "depends": {
       "skills": [],
