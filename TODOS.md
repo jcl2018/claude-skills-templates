@@ -23,6 +23,13 @@ Depends on skill-check.sh which was removed.
 ### ~~skill-diff.sh version comparison (P3, S)~~ RETIRED
 Depends on skill-ship.sh which was removed.
 
+### validate.sh structural check via graph JSON (P2, M)
+Add structural completeness check to validate.sh by reading `work-item-graph.json`
+badges instead of doing its own YAML parsing. Catches structural violations in
+pre-commit, not just when someone runs `/docs check`.
+**When:** After graph artifact schema (v1.0.0) is proven stable.
+**Depends on:** `.docs/work-item-graph.json` emitted by `/docs check` Steps 15-17.
+
 ### Behavioral eval harness (P1, M) — PRIORITY
 Golden tasks, expected outputs, regression fixtures, safety checks per skill.
 Measures whether a skill actually works, not just whether metadata exists.
