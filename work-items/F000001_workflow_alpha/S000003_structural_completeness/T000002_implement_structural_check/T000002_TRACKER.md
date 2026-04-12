@@ -2,7 +2,7 @@
 name: "Implement structural completeness check"
 type: task
 id: "T000002_implement_structural_check"
-status: active
+status: closed
 created: "2026-04-11"
 updated: "2026-04-11"
 parent: "S000003_structural_completeness"
@@ -24,13 +24,13 @@ blocked_by: ""
 - [x] Files section updated with changed files
 
 ### Phase 3: Review
-- [ ] Doc review completed
-- [ ] Doc generation finalized
-- [ ] Test verification passed
+- [x] Doc review completed
+- [x] Doc generation finalized
+- [x] Test verification passed
 
 ### Phase 4: Ship
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -44,8 +44,8 @@ blocked_by: ""
 - [x] Create `skills/docs/tree.md` for `/docs tree` subcommand (structural badges only)
 - [x] Update `skills/docs/SKILL.md` with `/docs tree` routing
 - [x] Update `skills-catalog.json` (version bump, add tree.md to files)
-- [ ] Run `/docs check` — verify F000002 flagged INCOMPLETE
-- [ ] Run `/docs tree` — verify tree renders with structural badges
+- [x] Run `/docs check` — verify F000002 flagged INCOMPLETE
+- [x] Run `/docs tree` — verify tree renders with structural badges
 - [x] Run `./scripts/validate.sh` — verify no regressions
 
 ## Log

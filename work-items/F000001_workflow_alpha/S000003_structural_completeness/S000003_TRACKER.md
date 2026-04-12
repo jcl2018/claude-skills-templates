@@ -23,45 +23,45 @@ blocked_by: ""
 ### Phase 2: Implement
 - [x] Build-forward mode (from doc triplet + acceptance criteria)
 - [x] Implementation committed (>=1 commit SHA in Log)
-- [ ] Acceptance criteria verified met
+- [x] Acceptance criteria verified met
 
 ### Phase 3: Review
-- [ ] Doc review completed
-- [ ] Doc generation finalized
+- [x] Doc review completed
+- [x] Doc generation finalized
 - [ ] Doc triplet alignment check (TEST-SPEC)
 
 ### Phase 4: Ship
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (#22)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
-- [ ] `/docs check` flags F000002_system_health_v1 as INCOMPLETE (0 user-story children)
-- [ ] `/docs check` flags S000002_template_consolidation as INCOMPLETE (0 task children)
-- [ ] Tree report renders hierarchy with per-node badges (template, lifecycle, traceability, structure)
-- [ ] `work-item-graph.json` emitted to `.docs/` with correct schema (nodes, edges, structural_rules, completeness)
-- [ ] Hierarchy rules read from `artifact-manifests.json` `hierarchy` field (required, no fallback)
+- [x] `/docs check` flags F000002_system_health_v1 as INCOMPLETE (0 user-story children)
+- [x] `/docs check` flags S000002_template_consolidation as INCOMPLETE (0 task children)
+- [x] Tree report renders hierarchy with per-node badges (template, lifecycle, traceability, structure)
+- [x] `work-item-graph.json` emitted to `.docs/` with correct schema (nodes, edges, structural_rules, completeness)
+- [x] Hierarchy rules read from `artifact-manifests.json` `hierarchy` field (required, no fallback)
 - [ ] Orphan/misplaced detection: task under feature flagged as MISPLACED
-- [ ] Placement rules enforced: feature/defect root-level, story inside feature, task inside story
-- [ ] Badge taxonomy maps all existing check statuses to 4 badge categories with severity ordering
-- [ ] Claims.json gate separated: Steps 1-5 skip if missing, Steps 6+ run regardless
-- [ ] Lifecycle cross-reference: "broken down" checked + 0 children = LIFECYCLE_INCONSISTENT
-- [ ] `/docs tree` subcommand renders tree with structural badges only (other badges show "—")
-- [ ] Repos without `work-items/` gracefully skip structural checks and tree report
-- [ ] Existing checks (1-3) continue to work unchanged
+- [x] Placement rules enforced: feature/defect root-level, story inside feature, task inside story
+- [x] Badge taxonomy maps all existing check statuses to 4 badge categories with severity ordering
+- [x] Claims.json gate separated: Steps 1-5 skip if missing, Steps 6+ run regardless
+- [x] Lifecycle cross-reference: "broken down" checked + 0 children = LIFECYCLE_INCONSISTENT
+- [x] `/docs tree` subcommand renders tree with structural badges only (other badges show "—")
+- [x] Repos without `work-items/` gracefully skip structural checks and tree report
+- [x] Existing checks (1-3) continue to work unchanged
 
 ## Todos
 
-- [ ] Add `hierarchy` field to artifact-manifests.json
-- [ ] Separate claims.json gate in check.md (Steps 1-5 vs 6+)
-- [ ] Add Steps 15-17 to check.md (structural check + orphan detection, tree report, graph artifact)
-- [ ] Add badge taxonomy mapping to check.md
-- [ ] Add lifecycle cross-reference for "broken down" checkbox
-- [ ] Create tree.md for `/docs tree` subcommand
-- [ ] Update SKILL.md with `/docs tree` routing
-- [ ] Update skills-catalog.json (version bump, add tree.md)
-- [ ] Run `/docs check` to verify F000002 flagged
-- [ ] Run `./scripts/validate.sh` to confirm no regressions
+- [x] Add `hierarchy` field to artifact-manifests.json
+- [x] Separate claims.json gate in check.md (Steps 1-5 vs 6+)
+- [x] Add Steps 15-17 to check.md (structural check + orphan detection, tree report, graph artifact)
+- [x] Add badge taxonomy mapping to check.md
+- [x] Add lifecycle cross-reference for "broken down" checkbox
+- [x] Create tree.md for `/docs tree` subcommand
+- [x] Update SKILL.md with `/docs tree` routing
+- [x] Update skills-catalog.json (version bump, add tree.md)
+- [x] Run `/docs check` to verify F000002 flagged
+- [x] Run `./scripts/validate.sh` to confirm no regressions
 
 ## Log
 
