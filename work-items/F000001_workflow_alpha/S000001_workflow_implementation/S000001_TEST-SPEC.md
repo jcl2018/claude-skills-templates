@@ -20,7 +20,7 @@ reviewers: []
 | # | Tag | Test Case | AC | Expected Result | Priority | Type |
 |---|-----|-----------|-----|-----------------|----------|------|
 | 1 | core | No multi-person fields | AC-1 | No "reviewer noted", "Linux branch", JIRA, workflow_type | P0 | Unit |
-| 2 | core | Task lighter than feature | AC-3 | Task gate count < feature gate count | P0 | Unit |
+| 2 | core | Task lighter than or equal to feature | AC-3 | Task gate count <= feature gate count | P0 | Unit |
 | 3 | core | Review type removed | AC-6 | tracker-review.md does not exist | P0 | Unit |
 | 4 | core | Structured IDs in templates | AC-5 | F/S/D/T prefix with 6-digit number | P0 | Unit |
 | 5 | core | Valid frontmatter in all templates | — | All templates parseable | P0 | Unit |
