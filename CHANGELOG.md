@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.6] - 2026-04-13
+### Changed
+- Lifecycle simplified from 4 phases (Track/Implement/Review/Ship) to 3 phases (Track/Implement/Ship) across all 4 tracker templates
+- `/review` gate removed from templates since `/ship` runs pre-landing review internally
+- Doc checks (`/docs check`, `/docs tree`) moved into Ship phase as pre-flight steps
+- Template fallback chain standardized to 3-level across all docs: `templates/` > `~/.claude/spec/templates/` > `~/.claude/templates/`
+- Task tracker "Design doc approved" gate removed (parent story concern, not task concern)
+- F000002 tracker status corrected from `active` to `closed` to match checkbox state
+- Stale examples in check.md and tree.md updated to reflect current hierarchy (1 story, 1 task)
+- PHILOSOPHY.md aligned: doc triplet now described as user-story-only, fallback chain updated to 3-level
+
+### Removed
+- 8 feature-level docs that violated manifest rules: PRD, ARCHITECTURE, TEST-SPEC, milestones from both F000001 and F000002 (features get tracker only per artifact-manifests.json)
+
 ## [0.3.5] - 2026-04-13
 ### Changed
 - Closed F000001_workflow_alpha: verified consistency across 12 work item docs (structure, logic, cross-refs), fixed stale lifecycle gates, aligned architecture diagram with manifest
