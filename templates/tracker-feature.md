@@ -19,13 +19,13 @@ blocked_by: ""
 2. Create working branch: `git checkout -b feat/{slug}`
 3. Scaffold work item directory and TRACKER.md
 4. Define acceptance criteria (what "done" looks like for the whole feature)
-5. Decompose into child user-stories and/or tasks
+5. Decompose into child user-stories
    → detail (PRD, ARCHITECTURE, TEST-SPEC, milestones) lives in child stories
 
 **Gates:**
 - [ ] Acceptance criteria scoped
 - [ ] Working branch created (`branch` field populated)
-- [ ] Broken down into child stories/tasks
+- [ ] Broken down into child stories
 
 ### Phase 2: Implement
 
@@ -35,14 +35,14 @@ blocked_by: ""
 4. Update Files section with top-level changed files
 
 **Gates:**
-- [ ] All child stories/tasks have entered Phase 2+
+- [ ] All child stories have entered Phase 2+
 - [ ] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Review
 
 1. Run `/docs check` — verify full hierarchy passes all badges
 2. Run `/docs tree` — verify structural completeness (all children present)
-3. Verify all child stories/tasks have passed their own Phase 3
+3. Verify all child stories have passed their own Phase 3
 4. Run `/review` for feature-level code review
 
 **Gates:**
@@ -53,7 +53,7 @@ blocked_by: ""
 
 ### Phase 4: Ship
 
-1. Ensure all child stories/tasks are shipped first
+1. Ensure all child stories are shipped first
 2. Run `/ship` — creates feature PR (if not already created by children)
 3. Run `/land-and-deploy` — merges and verifies
 
