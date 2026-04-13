@@ -38,32 +38,23 @@ blocked_by: ""
 4. Update Files section with actual changed files
 
 **Gates:**
-- [ ] Design doc approved before implementation
 - [ ] Core changes committed (>=1 commit SHA in Log)
 - [ ] Todos section reflects remaining work (no stale items)
 - [ ] Files section updated with changed files
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` — verify no regressions
 2. Verify test-plan: all test scenarios passing
-3. Run `/review` for code review (if PR exists)
+3. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
+4. Run `/land-and-deploy` — merges PR and verifies deployment
 
 ❌ If tests fail: fix, re-run
+❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
 - [ ] `/docs check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
-- [ ] `/review` — code review passed
-
-### Phase 4: Ship
-
-1. Run `/ship` — creates PR, bumps version, updates changelog
-2. Run `/land-and-deploy` — merges PR and verifies deployment
-
-❌ If CI fails: fix, push, re-run `/ship`
-
-**Gates:**
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed
 

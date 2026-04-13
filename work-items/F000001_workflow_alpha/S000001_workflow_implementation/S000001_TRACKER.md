@@ -45,27 +45,21 @@ blocked_by: ""
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` -- verify all validation passes
    -> should show PASS for template, lifecycle, traceability, structure badges
 2. Run `/docs tree` -- verify hierarchy and structural completeness
-3. Run tests: `./scripts/test.sh`
-4. Review TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
-5. Run `/review` for code review (if PR exists)
+3. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
+4. Ensure all child tasks have shipped
+5. Run `/ship` -- creates PR, bumps version, updates changelog (includes pre-landing code review)
+6. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
 - [x] `/docs check` -- validation passed
 - [x] `/docs tree` -- structure verified
-- [x] Test verification passed
-- [x] Doc triplet alignment verified (TEST-SPEC covers P0 stories)
-
-### Phase 4: Ship
-
-1. Run `/ship` -- creates PR, bumps version, updates changelog
-2. Run `/land-and-deploy` -- merges PR and verifies deployment
-
-**Gates:**
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped
 - [x] `/ship` -- PR created (#22, #24)
 - [x] `/land-and-deploy` -- merged and deployed
 

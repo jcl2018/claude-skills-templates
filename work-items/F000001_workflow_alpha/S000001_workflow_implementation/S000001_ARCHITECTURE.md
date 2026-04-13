@@ -109,8 +109,7 @@ skills/docs/tree.md -> Step 15 + Step 16 (structural badges only, others show "-
 
 | Change | Before | After |
 |--------|--------|-------|
-| Review phase gates | "Reviewer noted findings" | /docs check + TEST-SPEC/test-plan verification + /review |
-| Ship phase gates | "Linux branch build passed" | /ship + /land-and-deploy |
+| Ship phase gates | "Reviewer noted findings", "Linux branch build passed" | /docs check + TEST-SPEC/test-plan verification + /ship (includes pre-landing review) + /land-and-deploy |
 | ID format | Free-text | F/S/D/T + 6-digit + keywords |
 | Phase 1 docs | Generic "produce docs" | Type-specific required doc list per artifact-manifests.json |
 | Phase 2 (feature/story) | Direct implementation | Coordinates children |

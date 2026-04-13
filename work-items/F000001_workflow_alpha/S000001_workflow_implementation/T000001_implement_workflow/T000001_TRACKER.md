@@ -38,22 +38,16 @@ blocked_by: ""
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` -- verify no regressions
-2. Run tests: `./scripts/test.sh` (or project-specific test command)
-3. Run `/review` for code review (if PR exists)
+2. Verify test-plan: all test scenarios passing
+3. Run `/ship` -- creates PR, bumps version, updates changelog (includes pre-landing code review)
+4. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
 - [x] `/docs check` -- validation passed
-- [x] Test verification passed
-
-### Phase 4: Ship
-
-1. Run `/ship` -- creates PR, bumps version, updates changelog
-2. Run `/land-and-deploy` -- merges PR and verifies deployment
-
-**Gates:**
+- [x] Test-plan verified (all scenarios passing)
 - [x] `/ship` -- PR created (#22, #24)
 - [x] `/land-and-deploy` -- merged and deployed
 
