@@ -4,7 +4,7 @@ type: feature
 id: "F000001_workflow_alpha"
 status: active
 created: "2026-04-11"
-updated: "2026-04-11"
+updated: "2026-04-13"
 repo: "claude-skills-templates"
 branch: "feat/workflow-alpha"
 blocked_by: ""
@@ -73,19 +73,19 @@ blocked_by: ""
 ## Todos
 
 ### User Stories
-- [x] [S000001_four_phase](S000001_four_phase/S000001_TRACKER.md) — Four-phase workflow pipeline (1 task)
-- [ ] [S000002_template_consolidation](S000002_template_consolidation/S000002_TRACKER.md) — Fix tracker templates for solo-dev mode
+- [ ] [S000001_workflow_implementation](S000001_workflow_implementation/S000001_TRACKER.md) — Full workflow implementation (1 task)
 
 ### Remaining
 - [ ] Complete E2E test (creating this work item is the test)
-- [ ] Run `/contracts check` on the doc triplet
+- [ ] Run `/docs check` on the doc triplet
 - [ ] Run `./scripts/test.sh` for full validation
 
 ## Log
 
 - 2026-04-11: Created. v1 documentation for workflow skill — the 4-phase router with track, implement, review, ship.
 - 2026-04-11: Doc triplet populated. PRD covers 11 user stories, ARCHITECTURE maps the router + 4 subcommands, TEST-SPEC has 8 test cases + 5 smoke tests + 4 E2E scenarios.
-- 2026-04-11: Template consolidation implemented — new solo-dev gates, removed review type, removed scrum, structured IDs.
+- 2026-04-11: Template consolidation implemented -- new solo-dev gates, removed review type, removed scrum, structured IDs.
+- 2026-04-13: Consolidated 3 user stories (S000001, S000002, S000003) into S000001_workflow_implementation. 4 tasks merged into T000001_implement_workflow.
 
 ## PRs
 

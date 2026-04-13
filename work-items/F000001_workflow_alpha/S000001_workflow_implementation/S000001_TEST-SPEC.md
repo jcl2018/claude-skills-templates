@@ -1,8 +1,8 @@
 ---
 type: test-spec
-parent: S000003_structural_completeness
+parent: S000001_workflow_implementation
 feature: F000001_workflow_alpha
-title: "Structural Completeness + Tree Report — Test Specification"
+title: "Workflow Alpha Implementation — Test Specification"
 version: 1
 status: Draft
 date: 2026-04-11

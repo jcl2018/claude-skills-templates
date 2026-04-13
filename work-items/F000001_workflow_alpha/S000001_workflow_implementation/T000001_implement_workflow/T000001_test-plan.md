@@ -1,7 +1,7 @@
 ---
 type: test-plan
-parent: T000002_implement_structural_check
-title: "Implement structural completeness check — Test Plan"
+parent: T000001_implement_workflow
+title: "Workflow Alpha Implementation — Test Plan"
 date: 2026-04-11
 author: chjiang
 status: Draft
