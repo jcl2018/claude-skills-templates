@@ -2,10 +2,11 @@
 type: architecture
 parent: ""
 feature: F000001_workflow_alpha
-title: "workflow-alpha — Architecture"
-version: 1
-status: Draft
+title: "Workflow Alpha — Architecture"
+version: 2
+status: Done
 date: 2026-04-11
+updated: 2026-04-13
 author: chjiang
 prd: F000001_PRD.md
 reviewers: []
@@ -13,67 +14,60 @@ reviewers: []
 
 ## Overview
 
-The workflow skill is a single-entry-point router for the 4-phase dev lifecycle. It detects the current branch, resolves the matching work item from `work-items/`, determines which phase is active, and dispatches to the appropriate subcommand. The design consolidates what were originally 5 separate skills into one multi-file skill with shared context resolution.
+The workflow alpha feature establishes a doc-first development lifecycle through three interconnected systems: (1) tracker templates encoding a 4-phase lifecycle with type-specific gates, (2) a declarative artifact manifest system for scaffolding, and (3) structural completeness validation in /docs check. The lifecycle phases (Track, Implement, Review, Ship) are encoded in templates, not a dedicated skill. Review and ship delegate to gstack /review and /ship.
 
 ## Architecture
 
 ```
-                    ┌──────────────────────────┐
-                    │    /workflow ROUTER       │
-                    │    (SKILL.md)             │
-                    │                          │
-                    │  1. Branch detection      │
-                    │  2. Work item resolution  │
-                    │  3. Phase detection       │
-                    │  4. Status menu (default) │
-                    └──────────┬───────────────┘
-                               │
-           ┌──────────┬────────┼────────┬──────────┐
-           ▼          ▼        ▼        ▼          ▼
-       track.md  implement.md review.md ship.md  (status)
-           │          │        │        │
-           ▼          ▼        ▼        ▼
-    work-items/   code edits  /contracts /contracts
-    {slug}/                   + /review  + /ship
-    ├── TRACKER.md
-    ├── PRD.md
-    ├── ARCHITECTURE.md
-    ├── TEST-SPEC.md
-    └── milestones.md
+rules/work-items.md (CLAUDE.md rules)
+    │
+    ├── Branch naming -> work item type
+    ├── ID generation (F/S/D/T + 6-digit)
+    ├── Directory structure conventions
+    └── Scaffolding instructions
+            │
+            ▼
+artifact-manifests.json
+    │
+    ├── types.feature.required     -> [tracker]
+    ├── types.user-story.required  -> [tracker, prd, architecture, test-spec, milestones]
+    ├── types.defect.required      -> [tracker, rca, test-plan]
+    ├── types.task.required         -> [tracker, test-plan]
+    ├── hierarchy              -> {feature->user-story, user-story->task}
+    └── placement              -> {feature:root, story:feature, task:story}
+            │
+            ▼
+templates/tracker-{type}.md
+    │
+    ├── Phase 1: Track   (scaffold docs, define scope)
+    ├── Phase 2: Implement (children drive work / direct implementation)
+    ├── Phase 3: Review  (/docs check + test verification + /review)
+    └── Phase 4: Ship    (/ship + /land-and-deploy)
+            │
+            ▼
+skills/docs/check.md (Steps 15-17)
+    │
+    ├── Step 15: Structural completeness + orphan/misplaced detection
+    ├── Step 16: Tree report (depth-first, 4 badges per node)
+    ├── Step 17: Graph artifact (.docs/work-item-graph.json)
+    └── Step 19: Human-readable report (.docs/work-item-report.md)
 ```
 
-### Components Affected
+### Components
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| Router | skills/workflow/SKILL.md | Branch detection, work item resolution, phase detection, status menu |
-| Track | skills/workflow/track.md | Work item CRUD: create, journal, milestones, list, close, scrum, child-items |
-| Implement | skills/workflow/implement.md | Build-forward (features) or debug-backward (defects) |
-| Review | skills/workflow/review.md | Contract quality gate → delegates to gstack /review |
-| Ship | skills/workflow/ship.md | TEST-SPEC validation + contract gate → delegates to gstack /ship |
-
-### Data Flow
-
-1. User runs `/workflow [subcommand]`
-2. SKILL.md detects branch pattern (feat/*, fix/*, task/*, story/*, review/*)
-3. Derives type (feature/defect/task/user-story/review) and slug from branch name
-4. Searches `work-items/` for a TRACKER.md matching the slug
-5. Reads TRACKER.md frontmatter and lifecycle checkboxes to determine current phase
-6. Dispatches to the appropriate subcommand .md file with resolved context
-
-### Branch Pattern Matching
-
-| Pattern | Type | Example |
-|---------|------|---------|
-| `feature-*`, `feat-*`, `feat/*` | feature | feat/workflow-alpha |
-| `defect-*`, `fix-*`, `fix/*`, `bugfix-*` | defect | fix/null-pointer |
-| `task-*`, `chore-*`, `chore/*` | task | task/cleanup-templates |
-| `story-*` | user-story | story/user-onboarding |
-| `review-*` | review | review/q2-audit |
+| Work item rules | rules/work-items.md | Branch conventions, scaffolding instructions, ID generation |
+| Artifact manifest | artifact-manifests.json | Type-to-artifact mapping, hierarchy rules, placement rules |
+| Feature tracker | templates/tracker-feature.md | 4-phase lifecycle with feature-specific gates |
+| User-story tracker | templates/tracker-user-story.md | 4-phase lifecycle, coordinates children |
+| Task tracker | templates/tracker-task.md | 4-phase lifecycle, lightweight gates |
+| Defect tracker | templates/tracker-defect.md | 4-phase lifecycle with /investigate + RCA |
+| Structural check | skills/docs/check.md | Steps 15-17 for hierarchy validation |
+| Tree subcommand | skills/docs/tree.md | Standalone tree rendering |
+| Doc templates | templates/doc-*.md | Scaffolding templates (PRD, ARCHITECTURE, etc.) |
 
 ### Template Resolution
-
-Templates resolve via 3-level fallback:
 
 ```
 1. $REPO_ROOT/templates/        (repo-local, highest priority)
@@ -81,50 +75,37 @@ Templates resolve via 3-level fallback:
 3. ~/.claude/templates/         (skills-deploy fallback)
 ```
 
-### Track Subcommands
+### Hierarchy Model
 
-| Subcommand | What it does |
-|-----------|-------------|
-| create | Scaffold work item + artifacts per artifact-manifests.json |
-| (default) | Evidence synthesis — propose journal entries from git history |
-| journal | Manual journal entry (decision / finding / blocker) |
-| milestones | CRUD operations on milestones.md |
-| list | List all work items with risk badges (overdue/urgent/at-risk) |
-| close | Set status: done, add close date |
-| scrum | Generate scrum notes from milestones + git + journal |
-| child-items | Create sub-items (max depth 3: feature → story → task) |
+| Type | Required child | Min | Allowed placement |
+|------|---------------|-----|-------------------|
+| feature | user-story | 1 | root (direct child of work-items/) |
+| user-story | task | 1 | inside a feature directory |
+| task | — | — | inside a user-story directory |
+| defect | — | — | root (direct child of work-items/) |
 
-### Implement Modes
+### Badge Taxonomy
 
-| Mode | Triggered by | Behavior |
-|------|-------------|----------|
-| Build-forward | feature, task, user-story | Read doc triplet → draft plan → execute with approval |
-| Debug-backward | defect | Collect symptoms → 3 hypotheses → test systematically → root-cause gate → fix |
+| Badge category | Status values (severity order) |
+|---------------|-------------------------------|
+| template | PASS < WARN < DRIFT < INCOMPLETE |
+| lifecycle | PASS < WARN < LIFECYCLE_INCONSISTENT |
+| traceability | PASS < INFO < UNTESTED |
+| structure | PASS < INCOMPLETE < MISPLACED |
 
-## Dependencies
+### Graph Artifact Schema (v1.0.0)
 
-| Dependency | Type | Status | Notes |
-|-----------|------|--------|-------|
-| /contracts | Skill | Available | Invoked as quality gate at review and ship phases |
-| gstack /review | Skill | Available | Code review delegation at Phase 3 |
-| gstack /ship | Skill | Available | Ship delegation at Phase 4 |
-| artifact-manifests.json | Config | Available | Declares required artifacts per work item type |
-| Template fallback chain | Infra | Available | 3-level resolution for doc/tracker templates |
-
-## Risk Assessment
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Branch naming doesn't match patterns | Med | Med | Clear error message listing patterns, suggest `/workflow track create` |
-| Templates missing after clone | Med | High | 3-level fallback + loud failure with install instructions |
-| Contract gate too strict | Low | Med | Override prompt at every gate |
+Written to `.docs/work-item-graph.json` with fields: version, generated_at, generated_commit, nodes (id, slug, type, state, path, parent, children, badges, completeness), edges, structural_rules.
 
 ## Design Decisions
 
-| Decision | Chosen | Rejected Alternative | Why |
-|----------|--------|---------------------|-----|
-| Single router with subcommands | Multi-file skill (SKILL.md + track/implement/review/ship.md) | 5 separate skills | Context resolved once; lower cognitive load |
-| Branch as primary key | Branch name determines work item | Explicit --item flag | Zero-config: just be on the right branch |
-| Manifest-driven scaffolding | artifact-manifests.json | Hardcoded per-type logic in track.md | Extensible: add types without code changes |
-| Handoff blocks in TRACKER.md | `<!-- HANDOFF: phase=... -->` HTML comments | Separate state file | Inline, no extra files, grep-friendly |
-| Dual implement modes | Build-forward vs debug-backward based on type | Single mode for all types | Features and defects have fundamentally different workflows |
+| Decision | Chosen | Rejected | Why |
+|----------|--------|----------|-----|
+| Lifecycle in templates, not a skill | Tracker templates encode phases | Dedicated /workflow skill | Skill was redundant with gstack /review + /ship; templates are simpler and portable |
+| Manifest-driven scaffolding | artifact-manifests.json | Hardcoded per-type logic | Extensible: add types without code changes |
+| Hierarchy rules in manifest | Required field, no fallback | Hard-coded rules | Per-project customization |
+| Badge worst-severity aggregation | Single badge per category per node | All individual check results | Single-glance health without losing detail in flat output |
+
+## Historical Note
+
+An intermediate `/workflow` router skill (skills/workflow/) was built and then removed in v0.2.2. Its track phase was replaced by CLAUDE.md rules (rules/work-items.md). Its implement, review, and ship phases were redundant with gstack /office-hours, /review, and /ship. The 4-phase lifecycle pattern persists in the tracker templates.

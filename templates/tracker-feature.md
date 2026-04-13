@@ -18,21 +18,21 @@ blocked_by: ""
    → produces design doc in `~/.gstack/projects/`
 2. Create working branch: `git checkout -b feat/{slug}`
 3. Scaffold work item directory and TRACKER.md
-4. Extract from design doc into doc triplet: requirements → `PRD.md`, architecture decisions → `ARCHITECTURE.md`, test scenarios → `TEST-SPEC.md`
-   (use templates from `templates/doc-PRD.md`, `doc-ARCHITECTURE.md`, `doc-TEST-SPEC.md`)
+4. Define acceptance criteria (what "done" looks like for the whole feature)
 5. Decompose into child user-stories and/or tasks
+   → detail (PRD, ARCHITECTURE, TEST-SPEC, milestones) lives in child stories
 
 **Gates:**
 - [ ] Acceptance criteria scoped
 - [ ] Working branch created (`branch` field populated)
-- [ ] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
-- [ ] Broken down into child tasks/stories
+- [ ] Broken down into child stories/tasks
 
 ### Phase 2: Implement
 
 1. Child user-stories/tasks drive implementation (feature tracker coordinates)
 2. Monitor child progress — update this tracker when children complete phases
-3. Update Files section with top-level changed files
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with top-level changed files
 
 **Gates:**
 - [ ] All child stories/tasks have entered Phase 2+

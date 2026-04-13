@@ -40,14 +40,7 @@
       "doc-milestones.md",
       "doc-RCA.md",
       "doc-test-plan.md",
-      "contract-PRD.md",
-      "contract-ARCHITECTURE.md",
-      "contract-TEST-SPEC.md",
-      "doc-SKILL-DESIGN.md",
-      "GENERATION-GUIDE.md",
-      "architecture-GENERATION-GUIDE.md",
-      "prd-GENERATION-GUIDE.md",
-      "test-spec-GENERATION-GUIDE.md"
+      "doc-SKILL-DESIGN.md"
     ],
     "status": "active"
   },

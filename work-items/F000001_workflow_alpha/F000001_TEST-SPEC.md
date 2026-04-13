@@ -2,10 +2,11 @@
 type: test-spec
 parent: ""
 feature: F000001_workflow_alpha
-title: "workflow-alpha — Test Specification"
-version: 1
-status: Draft
+title: "Workflow Alpha — Test Specification"
+version: 2
+status: Done
 date: 2026-04-11
+updated: 2026-04-13
 author: chjiang
 prd: F000001_PRD.md
 architecture: F000001_ARCHITECTURE.md
@@ -14,43 +15,52 @@ reviewers: []
 
 ## Test Matrix
 
-| # | Tag | Test Case | AC | Precondition | Steps | Expected Result | Priority | Type |
-|---|-----|-----------|-----|-------------|-------|-----------------|----------|------|
-| 1 | core | Feature work item scaffold | AC-1 | On feat/* branch, templates available | `/workflow track create --type feature` | work-items/{slug}/ with 5 artifacts | P0 | E2E |
-| 2 | core | Defect work item scaffold | AC-5 | On fix/* branch | `/workflow track create --type defect` | TRACKER + RCA + test-plan (no PRD) | P0 | E2E |
-| 3 | core | Status menu display | AC-2 | Active work item | `/workflow` | Name, type, branch, phase 1-4 progress | P0 | E2E |
-| 4 | core | Branch auto-detection | AC-6 | On feat/workflow-alpha | `/workflow` | Resolves type=feature, slug=workflow-alpha | P0 | E2E |
-| 5 | core | Contract gate at review | AC-4 | Work item with doc triplet | `/workflow review` | /contracts check invoked | P0 | E2E |
-| 6 | core | Contract gate at ship | AC-4 | Work item with doc triplet | `/workflow ship` | /contracts check+test invoked | P0 | E2E |
-| 7 | core | Spec-guided implementation | AC-3 | Feature with PRD + ARCHITECTURE | `/workflow implement` | Reads doc triplet before executing | P0 | E2E |
-| 8 | core | Evidence synthesis | AC-7 | Work item on branch with commits | `/workflow track` | Journal entries proposed from git log | P1 | E2E |
-| 9 | core | Debug-backward mode | AC-8 | Defect work item | `/workflow implement` | 3-hypothesis testing, not build-forward | P1 | E2E |
+### Template System
+
+| # | Tag | Test Case | AC | Expected Result | Priority | Type |
+|---|-----|-----------|-----|-----------------|----------|------|
+| 1 | core | No multi-person fields in templates | AC-6 | No "reviewer noted", "Linux branch", JIRA, workflow_type | P0 | Unit |
+| 2 | core | Task lighter than feature | AC-8 | Task gate count < feature gate count | P0 | Unit |
+| 3 | core | Review type removed | AC-9 | tracker-review.md does not exist | P0 | Unit |
+| 4 | core | Tracker templates have valid frontmatter | — | All templates parseable | P0 | Unit |
+
+### Structural Completeness
+
+| # | Tag | Test Case | AC | Expected Result | Priority | Type |
+|---|-----|-----------|-----|-----------------|----------|------|
+| 5 | core | Feature with 0 stories flagged | AC-11 | F000002 flagged INCOMPLETE | P0 | Integration |
+| 6 | core | Feature with stories passes | AC-11 | F000001 shows PASS | P0 | Integration |
+| 7 | core | Tree shows 4 badges per node | AC-12 | Each node has template, lifecycle, traceability, structure | P0 | Integration |
+| 8 | core | Graph artifact emitted | AC-13 | .docs/work-item-graph.json created | P0 | Integration |
+| 9 | core | Hierarchy from manifest | AC-14 | Rules read from artifact-manifests.json | P0 | Integration |
+| 10 | core | Misplaced item detected | AC-15 | Wrong parent type flagged MISPLACED | P1 | Integration |
+| 11 | resilience | No claims.json still runs | AC-16 | Steps 1-5 skipped, Steps 6+ run | P0 | Integration |
+| 12 | usability | /docs tree renders | AC-17 | Structural badges shown, others show "-" | P1 | Integration |
 
 ## Test Tiers
 
-### Tier 1: Smoke Tests (automated, no live execution)
+### Tier 1: Smoke Tests (automated, in test.sh)
 
-| # | Tag | Check | What It Validates | Script/Command |
-|---|-----|-------|-------------------|---------------|
-| S1 | core | SKILL.md has frontmatter | name + description present | `head -5 skills/workflow/SKILL.md \| grep -c '^---'` |
-| S2 | core | All subcommand files exist | track.md, implement.md, review.md, ship.md | `ls skills/workflow/{track,implement,review,ship}.md` |
-| S3 | core | Tracker templates exist per manifest type | feature, defect, task, user-story | `for t in feature defect task user-story; do [ -f templates/tracker-$t.md ]; done` |
-| S4 | core | Doc templates exist | PRD, ARCHITECTURE, TEST-SPEC, RCA, test-plan, milestones | `for t in PRD ARCHITECTURE TEST-SPEC RCA test-plan milestones; do [ -f templates/doc-$t.md ]; done` |
-| S5 | core | Catalog entry exists | docs in skills-catalog.json | `jq '.[] \| select(.name=="docs")' skills-catalog.json` |
+| # | Check | What It Validates | Script/Command |
+|---|-------|-------------------|---------------|
+| S1 | Tracker templates exist per manifest | All 4 types have templates | `for t in feature defect task user-story; do test -f templates/tracker-$t.md; done` |
+| S2 | Doc templates exist | PRD, ARCHITECTURE, TEST-SPEC, RCA, test-plan, milestones | `for t in PRD ARCHITECTURE TEST-SPEC RCA test-plan milestones; do test -f templates/doc-$t.md; done` |
+| S3 | No multi-person fields | Solo-dev clean | `! grep -l 'reviewer noted\|Linux branch\|JIRA\|workflow_type' templates/tracker-*.md` |
+| S4 | Hierarchy field in manifest | Structural rules declared | `jq '.hierarchy' artifact-manifests.json` |
+| S5 | tree.md exists | /docs tree subcommand present | `test -f skills/docs/tree.md` |
+| S6 | Catalog valid JSON | skills-catalog.json parseable | `jq . skills-catalog.json` |
 
-### Tier 2: E2E Tests (real end-to-end execution)
+### Tier 2: E2E Tests (require Claude execution)
 
-| # | Tag | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
-|---|-----|----------|----------------------------|-----------------|--------|
-| E1 | core | Create feature work item | 1. `git checkout -b feat/test-feature` 2. `/workflow track create` | work-items/test-feature/ with TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones | All 5 files exist, placeholders replaced |
-| E2 | core | View status | 1. With active work item 2. `/workflow` | Status menu with phase checklist | Phase progress matches TRACKER.md checkboxes |
-| E3 | core | Task type scaffold | 1. `git checkout -b task/cleanup` 2. `/workflow track create --type task` | TRACKER + test-plan only | No PRD/ARCHITECTURE/TEST-SPEC |
-| E4 | core | Evidence synthesis | 1. Make commits on branch 2. `/workflow track` | Proposed journal entries with commit SHAs | Entries grouped by type (fix → finding, etc.) |
+| # | Scenario | Steps | Expected Outcome |
+|---|----------|-------|-----------------|
+| E1 | Full /docs check with structural | Run /docs check on repo | F000002 INCOMPLETE, tree rendered, graph emitted |
+| E2 | /docs check without claims.json | Delete .docs/claims.json, run /docs check | Staleness skipped, work item checks run |
+| E3 | /docs tree standalone | Run /docs tree | Tree with structural badges only |
+| E4 | Full test suite | Run ./scripts/test.sh | 0 failures, RESULT: PASS |
 
-## Coverage Gaps
+## Coverage Notes
 
-| Gap | Why Not Tested | Risk Accepted |
-|-----|---------------|---------------|
-| gstack /review and /ship delegation | External dependency | If gstack skills change, delegation may break |
-| Child items at depth 3 | Complex setup, P2 feature | Max depth enforced by code, not tested E2E |
-| Scrum note generation | Output format varies | Manual inspection sufficient |
+- Template system tests (S1-S3, #1-4) are fully automated in test.sh
+- Structural completeness tests (#5-12) require /docs check execution
+- Creating F000001 itself served as the E2E test of the work item lifecycle

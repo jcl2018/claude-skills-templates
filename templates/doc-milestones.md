@@ -10,9 +10,7 @@ updated: {YYYY-MM-DD}          # last update date
 <!-- Canonical milestone tracker for this feature. Scrum docs snapshot this table.
      Owner = primary person responsible. Status values: Done, In Progress, Not Started, At Risk, Deferred.
      Blocked By = milestone number(s) that must complete first, or "—" if none.
-     This file is the SINGLE SOURCE OF TRUTH. Edit milestones here, not in scrum docs.
-     Scrum docs embed a read-only snapshot; post-meeting sync (GENERATION-GUIDE Step 8)
-     writes meeting changes back here. -->
+     This file is the SINGLE SOURCE OF TRUTH. Edit milestones here. -->
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|

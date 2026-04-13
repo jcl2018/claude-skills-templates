@@ -3,9 +3,10 @@ type: architecture
 parent: S000001_workflow_implementation
 feature: F000001_workflow_alpha
 title: "Workflow Alpha Implementation — Architecture"
-version: 1
-status: Draft
+version: 3
+status: Done
 date: 2026-04-11
+updated: 2026-04-13
 author: chjiang
 prd: PRD.md
 reviewers: []
@@ -13,79 +14,71 @@ reviewers: []
 
 ## Overview
 
-Extends `/docs check` with three new steps (15-17) that validate structural completeness of work items, render a tree report with per-node badges, and emit a machine-readable graph artifact. Also adds `/docs tree` as a standalone subcommand for quick hierarchy views, and separates the claims.json gate so work item checks run independently of narrative doc staleness.
+Three interconnected changes to the skill development workbench:
+
+1. **Template consolidation**: All 4 tracker templates rewritten for solo-dev workflow. Removed review work item type, scrum, multi-person ceremony. Added structured IDs. Phase 1 lists required artifacts per type. Phase 2 for features/stories coordinates children; tasks/defects do direct implementation.
+2. **Structural completeness** in /docs check: Three new steps (15-17) validate hierarchy, render a tree report, and emit a graph artifact. Plus /docs tree as a standalone subcommand.
+3. **Human-readable report**: Step 19 writes .docs/work-item-report.md after all checks complete.
 
 ## Architecture
 
 ```
-artifact-manifests.json ──► hierarchy rules
-         │                        │
-         ▼                        ▼
-check.md Step 10 ──────► Step 15 ──────► Step 16 ──────► Step 17
-(Actual Model:            (structural     (tree report:    (graph artifact:
- walk work-items/,         check +         depth-first      JSON to .docs/
- parse TRACKERs)           orphan detect)  w/ 4 badges)     work-item-graph.json)
-         │
-         ▼
-tree.md ────────► Step 15 + Step 16 (structural badges only, others show "—")
+artifact-manifests.json
+    │
+    ├── types     -> per-type required artifacts + templates
+    ├── hierarchy -> {feature->user-story (min 1), user-story->task (min 1)}
+    └── placement -> {feature:root, defect:root, story:feature, task:story}
+            │
+            ▼
+skills/docs/check.md
+    │
+    ├── Steps 1-5:  Staleness checks (skip if no claims.json)
+    ├── Steps 6-14: Template, lifecycle, traceability checks
+    ├── Step 15:    Structural completeness + orphan/misplaced detection
+    ├── Step 16:    Tree report (depth-first, 4 badges per node)
+    ├── Step 17:    Graph artifact (.docs/work-item-graph.json)
+    └── Step 19:    Human-readable report (.docs/work-item-report.md)
+            │
+            ▼
+skills/docs/tree.md -> Step 15 + Step 16 (structural badges only, others show "-")
 ```
 
-### Components Affected
+### Components
 
-| Component | Repo | Change Type | Description |
-|-----------|------|------------|-------------|
-| skills/docs/check.md | claude-skills-templates | Modified | Add Steps 15-17, separate claims.json gate, add badge taxonomy mapping |
-| skills/docs/tree.md | claude-skills-templates | New | Standalone tree subcommand (walk + render, no checks 1-3) |
-| skills/docs/SKILL.md | claude-skills-templates | Modified | Add `/docs tree` routing |
-| artifact-manifests.json | claude-skills-templates | Modified | Add `hierarchy` field |
-| skills-catalog.json | claude-skills-templates | Modified | Version bump, add tree.md |
+| Component | Change Type | Description |
+|-----------|------------|-------------|
+| skills/docs/check.md | Modified | Add Steps 15-17, Step 19, separate claims.json gate, badge taxonomy |
+| skills/docs/tree.md | New | Standalone tree subcommand |
+| skills/docs/SKILL.md | Modified | Add /docs tree routing |
+| artifact-manifests.json | Modified | Add hierarchy and placement fields |
+| skills-catalog.json | Modified | Version bumps, add tree.md |
+| templates/tracker-feature.md | Modified | Solo-dev gates, required doc lists, coordination Phase 2 |
+| templates/tracker-user-story.md | Modified | Solo-dev gates, required doc lists, coordination Phase 2 |
+| templates/tracker-task.md | Modified | Solo-dev gates, required doc lists, implementation Phase 2 |
+| templates/tracker-defect.md | Modified | Solo-dev gates, required doc lists, /investigate + RCA |
+
+### Removed
+
+| File | Reason |
+|------|--------|
+| templates/tracker-review.md | Review work item type eliminated |
+| templates/contract-PRD.md | Unused enforcement templates |
+| templates/contract-ARCHITECTURE.md | Unused enforcement templates |
+| templates/contract-TEST-SPEC.md | Unused enforcement templates |
+| templates/GENERATION-GUIDE.md | Dead template, replaced by artifact-manifests.json |
+| templates/*-GENERATION-GUIDE.md (3) | Dead templates |
 
 ### Data Flow
 
-1. check.md reads `artifact-manifests.json` for hierarchy rules
-2. Step 10 walks `work-items/` recursively, builds Actual Model (type, parent, children, state per item)
+1. check.md reads artifact-manifests.json for hierarchy rules
+2. Step 10 walks work-items/ recursively, builds Actual Model (type, parent, children, state per item)
 3. Steps 11-14 run checks 1-3, accumulating badges per node
 4. Step 15 reads hierarchy rules, counts children per type, flags INCOMPLETE/MISPLACED, checks placement rules
 5. Step 16 calculates completeness counts, renders depth-first tree with all 4 badges per node
-6. Step 17 serializes graph to `.docs/work-item-graph.json`
+6. Step 17 serializes graph to .docs/work-item-graph.json
+7. Step 19 writes human-readable report to .docs/work-item-report.md
 
-## API Changes
-
-### New APIs
-
-| API | Signature | Description |
-|-----|-----------|-------------|
-| `/docs tree` | `/docs tree` | Renders tree report with structural badges only |
-
-### Modified APIs
-
-| API | Change | Description |
-|-----|--------|-------------|
-| `/docs check` | Extended | New Steps 15-17, separated claims.json gate |
-
-## Schema Changes
-
-### artifact-manifests.json — new `hierarchy` field
-
-```json
-"hierarchy": {
-  "feature": {"required_child": "user-story", "min": 1},
-  "user-story": {"required_child": "task", "min": 1}
-}
-```
-
-Required field. Missing = warn + skip structural checks. Malformed = warn + skip.
-
-### Placement rules
-
-| Type | Allowed placement |
-|------|------------------|
-| feature | root-level (direct child of work-items/) |
-| defect | root-level (direct child of work-items/) |
-| user-story | inside a feature directory |
-| task | inside a user-story directory |
-
-### Badge taxonomy mapping
+### Badge Taxonomy
 
 | Badge category | Status values (severity order) |
 |---------------|-------------------------------|
@@ -94,7 +87,7 @@ Required field. Missing = warn + skip structural checks. Malformed = warn + skip
 | traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) |
 | structure | PASS < INCOMPLETE < MISPLACED |
 
-### work-item-graph.json schema (v1.0.0)
+### Graph Artifact Schema (v1.0.0)
 
 ```json
 {
@@ -102,60 +95,45 @@ Required field. Missing = warn + skip structural checks. Malformed = warn + skip
   "generated_at": "ISO-8601",
   "generated_commit": "short-SHA",
   "nodes": [{
-    "id": "F000001",
-    "slug": "F000001_workflow_alpha",
-    "type": "feature",
-    "state": "Open",
-    "path": "work-items/F000001_workflow_alpha",
-    "parent": null,
-    "children": ["S000001", "S000002"],
-    "badges": {
-      "template": "PASS",
-      "lifecycle": "PASS",
-      "traceability": "PASS",
-      "structure": "PASS"
-    },
-    "completeness": {"count": 2, "min": 1, "required_child": "user-story"}
+    "id": "F000001", "slug": "...", "type": "feature", "state": "Open",
+    "path": "...", "parent": null, "children": [...],
+    "badges": {"template": "PASS", "lifecycle": "PASS", "traceability": "PASS", "structure": "PASS"},
+    "completeness": {"count": 1, "min": 1, "required_child": "user-story"}
   }],
   "edges": [],
-  "structural_rules": {
-    "feature": {"required_child": "user-story", "min": 1},
-    "user-story": {"required_child": "task", "min": 1}
-  }
+  "structural_rules": {"feature": {"required_child": "user-story", "min": 1}, "user-story": {"required_child": "task", "min": 1}}
 }
 ```
 
-### Claims.json gate change
+### Template Consolidation
 
-Before: check.md stops at Step 2 if claims.json missing.
-After: Steps 1-5 (staleness) skip with note if claims.json missing. Steps 6+ (work items) run regardless.
+| Change | Before | After |
+|--------|--------|-------|
+| Review phase gates | "Reviewer noted findings" | /docs check + TEST-SPEC/test-plan verification + /review |
+| Ship phase gates | "Linux branch build passed" | /ship + /land-and-deploy |
+| ID format | Free-text | F/S/D/T + 6-digit + keywords |
+| Phase 1 docs | Generic "produce docs" | Type-specific required doc list per artifact-manifests.json |
+| Phase 2 (feature/story) | Direct implementation | Coordinates children |
+| Phase 2 (task/defect) | Generic | Direct implementation with design doc reference |
+| Multi-person fields | JIRA URL, workflow_type, reviewers | Removed |
 
 ## Error Handling
 
 | Error condition | Response |
 |----------------|----------|
-| `hierarchy` field missing from manifest | Warn, skip structural checks |
-| `hierarchy` field malformed | Warn, skip structural checks |
-| No work-items/ directory | Skip all work item checks (existing behavior) |
-| No claims.json | Skip Steps 1-5, continue to Step 6 (new behavior) |
-| "Broken down" checked + 0 children | Flag LIFECYCLE_INCONSISTENT in Check 2 output |
-
-## Dependencies
-
-- Step 10 Actual Model (existing, no changes needed)
-- artifact-manifests.json (add hierarchy field)
-- Normalization rules from Step 8 (existing, reused)
-
-## Risk Assessment
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Hierarchy field missing in foreign repos | Medium | Low | Warn and skip structural checks gracefully |
-| Badge taxonomy incomplete for future check statuses | Low | Low | New statuses added to mapping table when introduced |
-| Graph artifact schema changes breaking consumers | Low | Medium | Version field enables forward compatibility |
+| hierarchy field missing from manifest | Warn, skip structural checks |
+| No work-items/ directory | Skip all work item checks |
+| No claims.json | Skip Steps 1-5, continue to Step 6 |
+| "Broken down" checked + 0 children | Flag LIFECYCLE_INCONSISTENT |
 
 ## Design Decisions
 
-1. **Hierarchy rules in manifest, not hard-coded:** Enables per-project customization. Required field (no fallback) forces repos to be explicit about their hierarchy expectations.
-2. **Badge taxonomy with severity ordering:** Worst-severity aggregation gives a single-glance health indicator per node without losing detail in the flat check output.
-3. **Separate /docs tree subcommand:** Quick structural view without running all 14+ check steps. Structural badges only, others show "—".
+1. **Hierarchy rules in manifest, not hard-coded**: Enables per-project customization. Required field forces repos to be explicit.
+2. **Badge taxonomy with severity ordering**: Worst-severity aggregation gives single-glance health.
+3. **Separate /docs tree**: Quick structural view without running all check steps.
+4. **Solo-dev gates over multi-person ceremony**: Gates like "reviewer noted findings" are meaningless for a solo developer.
+5. **Feature/story Phase 2 coordinates children**: Implementation happens in tasks and defects (leaf nodes), not in features or stories.
+
+## Historical Note
+
+An intermediate /workflow router skill was built during development and removed in v0.2.2. Its track phase was replaced by CLAUDE.md rules (rules/work-items.md). Its implement, review, and ship phases were redundant with gstack /office-hours, /review, and /ship.

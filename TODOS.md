@@ -23,11 +23,9 @@ Depends on skill-check.sh which was removed.
 ### ~~skill-diff.sh version comparison (P3, S)~~ RETIRED
 Depends on skill-ship.sh which was removed.
 
-### Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)
-Add `/docs check` and `/docs tree` as review gates in Phase 3 of tracker templates.
-All 4 tracker templates (feature, user-story, task, defect) should include these
-as Phase 3 checkboxes so structural completeness is verified before shipping.
-**Depends on:** structural completeness feature shipped (S000003)
+### ~~Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)~~ DONE
+Already present in all 4 tracker templates. Phase 3 gates include `/docs check` and
+`/docs tree` (feature/user-story) or `/docs check` (task/defect).
 
 ### validate.sh structural check via graph JSON (P2, M)
 Add structural completeness check to validate.sh by reading `work-item-graph.json`

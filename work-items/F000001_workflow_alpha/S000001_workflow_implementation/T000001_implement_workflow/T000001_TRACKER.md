@@ -2,7 +2,7 @@
 name: "Workflow Alpha Implementation"
 type: task
 id: "T000001_implement_workflow"
-status: active
+status: closed
 created: "2026-04-11"
 updated: "2026-04-13"
 parent: "S000001_workflow_implementation"
@@ -45,8 +45,8 @@ blocked_by: ""
 3. Run `/review` for code review (if PR exists)
 
 **Gates:**
-- [ ] `/docs check` -- validation passed
-- [ ] Test verification passed
+- [x] `/docs check` -- validation passed
+- [x] Test verification passed
 
 ### Phase 4: Ship
 
@@ -54,8 +54,8 @@ blocked_by: ""
 2. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
-- [ ] `/ship` -- PR created
-- [ ] `/land-and-deploy` -- merged and deployed
+- [x] `/ship` -- PR created (#22, #24)
+- [x] `/land-and-deploy` -- merged and deployed
 
 ## Todos
 
@@ -86,8 +86,8 @@ blocked_by: ""
 - [x] Add `.docs/` to .gitignore, untrack existing .docs/ files
 
 ### Remaining (from T000004 close-out)
-- [ ] Run `/docs check` -- verify consolidated hierarchy passes
-- [ ] Run `./scripts/test.sh` -- full validation
+- [x] Run `/docs check` -- verify consolidated hierarchy passes
+- [x] Run `./scripts/test.sh` -- full validation (PASS, 0 failures)
 
 ## Log
 
@@ -95,6 +95,7 @@ blocked_by: ""
 - 2026-04-11: T000002 structural check implemented (154a4b3).
 - 2026-04-12: T000003 human-readable report shipped (#24).
 - 2026-04-13: Consolidated T000001-T000004 into single task. All implementation complete, review gates remaining.
+- 2026-04-13: Closed. Tests pass, PRs #22 and #24 merged to main.
 
 ## PRs
 
@@ -103,11 +104,6 @@ blocked_by: ""
 
 ## Files
 
-- skills/workflow/SKILL.md
-- skills/workflow/track.md
-- skills/workflow/implement.md
-- skills/workflow/review.md
-- skills/workflow/ship.md
 - skills/docs/check.md
 - skills/docs/tree.md
 - skills/docs/SKILL.md

@@ -2,7 +2,7 @@
 name: "Workflow Alpha Implementation"
 type: user-story
 id: "S000001_workflow_implementation"
-status: active
+status: closed
 created: "2026-04-11"
 updated: "2026-04-13"
 parent: "F000001_workflow_alpha"
@@ -55,10 +55,10 @@ blocked_by: ""
 5. Run `/review` for code review (if PR exists)
 
 **Gates:**
-- [ ] `/docs check` -- validation passed
-- [ ] `/docs tree` -- structure verified
-- [ ] Test verification passed
-- [ ] Doc triplet alignment verified (TEST-SPEC covers P0 stories)
+- [x] `/docs check` -- validation passed
+- [x] `/docs tree` -- structure verified
+- [x] Test verification passed
+- [x] Doc triplet alignment verified (TEST-SPEC covers P0 stories)
 
 ### Phase 4: Ship
 
@@ -66,21 +66,12 @@ blocked_by: ""
 2. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
-- [ ] `/ship` -- PR created
-- [ ] `/land-and-deploy` -- merged and deployed
+- [x] `/ship` -- PR created (#22, #24)
+- [x] `/land-and-deploy` -- merged and deployed
 
 ## Acceptance Criteria
 
-### Four-Phase Workflow (from S000001)
-- [x] Branch-aware router detects feat/*, fix/*, task/*, story/* and resolves work items
-- [x] Track phase: manifest-driven scaffolding for 4 types, evidence synthesis, journal/milestones/list/close/child-items
-- [x] Implement phase: build-forward for features, debug-backward with 3-hypothesis testing for defects
-- [x] Review phase: `/docs check` as quality gate, then delegates to gstack /review
-- [x] Ship phase: /ship + /land-and-deploy
-- [x] Status menu shows phase progress when invoked without subcommand
-- [x] Handoff blocks written after each phase transition
-
-### Template Consolidation (from S000002)
+### Template Consolidation
 - [x] Tracker templates reflect solo-dev workflow (no "reviewer noted", no "Linux branch build")
 - [x] Lifecycle gates are meaningful for a single developer working with Claude Code
 - [x] Redundant fields removed (JIRA/TFS URL, workflow_type)
@@ -111,11 +102,11 @@ blocked_by: ""
 - [x] [T000001_implement_workflow](T000001_implement_workflow/T000001_TRACKER.md) -- Full workflow implementation
 
 ### Remaining
-- [ ] Run `/docs check` -- verify consolidated hierarchy passes
-- [ ] Run `./scripts/test.sh` for full validation
-- [ ] Remove dead GENERATION-GUIDE templates (4 files: `GENERATION-GUIDE.md`, `architecture-GENERATION-GUIDE.md`, `prd-GENERATION-GUIDE.md`, `test-spec-GENERATION-GUIDE.md`) + clean stale reference in `doc-milestones.md` + update `skills-catalog.json` and `CLAUDE.md`
-- [ ] Update Phase 1: Track in all 4 tracker templates to list required artifacts per type (feature: PRD + ARCHITECTURE + TEST-SPEC + milestones, user-story: same, task: test-plan, defect: RCA + test-plan) and add a gate checkbox for "Required docs scaffolded"
-- [ ] Update Phase 2: Implement in all 4 tracker templates to reference `/office-hours` design doc as the implementation plan (e.g., "Work from `/office-hours` design doc + acceptance criteria") and add a gate for "Design doc approved before implementation"
+- [x] Run `/docs check` -- verify consolidated hierarchy passes
+- [x] Run `./scripts/test.sh` for full validation (PASS, 0 failures)
+- [x] Remove dead GENERATION-GUIDE templates + clean stale references in skills-catalog.json, CLAUDE.md, PHILOSOPHY.md, doc-milestones.md
+- [x] Update Phase 1: Track in all 4 tracker templates — type-specific required doc lists + "Required docs scaffolded" gate
+- [x] Update Phase 2: Implement in all 4 tracker templates — /office-hours design doc reference + "Design doc approved" gate
 
 ## Log
 
@@ -124,6 +115,7 @@ blocked_by: ""
 - 2026-04-11: S000003 structural completeness designed via /office-hours (9/10 after adversarial review).
 - 2026-04-12: S000003 structural check implemented (154a4b3), human-readable report shipped (#24).
 - 2026-04-13: Consolidated S000001 + S000002 + S000003 into single story. Doc triplet from S000003 (most complete).
+- 2026-04-13: Closed. All TODOs complete: GENERATION-GUIDE cleanup, tracker template Phase 1/2 updates, doc triplet expanded to cover full consolidated scope. Tests pass.
 
 ## PRs
 
@@ -132,11 +124,6 @@ blocked_by: ""
 
 ## Files
 
-- skills/workflow/SKILL.md
-- skills/workflow/track.md
-- skills/workflow/implement.md
-- skills/workflow/review.md
-- skills/workflow/ship.md
 - skills/docs/check.md
 - skills/docs/tree.md
 - skills/docs/SKILL.md
@@ -149,7 +136,6 @@ blocked_by: ""
 
 ## Insights
 
-- Consolidating 5 separate skills into one router with shared context was the key design win.
 - Phase detection counts checkboxes, not text -- changing gate wording is safe.
 - Claims.json gate blocks ALL downstream checks including work items. Fix: separate Steps 1-5 from Steps 6+.
 - Badge taxonomy must map ALL existing check statuses to 4 categories with explicit severity ordering.

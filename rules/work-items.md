@@ -4,7 +4,7 @@ When creating work items, use templates from the first directory found:
 `templates/` (repo root) -> `~/.claude/spec/templates/` -> `~/.claude/templates/`
 
 Type-aware scaffolding (each type gets a different set of artifacts):
-- **feature**: tracker-feature.md + doc-PRD.md + doc-ARCHITECTURE.md + doc-TEST-SPEC.md + doc-milestones.md
+- **feature**: tracker-feature.md
 - **defect**: tracker-defect.md + doc-RCA.md + doc-test-plan.md
 - **task**: tracker-task.md + doc-test-plan.md
 - **user-story**: tracker-user-story.md + doc-PRD.md + doc-ARCHITECTURE.md + doc-TEST-SPEC.md + doc-milestones.md
@@ -38,5 +38,5 @@ Propose journal entries with commit SHAs. Ask before adding.
 When scaffolding or reviewing work items, validate:
 - Each doc has YAML frontmatter with required fields per its template
 - Required sections (`##` headers) from the template exist in the instance
-- For features/user-stories: PRD user stories have corresponding TEST-SPEC entries
+- For user-stories: PRD user stories have corresponding TEST-SPEC entries
 Warn on missing sections. Never auto-fix without asking.
