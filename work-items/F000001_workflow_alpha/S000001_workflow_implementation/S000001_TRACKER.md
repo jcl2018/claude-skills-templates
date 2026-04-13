@@ -113,6 +113,9 @@ blocked_by: ""
 ### Remaining
 - [ ] Run `/docs check` -- verify consolidated hierarchy passes
 - [ ] Run `./scripts/test.sh` for full validation
+- [ ] Remove dead GENERATION-GUIDE templates (4 files: `GENERATION-GUIDE.md`, `architecture-GENERATION-GUIDE.md`, `prd-GENERATION-GUIDE.md`, `test-spec-GENERATION-GUIDE.md`) + clean stale reference in `doc-milestones.md` + update `skills-catalog.json` and `CLAUDE.md`
+- [ ] Update Phase 1: Track in all 4 tracker templates to list required artifacts per type (feature: PRD + ARCHITECTURE + TEST-SPEC + milestones, user-story: same, task: test-plan, defect: RCA + test-plan) and add a gate checkbox for "Required docs scaffolded"
+- [ ] Update Phase 2: Implement in all 4 tracker templates to reference `/office-hours` design doc as the implementation plan (e.g., "Work from `/office-hours` design doc + acceptance criteria") and add a gate for "Design doc approved before implementation"
 
 ## Log
 
