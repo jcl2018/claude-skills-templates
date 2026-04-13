@@ -2,7 +2,7 @@
 name: "workflow-alpha"
 type: feature
 id: "F000001_workflow_alpha"
-status: active
+status: closed
 created: "2026-04-11"
 updated: "2026-04-13"
 repo: "claude-skills-templates"
@@ -36,7 +36,7 @@ blocked_by: ""
 
 **Gates:**
 - [x] All child stories/tasks have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Review
 
@@ -46,9 +46,9 @@ blocked_by: ""
 4. Run `/review` for feature-level code review
 
 **Gates:**
-- [ ] `/docs check` — all children pass validation
-- [ ] `/docs tree` — structure complete
-- [ ] All children have passed Phase 3: Review
+- [x] `/docs check` — all children pass validation
+- [x] `/docs tree` — structure complete
+- [x] All children have passed Phase 3: Review
 
 ### Phase 4: Ship
 
@@ -57,28 +57,28 @@ blocked_by: ""
 3. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] All children shipped
+- [x] `/ship` — PR created (#22, #24)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
-- [x] 4-phase workflow router works (track → implement → review → ship)
-- [x] Branch-aware work item resolution
-- [x] Manifest-driven scaffolding for 4 work item types (feature, defect, task, user-story)
-- [x] Contract quality gates at review and ship
-- [x] Dual implement modes (build-forward vs debug-backward)
-- [ ] Final E2E test: create a work item using the workflow itself (this test)
+- [x] 4-phase lifecycle encoded in tracker templates (Track → Implement → Review → Ship)
+- [x] Type-specific artifact sets via artifact-manifests.json
+- [x] Solo-dev tracker templates (no multi-person ceremony)
+- [x] Structural completeness validation in /docs check (Steps 15-17)
+- [x] Tree report and graph artifact (/docs tree, work-item-graph.json)
+- [x] Final E2E test: create a work item using the workflow itself (this test)
 
 ## Todos
 
 ### User Stories
-- [ ] [S000001_workflow_implementation](S000001_workflow_implementation/S000001_TRACKER.md) — Full workflow implementation (1 task)
+- [x] [S000001_workflow_implementation](S000001_workflow_implementation/S000001_TRACKER.md) — Full workflow implementation (1 task) — CLOSED
 
 ### Remaining
-- [ ] Complete E2E test (creating this work item is the test)
-- [ ] Run `/docs check` on the doc triplet
-- [ ] Run `./scripts/test.sh` for full validation
+- [x] Complete E2E test (creating this work item is the test)
+- [x] Run `./scripts/test.sh` for full validation (PASS, 0 failures)
+- [x] Run `/docs check` on the doc triplet
 
 ## Log
 
@@ -86,28 +86,28 @@ blocked_by: ""
 - 2026-04-11: Doc triplet populated. PRD covers 11 user stories, ARCHITECTURE maps the router + 4 subcommands, TEST-SPEC has 8 test cases + 5 smoke tests + 4 E2E scenarios.
 - 2026-04-11: Template consolidation implemented -- new solo-dev gates, removed review type, removed scrum, structured IDs.
 - 2026-04-13: Consolidated 3 user stories (S000001, S000002, S000003) into S000001_workflow_implementation. 4 tasks merged into T000001_implement_workflow.
+- 2026-04-13: S000001 closed. All TODOs complete, doc triplet expanded, GENERATION-GUIDE cleanup done, tracker templates updated.
+- 2026-04-13: F000001 closed. Consistency verified across 12 docs (structure, logic, cross-refs). Fixed: architecture diagram aligned with manifest (feature requires tracker only), milestones marked Done, test-plan updated from Draft to Done, stale HANDOFF removed.
 
 ## PRs
 
 ## Files
 
-- skills/workflow/SKILL.md
-- skills/workflow/track.md
-- skills/workflow/implement.md
-- skills/workflow/review.md
-- skills/workflow/ship.md
-- skills/workflow/DESIGN.md
-- skills/workflow/CHANGELOG.md
 - templates/tracker-feature.md
 - templates/tracker-defect.md
 - templates/tracker-task.md
 - templates/tracker-user-story.md
+- skills/docs/check.md
+- skills/docs/tree.md
+- skills/docs/SKILL.md
+- artifact-manifests.json
+- skills-catalog.json
 
 ## Insights
 
-- Consolidating 5 original skills into a single /workflow router was the key design decision — context resolved once, shared across phases.
-- Branch-as-primary-key means zero config: just be on the right branch and /workflow knows what you're working on.
-- Dual implement modes (build-forward vs debug-backward) exist because features and defects have fundamentally different workflows.
+- The /workflow router skill was built then removed in v0.2.2. Its track phase was replaced by CLAUDE.md rules; implement/review/ship were redundant with gstack skills.
+- The 4-phase lifecycle pattern persists in tracker templates, which is simpler and more portable than a dedicated skill.
+- Type-specific artifact sets via artifact-manifests.json are the lasting design win.
 
 ## Journal
 
@@ -117,4 +117,4 @@ E2E test of work item creation: scaffolded workflow-alpha with TRACKER + PRD + A
 ### 2026-04-11 -- decision
 Template consolidation for solo-dev: removed review work item type, removed scrum, simplified Review phase to doc review/generation, simplified Ship phase to /ship + /land-and-deploy, added structured IDs (F/S/D/T prefix).
 
-<!-- HANDOFF: phase=review status=in-progress next=/workflow review -->
+<!-- CLOSED: 2026-04-13 — all phases complete, children shipped -->

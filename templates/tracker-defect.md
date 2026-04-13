@@ -16,21 +16,27 @@ blocked_by: ""
 
 1. Document reproduction steps in the Log section
 2. Create working branch: `git checkout -b fix/{slug}`
-3. Run `/investigate` to diagnose root cause
+3. Scaffold required docs:
+   - `RCA.md` (root cause analysis) — from `templates/doc-RCA.md`
+   - `test-plan.md` (regression test plan) — from `templates/doc-test-plan.md`
+4. Run `/investigate` to diagnose root cause
    → produces investigation findings in Log + Insights
-4. Log initial symptoms and hypotheses
+5. Log initial symptoms and hypotheses
 
 **Gates:**
 - [ ] Reproduction steps documented
 - [ ] Working branch created (`branch` field populated)
+- [ ] Required docs scaffolded (RCA + test-plan)
 - [ ] Root cause identified (or best hypothesis logged)
 
 ### Phase 2: Implement
 
-1. Implement fix based on root cause analysis
-2. Write regression test covering the defect scenario
-3. Commit fix and test together
-4. Update RCA doc with final root cause
+1. Work from `/office-hours` design doc (if applicable) + root cause analysis
+   → design doc at `~/.gstack/projects/{slug}/`
+2. Implement fix based on root cause analysis
+3. Write regression test covering the defect scenario
+4. Commit fix and test together
+5. Update RCA doc with final root cause
 
 **Gates:**
 - [ ] Fix committed with regression test
@@ -40,15 +46,14 @@ blocked_by: ""
 ### Phase 3: Review
 
 1. Run `/docs check` — verify no regressions
-2. Run tests: `./scripts/test.sh` — regression test passes
+2. Verify test-plan: regression test scenarios passing
 3. Run `/review` for code review
 
 ❌ If regression test fails: investigate further
 
 **Gates:**
 - [ ] `/docs check` — validation passed
-- [ ] Regression test passing
-- [ ] Test verification passed
+- [ ] Test-plan verified (regression scenarios passing)
 - [ ] `/review` — code review passed
 
 ### Phase 4: Ship

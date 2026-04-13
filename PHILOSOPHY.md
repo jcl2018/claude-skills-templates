@@ -29,9 +29,7 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 **Template naming prefixes** (`templates/`):
 - `doc-*.md` for scaffolding templates (used when creating new docs)
-- `contract-*.md` for enforcement reference templates (define what good docs look like)
 - `tracker-*.md` for work item lifecycle trackers (one per type: feature, defect, task, user-story)
-- `*-GENERATION-GUIDE.md` for doc generation instructions
 
 **Skill directory structure** (`skills/{name}/`):
 - `SKILL.md` required, with YAML frontmatter (`name`, `description`, `version`, `allowed-tools`)

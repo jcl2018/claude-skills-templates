@@ -20,27 +20,30 @@ blocked_by: ""
    → produces design doc in `~/.gstack/projects/`
 3. Create working branch: `git checkout -b feat/{slug}`
 4. Scaffold work item directory and TRACKER.md
-5. Extract from design doc into doc triplet: requirements → `PRD.md`, architecture decisions → `ARCHITECTURE.md`, test scenarios → `TEST-SPEC.md`
-   (use templates from `templates/doc-PRD.md`, `doc-ARCHITECTURE.md`, `doc-TEST-SPEC.md`)
+5. Scaffold required docs from design doc:
+   - `PRD.md` (requirements) — from `templates/doc-PRD.md`
+   - `ARCHITECTURE.md` (architecture decisions) — from `templates/doc-ARCHITECTURE.md`
+   - `TEST-SPEC.md` (test scenarios) — from `templates/doc-TEST-SPEC.md`
+   - `milestones.md` (delivery milestones) — from `templates/doc-milestones.md`
 6. Create milestones from PRD acceptance criteria
 7. Break into child tasks if scope warrants decomposition
 
 **Gates:**
 - [ ] Acceptance criteria defined
 - [ ] Working branch created (`branch` field populated)
-- [ ] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
+- [ ] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC + milestones)
 - [ ] Milestones created
 - [ ] Tasks broken down (if needed)
 
 ### Phase 2: Implement
 
-1. Work from doc triplet + acceptance criteria (build-forward mode)
-2. Commit changes incrementally with descriptive messages
-3. Update Todos section — remove completed items, add new discoveries
-4. Update Files section with all changed file paths
+1. Child tasks drive implementation (user-story tracker coordinates)
+2. Monitor child progress — update this tracker when children complete phases
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Implementation committed (>=1 commit SHA in Log)
+- [ ] All child tasks have entered Phase 2+
 - [ ] Acceptance criteria verified met
 - [ ] Todos section reflects remaining work (no stale items)
 - [ ] Files section updated with changed files
@@ -50,8 +53,8 @@ blocked_by: ""
 1. Run `/docs check` — verify all validation passes
    → should show PASS for template, lifecycle, traceability, structure badges
 2. Run `/docs tree` — verify hierarchy and structural completeness
-3. Run tests: `./scripts/test.sh`
-4. Review TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
+3. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
+4. Verify all child tasks have passed their own Phase 3
 5. Run `/review` for code review (if PR exists)
 
 ❌ If `/docs check` finds issues: fix findings, re-run until clean
@@ -59,8 +62,8 @@ blocked_by: ""
 **Gates:**
 - [ ] `/docs check` — validation passed
 - [ ] `/docs tree` — structure verified
-- [ ] Test verification passed
-- [ ] Doc triplet alignment verified (TEST-SPEC covers P0 stories)
+- [ ] TEST-SPEC covers all P0 acceptance criteria
+- [ ] All children have passed Phase 3: Review
 - [ ] `/review` — code review passed
 
 ### Phase 4: Ship

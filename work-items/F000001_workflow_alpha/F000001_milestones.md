@@ -15,8 +15,8 @@ updated: 2026-04-11
 | 3 | Implement subcommand | — | Done | chjiang | Build-forward (features) + debug-backward (defects) | — |
 | 4 | Review subcommand | — | Done | chjiang | Contract gate → delegates to gstack /review | #1 |
 | 5 | Ship subcommand | — | Done | chjiang | TEST-SPEC validation + contract gate → delegates to gstack /ship | #1 |
-| 6 | v1 documentation | 2026-04-11 | In Progress | chjiang | This work item: PRD + ARCHITECTURE + TEST-SPEC | #1, #2, #3, #4, #5 |
-| 7 | Final E2E validation | 2026-04-11 | In Progress | chjiang | Create work item using workflow itself, run contracts + tests | #6 |
+| 6 | v1 documentation | 2026-04-11 | Done | chjiang | This work item: PRD + ARCHITECTURE + TEST-SPEC | #1, #2, #3, #4, #5 |
+| 7 | Final E2E validation | 2026-04-11 | Done | chjiang | Create work item using workflow itself, run contracts + tests | #6 |
 
 ## Dependency Graph
 

@@ -23,11 +23,30 @@ Depends on skill-check.sh which was removed.
 ### ~~skill-diff.sh version comparison (P3, S)~~ RETIRED
 Depends on skill-ship.sh which was removed.
 
-### Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)
-Add `/docs check` and `/docs tree` as review gates in Phase 3 of tracker templates.
-All 4 tracker templates (feature, user-story, task, defect) should include these
-as Phase 3 checkboxes so structural completeness is verified before shipping.
-**Depends on:** structural completeness feature shipped (S000003)
+### ~~Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)~~ DONE
+Already present in all 4 tracker templates. Phase 3 gates include `/docs check` and
+`/docs tree` (feature/user-story) or `/docs check` (task/defect).
+
+### Stale example output in check.md and tree.md (P2, S)
+check.md (lines 352-363, 399, 438-442) and tree.md (lines 73-84) reference
+deleted work items S000002, S000003, T000002, T000003 and show "3 user-story children"
+instead of 1. These are illustrative examples in skill instructions that may mislead
+Claude when formatting output.
+**Found by:** Claude adversarial review, 2026-04-13 (chore/close-f000001)
+
+### Sync global rules with repo-local rules (P2, S)
+`~/.claude/rules/work-items.md` still says features get full doc triplet and uses
+2-level fallback chain. Repo-local `rules/work-items.md` was updated (feature = tracker only,
+3-level fallback). Run `skills-deploy install` or manually sync.
+**Found by:** Claude adversarial review, 2026-04-13
+
+### Template fallback chain inconsistency (P3, S)
+Three different descriptions exist: CLAUDE.md and rules say 3-level
+(`templates/` > `~/.claude/spec/templates/` > `~/.claude/templates/`),
+but PHILOSOPHY.md, check.md, and docs CHANGELOG say 2-level (missing spec dir).
+The check.md implementation uses 2 levels, so `~/.claude/spec/templates/` is silently
+ignored during validation while being used during scaffolding.
+**Found by:** Claude adversarial review, 2026-04-13
 
 ### validate.sh structural check via graph JSON (P2, M)
 Add structural completeness check to validate.sh by reading `work-item-graph.json`
