@@ -1,8 +1,8 @@
 ---
 type: architecture
-parent: S000003_structural_completeness
+parent: S000001_workflow_implementation
 feature: F000001_workflow_alpha
-title: "Structural Completeness + Tree Report — Architecture"
+title: "Workflow Alpha Implementation — Architecture"
 version: 1
 status: Draft
 date: 2026-04-11
