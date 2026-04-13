@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.4] - 2026-04-13
+### Changed
+- Consolidated F000001 work items: 3 user stories (S000001, S000002, S000003) merged into S000001_workflow_implementation, 4 tasks merged into T000001_implement_workflow
+- Doc triplet from S000003 (most complete) preserved via git mv with rename history
+- All acceptance criteria, insights, and journal entries merged with source attribution
+
+### Removed
+- S000002_template_consolidation directory and all artifacts
+- S000003_structural_completeness directory and all child tasks (T000002, T000003, T000004)
+
 ## [0.3.3] - 2026-04-12
 ### Added
 - `/docs check` now writes a human-readable health report to `.docs/work-item-report.md` (tree, badge summary table, findings by severity, structural summary)
