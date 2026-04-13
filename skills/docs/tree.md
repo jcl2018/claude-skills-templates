@@ -70,20 +70,14 @@ Walk depth-first, sorted alphabetically by slug at each level.
 === /docs tree ===
 
 WORK ITEM TREE:
-  F000001_workflow_alpha (feature) [In Progress]  completeness: 3/1 user-story
+  F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
     template: —  lifecycle: —  traceability: —  structure: PASS
-    S000001_four_phase (user-story) [In Progress]  completeness: 1/1 task
+    S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
       template: —  lifecycle: —  traceability: —  structure: PASS
-      T000001_router_implementation (task) [Open]
-        template: —  lifecycle: —  traceability: —  structure: PASS
-    S000002_template_consolidation (user-story) [In Progress]  completeness: 0/1 task
-      template: —  lifecycle: —  traceability: —  structure: INCOMPLETE (0 task children)
-    S000003_structural_completeness (user-story) [In Progress]  completeness: 1/1 task
-      template: —  lifecycle: —  traceability: —  structure: PASS
-      T000002_implement_structural_check (task) [Open]
+      T000001_implement_workflow (task) [Closed]
         template: —  lifecycle: —  traceability: —  structure: PASS
 
-  F000002_system_health_v1 (feature) [Open]  completeness: 0/1 user-story
+  F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
     template: —  lifecycle: —  traceability: —  structure: INCOMPLETE (0 user-story children)
 
 TREE SUMMARY: {N} items, {N} incomplete, {N} misplaced

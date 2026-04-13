@@ -38,25 +38,17 @@ blocked_by: ""
 - [x] All child stories/tasks have entered Phase 2+
 - [x] Feature-level Todos reflect remaining coordination work
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` — verify full hierarchy passes all badges
 2. Run `/docs tree` — verify structural completeness (all children present)
-3. Verify all child stories/tasks have passed their own Phase 3
-4. Run `/review` for feature-level code review
+3. Ensure all child stories have shipped
+4. Run `/ship` — creates feature PR, includes pre-landing code review
+5. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
 - [x] `/docs check` — all children pass validation
 - [x] `/docs tree` — structure complete
-- [x] All children have passed Phase 3: Review
-
-### Phase 4: Ship
-
-1. Ensure all child stories/tasks are shipped first
-2. Run `/ship` — creates feature PR (if not already created by children)
-3. Run `/land-and-deploy` — merges and verifies
-
-**Gates:**
 - [x] All children shipped
 - [x] `/ship` — PR created (#22, #24)
 - [x] `/land-and-deploy` — merged and deployed

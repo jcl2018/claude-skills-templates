@@ -135,7 +135,7 @@ These rules apply throughout all work item checks. Define them here once; refere
 - Always display the hyphenated form ("user-story") in output messages
 
 **Filename matching:** Strip `{ID}_` prefix when matching against manifest filenames.
-- "S000002_PRD.md" matches manifest filename "PRD.md"
+- "S000001_PRD.md" matches manifest filename "PRD.md"
 - Pattern: a file matches if its name equals `{expected}` or ends with `_{expected}`
 
 **Parent/child relationships:** Directory nesting is canonical.
@@ -148,18 +148,19 @@ These rules apply throughout all work item checks. Define them here once; refere
 - **In Progress** = some checked, some unchecked (mix of `- [x]` and `- [ ]`)
 - **Closed** = all checkboxes checked (all `- [x]`)
 
-**Template resolution:** 2-level fallback chain.
+**Template resolution:** 3-level fallback chain.
 1. `$REPO_ROOT/templates/{template_filename}`
-2. `~/.claude/templates/{template_filename}`
+2. `~/.claude/spec/templates/{template_filename}`
+3. `~/.claude/templates/{template_filename}`
 
-Use the first found. If neither exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
+Use the first found. If none exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
 
 ## Step 9: Build Expected Model
 
 For each type in artifact-manifests.json `types` object:
 
 1. Read the `required` array to get the list of artifacts, each with `artifact`, `template`, and `filename` fields
-2. For each artifact entry, resolve the template file using the 2-level fallback chain (Step 8)
+2. For each artifact entry, resolve the template file using the 3-level fallback chain (Step 8)
 3. If template found:
    - Parse its YAML frontmatter (between `---` markers) to extract required field names (the keys)
    - Scan for `##` and `###` section headers to extract required sections
@@ -349,20 +350,14 @@ After all checks complete, emit a unified tree view. Walk `work-items/` depth-fi
 
 ```
 WORK ITEM TREE:
-  F000001_workflow_alpha (feature) [In Progress]  completeness: 3/1 user-story
+  F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
     template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-    S000001_four_phase (user-story) [In Progress]  completeness: 1/1 task
+    S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
       template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      T000001_router_implementation (task) [Open]
-        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
-    S000002_template_consolidation (user-story) [In Progress]  completeness: 0/1 task
-      template: PASS  lifecycle: PASS  traceability: PASS  structure: INCOMPLETE (0 task children)
-    S000003_structural_completeness (user-story) [In Progress]  completeness: 1/1 task
-      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      T000002_implement_structural_check (task) [Open]
+      T000001_implement_workflow (task) [Closed]
         template: PASS  lifecycle: PASS  structure: PASS  traceability: —
 
-  F000002_system_health_v1 (feature) [Open]  completeness: 0/1 user-story
+  F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
     template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
 ```
 
@@ -393,17 +388,17 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
       "id": "F000001",
       "slug": "F000001_workflow_alpha",
       "type": "feature",
-      "state": "In Progress",
+      "state": "Closed",
       "path": "work-items/F000001_workflow_alpha",
       "parent": null,
-      "children": ["S000001", "S000002", "S000003"],
+      "children": ["S000001"],
       "badges": {
         "template": "PASS",
         "lifecycle": "PASS",
         "traceability": "PASS",
         "structure": "PASS"
       },
-      "completeness": {"count": 3, "min": 1, "required_child": "user-story"}
+      "completeness": {"count": 1, "min": 1, "required_child": "user-story"}
     }
   ],
   "edges": [],
@@ -436,10 +431,8 @@ Append to the report after the WORK ITEM VALIDATION section:
 ```
 STRUCTURAL COMPLETENESS:
   [INCOMPLETE] F000002_system_health_v1 — feature has 0 user-story children (minimum: 1)
-  [INCOMPLETE] S000002_template_consolidation — user-story has 0 task children (minimum: 1)
-  [PASS] F000001_workflow_alpha — 3 user-story children
-  [PASS] S000001_four_phase — 1 task child
-  [PASS] S000003_structural_completeness — 1 task child
+  [PASS] F000001_workflow_alpha — 1 user-story child
+  [PASS] S000001_workflow_implementation — 1 task child
   [LIFECYCLE_INCONSISTENT] F000002_system_health_v1 — "broken down" is checked but has 0 user-story children
 
 WORK ITEM TREE:

@@ -12,7 +12,7 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 **2. Absorb what you own, compose what you don't.** When the /docs skill needed template enforcement (formerly /contracts), it absorbed the logic directly rather than calling a sibling skill. But for post-ship doc updates, it composes with gstack's `/document-release` rather than reimplementing. The tradeoff: absorbing means you maintain it, composing means you depend on upstream. Evidence: `skills/docs/DESIGN.md` key decision #1.
 
-**3. Filesystem as protocol.** Parent/child relationships are expressed by directory nesting (`work-items/F000001/S000001/T000001/`). Work item types are determined by branch naming conventions (`feat/*` = feature, `fix/*` = defect). Template resolution follows a 2-level fallback chain (`templates/` then `~/.claude/templates/`). The tradeoff: no database, no API, no sync, but the conventions must be documented and followed. Evidence: `rules/work-items.md`, `artifact-manifests.json`.
+**3. Filesystem as protocol.** Parent/child relationships are expressed by directory nesting (`work-items/F000001/S000001/T000001/`). Work item types are determined by branch naming conventions (`feat/*` = feature, `fix/*` = defect). Template resolution follows a 3-level fallback chain (`templates/` then `~/.claude/spec/templates/` then `~/.claude/templates/`). The tradeoff: no database, no API, no sync, but the conventions must be documented and followed. Evidence: `rules/work-items.md`, `artifact-manifests.json`.
 
 **4. Declare, don't hardcode.** `artifact-manifests.json` is the single source of truth for which artifacts each work item type requires. The manifest drives scaffolding, validation, and template resolution. Adding a new artifact type means adding one JSON entry, not editing 5 files. The tradeoff: one more file to keep in sync. Evidence: `artifact-manifests.json` v2.0.0.
 
@@ -39,7 +39,7 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 **Work item hierarchy** (`work-items/{slug}/`):
 - `TRACKER.md` at every level (feature > user-story > task, max depth 3)
-- Doc triplet artifacts (PRD, ARCHITECTURE, TEST-SPEC) for features and user-stories
+- Doc triplet artifacts (PRD, ARCHITECTURE, TEST-SPEC) for user-stories
 - ID-prefixed filenames (`F000001_PRD.md`) to avoid collisions
 - ID format: `{TYPE_PREFIX}{NNNNNN}` where prefix is F/S/T/D
 

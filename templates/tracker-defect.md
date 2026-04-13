@@ -43,27 +43,19 @@ blocked_by: ""
 - [ ] RCA doc updated
 - [ ] Todos section reflects remaining work (no stale items)
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` — verify no regressions
 2. Verify test-plan: regression test scenarios passing
-3. Run `/review` for code review
+3. Run `/ship` — creates fix PR (includes pre-landing code review)
+4. Run `/land-and-deploy` — merges and verifies fix in production
 
 ❌ If regression test fails: investigate further
+❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
 - [ ] `/docs check` — validation passed
 - [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/review` — code review passed
-
-### Phase 4: Ship
-
-1. Run `/ship` — creates fix PR
-2. Run `/land-and-deploy` — merges and verifies fix in production
-
-❌ If CI fails: fix, push, re-run `/ship`
-
-**Gates:**
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed
 

@@ -2,7 +2,7 @@
 name: "system-health-v1"
 type: feature
 id: "F000002_system_health_v1"
-status: active
+status: closed
 created: "2026-04-10"
 updated: "2026-04-11"
 repo: "claude-skills-templates"
@@ -18,45 +18,36 @@ blocked_by: ""
    → produces design doc in `~/.gstack/projects/`
 2. Create working branch: `git checkout -b feat/{slug}`
 3. Scaffold work item directory and TRACKER.md
-4. Extract from design doc into doc triplet: requirements → `PRD.md`, architecture decisions → `ARCHITECTURE.md`, test scenarios → `TEST-SPEC.md`
-   (use templates from `templates/doc-PRD.md`, `doc-ARCHITECTURE.md`, `doc-TEST-SPEC.md`)
-5. Decompose into child user-stories and/or tasks
+4. Define acceptance criteria (what "done" looks like for the whole feature)
+5. Decompose into child user-stories
 
 **Gates:**
 - [x] Acceptance criteria scoped
 - [x] Working branch created (`branch` field populated)
-- [x] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
-- [x] Broken down into child tasks/stories
+- [x] Broken down into child stories
 
 ### Phase 2: Implement
 
 1. Child user-stories/tasks drive implementation (feature tracker coordinates)
 2. Monitor child progress — update this tracker when children complete phases
-3. Update Files section with top-level changed files
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with top-level changed files
 
 **Gates:**
-- [x] All child stories/tasks have entered Phase 2+
+- [x] All child stories have entered Phase 2+
 - [x] Feature-level Todos reflect remaining coordination work
 
-### Phase 3: Review
+### Phase 3: Ship
 
 1. Run `/docs check` — verify full hierarchy passes all badges
 2. Run `/docs tree` — verify structural completeness (all children present)
-3. Verify all child stories/tasks have passed their own Phase 3
-4. Run `/review` for feature-level code review
+3. Ensure all child stories have shipped
+4. Run `/ship` — creates feature PR, includes pre-landing code review
+5. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
 - [x] `/docs check` — all children pass validation
 - [x] `/docs tree` — structure complete
-- [x] All children have passed Phase 3: Review
-
-### Phase 4: Ship
-
-1. Ensure all child stories/tasks are shipped first
-2. Run `/ship` — creates feature PR (if not already created by children)
-3. Run `/land-and-deploy` — merges and verifies
-
-**Gates:**
 - [x] All children shipped
 - [x] `/ship` — PR created
 - [x] `/land-and-deploy` — merged and deployed
