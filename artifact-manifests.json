@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "description": "Declarative artifact definitions per work item type. Read by /work-track during scaffolding. v2: type-specific tracker templates, new artifact types.",
+  "description": "Declarative artifact definitions per work item type. Read by CLAUDE.md rules during scaffolding. v2: type-specific tracker templates, new artifact types.",
   "types": {
     "feature": {
       "required": [
