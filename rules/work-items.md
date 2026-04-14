@@ -4,10 +4,10 @@ When creating work items, use templates from the first directory found:
 `templates/` (repo root) -> `~/.claude/spec/templates/` -> `~/.claude/templates/`
 
 Type-aware scaffolding (each type gets a different set of artifacts):
-- **feature**: tracker-feature.md
+- **feature**: tracker-feature.md + doc-milestones.md
 - **defect**: tracker-defect.md + doc-RCA.md + doc-test-plan.md
 - **task**: tracker-task.md + doc-test-plan.md
-- **user-story**: tracker-user-story.md + doc-PRD.md + doc-ARCHITECTURE.md + doc-TEST-SPEC.md + doc-milestones.md
+- **user-story**: tracker-user-story.md + doc-PRD.md + doc-ARCHITECTURE.md + doc-TEST-SPEC.md
 
 Branch naming determines work item type:
 - `feature-*` or `feat-*` or `feat/*` -> feature

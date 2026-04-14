@@ -4,7 +4,8 @@
   "types": {
     "feature": {
       "required": [
-        {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"}
+        {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"},
+        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
       ],
       "optional": [],
       "lifecycle_overrides": {}
@@ -31,8 +32,7 @@
         {"artifact": "tracker", "template": "tracker-user-story.md", "filename": "TRACKER.md"},
         {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
         {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
-        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"},
-        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
+        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"}
       ],
       "optional": [],
       "lifecycle_overrides": {}
