@@ -1,8 +1,7 @@
 ---
 type: milestones
 template-version: 1            # bump when template structure changes
-parent: {USER_STORY_ID}        # the user story these milestones belong to
-feature: {FEATURE_ID}          # the parent feature
+parent: {FEATURE_ID}            # the feature these milestones belong to
 updated: {YYYY-MM-DD}          # last update date
 ---
 

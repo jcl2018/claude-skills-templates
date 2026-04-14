@@ -24,15 +24,12 @@ blocked_by: ""
    - `PRD.md` (requirements) — from `templates/doc-PRD.md`
    - `ARCHITECTURE.md` (architecture decisions) — from `templates/doc-ARCHITECTURE.md`
    - `TEST-SPEC.md` (test scenarios) — from `templates/doc-TEST-SPEC.md`
-   - `milestones.md` (delivery milestones) — from `templates/doc-milestones.md`
-6. Create milestones from PRD acceptance criteria
-7. Break into child tasks if scope warrants decomposition
+6. Break into child tasks if scope warrants decomposition
 
 **Gates:**
 - [ ] Acceptance criteria defined
 - [ ] Working branch created (`branch` field populated)
-- [ ] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC + milestones)
-- [ ] Milestones created
+- [ ] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC)
 - [ ] Tasks broken down (if needed)
 
 ### Phase 2: Implement

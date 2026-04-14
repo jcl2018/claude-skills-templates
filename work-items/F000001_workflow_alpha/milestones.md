@@ -1,8 +1,7 @@
 ---
 type: milestones
 template-version: 1
-parent: S000001_workflow_implementation
-feature: F000001_workflow_alpha
+parent: F000001_workflow_alpha
 updated: 2026-04-13
 ---
 

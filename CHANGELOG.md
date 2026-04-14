@@ -3,6 +3,15 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.7] - 2026-04-13
+### Fixed
+- Milestones artifact moved from user-story to feature type in manifest and rules (milestones track feature delivery, not individual stories)
+- Feature tracker template now scaffolds milestones.md at feature level
+- User-story tracker template no longer references milestones scaffolding
+- Template frontmatter parent placeholder updated from `{USER_STORY_ID}` to `{FEATURE_ID}`
+- F000001 milestones.md relocated from story level (S000001) to feature level
+- First defect work item (D000001) scaffolded with full defect artifact set
+
 ## [0.3.6] - 2026-04-13
 ### Changed
 - Lifecycle simplified from 4 phases (Track/Implement/Review/Ship) to 3 phases (Track/Implement/Ship) across all 4 tracker templates
