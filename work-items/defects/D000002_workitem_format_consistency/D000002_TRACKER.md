@@ -39,9 +39,9 @@ blocked_by: ""
 5. Update RCA doc with final root cause
 
 **Gates:**
-- [ ] Fix committed
-- [ ] RCA doc updated
-- [ ] Todos section reflects remaining work (no stale items)
+- [x] Fix committed
+- [x] RCA doc updated
+- [x] Todos section reflects remaining work (no stale items)
 
 ### Phase 3: Ship
 
@@ -54,9 +54,9 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/docs check` — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/ship` — PR created
+- [x] `/docs check` — validation passed (validate.sh: 0 errors, 0 warnings)
+- [x] Test-plan verified (regression scenarios passing, 14/14 pass)
+- [x] `/ship` — PR created (#29)
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Reproduction Steps
@@ -78,16 +78,19 @@ blocked_by: ""
 - [x] Rename D000001 artifacts with ID prefix
 - [x] Rename F000001 milestones.md with ID prefix
 - [x] Scaffold D000002
-- [ ] Update /docs check placement logic
-- [ ] Run validate.sh
-- [ ] /ship
+- [x] Update /docs check placement logic
+- [x] Run validate.sh
+- [x] /ship (#29)
 
 ## Log
 
 - 2026-04-13: Created. Five format inconsistencies identified: no type subfolders, inconsistent ID prefix on artifacts, prescriptive Phase 2 gate text, D000001 tracker not closed, D000001 test-plan not closed.
 - 2026-04-13: Root cause identified — original scaffolding of D000001 was the first defect workflow, format conventions were not yet established for defect type. Features had evolved ID-prefix convention organically but defects did not inherit it.
+- 2026-04-13: Fix implemented and shipped via /ship. PR #29 created.
 
 ## PRs
+
+- #29 (open) — fix: work item format consistency (D000002)
 
 ## Files
 
