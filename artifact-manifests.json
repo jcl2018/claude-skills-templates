@@ -43,8 +43,8 @@
     "user-story": {"required_child": "task", "min": 1}
   },
   "placement": {
-    "feature": "root",
-    "defect": "root",
+    "feature": "features",
+    "defect": "defects",
     "user-story": "feature",
     "task": "user-story"
   },

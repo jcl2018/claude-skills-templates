@@ -171,7 +171,7 @@ Store the Expected Model: for each type, the list of required artifacts with the
 
 ## Step 10: Build Actual Model
 
-Walk `./work-items/` recursively (max depth 3 from the work-items root):
+Walk `./work-items/` recursively (max depth 4 from the work-items root, accounting for type subfolders like `features/` and `defects/`):
 
 For each directory that contains a file named `TRACKER.md` (with or without an ID prefix like `F000001_TRACKER.md`):
 
@@ -284,7 +284,7 @@ Read the `hierarchy` field from artifact-manifests.json (already loaded in Step 
 
 Also read the `placement` field if present. If missing, use defaults:
 ```
-feature: root, defect: root, user-story: feature, task: user-story
+feature: features, defect: defects, user-story: feature, task: user-story
 ```
 
 ### 15b: Structural Completeness Check
@@ -304,14 +304,19 @@ For each work item in the Actual Model:
 
 For each work item in the Actual Model:
 1. Look up its normalized type in the placement rules
-2. If placement is `root`: the item must be a direct child of `work-items/` (depth 1 from work-items root). If nested deeper, flag `[MISPLACED] {slug} — {type} must be at root level of work-items/, found inside {parent_slug}`
-3. If placement names a parent type (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
+2. If placement names a **type subfolder** (e.g., `features`, `defects`): the item must be a direct child of `work-items/{subfolder}/`. For example, a feature with placement `features` must be at `work-items/features/{slug}/`. If found elsewhere, flag `[MISPLACED] {slug} — {type} must be inside work-items/{subfolder}/, found at {actual_path}`
+3. If placement names a **parent type** (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
 4. Items at the correct placement: no output (implicit pass)
+
+**How to distinguish subfolder vs parent-type:** If the placement value matches a key in `artifact-manifests.json` `types` object (e.g., `feature`, `user-story`), it is a parent-type reference. Otherwise (e.g., `features`, `defects`), it is a type-subfolder name.
 
 ### 15d: Stray Directory Detection
 
-Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix):
+Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix).
 
+**Type subfolder allowlist:** Directories that are recognized type subfolders (matching any value in the `placement` field of artifact-manifests.json, e.g., `features/`, `defects/`) are valid containers, not stray items. Skip them even if they contain no TRACKER.md.
+
+For all other directories without a TRACKER.md:
 Flag: `[STRAY] {directory_name} — contains .md files but no TRACKER.md (not a work item)`
 
 ### 15e: Lifecycle Cross-Reference
@@ -350,16 +355,23 @@ After all checks complete, emit a unified tree view. Walk `work-items/` depth-fi
 
 ```
 WORK ITEM TREE:
-  F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
-    template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-    S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
+  features/
+    F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
       template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      T000001_implement_workflow (task) [Closed]
-        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+      S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
+        template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+        T000001_implement_workflow (task) [Closed]
+          template: PASS  lifecycle: PASS  structure: PASS  traceability: —
 
-  F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
-    template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+    F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
+      template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+
+  defects/
+    D000001_milestones_artifact_placement (defect) [Closed]
+      template: PASS  lifecycle: PASS  structure: PASS  traceability: —
 ```
+
+Type subfolders (`features/`, `defects/`) are rendered as grouping headers in the tree. They are not work items and have no badges.
 
 For each node:
 - Line 1: `{indent}{slug} ({type}) [{state}]  completeness: {count}/{min} {required_child}` (omit completeness for types with no structural requirement)
@@ -389,7 +401,7 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
       "slug": "F000001_workflow_alpha",
       "type": "feature",
       "state": "Closed",
-      "path": "work-items/F000001_workflow_alpha",
+      "path": "work-items/features/F000001_workflow_alpha",
       "parent": null,
       "children": ["S000001"],
       "badges": {
@@ -489,7 +501,7 @@ One row per work item, in tree order (depth-first, alphabetical siblings). The t
 {list all INFO, EXTRA, WARN findings}
 ```
 
-"Root items" = work items whose placement rule is `root` (features and defects by default, per artifact-manifests.json placement rules).
+"Root items" = work items whose placement rule is a type subfolder (e.g., `features`, `defects`) rather than a parent type. These are top-level items in the hierarchy.
 
 If no findings exist in a severity category, omit that subsection. If no findings at all, write: "No issues found."
 

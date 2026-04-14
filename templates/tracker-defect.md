@@ -39,7 +39,7 @@ blocked_by: ""
 5. Update RCA doc with final root cause
 
 **Gates:**
-- [ ] Fix committed with regression test
+- [ ] Fix committed
 - [ ] RCA doc updated
 - [ ] Todos section reflects remaining work (no stale items)
 

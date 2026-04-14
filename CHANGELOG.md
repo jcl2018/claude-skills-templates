@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.8] - 2026-04-13
+### Fixed
+- Work items now live in type subfolders: `work-items/features/` and `work-items/defects/`
+- All artifact filenames consistently ID-prefixed (`D000001_TRACKER.md`, `F000001_milestones.md`)
+- Defect template Phase 2 gate simplified to "Fix committed" (removed "with regression test")
+- D000001 tracker and test-plan closed out (was left active after fix shipped in #28)
+- `/docs check` placement validation updated for type subfolders (placement, stray detection, tree rendering, graph paths)
+
+### Added
+- D000002 work item scaffolded: work item format consistency defect with full artifact set
+
 ## [0.3.7] - 2026-04-13
 ### Fixed
 - Milestones artifact moved from user-story to feature type in manifest and rules (milestones track feature delivery, not individual stories)
