@@ -2,7 +2,7 @@
 name: "Milestones artifact mapped to wrong work item type"
 type: defect
 id: "D000001"
-status: active
+status: closed
 created: "2026-04-13"
 updated: "2026-04-13"
 repo: "jcl2018/claude-skills-templates"
@@ -39,9 +39,9 @@ blocked_by: ""
 5. Update RCA doc with final root cause
 
 **Gates:**
-- [ ] Fix committed with regression test
-- [ ] RCA doc updated
-- [ ] Todos section reflects remaining work (no stale items)
+- [x] Fix committed with regression test
+- [x] RCA doc updated
+- [x] Todos section reflects remaining work (no stale items)
 
 ### Phase 3: Ship
 
@@ -54,10 +54,10 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/docs check` — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/docs check` — validation passed
+- [x] Test-plan verified (regression scenarios passing)
+- [x] `/ship` — PR created (#28)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Reproduction Steps
 
@@ -80,15 +80,18 @@ blocked_by: ""
 - [x] Sync global rules (~/.claude/rules/work-items.md)
 - [x] Fill in RCA doc
 - [x] Update test-plan with all changes
-- [ ] Run validate.sh
-- [ ] /ship
+- [x] Run validate.sh
+- [x] /ship (#28)
 
 ## Log
 
 - 2026-04-13: Created. Milestones artifact (`doc-milestones.md`) is mapped as required for user-story type but should be required for feature type. Milestones track feature-level delivery timelines, not individual story progress.
 - 2026-04-13: Root cause identified — original artifact mapping in v2.0.0 manifest placed milestones under user-story alongside PRD/ARCHITECTURE/TEST-SPEC without distinguishing feature-level vs story-level concerns.
+- 2026-04-13: Fix shipped in #28. Closed.
 
 ## PRs
+
+- #28 (merged) — fix: move milestones artifact from user-story to feature type
 
 ## Files
 
