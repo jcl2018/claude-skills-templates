@@ -31,11 +31,21 @@ Depends on skill-check.sh which was removed.
 ### ~~skill-diff.sh version comparison (P3, S)~~ RETIRED
 Depends on skill-ship.sh which was removed.
 
-### Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)
-Add `/docs check` and `/docs tree` as review gates in Phase 3 of tracker templates.
-All 4 tracker templates (feature, user-story, task, defect) should include these
-as Phase 3 checkboxes so structural completeness is verified before shipping.
-**Depends on:** structural completeness feature shipped (S000003)
+### ~~Add `/docs check` and `/docs tree` to Phase 3 review gates (P2, S)~~ DONE
+Already present in all 4 tracker templates. Phase 3 gates include `/docs check` and
+`/docs tree` (feature/user-story) or `/docs check` (task/defect).
+
+### ~~Stale example output in check.md and tree.md (P2, S)~~ DONE
+Updated examples to show current hierarchy (1 story, 1 task). References to
+deleted S000002, S000003, T000002, T000003 replaced.
+
+### ~~Sync global rules with repo-local rules (P2, S)~~ DONE
+Run `skills-deploy install --overwrite` to deploy repo-local source. Global rules
+now match artifact-manifests.json (features = tracker only, 3-level fallback).
+
+### ~~Template fallback chain inconsistency (P3, S)~~ DONE
+Standardized to 3-level chain across all files: check.md, PHILOSOPHY.md, rules,
+CLAUDE.md. The `~/.claude/spec/templates/` directory is now checked during validation.
 
 ### validate.sh structural check via graph JSON (P2, M)
 Add structural completeness check to validate.sh by reading `work-item-graph.json`

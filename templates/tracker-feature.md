@@ -13,22 +13,45 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
+
+1. Run `/office-hours` to explore the problem space and generate a design doc
+   → produces design doc in `~/.gstack/projects/`
+2. Create working branch: `git checkout -b feat/{slug}`
+3. Scaffold work item directory and TRACKER.md
+4. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
+5. Define acceptance criteria (what "done" looks like for the whole feature)
+6. Decompose into child user-stories
+   → detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
+
+**Gates:**
 - [ ] Acceptance criteria scoped
 - [ ] Working branch created (`branch` field populated)
-- [ ] Doc triplet produced (PRD + ARCHITECTURE + TEST-SPEC)
-- [ ] Broken down into child tasks/stories
+- [ ] Milestones scaffolded
+- [ ] Broken down into child stories
 
 ### Phase 2: Implement
-- [ ] Doc triplet read (build-forward mode)
-- [ ] Core implementation committed (>=1 commit SHA in Log)
-- [ ] Child tasks completed or deferred
-- [ ] Files section updated
 
-### Phase 3: Review
-- [ ] Doc review completed
-- [ ] Doc generation finalized
+1. Child user-stories/tasks drive implementation (feature tracker coordinates)
+2. Monitor child progress — update this tracker when children complete phases
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with top-level changed files
 
-### Phase 4: Ship
+**Gates:**
+- [ ] All child stories have entered Phase 2+
+- [ ] Feature-level Todos reflect remaining coordination work
+
+### Phase 3: Ship
+
+1. Run `/docs check` — verify full hierarchy passes all badges
+2. Run `/docs tree` — verify structural completeness (all children present)
+3. Ensure all child stories have shipped
+4. Run `/ship` — creates feature PR, includes pre-landing code review
+5. Run `/land-and-deploy` — merges and verifies
+
+**Gates:**
+- [ ] `/docs check` — all children pass validation
+- [ ] `/docs tree` — structure complete
+- [ ] All children shipped
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed
 

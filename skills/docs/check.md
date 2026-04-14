@@ -135,7 +135,7 @@ These rules apply throughout all work item checks. Define them here once; refere
 - Always display the hyphenated form ("user-story") in output messages
 
 **Filename matching:** Strip `{ID}_` prefix when matching against manifest filenames.
-- "S000002_PRD.md" matches manifest filename "PRD.md"
+- "S000001_PRD.md" matches manifest filename "PRD.md"
 - Pattern: a file matches if its name equals `{expected}` or ends with `_{expected}`
 
 **Parent/child relationships:** Directory nesting is canonical.
@@ -148,18 +148,19 @@ These rules apply throughout all work item checks. Define them here once; refere
 - **In Progress** = some checked, some unchecked (mix of `- [x]` and `- [ ]`)
 - **Closed** = all checkboxes checked (all `- [x]`)
 
-**Template resolution:** 2-level fallback chain.
+**Template resolution:** 3-level fallback chain.
 1. `$REPO_ROOT/templates/{template_filename}`
-2. `~/.claude/templates/{template_filename}`
+2. `~/.claude/spec/templates/{template_filename}`
+3. `~/.claude/templates/{template_filename}`
 
-Use the first found. If neither exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
+Use the first found. If none exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
 
 ## Step 9: Build Expected Model
 
 For each type in artifact-manifests.json `types` object:
 
 1. Read the `required` array to get the list of artifacts, each with `artifact`, `template`, and `filename` fields
-2. For each artifact entry, resolve the template file using the 2-level fallback chain (Step 8)
+2. For each artifact entry, resolve the template file using the 3-level fallback chain (Step 8)
 3. If template found:
    - Parse its YAML frontmatter (between `---` markers) to extract required field names (the keys)
    - Scan for `##` and `###` section headers to extract required sections
@@ -170,7 +171,7 @@ Store the Expected Model: for each type, the list of required artifacts with the
 
 ## Step 10: Build Actual Model
 
-Walk `./work-items/` recursively (max depth 3 from the work-items root):
+Walk `./work-items/` recursively (max depth 4 from the work-items root, accounting for type subfolders like `features/` and `defects/`):
 
 For each directory that contains a file named `TRACKER.md` (with or without an ID prefix like `F000001_TRACKER.md`):
 
@@ -283,7 +284,7 @@ Read the `hierarchy` field from artifact-manifests.json (already loaded in Step 
 
 Also read the `placement` field if present. If missing, use defaults:
 ```
-feature: root, defect: root, user-story: feature, task: user-story
+feature: features, defect: defects, user-story: feature, task: user-story
 ```
 
 ### 15b: Structural Completeness Check
@@ -303,14 +304,19 @@ For each work item in the Actual Model:
 
 For each work item in the Actual Model:
 1. Look up its normalized type in the placement rules
-2. If placement is `root`: the item must be a direct child of `work-items/` (depth 1 from work-items root). If nested deeper, flag `[MISPLACED] {slug} — {type} must be at root level of work-items/, found inside {parent_slug}`
-3. If placement names a parent type (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
+2. If placement names a **type subfolder** (e.g., `features`, `defects`): the item must be a direct child of `work-items/{subfolder}/`. For example, a feature with placement `features` must be at `work-items/features/{slug}/`. If found elsewhere, flag `[MISPLACED] {slug} — {type} must be inside work-items/{subfolder}/, found at {actual_path}`
+3. If placement names a **parent type** (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
 4. Items at the correct placement: no output (implicit pass)
+
+**How to distinguish subfolder vs parent-type:** If the placement value matches a key in `artifact-manifests.json` `types` object (e.g., `feature`, `user-story`), it is a parent-type reference. Otherwise (e.g., `features`, `defects`), it is a type-subfolder name.
 
 ### 15d: Stray Directory Detection
 
-Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix):
+Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix).
 
+**Type subfolder allowlist:** Directories that are recognized type subfolders (matching any value in the `placement` field of artifact-manifests.json, e.g., `features/`, `defects/`) are valid containers, not stray items. Skip them even if they contain no TRACKER.md.
+
+For all other directories without a TRACKER.md:
 Flag: `[STRAY] {directory_name} — contains .md files but no TRACKER.md (not a work item)`
 
 ### 15e: Lifecycle Cross-Reference
@@ -349,22 +355,23 @@ After all checks complete, emit a unified tree view. Walk `work-items/` depth-fi
 
 ```
 WORK ITEM TREE:
-  F000001_workflow_alpha (feature) [In Progress]  completeness: 3/1 user-story
-    template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-    S000001_four_phase (user-story) [In Progress]  completeness: 1/1 task
+  features/
+    F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
       template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      T000001_router_implementation (task) [Open]
-        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
-    S000002_template_consolidation (user-story) [In Progress]  completeness: 0/1 task
-      template: PASS  lifecycle: PASS  traceability: PASS  structure: INCOMPLETE (0 task children)
-    S000003_structural_completeness (user-story) [In Progress]  completeness: 1/1 task
-      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      T000002_implement_structural_check (task) [Open]
-        template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+      S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
+        template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+        T000001_implement_workflow (task) [Closed]
+          template: PASS  lifecycle: PASS  structure: PASS  traceability: —
 
-  F000002_system_health_v1 (feature) [Open]  completeness: 0/1 user-story
-    template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+    F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
+      template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+
+  defects/
+    D000001_milestones_artifact_placement (defect) [Closed]
+      template: PASS  lifecycle: PASS  structure: PASS  traceability: —
 ```
+
+Type subfolders (`features/`, `defects/`) are rendered as grouping headers in the tree. They are not work items and have no badges.
 
 For each node:
 - Line 1: `{indent}{slug} ({type}) [{state}]  completeness: {count}/{min} {required_child}` (omit completeness for types with no structural requirement)
@@ -393,17 +400,17 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
       "id": "F000001",
       "slug": "F000001_workflow_alpha",
       "type": "feature",
-      "state": "In Progress",
-      "path": "work-items/F000001_workflow_alpha",
+      "state": "Closed",
+      "path": "work-items/features/F000001_workflow_alpha",
       "parent": null,
-      "children": ["S000001", "S000002", "S000003"],
+      "children": ["S000001"],
       "badges": {
         "template": "PASS",
         "lifecycle": "PASS",
         "traceability": "PASS",
         "structure": "PASS"
       },
-      "completeness": {"count": 3, "min": 1, "required_child": "user-story"}
+      "completeness": {"count": 1, "min": 1, "required_child": "user-story"}
     }
   ],
   "edges": [],
@@ -436,10 +443,8 @@ Append to the report after the WORK ITEM VALIDATION section:
 ```
 STRUCTURAL COMPLETENESS:
   [INCOMPLETE] F000002_system_health_v1 — feature has 0 user-story children (minimum: 1)
-  [INCOMPLETE] S000002_template_consolidation — user-story has 0 task children (minimum: 1)
-  [PASS] F000001_workflow_alpha — 3 user-story children
-  [PASS] S000001_four_phase — 1 task child
-  [PASS] S000003_structural_completeness — 1 task child
+  [PASS] F000001_workflow_alpha — 1 user-story child
+  [PASS] S000001_workflow_implementation — 1 task child
   [LIFECYCLE_INCONSISTENT] F000002_system_health_v1 — "broken down" is checked but has 0 user-story children
 
 WORK ITEM TREE:
@@ -449,6 +454,86 @@ Graph artifact written to .docs/work-item-graph.json
 
 STRUCTURAL SUMMARY: {N} items, {N} incomplete, {N} misplaced, {N} stray, {N} lifecycle cross-ref issues
 ```
+
+## Step 19: Human-Readable Report
+
+After all checks complete, write a human-readable markdown report to `.docs/work-item-report.md`. This report consumes all data from Steps 1-18.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-report.md` with this structure:
+
+````markdown
+# Work Item Health Report
+
+Generated: {ISO-8601 timestamp}
+Commit: {short SHA from git rev-parse --short HEAD, or "unknown"}
+Repo: {repo name from basename of REPO_ROOT}
+
+## Tree
+
+```
+{exact same tree visualization from Step 16b}
+```
+
+## Badge Summary
+
+| Item | Type | State | Template | Lifecycle | Traceability | Structure |
+|------|------|-------|----------|-----------|--------------|-----------|
+| {slug} | {type} | {state} | {badge} | {badge} | {badge} | {badge} |
+````
+
+One row per work item, in tree order (depth-first, alphabetical siblings). The tree shows hierarchy with inline badges; the table provides a flat, sortable view for quick scanning.
+
+```markdown
+## Findings
+
+### Critical
+{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
+
+### Warnings
+{list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
+
+### Advisory
+{list all INFO, EXTRA, WARN findings}
+```
+
+"Root items" = work items whose placement rule is a type subfolder (e.g., `features`, `defects`) rather than a parent type. These are top-level items in the hierarchy.
+
+If no findings exist in a severity category, omit that subsection. If no findings at all, write: "No issues found."
+
+```markdown
+## Structural Summary
+
+- **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
+- **Incomplete:** {N}
+- **Misplaced:** {N}
+- **Lifecycle issues:** {N}
+- **Stray directories:** {N}
+```
+
+Include staleness and coherence results from Steps 3-5 if they ran (claims.json was present):
+
+```markdown
+## Staleness
+
+- **Stale sections:** {N}
+- **Fresh sections:** {N}
+- **Unverifiable sections:** {N}
+
+## Coherence
+
+- **Broken links:** {N}
+- **Version conflicts:** {N}
+- **Dead references:** {N}
+```
+
+If staleness checks were skipped (no claims.json), omit the Staleness and Coherence sections entirely.
+
+Print: "Report written to .docs/work-item-report.md"
 
 ## Error Messages
 

@@ -1,8 +1,7 @@
 ---
 type: milestones
 template-version: 1            # bump when template structure changes
-parent: {USER_STORY_ID}        # the user story these milestones belong to
-feature: {FEATURE_ID}          # the parent feature
+parent: {FEATURE_ID}            # the feature these milestones belong to
 updated: {YYYY-MM-DD}          # last update date
 ---
 
@@ -10,9 +9,7 @@ updated: {YYYY-MM-DD}          # last update date
 <!-- Canonical milestone tracker for this feature. Scrum docs snapshot this table.
      Owner = primary person responsible. Status values: Done, In Progress, Not Started, At Risk, Deferred.
      Blocked By = milestone number(s) that must complete first, or "—" if none.
-     This file is the SINGLE SOURCE OF TRUTH. Edit milestones here, not in scrum docs.
-     Scrum docs embed a read-only snapshot; post-meeting sync (GENERATION-GUIDE Step 8)
-     writes meeting changes back here. -->
+     This file is the SINGLE SOURCE OF TRUTH. Edit milestones here. -->
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|

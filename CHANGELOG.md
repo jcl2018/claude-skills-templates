@@ -3,19 +3,71 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.8] - 2026-04-13
+### Fixed
+- Work items now live in type subfolders: `work-items/features/` and `work-items/defects/`
+- All artifact filenames consistently ID-prefixed (`D000001_TRACKER.md`, `F000001_milestones.md`)
+- Defect template Phase 2 gate simplified to "Fix committed" (removed "with regression test")
+- D000001 tracker and test-plan closed out (was left active after fix shipped in #28)
+- `/docs check` placement validation updated for type subfolders (placement, stray detection, tree rendering, graph paths)
+
+### Added
+- D000002 work item scaffolded: work item format consistency defect with full artifact set
+
+## [0.3.7] - 2026-04-13
+### Fixed
+- Milestones artifact moved from user-story to feature type in manifest and rules (milestones track feature delivery, not individual stories)
+- Feature tracker template now scaffolds milestones.md at feature level
+- User-story tracker template no longer references milestones scaffolding
+- Template frontmatter parent placeholder updated from `{USER_STORY_ID}` to `{FEATURE_ID}`
+- F000001 milestones.md relocated from story level (S000001) to feature level
+- First defect work item (D000001) scaffolded with full defect artifact set
+
+## [0.3.6] - 2026-04-13
+### Changed
+- Lifecycle simplified from 4 phases (Track/Implement/Review/Ship) to 3 phases (Track/Implement/Ship) across all 4 tracker templates
+- `/review` gate removed from templates since `/ship` runs pre-landing review internally
+- Doc checks (`/docs check`, `/docs tree`) moved into Ship phase as pre-flight steps
+- Template fallback chain standardized to 3-level across all docs: `templates/` > `~/.claude/spec/templates/` > `~/.claude/templates/`
+- Task tracker "Design doc approved" gate removed (parent story concern, not task concern)
+- F000002 tracker status corrected from `active` to `closed` to match checkbox state
+- Stale examples in check.md and tree.md updated to reflect current hierarchy (1 story, 1 task)
+- PHILOSOPHY.md aligned: doc triplet now described as user-story-only, fallback chain updated to 3-level
+
+### Removed
+- 8 feature-level docs that violated manifest rules: PRD, ARCHITECTURE, TEST-SPEC, milestones from both F000001 and F000002 (features get tracker only per artifact-manifests.json)
+
+## [0.3.5] - 2026-04-13
+### Changed
+- Closed F000001_workflow_alpha: verified consistency across 12 work item docs (structure, logic, cross-refs), fixed stale lifecycle gates, aligned architecture diagram with manifest
+- Feature type now requires only TRACKER in manifest; doc triplet (PRD, ARCHITECTURE, TEST-SPEC, milestones) lives at user-story level
+- Feature tracker template no longer suggests decomposing into tasks directly (hierarchy requires tasks under stories)
+
+### Removed
+- 7 dead templates: GENERATION-GUIDE (4 files), contract-ARCHITECTURE, contract-PRD, contract-TEST-SPEC
+
+## [0.3.4] - 2026-04-13
+### Changed
+- Consolidated F000001 work items: 3 user stories (S000001, S000002, S000003) merged into S000001_workflow_implementation, 4 tasks merged into T000001_implement_workflow
+- Doc triplet from S000003 (most complete) preserved via git mv with rename history
+- All acceptance criteria, insights, and journal entries merged with source attribution
+
+### Removed
+- S000002_template_consolidation directory and all artifacts
+- S000003_structural_completeness directory and all child tasks (T000002, T000003, T000004)
+
 ## [0.3.3] - 2026-04-12
 ### Added
-- Company-workflow skill: company work item spec with structural validation against contract.json
-- 13 company templates at `templates/company-workflow/` (5 trackers + 8 docs, including review, scrum, review-notes types)
-- `template-registry.json` declaring workbench and company-workflow template sets with tracker_types and doc_types
-- SKILL.md with 2-level fallback chain (repo then ~/.claude/) and validate subcommand
-- 7 AI generation guides, 3 lifecycle philosophy docs, 3 validation fixtures bundled in skill
-- Work items F000003 (feature), S000003-S000005 (stories), T000002-T000004 (tasks) for company-spec system
-  - *Note: S000003-S000005 later consolidated into S000003_company_workflow_implementation, T000002-T000004 into T000002_implement_company_workflow*
+- `/docs check` now writes a human-readable health report to `.docs/work-item-report.md` (tree, badge summary table, findings by severity, structural summary)
+- `/docs tree` now writes a lightweight tree report to `.docs/work-item-tree.md`
+- Runbook-style lifecycle phases in all 4 tracker templates: numbered procedural steps with exact commands + checkbox completion gates
+- Each work item type gets its own runbook (feature coordinates via children, user-story uses `/office-hours` + doc triplet, task is simpler, defect uses `/investigate`)
 
 ### Changed
-- `skills-catalog.json`: added company-workflow entry (templates: [] per skills-deploy constraint)
-- `TODOS.md`: added T000003 (skills-deploy subfolder template support)
+- All 8 existing trackers migrated to runbook format with checkbox states preserved
+- Feature Phase 2 shifts from hands-on implementation to child coordination
+- `.docs/` directory now gitignored (generated artifacts, regenerated each run)
+- `MISSING` and `STRAY` statuses now included in report severity mapping
 
 ## [0.3.2] - 2026-04-12
 ### Added

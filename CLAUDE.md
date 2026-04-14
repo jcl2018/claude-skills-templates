@@ -37,10 +37,7 @@ skills/{skill-name}/
 ### Template naming
 Templates live in `templates/` with prefixes:
 - `doc-*.md` for scaffolding templates (used when creating new work item docs)
-- `contract-*.md` for enforcement reference templates (document what good docs look like)
 - `tracker-*.md` for work item templates (feature, defect, task, user-story)
-- `*-GENERATION-GUIDE.md` for doc generation instructions
-- `GENERATION-GUIDE.md` is a meta-template for doc generation instructions
 
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/` (global).

@@ -1,13 +1,10 @@
 {
   "version": "2.0.0",
-  "description": "Declarative artifact definitions per work item type. Read by /work-track during scaffolding. v2: type-specific tracker templates, new artifact types.",
+  "description": "Declarative artifact definitions per work item type. Read by CLAUDE.md rules during scaffolding. v2: type-specific tracker templates, new artifact types.",
   "types": {
     "feature": {
       "required": [
         {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"},
-        {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
-        {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
-        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"},
         {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
       ],
       "optional": [],
@@ -35,8 +32,7 @@
         {"artifact": "tracker", "template": "tracker-user-story.md", "filename": "TRACKER.md"},
         {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
         {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
-        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"},
-        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
+        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"}
       ],
       "optional": [],
       "lifecycle_overrides": {}
@@ -47,8 +43,8 @@
     "user-story": {"required_child": "task", "min": 1}
   },
   "placement": {
-    "feature": "root",
-    "defect": "root",
+    "feature": "features",
+    "defect": "defects",
     "user-story": "feature",
     "task": "user-story"
   },
