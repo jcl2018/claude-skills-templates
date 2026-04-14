@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.3.7.0] - 2026-04-13
+## [0.3.7] - 2026-04-13
 ### Fixed
 - Milestones artifact moved from user-story to feature type in manifest and rules (milestones track feature delivery, not individual stories)
 - Feature tracker template now scaffolds milestones.md at feature level
