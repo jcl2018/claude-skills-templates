@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - SKILL.md with 2-level fallback chain (repo then ~/.claude/) and validate subcommand
 - 7 AI generation guides, 3 lifecycle philosophy docs, 3 validation fixtures bundled in skill
 - Work items F000003 (feature), S000003-S000005 (stories), T000002-T000004 (tasks) for company-spec system
+  - *Note: S000003-S000005 later consolidated into S000003_company_workflow_implementation, T000002-T000004 into T000002_implement_company_workflow*
 
 ### Changed
 - `skills-catalog.json`: added company-workflow entry (templates: [] per skills-deploy constraint)
