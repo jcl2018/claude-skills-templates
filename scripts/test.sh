@@ -327,6 +327,56 @@ else
 fi
 rmdir "$SKILLS_DIR/zzz-test-orphan"
 
+# Regression test: Windows jq CRLF wrapper (D000005)
+# Background: jq.exe on Windows writes output with CRLF line endings, which
+# breaks template-name regexes and integer comparisons in bash. Each script
+# that calls jq must either source lib.sh (which defines the wrapper) or
+# define its own inline wrapper. This test guards against that wrapper
+# silently disappearing in a future refactor.
+echo ""
+echo "Regression test (D000005): Windows jq CRLF wrapper present..."
+
+# 1. lib.sh defines the wrapper
+if grep -qE '^jq\(\) \{ command jq "\$@" \| tr -d .{1,3}r.{1,3}; \}' "$REPO_ROOT/scripts/lib.sh"; then
+  ok "scripts/lib.sh defines the jq() wrapper"
+else
+  fail_test "scripts/lib.sh is missing the jq() CRLF-stripping wrapper"
+fi
+
+# 2. skills-deploy defines its own wrapper (it does not source lib.sh)
+if grep -qE '^jq\(\) \{ command jq "\$@" \| tr -d .{1,3}r.{1,3}; \}' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy defines the jq() wrapper"
+else
+  fail_test "scripts/skills-deploy is missing the jq() CRLF-stripping wrapper"
+fi
+
+# 3. test-deploy.sh defines its own wrapper (it does not source lib.sh)
+if grep -qE '^jq\(\) \{ command jq "\$@" \| tr -d .{1,3}r.{1,3}; \}' "$REPO_ROOT/scripts/test-deploy.sh"; then
+  ok "scripts/test-deploy.sh defines the jq() wrapper"
+else
+  fail_test "scripts/test-deploy.sh is missing the jq() CRLF-stripping wrapper"
+fi
+
+# 4. Behavior test: the wrapper strips CR when invoked from a script context
+#    with `set -o pipefail`. Simulate by sourcing lib.sh then feeding jq input
+#    whose output we then stringify and check for CR bytes.
+crlf_probe=$(bash -c "set -euo pipefail; . '$REPO_ROOT/scripts/lib.sh'; printf '{\"n\":3}' | jq -r '.n'" 2>/dev/null | od -c | head -1)
+if echo "$crlf_probe" | grep -q '\\r'; then
+  fail_test "lib.sh jq wrapper did NOT strip CR (output contained \\r bytes)"
+else
+  ok "lib.sh jq wrapper output is CR-free"
+fi
+
+# 5. Pipefail-propagation test: jq -e must still return non-zero when the
+#    expression is false, even through the tr pipe. Without `pipefail` active
+#    (or with a naive wrapper), `if jq -e ... ` would always take the true
+#    branch.
+if bash -c "set -euo pipefail; . '$REPO_ROOT/scripts/lib.sh'; echo '{\"a\":1}' | jq -e '.b' >/dev/null 2>&1"; then
+  fail_test "jq -e wrapper leaks true exit when expression is null (pipefail not respected)"
+else
+  ok "jq -e wrapper correctly propagates false exit through pipe"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
