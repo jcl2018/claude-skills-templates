@@ -9,6 +9,13 @@ allowed-tools:
   - Grep
 ---
 
+## Getting Started
+
+For the complete doc-driven development workflow (generating docs, scaffolding
+conventions, installation), see [WORKFLOW.md](WORKFLOW.md).
+
+This skill provides the `validate` command. WORKFLOW.md provides everything else.
+
 ## Preamble
 
 Verify this is a git repository:

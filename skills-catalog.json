@@ -77,6 +77,7 @@
     "portability": "standalone",
     "files": [
       "skills/company-workflow/SKILL.md",
+      "skills/company-workflow/WORKFLOW.md",
       "skills/company-workflow/contract.json",
       "skills/company-workflow/company-artifact-manifests.json"
     ],
