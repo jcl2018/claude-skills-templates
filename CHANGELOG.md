@@ -3,7 +3,6 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-
 ## [0.7.0] - 2026-04-16
 
 ### Added
