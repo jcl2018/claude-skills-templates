@@ -87,8 +87,10 @@ file_checksum() {
 }
 
 # Validate template name is safe (no path traversal)
+# Allows one subfolder level: "company-workflow/tracker-feature.md"
+# Blocks ".." segments to prevent path traversal
 validate_template_name() {
-  [[ "$1" =~ ^[a-zA-Z0-9_.-]+\.md$ ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
+  [[ "$1" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)?\.md$ ]] && [[ "$1" != *".."* ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
 }
 
 # --- install ---
@@ -190,8 +192,8 @@ do_install() {
         ;;
     esac
 
-    # Symlink all .md files from source
-    for f in "$src"/*.md; do
+    # Symlink all .md and .json files from source
+    for f in "$src"/*.md "$src"/*.json; do
       [ -f "$f" ] || continue
       local fname
       fname=$(basename "$f")
@@ -227,6 +229,7 @@ do_install() {
 
       local tpl_src="$TEMPLATES_SRC/$tpl"
       local tpl_dst="$TEMPLATES_TARGET/$tpl"
+      mkdir -p "$(dirname "$tpl_dst")"
 
       # Check for shadowing by higher-priority path
       if [ -f "$HOME/.claude/spec/templates/$tpl" ]; then
@@ -486,7 +489,7 @@ do_relink() {
     if [ ! -f "$tpl_file" ]; then
       # Missing — re-copy if source exists
       if [ -f "$tpl_src" ]; then
-        mkdir -p "$TEMPLATES_TARGET"
+        mkdir -p "$(dirname "$tpl_file")"
         cp "$tpl_src" "$tpl_file" && tpl_fixed=$((tpl_fixed + 1)) || echo "  WARN: failed to restore $tpl"
         # Update checksum in manifest
         local new_sum
