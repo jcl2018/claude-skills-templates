@@ -230,6 +230,7 @@ else
   ok "company-workflow SKILL.md has zero gstack references"
 fi
 
+# shellcheck disable=SC2088
 if grep -q "~/.gstack" "$REPO_ROOT/skills/company-workflow/SKILL.md" 2>/dev/null; then
   fail_test "company-workflow SKILL.md references ~/.gstack/ (should be standalone)"
 else
