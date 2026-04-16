@@ -3,6 +3,31 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] - 2026-04-15
+### Changed
+- Company-workflow skill (v2.0.0): unified validate command replaces 3 separate subcommands (validate/check/create)
+- File mode validates single trackers against contract.json; directory mode validates entire work items against company-artifact-manifests.json
+- Type spelling normalized from `userstory` to `user-story` across manifest, templates, and registry
+- Tracker-review.md now uses phase headings (### Phase N:) matching all other tracker types
+- Tracker-feature.md doc triplet is unconditionally required (removed "N/A for small features")
+- Handoff section removed from contract.json and tracker-review.md (unused across all types)
+
+### Added
+- `company-artifact-manifests.json` declares type-to-artifact mapping for all 5 company types
+- Directory-mode fixtures: `valid-feature-dir/` (5 artifacts) and `invalid-missing-artifact-dir/` (missing PRD)
+- Placeholder detection in frontmatter values (regex `{[A-Za-z_]+}`)
+- CLAUDE.md routing rule for `/company-workflow validate`
+- `skills-deploy` now deploys JSON files alongside skill markdown
+- `skills-deploy` now supports subfolder templates (e.g., `company-workflow/tracker-feature.md`)
+
+### Fixed
+- `skills-deploy` template name validation blocked subfolder paths (regex extended for one subfolder level)
+- `skills-deploy` path traversal prevention (blocked `..` segments in template names)
+- `skills-deploy relink` now creates parent directories for nested templates
+
+### Removed
+- T000005 (check subcommand) and T000006 (create subcommand) work items (never implemented, replaced by unified validate)
+
 ## [0.3.8] - 2026-04-13
 ### Fixed
 - Work items now live in type subfolders: `work-items/features/` and `work-items/defects/`
