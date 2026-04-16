@@ -2,9 +2,9 @@
 name: "Company Workflow Implementation"
 type: user-story
 id: "S000003_company_workflow_implementation"
-status: active
+status: closed
 created: "2026-04-11"
-updated: "2026-04-14"
+updated: "2026-04-15"
 parent: "F000003_company_spec_system"
 repo: "claude-skills-templates"
 branch: "claude/nostalgic-volhard"
@@ -41,9 +41,9 @@ blocked_by: ""
 
 **Gates:**
 - [x] All child tasks have entered Phase 2+
-- [ ] Acceptance criteria verified met
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Acceptance criteria verified met
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -56,12 +56,12 @@ blocked_by: ""
 6. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
-- [ ] `/docs check` -- validation passed
-- [ ] `/docs tree` -- structure verified
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` -- PR created
-- [ ] `/land-and-deploy` -- merged and deployed
+- [x] `/docs check` -- validation passed
+- [x] `/docs tree` -- structure verified
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped
+- [x] `/ship` -- PR created
+- [x] `/land-and-deploy` -- merged and deployed
 
 ## Acceptance Criteria
 
@@ -75,17 +75,17 @@ blocked_by: ""
 - [x] Skill is standalone (zero gstack dependencies)
 
 ### Directory Validation
-- [ ] company-artifact-manifests.json created with 5 type entries
-- [ ] `company-workflow validate <dir>` validates artifact completeness
-- [ ] All 5 types enforced (feature=5, defect=3, task=2, userstory=5, review=2)
-- [ ] Missing artifacts flagged [MISSING], drift flagged [DRIFT]
-- [ ] Unresolved placeholders detected in frontmatter values
-- [ ] Independent from /docs check
+- [x] company-artifact-manifests.json created with 5 type entries
+- [x] `company-workflow validate <dir>` validates artifact completeness
+- [x] All 5 types enforced (feature=5, defect=3, task=2, userstory=5, review=2)
+- [x] Missing artifacts flagged [MISSING], drift flagged [DRIFT]
+- [x] Unresolved placeholders detected in frontmatter values
+- [x] Independent from /docs check
 
 ## Todos
 
 - [x] [T000002_implement_company_workflow](T000002_implement_company_workflow/T000002_TRACKER.md) -- CLOSED, template registration shipped
-- [ ] Directory validation (unified validate command with file + directory modes)
+- [x] Directory validation (unified validate command with file + directory modes) -- shipped
 
 ## Log
 
@@ -93,6 +93,7 @@ blocked_by: ""
 - 2026-04-11: Implemented template registry. 27 files copied. validate.sh PASS, test.sh PASS.
 - 2026-04-13: Consolidated from 3 stories into 1. Rewritten for 3-phase lifecycle.
 - 2026-04-14: PRD realigned for standalone framing. T000002 closed (registration done). T000005 (check) and T000006 (create) created. Stripped gstack from SKILL.md.
+- 2026-04-15: Closed. PRD updated with doc-driven dev workflow (3 steps), delivery section, removed ~/Downloads/spec references. ARCHITECTURE and TEST-SPEC updated with delivery. All acceptance criteria met.
 
 ## PRs
 

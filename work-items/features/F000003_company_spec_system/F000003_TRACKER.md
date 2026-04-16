@@ -4,7 +4,7 @@ type: feature
 id: "F000003_company_spec_system"
 status: active
 created: "2026-04-11"
-updated: "2026-04-14"
+updated: "2026-04-15"
 repo: "claude-skills-templates"
 branch: "claude/nostalgic-volhard"
 blocked_by: ""
@@ -36,7 +36,7 @@ blocked_by: ""
 
 **Gates:**
 - [x] All child stories have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
@@ -63,23 +63,24 @@ blocked_by: ""
 
 ### Standalone Skill
 - [x] Skill has zero gstack dependencies
-- [ ] `company-workflow validate <dir>` enforces artifact completeness per type
-- [ ] company-artifact-manifests.json created with 5 type entries
-- [ ] Skill works when installed in any repo via skills-deploy
+- [x] `company-workflow validate <dir>` enforces artifact completeness per type
+- [x] company-artifact-manifests.json created with 5 type entries
+- [x] Skill works when installed in any repo via skills-deploy
 
 ### Integration
-- [ ] `skills-deploy install` deploys skill + templates
-- [ ] Reference guides and philosophy docs accessible
+- [x] `skills-deploy install` deploys skill + templates
+- [x] Reference guides and philosophy docs accessible
 
 ## Todos
 
-- [ ] [S000003_company_workflow_implementation](S000003_company_workflow_implementation/S000003_TRACKER.md) -- check + create remaining
+- [x] [S000003_company_workflow_implementation](S000003_company_workflow_implementation/S000003_TRACKER.md) -- CLOSED, all shipped
 
 ## Log
 
 - 2026-04-11: Created. Company-spec work item system: standalone skill packaging company template spec. Design doc approved (9/10).
 - 2026-04-13: Consolidated 3 stories into 1, rewritten for 3-phase lifecycle.
 - 2026-04-14: PRD realigned for standalone framing. Stripped gstack deps from SKILL.md. T000002 closed (registration done). T000005 (check) and T000006 (create) created.
+- 2026-04-15: S000003 closed. PRD updated with doc-driven dev workflow and delivery section. All children shipped. Feature ready for /ship.
 
 ## PRs
 

@@ -34,8 +34,11 @@ company-workflow skill (standalone, read-only)
     |   +-- validate <file>     contract rules -> exit 0/1
     |   +-- validate <dir>      artifact completeness -> [PASS]/[MISSING]/[DRIFT]
     |
+    +-- [EXAMPLE LAYER]
+    |   +-- examples/    13 filled-in examples (1 per template, AI reads during generation)
+    |
     +-- [REFERENCE LAYER]
-        +-- reference/   7 AI generation guides
+        +-- reference/   7 human reference guides
         +-- philosophy/  3 lifecycle rationale docs
         +-- fixtures/    3 file-mode + 2 dir-mode test fixtures
 ```
@@ -59,7 +62,8 @@ Templates resolve the same way: `$REPO_ROOT/templates/company-workflow/` then
 | skills/company-workflow/SKILL.md | Skill | Unified validate command (file + dir modes) |
 | skills/company-workflow/contract.json | Data | Structural validation rules |
 | skills/company-workflow/company-artifact-manifests.json | Data | Type->artifact mapping (5 types) |
-| skills/company-workflow/reference/ | Docs | 7 AI generation guides |
+| skills/company-workflow/examples/ | Examples | 13 filled-in examples (1 per template) |
+| skills/company-workflow/reference/ | Docs | 7 human reference guides |
 | skills/company-workflow/philosophy/ | Docs | 3 lifecycle rationale docs |
 | skills/company-workflow/fixtures/ | Test | 3 file-mode + 2 dir-mode fixtures |
 | templates/company-workflow/ | Templates | 13 company spec templates |
@@ -111,10 +115,47 @@ Artifact counts: feature=5, defect=3, task=2, userstory=5, review=2.
 | Unified command | File + dir modes | Separate subcommands | Simpler, one entry point |
 | Artifacts | All unconditionally required | Optional tier | Wrong type = wrong artifacts |
 
+## Delivery
+
+The skill is designed for deployment to any machine via `skills-deploy install`.
+
+### What Gets Deployed
+
+```
+~/.claude/skills/company-workflow/
+    SKILL.md                          # skill entry point
+    contract.json                     # structural validation rules
+    company-artifact-manifests.json   # type->artifact mapping
+    examples/                         # 13 filled-in examples (AI reads these)
+    reference/guide-*.md              # 7 human reference guides
+    philosophy/rationale-*.md         # 3 lifecycle rationale docs
+    fixtures/                         # test fixtures
+
+~/.claude/templates/company-workflow/
+    tracker-*.md                      # 5 tracker templates
+    doc-*.md                          # 8 doc templates
+```
+
+### Install on Another Machine
+
+```bash
+# Via skills-deploy (recommended):
+./scripts/skills-deploy.sh install
+
+# Manual:
+cp -r skills/company-workflow/ ~/.claude/skills/company-workflow/
+cp -r templates/company-workflow/ ~/.claude/templates/company-workflow/
+```
+
+After install, the 2-level fallback chain resolves templates from `~/.claude/`
+when no repo-local copy exists. Examples deploy alongside the skill so AI
+has reference material for doc generation on any machine.
+
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| skills-deploy subfolder issue | Med | Med | Follow-up task if needed |
+| skills-deploy subfolder issue | Low | Med | Shipped in v0.4.0 |
 | userstory spelling confusion | Med | Med | Documented intentional divergence |
 | Template changes break check | Med | Med | check reads templates dynamically |
+| Deployed skill out of sync | Med | Med | skills-deploy doctor detects drift |

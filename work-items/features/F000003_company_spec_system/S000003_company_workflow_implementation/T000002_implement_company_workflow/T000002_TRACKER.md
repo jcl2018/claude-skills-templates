@@ -57,7 +57,7 @@ blocked_by: ""
 
 ## Todos
 
-- [x] Copy ~/Downloads/spec/templates/*.md to templates/company-workflow/ (13 files, byte-identical)
+- [x] Copy company spec templates to templates/company-workflow/ (13 files, byte-identical)
 - [x] Copy contract.json, reference guides (7 files), philosophy docs (3 files), fixtures (3 files)
 - [x] Create skills/company-workflow/SKILL.md with fallback chain and validate subcommand
 - [x] Create template-registry.json with workbench + company-workflow sets
@@ -85,7 +85,7 @@ blocked_by: ""
 
 ## Insights
 
-- Source files at ~/Downloads/spec/ are a one-time import. After commit, the repo is the source of truth.
+- Company spec templates were a one-time import. After commit, the repo is the source of truth.
 - The spec has 13 template files, 7 guide files, 3 rationale files, and 3 invalid fixture files.
 
 ## Journal
