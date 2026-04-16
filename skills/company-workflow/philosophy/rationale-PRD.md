@@ -56,23 +56,24 @@ The artifact manifest enforces this: `work-track create` scaffolds the tracker A
 
 Not all types follow the same path through the 4 phases. The lifecycle checkboxes are universal, but the depth and artifacts differ by type.
 
-### Feature (richest path)
+### Feature (roll-up path)
 
 ```
 Track ──→ Implement ──→ Review ──→ Ship
   │           │
   ├─ scope acceptance criteria
   ├─ create branch
-  ├─ produce doc triplet (PRD + ARCHITECTURE + TEST-SPEC)
-  └─ break down into child tasks/stories
+  ├─ produce feature-summary.md (scope, success criteria, constituent stories, non-goals)
+  ├─ produce milestones.md (delivery roadmap)
+  └─ break down into child user-stories/tasks (story-scope detail lives there)
               │
-              ├─ read doc triplet → build-forward mode
-              ├─ commit core implementation
-              ├─ complete child tasks
+              ├─ child user-stories carry the doc triplet (PRD + ARCHITECTURE + TEST-SPEC)
+              ├─ feature tracker rolls up child progress
+              ├─ commit infrastructure shared across child stories
               └─ update Files section
 ```
 
-Features require the full doc triplet and may spawn child user-stories or tasks.
+Features carry only roll-up artifacts (`tracker + feature-summary + milestones`). The detailed PRD/ARCHITECTURE/TEST-SPEC content lives at the user-story level, not duplicated at feature scope. See D000003 in `work-items/defects/` for the rationale and the migration policy for legacy feature-scope doc-triplet files.
 
 ### Defect (debug-backward path)
 
@@ -164,9 +165,9 @@ Review items skip Implement entirely. They track code review goals, capture feed
 
 ### Story #1: Build-forward mode for features
 
-**AC-1:** Given a feature work item with a populated doc triplet (PRD + ARCHITECTURE + TEST-SPEC), when I invoke `work-implement`, then the command reads the doc triplet, presents an implementation plan, and after approval executes it (write code, run tests, iterate).
+**AC-1:** Given a feature work item with a populated `feature-summary.md` plus child user-stories carrying the doc triplet (PRD + ARCHITECTURE + TEST-SPEC), when I invoke `work-implement`, then the command reads the feature-summary for scope and the constituent user-stories' doc triplets for detail, presents an implementation plan, and after approval executes it (write code, run tests, iterate).
 
-**AC-2:** Given a feature work item WITHOUT a doc triplet, when I invoke `work-implement`, then the command reads the tracker description and acceptance criteria and drafts its own plan.
+**AC-2:** Given a feature work item WITHOUT a feature-summary or with no constituent user-stories, when I invoke `work-implement`, then the command reads the tracker description and acceptance criteria and drafts its own plan.
 
 ### Story #2: Debug-backward mode for defects
 

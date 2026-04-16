@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
+# Relies on `pipefail` (set above) so jq's exit status still propagates.
+jq() { command jq "$@" | tr -d '\r'; }
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY="$REPO_ROOT/scripts/skills-deploy"
 CATALOG="$REPO_ROOT/skills-catalog.json"

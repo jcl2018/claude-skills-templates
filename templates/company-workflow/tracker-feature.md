@@ -17,7 +17,7 @@ blocked_by: ""
 ### Phase 1: Track
 - [ ] Feature scoped (acceptance criteria defined)
 - [ ] Working branch created (`branch` field populated)
-- [ ] Doc triplet created (PRD + ARCHITECTURE + TEST-SPEC)
+- [ ] Feature summary + milestones created (feature-summary.md + milestones.md)
 - [ ] Tasks broken down (child task items created)
 
 ### Phase 2: Implement
@@ -29,7 +29,7 @@ blocked_by: ""
 - [ ] Code review requested (reviewer noted)
 - [ ] Review feedback captured (suggestions + resolutions in Journal)
 - [ ] All review suggestions resolved or marked won't-fix
-- [ ] Doc triplet passes doc alignment check
+- [ ] Feature summary + milestones pass alignment check (constituent user-stories listed; success criteria match nested PRDs)
 
 ### Phase 4: Ship
 - [ ] Linux branch build passes
