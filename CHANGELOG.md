@@ -3,6 +3,28 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-04-15
+
+### Added
+- WORKFLOW.md: doc-driven development guide with scaffolding conventions, ID generation, directory layout, and 4-phase lifecycle
+- 13 example files (1 per template) for AI-assisted doc generation, themed around API rate limiting
+- `skills-deploy` now symlinks skill subdirectories (examples/, reference/, philosophy/, fixtures/)
+- `skills-deploy remove` cleans up subdirectory symlinks
+- `skills-deploy relink` recreates subdirectory symlinks
+- `skills-deploy doctor` checks subdirectory symlink health (missing + broken)
+- Migration guard: diff-then-replace for manual-to-symlink subdirectory migration
+- 7 new automated tests for subdirectory lifecycle (Tests 13-19)
+- PRD Step 3 (Implement and Iterate) fleshed out with validate-as-continuous-gate workflow
+
+### Changed
+- SKILL.md now references WORKFLOW.md via Getting Started section
+- skills-catalog.json includes WORKFLOW.md in company-workflow files array
+- S000003 work items closed (all children shipped)
+
+### Fixed
+- test-deploy.sh referenced deleted skill-author skill (replaced with system-health)
+- shellcheck SC2088 warning in test.sh (tilde in quotes)
+
 ## [0.4.0] - 2026-04-15
 ### Changed
 - Company-workflow skill (v2.0.0): unified validate command replaces 3 separate subcommands (validate/check/create)
