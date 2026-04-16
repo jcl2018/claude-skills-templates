@@ -3,7 +3,7 @@ type: architecture
 parent: S000003_company_workflow_implementation
 feature: F000003_company_spec_system
 title: "Company Workflow Implementation — Architecture"
-version: 1
+version: 2
 status: Draft
 date: 2026-04-11
 author: chjiang
@@ -13,125 +13,108 @@ reviewers: []
 
 ## Overview
 
-Three interconnected capabilities in the company-workflow skill, built on subfolder
-namespacing and a template registry:
-
-1. **Template Registry**: `template-registry.json` declares named template sets.
-   `templates/company-workflow/` holds 13 company spec templates. No existing files modified.
-2. **Artifact Enforcement**: `company-workflow check` validates work items against a
-   company-specific manifest. Independent from `/docs check`.
-3. **Scaffolding**: `company-workflow create` scaffolds new work items with the correct
-   artifacts per type, fills placeholders, and validates the result.
+A standalone Claude Code skill that packages an entire company work item specification.
+One unified validate command with two modes: file mode (structural rules) and directory
+mode (artifact completeness). Zero external dependencies. No gstack, no /docs check,
+no analytics. Read-only: validates but never modifies files.
 
 ## Architecture
 
 ```
-template-registry.json (repo root)
+company-workflow skill (standalone, read-only)
     |
-    +-- "workbench"         --> templates/                  (this repo's dev workflow)
-    +-- "company-workflow"  --> templates/company-workflow/  (company spec)
-            |
-            v
-skills/company-workflow/
+    +-- [DATA LAYER]
+    |   +-- templates/company-workflow/              13 templates (5 trackers + 8 docs)
+    |   +-- skills/company-workflow/contract.json    structural rules (file mode)
+    |   +-- skills/company-workflow/company-artifact-manifests.json
+    |   |                                            type->artifact mapping (dir mode)
+    |   +-- template-registry.json                   template set metadata (repo root)
     |
-    +-- SKILL.md            (routing: validate, check, create)
-    +-- contract.json       (structural rules for validate)
-    +-- company-artifact-manifests.json  (type->artifact mapping for check)
-    +-- reference/          (guide-*.md for AI doc generation)
-    +-- philosophy/         (rationale-*.md for lifecycle reasoning)
-    +-- fixtures/           (invalid-*.md for validation testing)
-            |
-            v
-Three subcommands:
+    +-- [COMMAND LAYER]
+    |   +-- validate <file>     contract rules -> exit 0/1
+    |   +-- validate <dir>      artifact completeness -> [PASS]/[MISSING]/[DRIFT]
     |
-    +-- validate <path>     (contract.json rules -> exit 0/1)
-    +-- check <path>        (artifact completeness -> [PASS]/[MISSING]/[DRIFT])
-    +-- create --type --name (scaffold -> validate)
+    +-- [REFERENCE LAYER]
+        +-- reference/   7 AI generation guides
+        +-- philosophy/  3 lifecycle rationale docs
+        +-- fixtures/    3 file-mode + 2 dir-mode test fixtures
 ```
 
-### Components Affected
+### Path Resolution
 
-| Component | Change Type | Description |
-|-----------|------------|-------------|
-| templates/company-workflow/ | New | 13 company spec template files |
-| skills/company-workflow/SKILL.md | New | Skill with validate, check, create subcommands |
-| skills/company-workflow/contract.json | New | Structural validation rules |
-| skills/company-workflow/company-artifact-manifests.json | New | Type->artifact mapping for enforcement |
-| skills/company-workflow/reference/ | New | 7 guide files for AI doc generation |
-| skills/company-workflow/philosophy/ | New | 3 rationale files for lifecycle |
-| skills/company-workflow/fixtures/ | New | 3 invalid fixture files for testing |
-| template-registry.json | New | Declares template sets with metadata |
-| skills-catalog.json | Modified | Add company-workflow skill entry |
+2-level fallback chain. Works in the workbench repo and on deployed machines:
+
+```
+Level 1: $REPO_ROOT/skills/company-workflow/     (workbench)
+Level 2: ~/.claude/skills/company-workflow/       (deployed via skills-deploy)
+```
+
+Templates resolve the same way: `$REPO_ROOT/templates/company-workflow/` then
+`~/.claude/templates/company-workflow/`.
+
+### Components
+
+| Component | Type | Description |
+|-----------|------|-------------|
+| skills/company-workflow/SKILL.md | Skill | Unified validate command (file + dir modes) |
+| skills/company-workflow/contract.json | Data | Structural validation rules |
+| skills/company-workflow/company-artifact-manifests.json | Data | Type->artifact mapping (5 types) |
+| skills/company-workflow/reference/ | Docs | 7 AI generation guides |
+| skills/company-workflow/philosophy/ | Docs | 3 lifecycle rationale docs |
+| skills/company-workflow/fixtures/ | Test | 3 file-mode + 2 dir-mode fixtures |
+| templates/company-workflow/ | Templates | 13 company spec templates |
+| template-registry.json | Data | Declares template sets |
+| skills-catalog.json | Config | Skill catalog entry |
 
 ### Data Flow
 
-**Validate flow:**
-1. User runs `company-workflow validate <tracker-path>`
-2. Skill reads contract.json for expected frontmatter fields and section order
-3. Parses the tracker's YAML frontmatter and ## headings
-4. Compares actual vs expected
-5. Exit 0 (valid) or exit 1 (stderr lists violations)
+**validate (file mode):**
+1. Read contract.json (expected fields, sections, order)
+2. Parse target file's YAML frontmatter + ## headings
+3. Compare actual vs expected
+4. Exit 0 (valid) or exit 1 (violations to stderr)
 
-**Check flow:**
-1. User runs `company-workflow check <work-item-path>`
-2. Skill reads company-artifact-manifests.json for type->artifact mapping
-3. Reads TRACKER.md frontmatter to determine type
-4. For each required artifact: resolves template, parses expected fields/sections
-5. Checks if artifact exists and matches template structure
-6. Reports [PASS], [MISSING], or [DRIFT] per artifact
+**validate (directory mode):**
+1. Find *_TRACKER.md in directory (first alphabetically if multiple)
+2. Parse type from frontmatter, normalize spelling (userstory/user-story)
+3. Read company-artifact-manifests.json (type -> required artifacts)
+4. For each required artifact: match files (strip ^[A-Z]\d+_ prefix), compare frontmatter keys against template (presence only), check for unresolved {PLACEHOLDER} patterns
+5. Check lifecycle (4 phases, min 4 checkboxes total)
+6. Report [PASS], [MISSING], or [DRIFT] per artifact
 
-**Create flow:**
-1. User runs `company-workflow create --type TYPE --name NAME [--parent ID]`
-2. Skill resolves template dir via fallback chain
-3. Scans work-items/ for highest ID with matching type prefix, increments
-4. Creates `work-items/{ID}_{slug}/`
-5. For each required artifact: reads template, replaces placeholders, writes file
-6. Runs validate on the new tracker
-7. Reports success or validation errors
+### Artifact Manifest Schema
 
-## API Changes
+```json
+{
+  "types": {
+    "feature":   { "required": [{"artifact":"tracker","template":"tracker-feature.md","filename":"TRACKER.md"}, ...] },
+    "defect":    { "required": [...] },
+    "task":      { "required": [...] },
+    "userstory": { "required": [...] },
+    "review":    { "required": [...] }
+  }
+}
+```
 
-### New APIs
+Artifact counts: feature=5, defect=3, task=2, userstory=5, review=2.
 
-| API | Signature | Description |
-|-----|-----------|-------------|
-| template-registry.json | JSON file | Declares template sets with version, path, contract, types |
-| company-workflow validate | `<path>` -> exit 0/1 | Validates tracker against contract.json |
-| company-workflow check | `<path>` -> structured report | Validates artifact completeness per type |
-| company-workflow create | `--type TYPE --name NAME [--parent ID]` | Scaffolds complete work item |
+## Design Decisions
 
-### Modified APIs
-
-| API | Before | After | Reason |
-|-----|--------|-------|--------|
-| skills-catalog.json | 2 skills | 3 skills | Add company-workflow entry |
-
-## Dependencies
-
-| Dependency | Type | Status | Notes |
-|-----------|------|--------|-------|
-| Company spec templates | Code | Available | From ~/Downloads/spec/templates/ |
-| skills-deploy | Infra | Available | May need subfolder template support |
-| contract.json (from spec) | Code | Available | One-time copy |
+| Decision | Chosen | Rejected | Why |
+|----------|--------|----------|-----|
+| Standalone | Zero gstack deps | Extend /docs check | Portable to any repo |
+| Namespacing | Subfolder (templates/company-workflow/) | Top-level dir | Matches existing patterns |
+| Validation | Skill with unified validate | Shared scripts | /docs check pattern, CI-callable |
+| userstory spelling | Preserve spec exact | Normalize to user-story | Company spec is truth |
+| Import method | One-time copy | Git submodule | Repo is source after commit |
+| Enforcement | Own manifest | Extend artifact-manifests.json | Two independent systems |
+| Unified command | File + dir modes | Separate subcommands | Simpler, one entry point |
+| Artifacts | All unconditionally required | Optional tier | Wrong type = wrong artifacts |
 
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| skills-deploy can't handle subfolders | Med | Med | Create follow-up task to patch if needed |
-| userstory/user-story spelling confusion | Med | Med | Intentional divergence documented; registry is authoritative |
-| validate.sh breaks with new skill | Low | High | Run validate.sh as acceptance criterion |
-| Template changes break enforcement | Med | Med | Enforcement reads templates dynamically, not hardcoded |
-
-## Design Decisions
-
-| Decision | Chosen | Rejected Alternative | Why |
-|----------|--------|---------------------|-----|
-| Namespacing | Subfolder (templates/company-workflow/) | Separate top-level dir | Consistency with existing patterns |
-| Validation location | Inside skill with callable entry point | Shared script in scripts/ | /docs check pattern; CI can still call it |
-| Template versioning | template-registry.json at repo root | Directory names only | Explicit boundaries and versions |
-| userstory spelling | Preserve spec's exact spelling | Normalize to user-story | Company spec is the truth; two systems diverge |
-| Spec import method | One-time manual copy | Git submodule | Submodules are painful; repo is source of truth after commit |
-| Enforcement ownership | Company skill owns its own manifest | Extend /docs check | Two independent systems, each owns its domain |
-| Artifact mapping (scaffolding) | Hardcoded initially | Read from manifest | Manifest doesn't exist yet (enforcement scope); migrate later |
-| Post-scaffold validation | Automatic | Optional | Catches errors at creation time |
+| skills-deploy subfolder issue | Med | Med | Follow-up task if needed |
+| userstory spelling confusion | Med | Med | Documented intentional divergence |
+| Template changes break check | Med | Med | check reads templates dynamically |

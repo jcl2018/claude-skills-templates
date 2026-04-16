@@ -4,7 +4,7 @@ type: user-story
 id: "S000003_company_workflow_implementation"
 status: active
 created: "2026-04-11"
-updated: "2026-04-13"
+updated: "2026-04-14"
 parent: "F000003_company_spec_system"
 repo: "claude-skills-templates"
 branch: "claude/nostalgic-volhard"
@@ -24,15 +24,12 @@ blocked_by: ""
    - `PRD.md` (requirements) -- from `templates/doc-PRD.md`
    - `ARCHITECTURE.md` (architecture decisions) -- from `templates/doc-ARCHITECTURE.md`
    - `TEST-SPEC.md` (test scenarios) -- from `templates/doc-TEST-SPEC.md`
-   - `milestones.md` (delivery milestones) -- from `templates/doc-milestones.md`
-6. Create milestones from PRD acceptance criteria
-7. Break into child tasks if scope warrants decomposition
+6. Break into child tasks if scope warrants decomposition
 
 **Gates:**
 - [x] Acceptance criteria defined
 - [x] Working branch created (`branch` field populated)
-- [x] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC + milestones)
-- [x] Milestones created
+- [x] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC)
 - [x] Tasks broken down (if needed)
 
 ### Phase 2: Implement
@@ -68,85 +65,70 @@ blocked_by: ""
 
 ## Acceptance Criteria
 
-### Template Registry
-- [x] `template-registry.json` exists at repo root with valid JSON schema
-- [x] Registry declares `workbench` set pointing to `templates/` with types: feature, defect, task, user-story
-- [x] Registry declares `company-workflow` set pointing to `templates/company-workflow/` with types: feature, defect, task, userstory, review
-- [x] `company-workflow` set references contract path and guides path
-- [x] `templates/company-workflow/` subfolder exists with all 13 company spec templates (byte-identical to source)
-- [x] Existing `templates/*.md` files are unchanged
-- [x] `./scripts/validate.sh` passes after changes
+### Template Registration (shipped)
+- [x] `template-registry.json` exists at repo root with valid JSON
+- [x] Registry declares `workbench` and `company-workflow` sets
+- [x] `templates/company-workflow/` has all 13 company spec templates
+- [x] Existing `templates/*.md` unchanged
+- [x] `./scripts/validate.sh` passes
+- [x] SKILL.md with validate subcommand working
+- [x] Skill is standalone (zero gstack dependencies)
 
-### Artifact Enforcement
-- [ ] Company skill has its own artifact manifest (company-artifact-manifests.json)
-- [ ] `company-workflow check <path>` validates artifact completeness for a work item
-- [ ] Feature: requires tracker + PRD + ARCHITECTURE + TEST-SPEC + milestones (5 artifacts)
-- [ ] Defect: requires tracker + RCA + test-plan (3 artifacts)
-- [ ] Task: requires tracker + test-plan (2 artifacts)
-- [ ] User story: requires tracker + PRD + ARCHITECTURE + TEST-SPEC + milestones (5 artifacts)
-- [ ] Review: requires tracker + review-notes (2 artifacts)
-- [ ] Missing artifacts flagged as [MISSING], frontmatter drift as [DRIFT], section drift as [DRIFT]
-- [ ] Enforcement is fully independent from /docs check and artifact-manifests.json
-
-### Scaffolding
-- [ ] `company-workflow create --type feature --name <name>` scaffolds 5 artifacts
-- [ ] `company-workflow create --type defect --name <name>` scaffolds 3 artifacts
-- [ ] `company-workflow create --type task --name <name> --parent <id>` scaffolds 2 artifacts
-- [ ] `company-workflow create --type userstory --name <name>` scaffolds 5 artifacts
-- [ ] `company-workflow create --type review --name <name>` scaffolds 2 artifacts
-- [ ] Scaffolded trackers have all company-required frontmatter fields
-- [ ] Placeholder substitution works ({ITEM_NAME}, {ITEM_ID}, {YYYY-MM-DD}, {BRANCH_NAME}, {author})
-- [ ] Scaffolded output passes `company-workflow validate`
-- [ ] ID generation follows convention ({TYPE_PREFIX}{NNNNNN})
+### Directory Validation
+- [ ] company-artifact-manifests.json created with 5 type entries
+- [ ] `company-workflow validate <dir>` validates artifact completeness
+- [ ] All 5 types enforced (feature=5, defect=3, task=2, userstory=5, review=2)
+- [ ] Missing artifacts flagged [MISSING], drift flagged [DRIFT]
+- [ ] Unresolved placeholders detected in frontmatter values
+- [ ] Independent from /docs check
 
 ## Todos
 
-- [ ] [T000002_implement_company_workflow](T000002_implement_company_workflow/T000002_TRACKER.md) -- template registry done, enforcement + scaffolding remaining
-- [ ] Implement enforcement (company-artifact-manifests.json + check subcommand)
-- [ ] Implement scaffolding (create subcommand + ID generation + placeholder substitution)
-- [ ] Run /docs check to verify hierarchy
-- [ ] Run ./scripts/test.sh for full validation
+- [x] [T000002_implement_company_workflow](T000002_implement_company_workflow/T000002_TRACKER.md) -- CLOSED, template registration shipped
+- [ ] Directory validation (unified validate command with file + directory modes)
 
 ## Log
 
-- 2026-04-11: Created. Template registry, namespace coexistence, and company skill scaffold. Child of F000003.
-- 2026-04-11: Implemented template registry. 27 source files copied (all byte-identical). template-registry.json created. SKILL.md with 2-level fallback, validate subcommand. Catalog entry added. validate.sh PASS, test.sh PASS.
-- 2026-04-13: Consolidated from 3 stories (S000003 template registry, S000004 artifact enforcement, S000005 scaffold work items) and 3 tasks (T000002, T000003, T000004) into single story + task. Rewritten as exemplary reference using 3-phase lifecycle.
+- 2026-04-11: Created. Template registry, namespace coexistence, company skill scaffold.
+- 2026-04-11: Implemented template registry. 27 files copied. validate.sh PASS, test.sh PASS.
+- 2026-04-13: Consolidated from 3 stories into 1. Rewritten for 3-phase lifecycle.
+- 2026-04-14: PRD realigned for standalone framing. T000002 closed (registration done). T000005 (check) and T000006 (create) created. Stripped gstack from SKILL.md.
 
 ## PRs
 
 ## Files
 
-- template-registry.json
-- templates/company-workflow/
 - skills/company-workflow/SKILL.md
 - skills/company-workflow/contract.json
+- skills/company-workflow/company-artifact-manifests.json
 - skills/company-workflow/reference/
 - skills/company-workflow/philosophy/
 - skills/company-workflow/fixtures/
+- templates/company-workflow/
+- template-registry.json
 - skills-catalog.json
 
 ## Insights
 
-- Template registry pattern draws from artifact-manifests.json design. Both are metadata files declaring type-to-artifact mappings.
-- Enforcement is separate from /docs check by design. Each system owns its domain. /docs check reads artifact-manifests.json for workbench types; company skill reads its own manifest for company types.
-- E2E tests for scaffolding were originally in the template registry scope but moved out because they test scaffolding behavior, not registry setup. Tests follow the capability.
+- The skill is standalone: zero gstack deps. Works in any repo via skills-deploy.
+- Company 4-phase lifecycle preserved even though workbench uses 3-phase. Intentional divergence.
+- One unified validate command: file mode (contract.json) and directory mode (artifact completeness).
 
 ## Journal
 
-*Originally split into 3 stories (S000003 template registry, S000004 artifact enforcement, S000005 scaffold work items), consolidated 2026-04-13.*
+*Originally 3 stories (template registry, enforcement, scaffolding), consolidated 2026-04-13. PRD realigned for standalone framing 2026-04-14.*
 
 ### 2026-04-11 -- decision
-Templates use subfolder namespacing under templates/ rather than a separate top-level directory. Consistency with existing directory patterns.
+Templates use subfolder namespacing under templates/ rather than a top-level dir.
 
 ### 2026-04-11 -- decision
-Separate enforcement per skill, not extending artifact-manifests.json. Company skill owns its own manifest and enforcement. Two independent systems.
+Separate enforcement per skill, not extending artifact-manifests.json. Two independent systems.
 
 ### 2026-04-11 -- decision
-Two subcommands in the skill: `validate` (contract.json structural rules on a single file) and `check` (artifact completeness per type). Different concerns, different entry points.
+Two subcommands: `validate` (contract rules) and `check` (artifact completeness). Different concerns.
 
-### 2026-04-12 -- decision
-Split scaffolding from template registry scope. Template registry = templates + registry + skill structure + validate. Scaffolding = create subcommand + E2E scaffolding tests. Tests follow the capability.
+### 2026-04-14 -- decision
+Skill is standalone. Zero gstack dependencies. No analytics, no /review, no /docs check. Portable to any repo.
 
-### 2026-04-12 -- decision
-Artifact mapping hardcoded in SKILL.md for scaffolding initially. Will migrate to read from company-artifact-manifests.json when enforcement lands.
+### 2026-04-15 -- decision
+Simplified from 3 subcommands to 1 unified validate. T000005 (check) and T000006 (create) killed. Directory mode added to validate. company-artifact-manifests.json created. Templates fixed (tracker-review.md phase headings, tracker-feature.md N/A removal, Handoff removed from contract.json).

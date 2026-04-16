@@ -2,11 +2,8 @@
 
 ## Active work
 
-### T000003: skills-deploy subfolder template support (P1, M)
-**What:** Patch `scripts/skills-deploy` to deploy templates from subdirectories (e.g., `templates/company-workflow/*.md` to `~/.claude/templates/company-workflow/`).
-**Why:** Without this, `skills-deploy install company-workflow` installs the skill but not its templates. The skill is deployed but broken on company machines.
-**Context:** `skills-deploy` line 91 has `validate_template_name()` with regex `^[a-zA-Z0-9_.-]+\.md$` that rejects paths containing `/`. The catalog `templates` array for company-workflow must remain `[]` until this is patched. The fix needs to either extend the regex to allow `subfolder/name.md` patterns, or add a separate subfolder-aware deploy path. The skill's `template-registry.json` declares the path (`templates/company-workflow/`) that deploy should read.
-**Depends on:** S000003 complete (templates in place). Part of F000003.
+### ~~T000003: skills-deploy subfolder template support (P1, M)~~ DONE
+Regex extended to allow `subfolder/name.md` patterns. `mkdir -p` added for subfolder creation during deploy. Company-workflow templates now deploy correctly.
 
 ## Deferred work
 

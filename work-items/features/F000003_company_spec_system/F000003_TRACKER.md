@@ -4,7 +4,7 @@ type: feature
 id: "F000003_company_spec_system"
 status: active
 created: "2026-04-11"
-updated: "2026-04-13"
+updated: "2026-04-14"
 repo: "claude-skills-templates"
 branch: "claude/nostalgic-volhard"
 blocked_by: ""
@@ -20,7 +20,7 @@ blocked_by: ""
 3. Scaffold work item directory and TRACKER.md
 4. Define acceptance criteria (what "done" looks like for the whole feature)
 5. Decompose into child user-stories
-   -> detail (PRD, ARCHITECTURE, TEST-SPEC, milestones) lives in child stories
+   -> detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
 
 **Gates:**
 - [x] Acceptance criteria scoped
@@ -55,35 +55,31 @@ blocked_by: ""
 
 ## Acceptance Criteria
 
-### Template System
+### Template Registration (shipped)
 - [x] `templates/company-workflow/` contains all 13 company spec templates
-- [x] `template-registry.json` at repo root declares both `workbench` and `company-workflow` template sets
-- [x] Existing templates at `templates/*.md` are byte-identical to before
-- [x] `./scripts/validate.sh` passes (no regression)
-- [x] `./scripts/test.sh` passes (no regression)
+- [x] `template-registry.json` declares both template sets
+- [x] Existing templates unchanged
+- [x] validate.sh + test.sh pass
 
-### Enforcement
-- [ ] `company-workflow check` enforces artifact completeness per type (feature=5, defect=3, task=2, userstory=5, review=2)
-- [ ] Company skill owns its own artifact manifest (independent from artifact-manifests.json)
-- [ ] Missing artifacts flagged [MISSING], frontmatter drift flagged [DRIFT], section drift flagged [DRIFT]
-
-### Scaffolding
-- [ ] `company-workflow create --type TYPE --name NAME` scaffolds all 5 types with correct artifacts
-- [ ] Placeholder substitution ({ITEM_NAME}, {ITEM_ID}, {YYYY-MM-DD}, {BRANCH_NAME}, {author})
-- [ ] Scaffolded output passes `company-workflow validate`
+### Standalone Skill
+- [x] Skill has zero gstack dependencies
+- [ ] `company-workflow validate <dir>` enforces artifact completeness per type
+- [ ] company-artifact-manifests.json created with 5 type entries
+- [ ] Skill works when installed in any repo via skills-deploy
 
 ### Integration
-- [ ] `skills/company-workflow/` contains SKILL.md, contract.json, reference guides, philosophy docs, fixtures
-- [ ] `skills-deploy install` deploys company skill and templates without breaking existing deployment
+- [ ] `skills-deploy install` deploys skill + templates
+- [ ] Reference guides and philosophy docs accessible
 
 ## Todos
 
-- [ ] [S000003_company_workflow_implementation](S000003_company_workflow_implementation/S000003_TRACKER.md) -- template registry done, enforcement + scaffolding remaining
+- [ ] [S000003_company_workflow_implementation](S000003_company_workflow_implementation/S000003_TRACKER.md) -- check + create remaining
 
 ## Log
 
-- 2026-04-11: Created. Company-spec work item system: build a separate skill + template system for company workflow, coexisting with existing templates via template-registry.json namespacing. Design doc approved (9/10 quality).
-- 2026-04-13: Consolidated 3 user stories (S000003, S000004, S000005) and 3 tasks (T000002, T000003, T000004) into single story + task. Rewritten as exemplary reference using 3-phase lifecycle.
+- 2026-04-11: Created. Company-spec work item system: standalone skill packaging company template spec. Design doc approved (9/10).
+- 2026-04-13: Consolidated 3 stories into 1, rewritten for 3-phase lifecycle.
+- 2026-04-14: PRD realigned for standalone framing. Stripped gstack deps from SKILL.md. T000002 closed (registration done). T000005 (check) and T000006 (create) created.
 
 ## PRs
 
@@ -96,17 +92,20 @@ blocked_by: ""
 
 ## Insights
 
-- Two template sets coexist: workbench (root templates/) and company-workflow (templates/company-workflow/). Intentionally different spellings for user-story type (hyphen in workbench, no hyphen in company spec).
-- Validation lives in the skill with a callable entry point, following the /docs check pattern.
-- Codex challenged validation-in-skill premise; user defended with concrete pattern reference.
+- The skill is standalone: zero gstack dependencies. Portable to any repo.
+- Two template systems coexist: workbench (3-phase, user-story) and company (4-phase, userstory). Intentional divergence.
+- One unified validate command with file mode (contract.json) and directory mode (artifact completeness).
 
 ## Journal
 
 ### 2026-04-11 -- decision
-Chose Approach B (Skill + Template Registry) over Approach A (minimal) and Approach C (submodule). Registry provides clean versioning and explicit template set boundaries.
+Chose Skill + Template Registry approach. Registry provides clean versioning and explicit template set boundaries.
 
 ### 2026-04-11 -- decision
-Company templates preserve spec's exact `type: userstory` spelling (no hyphen). Personal-dev keeps `user-story` (hyphen). Two intentionally different systems.
+Company templates preserve spec's exact `type: userstory` spelling. Two intentionally different systems.
 
-### 2026-04-11 -- decision
-Validation stays in the skill (not shared tooling). Defended against Codex challenge citing /docs check precedent.
+### 2026-04-14 -- decision
+Skill is standalone. Zero gstack dependencies. No analytics, no /review, no /ship, no /docs check references.
+
+### 2026-04-15 -- decision
+Simplified from 3 subcommands (validate/check/create) to 1 unified validate command. File mode = contract.json structural rules. Directory mode = artifact completeness via company-artifact-manifests.json. T000005 (check) and T000006 (create) killed.
