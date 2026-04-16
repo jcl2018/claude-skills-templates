@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "description": "Declarative artifact definitions per work item type. Read by CLAUDE.md rules during scaffolding. v2: type-specific tracker templates, new artifact types.",
+  "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode) and tree.",
   "types": {
     "feature": {
       "required": [
@@ -48,6 +48,6 @@
     "user-story": "feature",
     "task": "user-story"
   },
-  "template_dir": "~/.claude/spec/templates",
+  "template_dir": "~/.claude/templates",
   "work_items_dir": "./work-items"
 }

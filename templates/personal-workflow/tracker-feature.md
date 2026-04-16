@@ -42,15 +42,15 @@ blocked_by: ""
 
 ### Phase 3: Ship
 
-1. Run `/docs check` — verify full hierarchy passes all badges
-2. Run `/docs tree` — verify structural completeness (all children present)
+1. Run `/personal-workflow check` — verify full hierarchy passes all badges
+2. Run `/personal-workflow tree` — verify structural completeness (all children present)
 3. Ensure all child stories have shipped
 4. Run `/ship` — creates feature PR, includes pre-landing code review
 5. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
-- [ ] `/docs check` — all children pass validation
-- [ ] `/docs tree` — structure complete
+- [ ] `/personal-workflow check` — all children pass validation
+- [ ] `/personal-workflow tree` — structure complete
 - [ ] All children shipped
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed

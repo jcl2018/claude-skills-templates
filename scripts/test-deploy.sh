@@ -50,12 +50,12 @@ fi
 teardown_env
 
 # Test 2: Multi-file skill gets all .md files
-echo "Test 2: Multi-file skill (docs)"
+echo "Test 2: Multi-file skill (personal-workflow)"
 setup_env
-"$DEPLOY" install docs >/dev/null 2>&1
-md_count=$(find "$SKILLS_DEPLOY_TARGET/docs" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
+"$DEPLOY" install personal-workflow >/dev/null 2>&1
+md_count=$(find "$SKILLS_DEPLOY_TARGET/personal-workflow" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
 if [ "$md_count" -ge 3 ]; then
-  ok "docs has $md_count .md symlinks"
+  ok "personal-workflow has $md_count .md symlinks"
 else
   fail_test "Expected 3+ .md symlinks, got $md_count"
 fi

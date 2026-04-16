@@ -21,7 +21,7 @@
   {
     "name": "templates",
     "version": "0.1.0",
-    "description": "Work item, doc triplet, and skill authoring templates for doc-first development. Scaffolds features, defects, tasks, user stories, and new skills with type-aware artifact sets.",
+    "description": "Skill authoring template for new skills.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -30,24 +30,14 @@
     "portability": "standalone",
     "files": [],
     "templates": [
-      "doc-PRD.md",
-      "doc-ARCHITECTURE.md",
-      "doc-TEST-SPEC.md",
-      "tracker-feature.md",
-      "tracker-defect.md",
-      "tracker-task.md",
-      "tracker-user-story.md",
-      "doc-milestones.md",
-      "doc-RCA.md",
-      "doc-test-plan.md",
       "doc-SKILL-DESIGN.md"
     ],
     "status": "active"
   },
   {
-    "name": "docs",
-    "version": "0.3.0",
-    "description": "Doc intelligence: generate narrative docs (PHILOSOPHY.md, OVERVIEW.md) with claims sidecar for staleness detection. Work item validation, structural completeness enforcement, tree report, and graph artifact. Runtime dependency on gstack /document-release for post-ship workflow.",
+    "name": "personal-workflow",
+    "version": "1.0.0",
+    "description": "Personal work item validation with structural completeness checks. Validates tracker files and work item directories against personal templates, contract.json, and personal-artifact-manifests.json.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -57,13 +47,26 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/docs/SKILL.md",
-      "skills/docs/init.md",
-      "skills/docs/check.md",
-      "skills/docs/tree.md"
+      "skills/personal-workflow/SKILL.md",
+      "skills/personal-workflow/WORKFLOW.md",
+      "skills/personal-workflow/check.md",
+      "skills/personal-workflow/tree.md",
+      "skills/personal-workflow/contract.json",
+      "skills/personal-workflow/personal-artifact-manifests.json"
     ],
-    "templates": [],
-    "status": "experimental"
+    "templates": [
+      "personal-workflow/tracker-feature.md",
+      "personal-workflow/tracker-user-story.md",
+      "personal-workflow/tracker-task.md",
+      "personal-workflow/tracker-defect.md",
+      "personal-workflow/doc-PRD.md",
+      "personal-workflow/doc-ARCHITECTURE.md",
+      "personal-workflow/doc-TEST-SPEC.md",
+      "personal-workflow/doc-milestones.md",
+      "personal-workflow/doc-RCA.md",
+      "personal-workflow/doc-test-plan.md"
+    ],
+    "status": "active"
   },
   {
     "name": "company-workflow",

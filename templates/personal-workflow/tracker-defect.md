@@ -45,7 +45,7 @@ blocked_by: ""
 
 ### Phase 3: Ship
 
-1. Run `/docs check` — verify no regressions
+1. Run `/personal-workflow check` — verify no regressions
 2. Verify test-plan: regression test scenarios passing
 3. Run `/ship` — creates fix PR (includes pre-landing code review)
 4. Run `/land-and-deploy` — merges and verifies fix in production
@@ -54,7 +54,7 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/docs check` — validation passed
+- [ ] `/personal-workflow check` — validation passed
 - [ ] Test-plan verified (regression scenarios passing)
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed

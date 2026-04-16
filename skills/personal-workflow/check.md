@@ -1,0 +1,518 @@
+# /personal-workflow check — Work Item Validation
+
+Validate work items against contract.json and personal-artifact-manifests.json.
+Two tiers: Tier 1 (single file or directory, matches company-workflow validate approach)
+and Tier 2 (full hierarchy walk with cross-checks, graph artifact, and report).
+
+Invocation model:
+- File path argument → Tier 1 File Mode only
+- Directory path argument → Tier 1 Directory Mode + Tier 2
+- No argument → Tier 1 + Tier 2 on full work-items/ directory
+- No work-items/ directory → skip Tier 2 with INFO message
+
+---
+
+# TIER 1: Foundation
+# Matches company-workflow validate approach: contract.json + manifest-based checks.
+
+## Normalization Rules
+
+These rules apply throughout all checks. Define them here once; reference from all steps.
+
+**Type spelling:** Normalize by removing hyphens for comparison.
+- "user-story" and "userstory" both normalize to "userstory"
+- Always display the hyphenated form ("user-story") in output messages
+
+**Filename matching:** Strip `{ID}_` prefix when matching against manifest filenames.
+- "S000001_PRD.md" matches manifest filename "PRD.md"
+- Pattern: a file matches if its name equals `{expected}` or ends with `_{expected}`
+
+**Parent/child relationships:** Directory nesting is canonical.
+- A work item in `work-items/F000001/S000001/` has parent F000001
+- Frontmatter `parent` field is checked for consistency with nesting but does not override it
+- If `parent` field is present and differs from the directory parent, flag as DRIFT
+
+**Work item state** (derived from lifecycle checkboxes in TRACKER.md):
+- **Open** = zero checkboxes checked (all `- [ ]` or `- [X]` patterns, none checked)
+- **In Progress** = some checked, some unchecked
+- **Closed** = all checkboxes checked (all `- [x]` or `- [X]`)
+
+**Template resolution:** 2-level fallback chain.
+1. `$_TMPL_DIR/{template_filename}` (from SKILL.md path resolution)
+2. `~/.claude/templates/personal-workflow/{template_filename}`
+
+Use the first found. If none exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
+
+**Section order validation:** When `order_skip_absent` is true in contract.json,
+filter `expected_order` to only sections actually present in the file, then assert
+the filtered list matches the file's section order.
+
+## Step 1: Determine Mode
+
+Parse the user's input to determine the target path:
+- If a file path is given and the file exists: **File Mode** (Steps 2-7)
+- If a directory path is given and the directory exists: **Directory Mode** (Steps 8-13), then **Tier 2** (Steps 14-23)
+- If no path is given: set target to `$REPO_ROOT/work-items` and run **Directory Mode** + **Tier 2**
+- If the path does not exist: "Error: path not found: {path}" and stop
+
+## Step 2: Read Contract (File Mode)
+
+```bash
+cat "$_SKILL_DIR/contract.json"
+```
+
+Parse the contract JSON. If missing or malformed: "Error: contract.json not found or invalid at {path}" and stop.
+
+## Step 3: Read Target File
+
+Read the target file and parse its YAML frontmatter (between `---` markers).
+
+If the file does not contain a `## Lifecycle` section, warn:
+"Warning: {path} does not look like a tracker file. Contract checks may produce false positives."
+Continue (do not stop).
+
+## Step 4: Check Required Frontmatter
+
+For each field in `contract.frontmatter.required`:
+- If missing from file frontmatter: `VIOLATION: missing required field "{field}" in {path}`
+
+For each field in `contract.frontmatter.recommended`:
+- If missing: no violation (advisory only, do not report)
+
+## Step 5: Check Required Sections
+
+Extract all `## ` headings from the file.
+
+For each section in `contract.sections.required`:
+- If missing: `VIOLATION: missing section "{section}" in {path}`
+
+Check section order against `contract.sections.expected_order`:
+- Filter `expected_order` to only sections present in the file (skip absent optional sections per `order_skip_absent`)
+- If the filtered order does not match the file's section order:
+  `VIOLATION: section order mismatch — "{section}" appears before "{other}" in {path}`
+
+## Step 6: Check Lifecycle Structure
+
+Find the `## Lifecycle` section in the file.
+
+Count checkboxes: lines matching `^\s*[-*+]\s+\[[ xX]\]` within the Lifecycle section.
+
+Verify:
+- At least `contract.lifecycle.min_checkboxes` checkboxes exist (total across all phases)
+- All phases from `contract.lifecycle.phases` are present as `### Phase N: {name}` headings
+
+Violations:
+- `VIOLATION: lifecycle has {N} checkboxes, minimum is {min} in {path}`
+- `VIOLATION: missing phase "{phase}" in {path}`
+
+## Step 7: File Mode Report
+
+- Exit 0: all checks pass. Print "VALID: {path}"
+- Exit 1: one or more violations. Print each violation to stderr.
+
+**File Mode ends here.** Do not proceed to Directory Mode or Tier 2.
+
+---
+
+## Step 8: Locate TRACKER.md (Directory Mode)
+
+Find files matching `*_TRACKER.md` or `TRACKER.md` in the target directory.
+If multiple matches, use the first one alphabetically.
+
+If no TRACKER.md found: "Error: no TRACKER.md found in {directory}. Not a work item directory." and stop.
+
+## Step 9: Read Type
+
+Parse TRACKER.md frontmatter. Extract the `type` field.
+Normalize spelling per Normalization Rules.
+
+Verify type is one of the known types (feature, defect, task, user-story).
+If unknown: `[WARN] — type "{value}" not recognized`
+
+## Step 10: Load Manifest
+
+```bash
+cat "$_SKILL_DIR/personal-artifact-manifests.json"
+```
+
+If missing or malformed: "Error: personal-artifact-manifests.json not found or invalid." and stop.
+
+Find the type entry in the `types` object.
+
+## Step 11: Check Artifact Completeness
+
+For each required artifact in the manifest:
+- List all `.md` files in the directory
+- Match files using the Filename Matching Rule (strip ID prefix)
+- If missing: `[MISSING] {artifact} — required artifact not found`
+- If found: validate frontmatter using Template Frontmatter Comparison below
+
+**Template Frontmatter Comparison:**
+1. Resolve the template file from `$_TMPL_DIR/{template}` (2-level fallback)
+2. Parse the template's YAML frontmatter to extract key names
+3. Parse the artifact's YAML frontmatter
+4. For each key in the template's frontmatter: check it exists in the artifact
+   - Missing key: `[DRIFT] {artifact} — missing required field "{field}"`
+5. Check for unresolved placeholders: scan frontmatter values for `{...}` patterns
+   (regex `\{[A-Za-z_]+\}`). If found: `[DRIFT] {artifact} — unresolved placeholder "{placeholder}" in frontmatter`
+
+## Step 12: Check Lifecycle
+
+Read TRACKER.md lifecycle section:
+- Verify all phases from contract.json exist (Track, Implement, Ship)
+- Verify minimum checkboxes per contract.json
+- Verify required sections per contract.json
+
+## Step 13: Directory Mode Report
+
+```
+PERSONAL-WORKFLOW CHECK: {directory}
+  Type: {type}
+  ARTIFACTS:
+    [PASS]    TRACKER.md — all required fields present
+    [PASS]    PRD.md — all required fields and sections present
+    [MISSING] test-plan.md — required artifact not found
+    [DRIFT]   ARCHITECTURE.md — missing required field "repo"
+  LIFECYCLE:
+    [PASS]    3 phases present, {N} checkboxes
+  SUMMARY: {N} artifacts checked, {N} missing, {N} drift
+```
+
+**If invoked on a single directory (not the full work-items/ tree):** stop here.
+**If invoked with no path or on the work-items/ root:** continue to Tier 2.
+
+---
+
+# TIER 2: Extensions (personal-workflow only)
+# These steps have no equivalent in company-workflow. They require walking the
+# entire work-items/ tree, not just validating one file or directory.
+
+## Step 14: Build Actual Model
+
+Walk `./work-items/` recursively (max depth 4 from the work-items root, accounting for type subfolders like `features/` and `defects/`):
+
+For each directory that contains a file named `TRACKER.md` (with or without an ID prefix like `F000001_TRACKER.md`):
+
+1. Read the TRACKER.md file
+2. If YAML frontmatter cannot be parsed: warn "Warning: could not parse frontmatter in {path}. Skipping this work item." and skip
+3. Extract the `type` field from frontmatter, normalize spelling per Normalization Rules
+4. List all `.md` files in the directory
+5. For each `.md` file, match against expected artifact filenames using the filename normalization rule (strip ID prefix)
+6. Determine the directory parent: if this directory is nested inside another directory that also has a TRACKER.md, the outer directory is the parent
+7. Determine children: subdirectories that also contain a TRACKER.md
+8. Determine state: count checked and unchecked checkbox patterns in the Lifecycle section. Apply the state definitions from Normalization Rules.
+
+## Step 15: Build Expected Model
+
+For each type in personal-artifact-manifests.json `types` object:
+
+1. Read the `required` array to get the list of artifacts, each with `artifact`, `template`, and `filename` fields
+2. For each artifact entry, resolve the template file using the 2-level fallback chain
+3. If template found:
+   - Parse its YAML frontmatter (between `---` markers) to extract required field names (the keys)
+   - Scan for `##` and `###` section headers to extract required sections
+4. If template not found: warn and skip this artifact
+5. If YAML frontmatter cannot be parsed: warn and skip
+
+Store the Expected Model: for each type, the list of required artifacts with their expected frontmatter fields and section headers.
+
+## Step 16: Check 1 — Template Compliance
+
+For each work item in the Actual Model:
+
+1. Look up its normalized type in the Expected Model
+   - If type not found in manifest: flag `[WARN] {item} — type "{type}" not found in personal-artifact-manifests.json`
+2. For each required artifact in the Expected Model:
+   - **If file not found:** flag `[MISSING] {artifact} — required artifact not found`
+   - **If file found:**
+     - Parse YAML frontmatter. If parsing fails: flag `[WARN] {artifact} — could not parse frontmatter`
+     - Compare frontmatter keys against template's required keys:
+       - Missing key: flag `[DRIFT] {artifact} — missing required field "{field}"`
+       - Extra key: no flag (acceptable, work items accumulate fields)
+     - Compare `##` section headers against template's required `##` sections:
+       - Missing section: flag `[DRIFT] {artifact} — missing section "{section}"`
+       - Extra section: flag `[EXTRA] {artifact} — unexpected section "{section}"` (WARN level only, advisory)
+3. Check the `type` field value against the expected type (normalized comparison):
+   - Mismatch: flag `[DRIFT] TRACKER.md — type field says "{actual}", expected "{expected}"`
+4. If the template for this type has a `parent` field in its frontmatter:
+   - If `parent` missing from actual frontmatter: flag `[DRIFT] TRACKER.md — missing required field "parent"`
+   - If `parent` present but differs from directory parent: flag `[DRIFT] TRACKER.md — parent field says "{value}", directory parent is "{dir_parent}"`
+
+## Step 17: Check 2 — Lifecycle Consistency
+
+For each work item that has children (per the Actual Model):
+
+1. Determine the parent's state and each child's state (per Normalization Rules)
+2. **Parent Closed, child not Closed:**
+   - Flag `[LIFECYCLE_INCONSISTENT] {parent} is Closed but child {child} is {child_state}`
+3. **Child Closed, parent Open:**
+   - Flag `[WARN] Child {child} is Closed but parent {parent} is Open (may be intentional)`
+4. **Nesting depth exceeds 3:**
+   - Flag `[WARN] {item} — nesting depth {N} exceeds maximum of 3`
+5. If all parent/child states are consistent: `[PASS] All children consistent with parent state`
+
+For work items with no children: `[PASS] No children`
+
+## Step 18: Check 3 — Cross-Reference Traceability
+
+For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched via filename normalization):
+
+1. **Parse PRD.md** for P0 user story entries:
+   - Find the `### P0 (Must-Have)` section
+   - Extract story numbers from the `#` column in the table rows
+   - These are the P0 story numbers requiring test coverage
+2. **Parse PRD.md** for P1/P2 story entries:
+   - Find `### P1 (Important)` and `### P2 (Nice-to-Have)` sections
+   - Extract story numbers from the `#` column
+3. **Parse TEST-SPEC.md** test matrix:
+   - Find the `## Test Matrix` table
+   - Extract all `AC-{n}` values from the AC column
+4. **For each P0 story number:**
+   - If no TEST-SPEC row has `AC-{n}` matching this story number: flag `[UNTESTED] P0 story #{n} has no TEST-SPEC coverage`
+5. **For each P1/P2 story number:**
+   - If no TEST-SPEC row has a matching `AC-{n}`: flag `[INFO] P1/P2 story #{n} has no TEST-SPEC coverage (advisory)`
+6. If all P0 stories have coverage: `[PASS] All P0 stories have TEST-SPEC coverage`
+
+For work items missing PRD or TEST-SPEC: skip traceability (no output for this subsection).
+
+## Step 19: Check 4 — Structural Completeness + Orphan Detection
+
+### 19a: Load Hierarchy Rules
+
+Read the `hierarchy` field from personal-artifact-manifests.json (already loaded in Step 10).
+
+**If `hierarchy` field is missing:** Print "Warning: personal-artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks." and skip to Step 20 (tree report still renders, structure badge shows "—" for all nodes).
+
+**If `hierarchy` field is malformed** (not a valid JSON object, or entries lack `required_child`/`min`): Print "Warning: personal-artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks." and skip to Step 20.
+
+Also read the `placement` field if present. If missing, use defaults:
+```
+feature: features, defect: defects, user-story: feature, task: user-story
+```
+
+### 19b: Structural Completeness Check
+
+For each work item in the Actual Model:
+1. Look up its normalized type in the hierarchy rules
+2. If the type has a `required_child`:
+   - Count children whose normalized type matches `required_child`
+   - If count == 0: flag `[INCOMPLETE] {slug} — {type} has 0 {required_child} children (minimum: {min})`
+   - If 0 < count < min: flag `[INCOMPLETE] {slug} — {type} has {count} {required_child} child(ren) (minimum: {min})`
+   - If count >= min: `[PASS] {slug} — {count} {required_child} child(ren)`
+   - Use "child" when count == 1, "children" when count > 1
+   - Always use the singular form of the type name (e.g., "2 user-story children")
+3. If the type has no required_child entry in hierarchy: `[PASS] {slug} — no structural requirements`
+
+### 19c: Placement Check
+
+For each work item in the Actual Model:
+1. Look up its normalized type in the placement rules
+2. If placement names a **type subfolder** (e.g., `features`, `defects`): the item must be a direct child of `work-items/{subfolder}/`. If found elsewhere, flag `[MISPLACED] {slug} — {type} must be inside work-items/{subfolder}/, found at {actual_path}`
+3. If placement names a **parent type** (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
+4. Items at the correct placement: no output (implicit pass)
+
+**How to distinguish subfolder vs parent-type:** If the placement value matches a key in the manifest `types` object (e.g., `feature`, `user-story`), it is a parent-type reference. Otherwise (e.g., `features`, `defects`), it is a type-subfolder name.
+
+### 19d: Stray Directory Detection
+
+Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix).
+
+**Type subfolder allowlist:** Directories that are recognized type subfolders (matching any value in the `placement` field, e.g., `features/`, `defects/`) are valid containers, not stray items. Skip them.
+
+For all other directories without a TRACKER.md:
+Flag: `[STRAY] {directory_name} — contains .md files but no TRACKER.md (not a work item)`
+
+### 19e: Lifecycle Cross-Reference
+
+For each work item in the Actual Model that has a structural requirement (per 19b):
+
+1. Read the TRACKER.md lifecycle section
+2. Search for a checkbox line containing "broken down" or "tasks broken down" (case-insensitive)
+3. If such a checkbox is checked (`- [x]`) AND the structural check from 19b found 0 children of the required type:
+   - Flag `[LIFECYCLE_INCONSISTENT] {slug} — "broken down" is checked but has 0 {required_child} children`
+
+This flag appears in the lifecycle badge category, not the structure badge category.
+
+## Step 20: Badge Taxonomy
+
+Map all check statuses to 4 badge categories with severity ordering.
+
+**Badge categories and their status values (lowest to highest severity):**
+
+| Badge | Statuses (severity order) | Source checks |
+|-------|--------------------------|---------------|
+| template | PASS < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 16) |
+| lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open, or broken-down cross-ref) | Check 2 (Step 17) + Step 19e |
+| traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) | Check 3 (Step 18) |
+| structure | PASS < INCOMPLETE (missing required children) < MISPLACED (wrong hierarchy level) | Check 4 (Step 19b/19c) |
+
+Each badge for a node shows the **worst** (highest severity) status from its category.
+
+For work item types that don't participate in a check (e.g., tasks have no traceability check because they lack PRD/TEST-SPEC): show "—" for that badge.
+
+## Step 21: Tree Report
+
+After all checks complete, emit a unified tree view. Walk `work-items/` depth-first, sorting siblings alphabetically by slug at each level.
+
+```
+WORK ITEM TREE:
+  features/
+    F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
+      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+      S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
+        template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+        T000001_implement_workflow (task) [Closed]
+          template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+
+    F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
+      template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+
+  defects/
+    D000001_milestones_artifact_placement (defect) [Closed]
+      template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+```
+
+Type subfolders (`features/`, `defects/`) are rendered as grouping headers in the tree. They are not work items and have no badges.
+
+For each node:
+- Line 1: `{indent}{slug} ({type}) [{state}]  completeness: {count}/{min} {required_child}` (omit completeness for types with no structural requirement)
+- Line 2: `{indent}  template: {badge}  lifecycle: {badge}  traceability: {badge}  structure: {badge}`
+
+Indent is 2 spaces per nesting level from work-items root.
+
+## Step 22: Graph Artifact
+
+After the tree report, emit `work-item-graph.json` to the `.docs/` directory.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-graph.json` with this schema (v1.0.0):
+
+```json
+{
+  "version": "1.0.0",
+  "generated_at": "ISO-8601-TIMESTAMP",
+  "generated_commit": "SHORT-SHA-or-unknown",
+  "nodes": [
+    {
+      "id": "F000001",
+      "slug": "F000001_workflow_alpha",
+      "type": "feature",
+      "state": "Closed",
+      "path": "work-items/features/F000001_workflow_alpha",
+      "parent": null,
+      "children": ["S000001"],
+      "badges": {
+        "template": "PASS",
+        "lifecycle": "PASS",
+        "traceability": "PASS",
+        "structure": "PASS"
+      },
+      "completeness": {"count": 1, "min": 1, "required_child": "user-story"}
+    }
+  ],
+  "edges": [],
+  "structural_rules": {}
+}
+```
+
+**Node fields:**
+- `id`: work item ID extracted from slug (e.g., "F000001" from "F000001_workflow_alpha")
+- `slug`: directory name
+- `type`: normalized type (hyphenated form: "user-story")
+- `state`: "Open" / "In Progress" / "Closed"
+- `path`: relative path from repo root
+- `parent`: parent ID or null (for root items)
+- `children`: array of child IDs
+- `badges`: per-check badge (worst severity per category). Use "—" for non-applicable badges.
+- `completeness`: `{"count": N, "min": M, "required_child": "type"}` or null for types with no structural requirement
+
+**Top-level fields:**
+- `structural_rules`: copy the `hierarchy` object from personal-artifact-manifests.json verbatim
+- `edges`: empty array (reserved for dependency graph v2)
+- `generated_commit`: output of `git rev-parse --short HEAD 2>/dev/null` or "unknown"
+
+If `.docs/` write fails: print `[WARN] Could not write to .docs/: {error}` and continue.
+Console output is always emitted regardless of file write success.
+
+Print: "Graph artifact written to .docs/work-item-graph.json"
+
+## Step 23: Human-Readable Report
+
+After all checks complete, write a human-readable markdown report to `.docs/work-item-report.md`.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+mkdir -p "$REPO_ROOT/.docs"
+```
+
+Write `.docs/work-item-report.md` with this structure:
+
+````markdown
+# Work Item Health Report
+
+Generated: {ISO-8601 timestamp}
+Commit: {short SHA from git rev-parse --short HEAD, or "unknown"}
+Repo: {repo name from basename of REPO_ROOT}
+
+## Tree
+
+```
+{exact same tree visualization from Step 21}
+```
+
+## Badge Summary
+
+| Item | Type | State | Template | Lifecycle | Traceability | Structure |
+|------|------|-------|----------|-----------|--------------|-----------|
+| {slug} | {type} | {state} | {badge} | {badge} | {badge} | {badge} |
+````
+
+One row per work item, in tree order (depth-first, alphabetical siblings).
+
+```markdown
+## Findings
+
+### Critical
+{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
+
+### Warnings
+{list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
+
+### Advisory
+{list all INFO, EXTRA, WARN findings}
+```
+
+If no findings exist in a severity category, omit that subsection. If no findings at all, write: "No issues found."
+
+```markdown
+## Structural Summary
+
+- **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
+- **Incomplete:** {N}
+- **Misplaced:** {N}
+- **Lifecycle issues:** {N}
+- **Stray directories:** {N}
+```
+
+If `.docs/` write fails: print `[WARN] Could not write report to .docs/: {error}` and continue.
+
+Print: "Report written to .docs/work-item-report.md"
+
+## Error Messages
+
+- **Not a git repo:** "Error: /personal-workflow requires a git repository."
+- **Skill assets not found:** "Error: personal-workflow skill assets not found."
+- **Target path not found:** "Error: path not found: {path}"
+- **Not a tracker file:** "Warning: {path} does not look like a tracker file. Contract checks may produce false positives."
+- **No work-items/:** "INFO: no work-items/ directory found. Skipping hierarchy checks, graph artifact, and report generation."
+- **No manifest:** "Error: personal-artifact-manifests.json not found or invalid."
+- **contract.json missing:** "Error: contract.json not found or invalid at {path}."
+- **Template not found:** "Warning: template {filename} not found. Skipping validation for this artifact."
+- **Unparseable frontmatter:** "Warning: could not parse frontmatter in {path}. Skipping."
+- **No hierarchy field:** "Warning: personal-artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks."
+- **Malformed hierarchy:** "Warning: personal-artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks."
+- **Write failure:** "[WARN] Could not write to .docs/: {error}"

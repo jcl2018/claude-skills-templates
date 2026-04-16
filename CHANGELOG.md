@@ -3,6 +3,38 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-04-15
+
+### Added
+- New `/personal-workflow` skill: self-contained work item validation with check + tree subcommands
+- `skills/personal-workflow/SKILL.md`: thin router with 2-level path resolution and stale rules detection
+- `skills/personal-workflow/check.md`: Tier 1 (contract.json foundation) + Tier 2 (hierarchy, cross-refs, graph, report)
+- `skills/personal-workflow/tree.md`: quick hierarchy view with structural badges
+- `skills/personal-workflow/WORKFLOW.md`: scaffolding conventions, 3-phase lifecycle, branch naming rules
+- `skills/personal-workflow/contract.json`: 3-phase lifecycle structural validation rules
+- `skills/personal-workflow/personal-artifact-manifests.json`: type-to-artifact mapping with hierarchy enforcement
+- 7 test fixtures (5 file-mode, 2 directory-mode) for personal-workflow validation
+- Personal-workflow templates at `templates/personal-workflow/` (10 templates: 4 trackers + 6 docs)
+- Portability, catalog, and stale-reference tests for personal-workflow in test.sh
+
+### Changed
+- Templates moved from flat `templates/` to `templates/personal-workflow/` (mirrors company-workflow pattern)
+- Template fallback chain simplified from 3-level to 2-level (dropped `~/.claude/spec/templates/`)
+- CLAUDE.md updated: 3 skills listed, routing includes /personal-workflow, template docs reflect named sets
+- template-registry.json: "workbench" set replaced with "personal-workflow" set
+- skills-catalog.json: "docs" entry replaced with "personal-workflow", "templates" entry reduced to doc-SKILL-DESIGN.md only
+- validate.sh orphan template detection now walks subdirectories recursively
+- test.sh template content tests updated from root paths to `templates/personal-workflow/`
+- test-deploy.sh multi-file skill test updated from docs to personal-workflow
+- Tracker templates reference `/personal-workflow check` and `/personal-workflow tree` (was `/docs check` and `/docs tree`)
+
+### Removed
+- `/docs` skill (skills/docs/) including init.md, check.md, tree.md, DESIGN.md, CHANGELOG.md
+- Narrative doc generation (PHILOSOPHY.md/OVERVIEW.md) and claims sidecar staleness detection
+- `artifact-manifests.json` at repo root (moved into skill as personal-artifact-manifests.json)
+- `rules/work-items.md` global rules file (replaced by WORKFLOW.md inside the skill)
+- 10 flat templates at `templates/` root (moved to `templates/personal-workflow/`)
+
 ## [0.5.0] - 2026-04-15
 
 ### Added

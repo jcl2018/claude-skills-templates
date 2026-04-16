@@ -1,7 +1,7 @@
-# /docs tree — Work Item Hierarchy View
+# /personal-workflow tree — Work Item Hierarchy View
 
 Quick tree view of the work item hierarchy with structural completeness badges.
-Runs only structural checks (no staleness, coherence, template, lifecycle, or traceability checks).
+Runs only structural checks (no template, lifecycle, or traceability checks).
 
 ## Step 1: Locate Work Items
 
@@ -16,20 +16,18 @@ WORK_ITEMS_DIR="$REPO_ROOT/work-items"
 ## Step 2: Load Manifest + Hierarchy
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-MANIFEST="$REPO_ROOT/artifact-manifests.json"
-[ -f "$MANIFEST" ] && echo "FOUND: $MANIFEST" || echo "NO_MANIFEST"
+cat "$_SKILL_DIR/personal-artifact-manifests.json"
 ```
 
-**If NO_MANIFEST:** Print "Warning: artifact-manifests.json not found. Showing tree without structural checks." and continue to Step 3 (tree renders but structure badge shows "—").
+**If missing or malformed:** Print "Warning: personal-artifact-manifests.json not found. Showing tree without structural checks." and continue to Step 3 (tree renders but structure badge shows "—").
 
-Read artifact-manifests.json. Extract the `hierarchy` field.
+Extract the `hierarchy` field.
 
 **If `hierarchy` missing or malformed:** Print "Warning: no hierarchy rules found. Showing tree without structural checks." and continue (structure badge shows "—").
 
 Also read the `placement` field if present. If missing, use defaults:
 ```
-feature: root, defect: root, user-story: feature, task: user-story
+feature: features, defect: defects, user-story: feature, task: user-story
 ```
 
 ## Step 3: Build Work Item Model
@@ -44,9 +42,9 @@ For each directory containing a TRACKER.md file (with or without ID prefix):
 4. Normalize type spelling (remove hyphens for comparison, display hyphenated)
 5. Determine parent (directory nesting) and children (subdirectories with TRACKER.md)
 6. Determine state from lifecycle checkboxes:
-   - All `- [ ]` = Open
-   - Mix of `- [x]` and `- [ ]` = In Progress
-   - All `- [x]` = Closed
+   - All unchecked = Open
+   - Mix of checked and unchecked = In Progress
+   - All checked = Closed
 
 ## Step 4: Structural Check (if hierarchy available)
 
@@ -67,15 +65,16 @@ If hierarchy rules were NOT loaded: structure badge = "—" for all nodes.
 Walk depth-first, sorted alphabetically by slug at each level.
 
 ```
-=== /docs tree ===
+=== /personal-workflow tree ===
 
 WORK ITEM TREE:
-  F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
-    template: —  lifecycle: —  traceability: —  structure: PASS
-    S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
+  features/
+    F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
       template: —  lifecycle: —  traceability: —  structure: PASS
-      T000001_implement_workflow (task) [Closed]
+      S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
         template: —  lifecycle: —  traceability: —  structure: PASS
+        T000001_implement_workflow (task) [Closed]
+          template: —  lifecycle: —  traceability: —  structure: PASS
 
   F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
     template: —  lifecycle: —  traceability: —  structure: INCOMPLETE (0 user-story children)
@@ -83,8 +82,8 @@ WORK ITEM TREE:
 TREE SUMMARY: {N} items, {N} incomplete, {N} misplaced
 ```
 
-Non-structural badges (template, lifecycle, traceability) always show "—" in `/docs tree`.
-For full badges, run `/docs check`.
+Non-structural badges (template, lifecycle, traceability) always show "—" in `/personal-workflow tree`.
+For full badges, run `/personal-workflow check`.
 
 ## Step 6: Lightweight Report
 
@@ -115,6 +114,8 @@ Commit: {short SHA or "unknown"}
 ````
 
 This is the structural-only view. No badge summary table, no findings grouping.
-For the full report with all badges and findings, run `/docs check`.
+For the full report with all badges and findings, run `/personal-workflow check`.
+
+If `.docs/` write fails: print `[WARN] Could not write tree report` and continue.
 
 Print: "Tree report written to .docs/work-item-tree.md"

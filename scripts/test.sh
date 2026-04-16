@@ -102,7 +102,7 @@ else
 fi
 
 if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
-  if echo "$deps_output" | grep -q "docs\|system-health"; then
+  if echo "$deps_output" | grep -q "personal-workflow\|system-health"; then
     ok "deps.sh runs and output contains known skills"
   else
     fail_test "deps.sh runs but output missing expected skill names"
@@ -176,48 +176,87 @@ echo ""
 echo "Checking tracker template content..."
 
 # S1: No "reviewer noted" in any tracker
-if grep -rl "reviewer noted" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
-  fail_test "Enterprise gate 'reviewer noted' still present in tracker templates"
+if grep -rl "reviewer noted" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise gate 'reviewer noted' still present in personal tracker templates"
 else
-  ok "No 'reviewer noted' in tracker templates"
+  ok "No 'reviewer noted' in personal tracker templates"
 fi
 
-# S2: No "Linux branch" in any tracker
-if grep -rl "Linux branch" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
-  fail_test "Enterprise gate 'Linux branch' still present in tracker templates"
+# S2: No "Linux branch" in any personal tracker
+if grep -rl "Linux branch" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise gate 'Linux branch' still present in personal tracker templates"
 else
-  ok "No 'Linux branch' in tracker templates"
+  ok "No 'Linux branch' in personal tracker templates"
 fi
 
-# S3: No JIRA/TFS in any tracker
-if grep -rl "JIRA\|TFS" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
-  fail_test "Enterprise references (JIRA/TFS) still present in tracker templates"
+# S3: No JIRA/TFS in any personal tracker
+if grep -rl "JIRA\|TFS" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Enterprise references (JIRA/TFS) still present in personal tracker templates"
 else
-  ok "No JIRA/TFS references in tracker templates"
+  ok "No JIRA/TFS references in personal tracker templates"
 fi
 
-# S4: No workflow_type in any tracker
-if grep -rl "workflow_type" "$REPO_ROOT/templates/tracker-"*.md 2>/dev/null | grep -q .; then
-  fail_test "Redundant field 'workflow_type' still present in tracker templates"
+# S4: No workflow_type in any personal tracker
+if grep -rl "workflow_type" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Redundant field 'workflow_type' still present in personal tracker templates"
 else
-  ok "No workflow_type in tracker templates"
+  ok "No workflow_type in personal tracker templates"
 fi
 
 # S6: Task total gate count <= feature total gate count (lighter lifecycle)
-task_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/tracker-task.md" || true)
-feat_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/tracker-feature.md" || true)
+task_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/personal-workflow/tracker-task.md" || true)
+feat_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/personal-workflow/tracker-feature.md" || true)
 if [ "$task_total" -le "$feat_total" ] 2>/dev/null; then
   ok "Task total gates ($task_total) <= feature total gates ($feat_total)"
 else
   fail_test "Task total gates ($task_total) > feature total gates ($feat_total)"
 fi
 
-# No review tracker template should exist in workbench templates
+# No review tracker template should exist in personal-workflow templates
 # (company-workflow/tracker-review.md is valid — it's a separate template set)
-if [ -f "$REPO_ROOT/templates/tracker-review.md" ]; then
-  fail_test "tracker-review.md should not exist (review type removed)"
+if [ -f "$REPO_ROOT/templates/personal-workflow/tracker-review.md" ]; then
+  fail_test "tracker-review.md should not exist in personal-workflow (review type is company-only)"
 else
-  ok "No tracker-review.md (review type correctly removed)"
+  ok "No tracker-review.md in personal-workflow (review type correctly absent)"
+fi
+
+# Personal-workflow template directory exists with expected count
+pw_count=$(find "$REPO_ROOT/templates/personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+if [ "$pw_count" -eq 10 ]; then
+  ok "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+else
+  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+fi
+
+# Personal-workflow catalog entry exists
+if jq -e '.[] | select(.name == "personal-workflow")' "$CATALOG" >/dev/null 2>&1; then
+  ok "personal-workflow catalog entry exists"
+else
+  fail_test "personal-workflow catalog entry missing from skills-catalog.json"
+fi
+
+# No stale /docs references in personal tracker templates
+if grep -rl "/docs check\|/docs tree" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Stale /docs references in personal tracker templates (should be /personal-workflow)"
+else
+  ok "No stale /docs references in personal tracker templates"
+fi
+
+# Portability test: personal-workflow skill has zero gstack dependencies
+echo ""
+echo "Portability test: personal-workflow standalone..."
+
+if grep -q "gstack" "$REPO_ROOT/skills/personal-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "personal-workflow SKILL.md contains gstack references (should be standalone)"
+else
+  ok "personal-workflow SKILL.md has zero gstack references"
+fi
+
+# shellcheck disable=SC2088
+if grep -q "~/.gstack" "$REPO_ROOT/skills/personal-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "personal-workflow SKILL.md references ~/.gstack/ (should be standalone)"
+else
+  ok "personal-workflow SKILL.md has no ~/.gstack/ paths"
 fi
 
 # Portability test: company-workflow skill has zero gstack dependencies
