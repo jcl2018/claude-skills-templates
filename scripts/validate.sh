@@ -167,7 +167,7 @@ echo ""
 echo "Checking for orphan template files..."
 find "$TEMPLATES_DIR" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
   # Get path relative to TEMPLATES_DIR (e.g., "personal-workflow/tracker-feature.md" or "doc-SKILL-DESIGN.md")
-  tmpl_rel="${tmpl_file#$TEMPLATES_DIR/}"
+  tmpl_rel="${tmpl_file#"$TEMPLATES_DIR"/}"
   if jq -e --arg tmpl "$tmpl_rel" '[.[].templates[]] | index($tmpl)' "$CATALOG" >/dev/null 2>&1; then
     pass "templates/$tmpl_rel is referenced by a catalog entry"
   else
