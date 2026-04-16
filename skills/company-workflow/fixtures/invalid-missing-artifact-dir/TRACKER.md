@@ -17,7 +17,7 @@ blocked_by: ""
 ### Phase 1: Track
 - [ ] Feature scoped (acceptance criteria defined)
 - [ ] Working branch created (`branch` field populated)
-- [ ] Doc triplet created (PRD + ARCHITECTURE + TEST-SPEC)
+- [ ] Feature summary + milestones created (feature-summary.md + milestones.md)
 - [ ] Tasks broken down (child task items created)
 
 ### Phase 2: Implement
