@@ -162,16 +162,16 @@ for dir in "$DOCS_DIR"/*/; do
   fi
 done
 
-# Warning check 3: Orphan template files
+# Warning check 3: Orphan template files (walks subdirectories)
 echo ""
 echo "Checking for orphan template files..."
-for tmpl_file in "$TEMPLATES_DIR"/*.md; do
-  [ -f "$tmpl_file" ] || continue
-  tmpl_name=$(basename "$tmpl_file")
-  if jq -e --arg tmpl "$tmpl_name" '[.[].templates[]] | index($tmpl)' "$CATALOG" >/dev/null 2>&1; then
-    pass "templates/$tmpl_name is referenced by a catalog entry"
+find "$TEMPLATES_DIR" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
+  # Get path relative to TEMPLATES_DIR (e.g., "personal-workflow/tracker-feature.md" or "doc-SKILL-DESIGN.md")
+  tmpl_rel="${tmpl_file#$TEMPLATES_DIR/}"
+  if jq -e --arg tmpl "$tmpl_rel" '[.[].templates[]] | index($tmpl)' "$CATALOG" >/dev/null 2>&1; then
+    pass "templates/$tmpl_rel is referenced by a catalog entry"
   else
-    warn "templates/$tmpl_name is not referenced by any catalog entry"
+    warn "templates/$tmpl_rel is not referenced by any catalog entry"
   fi
 done
 
