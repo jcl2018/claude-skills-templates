@@ -22,11 +22,17 @@ using two inputs per template type:
 For each work item type, the AI reads the template for structure and the
 corresponding example for content style:
 
-- Feature: tracker + milestones + PRD + ARCHITECTURE + TEST-SPEC (5 artifacts)
+- Feature: tracker + feature-summary + milestones (3 artifacts)
 - User-story: tracker + PRD + ARCHITECTURE + TEST-SPEC + milestones (5 artifacts)
 - Task: tracker + test-plan (2 artifacts)
 - Defect: tracker + RCA + test-plan (3 artifacts)
 - Review: tracker + review-notes (2 artifacts)
+
+The feature artifact set is intentionally narrower than user-story's. A feature is the
+roll-up identity (scope, success criteria, constituent stories, non-goals — captured in
+`feature-summary.md`) plus a delivery roadmap (`milestones.md`). Story-scope detail
+(PRD/ARCHITECTURE/TEST-SPEC) lives at the user-story level, not duplicated at feature
+level. See D000003 in the workbench's `work-items/defects/` for the rationale.
 
 The full type-to-artifact mapping is in `company-artifact-manifests.json`.
 
@@ -70,7 +76,7 @@ for the canonical mapping. Summary:
 
 | Type | Artifacts | Count |
 |------|-----------|-------|
-| feature | TRACKER, milestones, PRD, ARCHITECTURE, TEST-SPEC | 5 |
+| feature | TRACKER, feature-summary, milestones | 3 |
 | user-story | TRACKER, PRD, ARCHITECTURE, TEST-SPEC, milestones | 5 |
 | task | TRACKER, test-plan | 2 |
 | defect | TRACKER, RCA, test-plan | 3 |
@@ -203,7 +209,7 @@ cp -r templates/company-workflow/ ~/.claude/templates/company-workflow/
 
 ~/.claude/templates/company-workflow/
     tracker-*.md                      # 5 tracker templates
-    doc-*.md                          # 8 doc templates
+    doc-*.md                          # 9 doc templates
 ```
 
 Use `--overwrite` to force-replace files with local modifications.
