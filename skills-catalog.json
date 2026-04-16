@@ -67,8 +67,8 @@
   },
   {
     "name": "company-workflow",
-    "version": "1.0.0",
-    "description": "Company work item specification with structural validation. Scaffolds work items from company templates and validates tracker frontmatter, section ordering, and lifecycle phases against contract.json.",
+    "version": "2.0.0",
+    "description": "Company work item specification with structural validation. Validates tracker files and work item directories against company templates, contract.json, and company-artifact-manifests.json.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -76,9 +76,25 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/company-workflow/SKILL.md"
+      "skills/company-workflow/SKILL.md",
+      "skills/company-workflow/contract.json",
+      "skills/company-workflow/company-artifact-manifests.json"
     ],
-    "templates": [],
+    "templates": [
+      "company-workflow/tracker-feature.md",
+      "company-workflow/tracker-defect.md",
+      "company-workflow/tracker-task.md",
+      "company-workflow/tracker-user-story.md",
+      "company-workflow/tracker-review.md",
+      "company-workflow/doc-PRD.md",
+      "company-workflow/doc-ARCHITECTURE.md",
+      "company-workflow/doc-TEST-SPEC.md",
+      "company-workflow/doc-milestones.md",
+      "company-workflow/doc-RCA.md",
+      "company-workflow/doc-test-plan.md",
+      "company-workflow/doc-review-notes.md",
+      "company-workflow/doc-scrum.md"
+    ],
     "status": "active"
   }
 ]

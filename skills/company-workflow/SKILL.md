@@ -1,7 +1,7 @@
 ---
 name: company-workflow
-description: "Company work item specification with structural validation. Scaffolds work items from company templates and validates tracker frontmatter, section ordering, and lifecycle phases against contract.json."
-version: 1.0.0
+description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates, contract.json, and company-artifact-manifests.json."
+version: 2.0.0
 allowed-tools:
   - Bash
   - Read
@@ -10,13 +10,6 @@ allowed-tools:
 ---
 
 ## Preamble
-
-Log skill usage:
-
-```bash
-mkdir -p ~/.gstack/analytics
-echo '{"skill":"company-workflow","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","repo":"'"$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo unknown)"'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-```
 
 Verify this is a git repository:
 
@@ -29,13 +22,12 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /company-workflow requires a git repo
 ## Overview
 
 Company work item specification skill. Enforces the company's formal work item
-standard: structural validation via contract.json, tracker templates with
-`workflow_type` and `url` fields, verbose lifecycle sub-gate checkboxes, and
-five work item types (feature, defect, task, userstory, review).
+standard: structural validation via contract.json, artifact completeness via
+company-artifact-manifests.json, and frontmatter compliance against templates.
 
 This skill is independent from the workbench's personal-dev templates and from
-`/docs check`. It owns its own templates, contract, reference guides, and
-validation logic.
+`/docs check`. It owns its own templates, contract, manifest, reference guides,
+and validation logic.
 
 ## Path Resolution
 
@@ -91,39 +83,27 @@ fi
 If `NO_REGISTRY`: the skill can still function using `_TMPL_DIR` from path
 resolution. The registry is metadata, not a runtime dependency.
 
-## Routing Table
+## Command: validate
 
-Map branch naming patterns to company work item types:
-
-| Branch pattern | Type | Tracker template |
-|---|---|---|
-| `feature-*`, `feat-*`, `feat/*` | feature | tracker-feature.md |
-| `defect-*`, `fix-*`, `fix/*`, `bugfix-*` | defect | tracker-defect.md |
-| `task-*`, `chore-*`, `chore/*` | task | tracker-task.md |
-| `story-*`, `userstory-*` | userstory | tracker-user-story.md |
-| `review-*` | review | tracker-review.md |
-
-Required artifacts per type:
-
-| Type | Required artifacts | Count |
-|---|---|---|
-| feature | tracker, PRD, ARCHITECTURE, TEST-SPEC, milestones | 5 |
-| defect | tracker, RCA, test-plan | 3 |
-| task | tracker, test-plan | 2 |
-| userstory | tracker, PRD, ARCHITECTURE, TEST-SPEC, milestones | 5 |
-| review | tracker, review-notes | 2 |
-
-## Subcommand: validate
-
-Validates a single work item file against `contract.json`.
+One command with two modes. Pass a file path for structural validation. Pass a
+directory path for artifact completeness validation.
 
 ### Usage
 
 ```
-/company-workflow validate <path-to-tracker>
+/company-workflow validate <path>
 ```
 
-### Steps
+If `<path>` is a file: run **File Mode**.
+If `<path>` is a directory: run **Directory Mode**.
+
+---
+
+### File Mode
+
+Validates a single work item file against `contract.json`.
+
+#### Steps
 
 1. Read `$_SKILL_DIR/contract.json`:
 
@@ -142,12 +122,12 @@ cat "$_SKILL_DIR/contract.json"
    - Required sections exist: Lifecycle, Todos, Log, PRs, Files, Journal
    - Optional sections: Meetings, Insights
    - Section order matches `expected_order` in contract.json:
-     Lifecycle, Todos, Log, PRs, Files, Meetings, Insights, Journal, Handoff
+     Lifecycle, Todos, Log, PRs, Files, Meetings, Insights, Journal
 
 5. Check lifecycle structure:
    - Find the `## Lifecycle` section
    - Count checkboxes (`- [ ]` and `- [x]` patterns)
-   - Verify at least `min_checkboxes` (4) exist
+   - Verify at least `min_checkboxes` (4) exist (total across all phases)
    - Verify all 4 phases are present as `### Phase N: {name}` headings:
      Track, Implement, Review, Ship
 
@@ -161,6 +141,87 @@ cat "$_SKILL_DIR/contract.json"
      VIOLATION: lifecycle has 3 checkboxes, minimum is 4 in {path}
      VIOLATION: missing phase "Ship" in {path}
      ```
+
+---
+
+### Directory Mode
+
+Validates an entire work item directory for artifact completeness, frontmatter
+compliance, and lifecycle structure. Validates the **immediate directory only**
+(no recursive descent into child directories). To validate a feature and its
+children, run validate on each directory separately.
+
+#### Filename Matching Rule
+
+Strip the leading ID prefix (regex `^[A-Z]\d+_`) to get the canonical filename,
+then compare against the manifest's `filename` field. Examples:
+- `S000003_PRD.md` -> strip `S000003_` -> `PRD.md` (matches manifest)
+- `F000003_TRACKER.md` -> strip `F000003_` -> `TRACKER.md` (matches manifest)
+- `T000002_test-plan.md` -> strip `T000002_` -> `test-plan.md` (matches manifest)
+
+#### Template Frontmatter Comparison
+
+To validate an artifact's frontmatter against its template:
+1. Resolve the template file from `$_TMPL_DIR/{template}` (using the 2-level
+   fallback chain from Path Resolution)
+2. Parse the template's YAML frontmatter to extract its key names
+3. Parse the artifact's YAML frontmatter
+4. For each key present in the template's frontmatter: check that the same key
+   exists in the artifact. Comparison is key-presence only (values contain
+   placeholders in templates).
+5. Check for unresolved placeholders: scan frontmatter values for `{...}` patterns
+   (regex `\{[A-Za-z_]+\}`). If found: flag `[DRIFT] {artifact} — unresolved
+   placeholder "{placeholder}" in frontmatter`
+
+#### Directory Mode Error Handling
+
+- No TRACKER.md found: `"Error: no TRACKER.md found in {directory}. Not a work item directory."`
+- company-artifact-manifests.json missing: `"Error: company-artifact-manifests.json not found at {path}. Run skills-deploy install or check skill structure."`
+- Template file missing during frontmatter comparison: `"Warning: template {filename} not found at {path}. Skipping frontmatter validation for {artifact}."`
+
+#### Steps
+
+Path Resolution runs first (same as file mode). `$_SKILL_DIR` and `$_TMPL_DIR`
+are available for config and template lookup throughout directory mode.
+
+1. **Locate TRACKER.md** — Find files matching `*_TRACKER.md` or `TRACKER.md` in
+   the directory. If multiple matches, use the first one alphabetically.
+
+2. **Read type** — Parse frontmatter `type` field. Normalize spelling:
+   `userstory` and `user-story` are both accepted (normalized to `user-story`).
+   Verify type is one of the 5 known types (feature, defect, task, user-story,
+   review). If unknown:
+   `[WARN] — type "{value}" not recognized`
+
+3. **Load manifest** — Read `$_SKILL_DIR/company-artifact-manifests.json`. Find
+   the type entry in the `types` object.
+
+4. **Check artifact completeness** — For each required artifact in the manifest:
+   - List all `.md` files in the directory
+   - Match files using the Filename Matching Rule above
+   - If missing: `[MISSING] {artifact} — required artifact not found`
+   - If found: validate frontmatter using the Template Frontmatter Comparison
+     above (including placeholder detection)
+   - Missing key: `[DRIFT] {artifact} — missing required field "{field}"`
+
+5. **Check lifecycle** — Read TRACKER.md lifecycle section:
+   - Verify all 4 phases exist (Track, Implement, Review, Ship)
+   - Verify min 4 checkboxes total (across all phases) per contract.json
+   - Verify required sections exist per contract.json
+
+6. **Report** — Emit structured output:
+   ```
+   COMPANY-WORKFLOW VALIDATE: {directory}
+     Type: {type}
+     ARTIFACTS:
+       [PASS]    TRACKER.md — all required fields present
+       [PASS]    PRD.md — all required fields and sections present
+       [MISSING] test-plan.md — required artifact not found
+       [DRIFT]   ARCHITECTURE.md — missing required field "repo"
+     LIFECYCLE:
+       [PASS]    4 phases present, 12 checkboxes
+     SUMMARY: 4 artifacts checked, 1 missing, 1 drift
+   ```
 
 ## Reference Guides
 
@@ -190,23 +251,22 @@ Design rationale for the lifecycle system lives at `$_SKILL_DIR/philosophy/`:
 
 Validation test fixtures live at `$_SKILL_DIR/fixtures/`:
 
+### File Mode Fixtures
+
 | Fixture | What it tests |
 |---|---|
 | invalid-bad-frontmatter.md | Missing or malformed YAML frontmatter |
 | invalid-missing-lifecycle.md | Tracker without Lifecycle section |
 | invalid-wrong-order.md | Sections in wrong order |
 
-Use these to verify the `validate` subcommand catches violations correctly.
+### Directory Mode Fixtures
 
-## Usage
+| Fixture | What it tests |
+|---|---|
+| valid-feature-dir/ | Complete feature with all 5 required artifacts |
+| invalid-missing-artifact-dir/ | Feature missing PRD — should produce [MISSING] |
 
-```bash
-# Validate a company work item tracker
-/company-workflow validate work-items/F000003_company_spec_system/F000003_TRACKER.md
-
-# Check a fixture (should fail)
-/company-workflow validate skills/company-workflow/fixtures/invalid-bad-frontmatter.md
-```
+Use these to verify the `validate` command catches violations correctly.
 
 ## Error Handling
 
@@ -217,3 +277,6 @@ Use these to verify the `validate` subcommand catches violations correctly.
 | Target file not found | "Error: file not found: {path}" | Check the path |
 | Unparseable frontmatter | "VIOLATION: could not parse YAML frontmatter in {path}" | Fix the frontmatter |
 | contract.json missing | "Error: contract.json not found at {path}" | Reinstall skill |
+| No TRACKER.md in directory | "Error: no TRACKER.md found in {directory}. Not a work item directory." | Check the path |
+| Manifest missing | "Error: company-artifact-manifests.json not found." | Reinstall skill |
+| Template not found | "Warning: template {filename} not found. Skipping frontmatter validation." | Check template deployment |

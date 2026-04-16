@@ -18,6 +18,7 @@ cd claude-skills-templates
 When the user's request matches an available skill, invoke it:
 
 - "health check", "system status" -> /system-health
+- "validate company work item", "company workflow" -> /company-workflow
 
 ## Work item templates
 

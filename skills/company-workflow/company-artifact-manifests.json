@@ -1,0 +1,43 @@
+{
+  "version": "1.0.0",
+  "description": "Company work item type-to-artifact mapping. Read by company-workflow validate (directory mode).",
+  "types": {
+    "feature": {
+      "required": [
+        {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"},
+        {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
+        {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
+        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"},
+        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
+      ]
+    },
+    "defect": {
+      "required": [
+        {"artifact": "tracker", "template": "tracker-defect.md", "filename": "TRACKER.md"},
+        {"artifact": "rca", "template": "doc-RCA.md", "filename": "RCA.md"},
+        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"}
+      ]
+    },
+    "task": {
+      "required": [
+        {"artifact": "tracker", "template": "tracker-task.md", "filename": "TRACKER.md"},
+        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"}
+      ]
+    },
+    "user-story": {
+      "required": [
+        {"artifact": "tracker", "template": "tracker-user-story.md", "filename": "TRACKER.md"},
+        {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
+        {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
+        {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"},
+        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
+      ]
+    },
+    "review": {
+      "required": [
+        {"artifact": "tracker", "template": "tracker-review.md", "filename": "TRACKER.md"},
+        {"artifact": "review-notes", "template": "doc-review-notes.md", "filename": "review-notes.md"}
+      ]
+    }
+  }
+}
