@@ -18,17 +18,16 @@ Branch naming determines work item type:
 Directory structure:
 ```
 work-items/
-  features/{slug}/      (features live here)
-    TRACKER.md          (required, from tracker-{type}.md template)
-    {artifact}.md       (per type, from doc-{name}.md templates)
-    {child-slug}/       (nested: feature > user-story > task, max depth 3)
-  defects/{slug}/       (defects live here)
-    TRACKER.md
-    {artifact}.md
+  features/{slug}/
+    {ITEM_ID}_TRACKER.md    (required, from tracker-{type}.md template)
+    {ITEM_ID}_{artifact}.md (per type, from doc-{name}.md templates)
+    {child-slug}/           (nested: feature > user-story > task, max depth 3)
+  defects/{slug}/
+    {ITEM_ID}_TRACKER.md
+    {ITEM_ID}_{artifact}.md
 ```
 
-All artifact filenames are prefixed with the item ID at scaffold time:
-`{ITEM_ID}_TRACKER.md`, `{ITEM_ID}_RCA.md`, etc.
+All artifact filenames are prefixed with the item ID at scaffold time.
 
 When scaffolding, replace these placeholders in templates:
 `{ITEM_NAME}`, `{ITEM_ID}`, `{PARENT_ID}`, `{FEATURE_ID}`, `{YYYY-MM-DD}`, `{BRANCH_NAME}`, `{author}`
