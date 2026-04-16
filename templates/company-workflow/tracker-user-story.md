@@ -1,7 +1,7 @@
 ---
 name: "{STORY_NAME}"
-type: userstory
-workflow_type: userstory
+type: user-story
+workflow_type: user-story
 id: "{STORY_ID}"
 status: active
 created: "{YYYY-MM-DD}"

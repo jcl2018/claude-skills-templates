@@ -14,7 +14,7 @@
       "version": "1.0.0",
       "path": "templates/company-workflow/",
       "contract": "skills/company-workflow/contract.json",
-      "tracker_types": ["feature", "defect", "task", "userstory", "review"],
+      "tracker_types": ["feature", "defect", "task", "user-story", "review"],
       "doc_types": ["prd", "architecture", "test-spec", "milestones", "rca", "test-plan", "review-notes", "scrum-meeting"],
       "guides": "skills/company-workflow/reference/"
     }

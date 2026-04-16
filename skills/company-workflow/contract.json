@@ -5,9 +5,9 @@
     "recommended": ["repo", "branch"]
   },
   "sections": {
-    "required": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Journal", "Handoff"],
+    "required": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Journal"],
     "optional": ["Meetings", "Insights"],
-    "expected_order": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Meetings", "Insights", "Journal", "Handoff"]
+    "expected_order": ["Lifecycle", "Todos", "Log", "PRs", "Files", "Meetings", "Insights", "Journal"]
   },
   "lifecycle": {
     "min_checkboxes": 4,
