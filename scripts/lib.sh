@@ -18,6 +18,11 @@ require_jq() {
   }
 }
 
+# Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
+# Relies on `set -o pipefail` (set at the top of this file) so jq's exit status
+# still propagates through the pipe — required for `jq -e` boolean checks.
+jq() { command jq "$@" | tr -d '\r'; }
+
 require_catalog() {
   [ -f "$CATALOG" ] || {
     echo "ERROR: skills-catalog.json not found at $CATALOG" >&2

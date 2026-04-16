@@ -20,6 +20,9 @@ require_jq() {
   command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required" >&2; exit 1; }
 }
 
+# Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
+jq() { command jq "$@" | tr -d '\r'; }
+
 manifest_read() {
   [ -f "$MANIFEST" ] && cat "$MANIFEST" || echo '{}'
 }
