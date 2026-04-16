@@ -212,11 +212,29 @@ else
   fail_test "Task total gates ($task_total) > feature total gates ($feat_total)"
 fi
 
-# No review tracker template should exist
+# No review tracker template should exist in workbench templates
+# (company-workflow/tracker-review.md is valid — it's a separate template set)
 if [ -f "$REPO_ROOT/templates/tracker-review.md" ]; then
   fail_test "tracker-review.md should not exist (review type removed)"
 else
   ok "No tracker-review.md (review type correctly removed)"
+fi
+
+# Portability test: company-workflow skill has zero gstack dependencies
+echo ""
+echo "Portability test: company-workflow standalone..."
+
+if grep -q "gstack" "$REPO_ROOT/skills/company-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "company-workflow SKILL.md contains gstack references (should be standalone)"
+else
+  ok "company-workflow SKILL.md has zero gstack references"
+fi
+
+# shellcheck disable=SC2088
+if grep -q "~/.gstack" "$REPO_ROOT/skills/company-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "company-workflow SKILL.md references ~/.gstack/ (should be standalone)"
+else
+  ok "company-workflow SKILL.md has no ~/.gstack/ paths"
 fi
 
 # Negative test: create orphan directory, verify validate catches it

@@ -102,11 +102,11 @@ teardown_env
 echo "Test 6: Remove specific skill"
 setup_env
 "$DEPLOY" install >/dev/null 2>&1
-"$DEPLOY" remove skill-author --force >/dev/null 2>&1
-if [ ! -d "$SKILLS_DEPLOY_TARGET/skill-author" ]; then
-  ok "skill-author removed"
+"$DEPLOY" remove system-health --force >/dev/null 2>&1
+if [ ! -d "$SKILLS_DEPLOY_TARGET/system-health" ]; then
+  ok "system-health removed"
 else
-  fail_test "skill-author still exists"
+  fail_test "system-health still exists"
 fi
 teardown_env
 
@@ -144,9 +144,9 @@ teardown_env
 # Test 9: Doctor detects broken symlink
 echo "Test 9: Doctor detects broken symlink"
 setup_env
-"$DEPLOY" install skill-author >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/skill-author/SKILL.md"
-ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/skill-author/SKILL.md"
+"$DEPLOY" install system-health >/dev/null 2>&1
+rm -f "$SKILLS_DEPLOY_TARGET/system-health/SKILL.md"
+ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/system-health/SKILL.md"
 output=$("$DEPLOY" doctor 2>&1)
 if echo "$output" | grep -q "broken symlink"; then
   ok "Doctor detects broken symlink"
@@ -180,13 +180,122 @@ teardown_env
 # Test 12: Relink repairs broken symlink
 echo "Test 12: Relink repairs broken symlink"
 setup_env
-"$DEPLOY" install skill-author >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/skill-author/SKILL.md"
+"$DEPLOY" install system-health >/dev/null 2>&1
+rm -f "$SKILLS_DEPLOY_TARGET/system-health/SKILL.md"
 "$DEPLOY" relink >/dev/null 2>&1
-if [ -L "$SKILLS_DEPLOY_TARGET/skill-author/SKILL.md" ] && [ -e "$SKILLS_DEPLOY_TARGET/skill-author/SKILL.md" ]; then
+if [ -L "$SKILLS_DEPLOY_TARGET/system-health/SKILL.md" ] && [ -e "$SKILLS_DEPLOY_TARGET/system-health/SKILL.md" ]; then
   ok "Relink restored broken symlink"
 else
   fail_test "Relink did not restore symlink"
+fi
+teardown_env
+
+# === Subdirectory tests ===
+echo ""
+echo "=== Subdirectory deployment tests ==="
+echo ""
+
+# Test 13: Subdirectory symlinks created on install
+echo "Test 13: Subdirectory symlinks created on install"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+subdir_ok=true
+for dname in reference philosophy fixtures; do
+  target="$SKILLS_DEPLOY_TARGET/company-workflow/$dname"
+  if [ -L "$target" ] && [ -e "$target" ]; then
+    true
+  else
+    fail_test "company-workflow/$dname not symlinked"
+    subdir_ok=false
+  fi
+done
+if [ "$subdir_ok" = true ]; then
+  ok "All subdirectories symlinked (reference, philosophy, fixtures)"
+fi
+teardown_env
+
+# Test 14: Subdirectory idempotent install
+echo "Test 14: Subdirectory idempotent install"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+if [ -L "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ]; then
+  ok "Subdirectory symlinks valid after double install"
+else
+  fail_test "Subdirectory symlinks broken after double install"
+fi
+teardown_env
+
+# Test 15: Doctor detects broken subdirectory symlink
+echo "Test 15: Doctor detects broken subdirectory symlink"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
+ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
+output=$("$DEPLOY" doctor 2>&1)
+if echo "$output" | grep -q "FAIL.*reference"; then
+  ok "Doctor detects broken subdirectory symlink"
+else
+  fail_test "Doctor missed broken subdirectory symlink"
+fi
+teardown_env
+
+# Test 16: Skill without subdirectories unaffected
+echo "Test 16: Skill without subdirectories unaffected"
+setup_env
+"$DEPLOY" install system-health >/dev/null 2>&1
+subdir_count=$(find "$SKILLS_DEPLOY_TARGET/system-health" -maxdepth 1 -type l -not -name "*.md" -not -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$subdir_count" -eq 0 ]; then
+  ok "No spurious subdirectory symlinks for system-health"
+else
+  fail_test "system-health has unexpected subdirectory symlinks: $subdir_count"
+fi
+teardown_env
+
+# Test 17: Remove cleans up subdirectory symlinks
+echo "Test 17: Remove cleans up subdirectory symlinks"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" remove company-workflow --force >/dev/null 2>&1
+if [ ! -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ ! -e "$SKILLS_DEPLOY_TARGET/company-workflow/philosophy" ]; then
+  ok "Subdirectory symlinks cleaned up on remove"
+else
+  fail_test "Subdirectory symlinks still exist after remove"
+fi
+teardown_env
+
+# Test 18: Relink recreates subdirectory symlinks
+echo "Test 18: Relink recreates subdirectory symlinks"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
+"$DEPLOY" relink >/dev/null 2>&1
+if [ -L "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ]; then
+  ok "Relink restored subdirectory symlink"
+else
+  fail_test "Relink did not restore subdirectory symlink"
+fi
+teardown_env
+
+# Test 19: Migration skips modified subdir content
+echo "Test 19: Migration skips modified subdir content"
+setup_env
+"$DEPLOY" install company-workflow >/dev/null 2>&1
+# Replace symlink with real dir containing modified file
+rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
+mkdir -p "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
+echo "modified content" > "$SKILLS_DEPLOY_TARGET/company-workflow/reference/guide-general.md"
+output=$("$DEPLOY" install company-workflow 2>&1)
+if echo "$output" | grep -q "WARN.*local modifications"; then
+  ok "Migration warns about modified subdir content"
+else
+  fail_test "Migration did not warn about modified subdir content"
+fi
+# Verify original content preserved
+if [ -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference/guide-general.md" ] && grep -q "modified content" "$SKILLS_DEPLOY_TARGET/company-workflow/reference/guide-general.md"; then
+  ok "Modified content preserved"
+else
+  fail_test "Modified content was overwritten"
 fi
 teardown_env
 
@@ -217,21 +326,21 @@ teardown_env
 # Test T2: Shared ownership (synthetic fixture)
 echo "Test T2: Shared ownership"
 setup_env
-# Install both templates and skill-author
+# Install both templates and system-health
 "$DEPLOY" install templates >/dev/null 2>&1
-"$DEPLOY" install skill-author >/dev/null 2>&1
-# Manually add skill-author as co-owner of doc-PRD.md (simulating shared template)
-jq '.templates["doc-PRD.md"].owners += ["skill-author"] | .templates["doc-PRD.md"].owners = (.templates["doc-PRD.md"].owners | unique)' \
+"$DEPLOY" install system-health >/dev/null 2>&1
+# Manually add system-health as co-owner of doc-PRD.md (simulating shared template)
+jq '.templates["doc-PRD.md"].owners += ["system-health"] | .templates["doc-PRD.md"].owners = (.templates["doc-PRD.md"].owners | unique)' \
   "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.tmp" && mv "$SKILLS_DEPLOY_MANIFEST.tmp" "$SKILLS_DEPLOY_MANIFEST"
-# Remove templates — doc-PRD.md should persist (skill-author still owns it)
+# Remove templates — doc-PRD.md should persist (system-health still owns it)
 "$DEPLOY" remove templates --force >/dev/null 2>&1
 if [ -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md" ]; then
-  ok "doc-PRD.md persists (skill-author still owns it)"
+  ok "doc-PRD.md persists (system-health still owns it)"
 else
-  fail_test "doc-PRD.md was deleted despite skill-author ownership"
+  fail_test "doc-PRD.md was deleted despite system-health ownership"
 fi
-# Remove skill-author — now doc-PRD.md should be cleaned up
-"$DEPLOY" remove skill-author --force >/dev/null 2>&1
+# Remove system-health — now doc-PRD.md should be cleaned up
+"$DEPLOY" remove system-health --force >/dev/null 2>&1
 if [ ! -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-PRD.md" ]; then
   ok "doc-PRD.md removed when last owner removed"
 else

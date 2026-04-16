@@ -1,5 +1,10 @@
 # TODOS
 
+## Active work
+
+### ~~T000003: skills-deploy subfolder template support (P1, M)~~ DONE
+Regex extended to allow `subfolder/name.md` patterns. `mkdir -p` added for subfolder creation during deploy. Company-workflow templates now deploy correctly.
+
 ## Deferred work
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED

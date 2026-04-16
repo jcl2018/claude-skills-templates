@@ -87,8 +87,10 @@ file_checksum() {
 }
 
 # Validate template name is safe (no path traversal)
+# Allows one subfolder level: "company-workflow/tracker-feature.md"
+# Blocks ".." segments to prevent path traversal
 validate_template_name() {
-  [[ "$1" =~ ^[a-zA-Z0-9_.-]+\.md$ ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
+  [[ "$1" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)?\.md$ ]] && [[ "$1" != *".."* ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
 }
 
 # --- install ---
@@ -190,14 +192,44 @@ do_install() {
         ;;
     esac
 
-    # Symlink all .md files from source
-    for f in "$src"/*.md; do
+    # Symlink all .md and .json files from source
+    for f in "$src"/*.md "$src"/*.json; do
       [ -f "$f" ] || continue
       local fname
       fname=$(basename "$f")
       # Skip dev-only files
       case "$fname" in CHANGELOG.md|DESIGN.md) continue ;; esac
       ln -snf "$f" "$SKILLS_TARGET/$name/$fname"
+    done
+
+    # Symlink subdirectories from source (examples/, reference/, philosophy/, fixtures/)
+    for d in "$src"/*/; do
+      [ -d "$d" ] || continue
+      local dname
+      dname=$(basename "$d")
+      local dtarget="$SKILLS_TARGET/$name/$dname"
+      # Migration guard: if target is a real dir (not symlink), diff before replacing
+      if [ -d "$dtarget" ] && [ ! -L "$dtarget" ]; then
+        local ddom=true
+        for df in "$dtarget"/*; do
+          [ -f "$df" ] || continue
+          local dfname
+          dfname=$(basename "$df")
+          if [ -f "$d/$dfname" ]; then
+            if ! diff -q "$df" "$d/$dfname" >/dev/null 2>&1; then
+              echo "  WARN: $name/$dname/$dfname has local modifications, skipping subdir migration"
+              ddom=false
+              break
+            fi
+          fi
+        done
+        if [ "$ddom" = true ]; then
+          rm -rf "$dtarget"
+        else
+          continue
+        fi
+      fi
+      ln -snf "$d" "$dtarget"
     done
 
     manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "skills/$name/SKILL.md" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -227,6 +259,7 @@ do_install() {
 
       local tpl_src="$TEMPLATES_SRC/$tpl"
       local tpl_dst="$TEMPLATES_TARGET/$tpl"
+      mkdir -p "$(dirname "$tpl_dst")"
 
       # Check for shadowing by higher-priority path
       if [ -f "$HOME/.claude/spec/templates/$tpl" ]; then
@@ -373,8 +406,14 @@ do_remove() {
       fi
 
       # Remove symlinks only (not regular files)
-      for f in "$SKILLS_TARGET/$name"/*.md; do
+      for f in "$SKILLS_TARGET/$name"/*.md "$SKILLS_TARGET/$name"/*.json; do
         [ -L "$f" ] && rm -f "$f"
+      done
+      # Remove subdirectory symlinks
+      for d in "$SKILLS_TARGET/$name"/*/; do
+        local dpath
+        dpath="$(dirname "$d")/$(basename "$d")"
+        [ -L "$dpath" ] && rm -f "$dpath"
       done
       rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
     fi
@@ -462,7 +501,7 @@ do_relink() {
     fi
 
     mkdir -p "$SKILLS_TARGET/$name"
-    for f in "$src"/*.md; do
+    for f in "$src"/*.md "$src"/*.json; do
       [ -f "$f" ] || continue
       local fname
       fname=$(basename "$f")
@@ -472,6 +511,20 @@ do_relink() {
         ok=$((ok + 1))
       else
         ln -snf "$f" "$target"
+        fixed=$((fixed + 1))
+      fi
+    done
+
+    # Repair subdirectory symlinks
+    for d in "$src"/*/; do
+      [ -d "$d" ] || continue
+      local dname
+      dname=$(basename "$d")
+      local dtarget="$SKILLS_TARGET/$name/$dname"
+      if [ -L "$dtarget" ] && [ -e "$dtarget" ]; then
+        ok=$((ok + 1))
+      else
+        ln -snf "$d" "$dtarget"
         fixed=$((fixed + 1))
       fi
     done
@@ -486,7 +539,7 @@ do_relink() {
     if [ ! -f "$tpl_file" ]; then
       # Missing — re-copy if source exists
       if [ -f "$tpl_src" ]; then
-        mkdir -p "$TEMPLATES_TARGET"
+        mkdir -p "$(dirname "$tpl_file")"
         cp "$tpl_src" "$tpl_file" && tpl_fixed=$((tpl_fixed + 1)) || echo "  WARN: failed to restore $tpl"
         # Update checksum in manifest
         local new_sum
@@ -582,7 +635,26 @@ do_doctor() {
       echo "  WARN: $name — source directory missing in repo"
       warnings=$((warnings + 1))
     else
-      echo "  OK: $name"
+      # Check subdirectory symlinks
+      local subdir_ok=true
+      for sd in "$src"/*/; do
+        [ -d "$sd" ] || continue
+        local sdname
+        sdname=$(basename "$sd")
+        local sdtarget="$target_dir/$sdname"
+        if [ ! -e "$sdtarget" ]; then
+          echo "  FAIL: $name/$sdname — subdirectory missing"
+          errors=$((errors + 1))
+          subdir_ok=false
+        elif [ -L "$sdtarget" ] && [ ! -e "$sdtarget" ]; then
+          echo "  FAIL: $name/$sdname — broken symlink"
+          errors=$((errors + 1))
+          subdir_ok=false
+        fi
+      done
+      if [ "$subdir_ok" = true ]; then
+        echo "  OK: $name"
+      fi
     fi
   done
 
