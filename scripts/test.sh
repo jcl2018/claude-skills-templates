@@ -81,7 +81,47 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
       fail_test "$name TEST-SPEC.md missing ## Test Matrix section"
     fi
   fi
+
+  if [ -f "$doc_dir/feature-summary.md" ]; then
+    fs_missing=""
+    for sec in "## Scope" "## Success Criteria" "## Constituent User-Stories" "## Out-of-Scope"; do
+      grep -q "$sec" "$doc_dir/feature-summary.md" 2>/dev/null || fs_missing="$fs_missing $sec"
+    done
+    if [ -z "$fs_missing" ]; then
+      ok "$name feature-summary.md has all required sections (Scope, Success Criteria, Constituent User-Stories, Out-of-Scope)"
+    else
+      fail_test "$name feature-summary.md missing sections:$fs_missing"
+    fi
+  fi
 done
+
+# Smoke test for company-workflow's example-doc-feature-summary.md
+EX_FS="$REPO_ROOT/skills/company-workflow/examples/example-doc-feature-summary.md"
+if [ -f "$EX_FS" ]; then
+  fs_missing=""
+  for sec in "## Scope" "## Success Criteria" "## Constituent User-Stories" "## Out-of-Scope"; do
+    grep -q "$sec" "$EX_FS" 2>/dev/null || fs_missing="$fs_missing $sec"
+  done
+  if [ -z "$fs_missing" ]; then
+    ok "company-workflow example-doc-feature-summary.md has all required sections"
+  else
+    fail_test "company-workflow example-doc-feature-summary.md missing sections:$fs_missing"
+  fi
+fi
+
+# Smoke test for fixtures/valid-feature-dir/feature-summary.md
+FX_FS="$REPO_ROOT/skills/company-workflow/fixtures/valid-feature-dir/feature-summary.md"
+if [ -f "$FX_FS" ]; then
+  fs_missing=""
+  for sec in "## Scope" "## Success Criteria" "## Constituent User-Stories" "## Out-of-Scope"; do
+    grep -q "$sec" "$FX_FS" 2>/dev/null || fs_missing="$fs_missing $sec"
+  done
+  if [ -z "$fs_missing" ]; then
+    ok "company-workflow valid-feature-dir/feature-summary.md has all required sections"
+  else
+    fail_test "company-workflow valid-feature-dir/feature-summary.md missing sections:$fs_missing"
+  fi
+fi
 
 # Test: Advisory scripts run without crashing
 echo ""

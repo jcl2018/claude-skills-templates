@@ -70,7 +70,7 @@
   },
   {
     "name": "company-workflow",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Company work item specification with structural validation. Validates tracker files and work item directories against company templates, contract.json, and company-artifact-manifests.json.",
     "source": "local",
     "depends": {

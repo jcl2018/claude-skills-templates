@@ -270,8 +270,8 @@ Validation test fixtures live at `$_SKILL_DIR/fixtures/`:
 
 | Fixture | What it tests |
 |---|---|
-| valid-feature-dir/ | Complete feature with all 5 required artifacts |
-| invalid-missing-artifact-dir/ | Feature missing PRD — should produce [MISSING] |
+| valid-feature-dir/ | Complete feature with all 3 required artifacts (tracker + feature-summary + milestones) |
+| invalid-missing-artifact-dir/ | Feature with only TRACKER.md — should produce [MISSING] for feature-summary and milestones |
 
 Use these to verify the `validate` command catches violations correctly.
 
