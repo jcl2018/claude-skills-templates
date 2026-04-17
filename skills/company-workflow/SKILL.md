@@ -1,7 +1,7 @@
 ---
 name: company-workflow
-description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates, contract.json, and company-artifact-manifests.json."
-version: 2.0.0
+description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates are the single source of truth for structural rules."
+version: 3.0.0
 allowed-tools:
   - Bash
   - Read
@@ -29,12 +29,18 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /company-workflow requires a git repo
 ## Overview
 
 Company work item specification skill. Enforces the company's formal work item
-standard: structural validation via contract.json, artifact completeness via
-company-artifact-manifests.json, and frontmatter compliance against templates.
+standard: structural validation derived directly from the templates in
+`templates/company-workflow/`, artifact completeness via
+`company-artifact-manifests.json`, and frontmatter compliance against templates.
 
 This skill is independent from the workbench's personal-dev templates and from
-`/docs check`. It owns its own templates, contract, manifest, reference guides,
-and validation logic.
+`/docs check`. It owns its own templates, manifest, reference guides, and
+validation logic.
+
+**Templates are the single source of truth.** The validator derives every
+structural rule (required frontmatter, required sections, section order,
+lifecycle phases, minimum checkbox count) by parsing the matching template at
+runtime. There is no separate `contract.json` to drift from the templates.
 
 ## Path Resolution
 
@@ -48,13 +54,13 @@ _SKILL_DIR=""
 _TMPL_DIR=""
 
 # Level 1: workbench repo
-if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/company-workflow/contract.json" ]; then
+if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/company-workflow/company-artifact-manifests.json" ]; then
   _SKILL_DIR="$_REPO_ROOT/skills/company-workflow"
   _TMPL_DIR="$_REPO_ROOT/templates/company-workflow"
 fi
 
 # Level 2: deployed location
-if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/company-workflow/contract.json" ]; then
+if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/company-workflow/company-artifact-manifests.json" ]; then
   _SKILL_DIR="$HOME/.claude/skills/company-workflow"
   _TMPL_DIR="$HOME/.claude/templates/company-workflow"
 fi
@@ -90,6 +96,25 @@ fi
 If `NO_REGISTRY`: the skill can still function using `_TMPL_DIR` from path
 resolution. The registry is metadata, not a runtime dependency.
 
+## Template-Derived Rules
+
+Every structural rule the validator enforces comes from parsing the matching
+template at runtime. The derivation contract:
+
+| Rule | Derivation |
+|---|---|
+| Required frontmatter fields | All keys present in the template's YAML frontmatter |
+| Required sections | All `## ` headers in the template, in document order |
+| Expected section order | The template's `##` header order |
+| Required lifecycle phases | All `### Phase N: {name}` headers in the template's `## Lifecycle` section |
+| Minimum checkbox count | Count of `- [ ]` and `- [x]` patterns inside the template's `## Lifecycle` section |
+| Optional sections (per type) | Inferred structurally — if the per-type template includes the section, it's required for that type; if absent, it's not allowed (extras flagged as advisory `[EXTRA]`) |
+| Unresolved placeholder detection | Scan the instance's frontmatter values for `\{[A-Z_]+\}` patterns — these indicate the scaffolder didn't substitute a placeholder |
+
+When the template changes, the validator's expectations change automatically.
+When a new section, phase, or gate is added to a template, instances that
+predate the change are flagged. There is no separate spec to keep in sync.
+
 ## Command: validate
 
 One command with two modes. Pass a file path for structural validation. Pass a
@@ -108,46 +133,56 @@ If `<path>` is a directory: run **Directory Mode**.
 
 ### File Mode
 
-Validates a single work item file against `contract.json`.
+Validates a single tracker file against its template-derived rules.
 
 #### Steps
 
-1. Read `$_SKILL_DIR/contract.json`:
+1. Read the target file and parse its YAML frontmatter (between `---` markers).
+   If frontmatter cannot be parsed: `VIOLATION: could not parse YAML frontmatter in {path}` and stop.
 
-```bash
-cat "$_SKILL_DIR/contract.json"
-```
+2. If the file does not contain a `## Lifecycle` section, warn:
+   `Warning: {path} does not look like a tracker file. File-mode validation only validates trackers — for doc artifacts (PRD, RCA, test-plan, etc.), use Directory Mode on the parent directory.`
+   Then stop (do not produce false positives by validating a doc against a tracker template).
 
-2. Read the target file and parse its YAML frontmatter (between `---` markers).
+3. Read the `type` field from frontmatter. Normalize spelling: `userstory` and
+   `user-story` both normalize to `user-story`. Verify type is one of
+   `feature`, `defect`, `task`, `user-story`, `review`. If unknown:
+   `VIOLATION: unknown type "{value}" in {path}` and stop.
 
-3. Check required frontmatter fields from `contract.json`:
-   - Required: `name`, `type`, `status`, `created`, `updated`
-   - Recommended: `repo`, `branch`
-   - Company-specific (check template): `workflow_type`, `url`
+4. Resolve the matching template at `$_TMPL_DIR/tracker-{type}.md` via the
+   2-level fallback chain. If the template cannot be found:
+   `Error: template tracker-{type}.md not found at {_TMPL_DIR} or ~/.claude/templates/company-workflow/. Run skills-deploy install.` and stop.
 
-4. Check required sections. Extract all `## ` headings from the file and verify:
-   - Required sections exist: Lifecycle, Todos, Log, PRs, Files, Journal
-   - Optional sections: Meetings, Insights
-   - Section order matches `expected_order` in contract.json:
-     Lifecycle, Todos, Log, PRs, Files, Meetings, Insights, Journal
+5. Parse the template:
+   - Frontmatter keys → `required_fields`
+   - `##` headers in document order → `expected_sections`
+   - `### Phase N:` headers in document order under the template's Lifecycle section → `required_phases`
+   - Count of `- [ ]` and `- [x]` patterns inside the template's Lifecycle section → `min_checkboxes`
 
-5. Check lifecycle structure:
-   - Find the `## Lifecycle` section
-   - Count checkboxes (`- [ ]` and `- [x]` patterns)
-   - Verify at least `min_checkboxes` (4) exist (total across all phases)
-   - Verify all 4 phases are present as `### Phase N: {name}` headings:
-     Track, Implement, Review, Ship
+6. Parse the instance:
+   - Frontmatter keys → `present_fields`
+   - `##` headers in document order → `present_sections`
+   - `### Phase N:` headers under the instance's Lifecycle section → `present_phases`
+   - Count of `- [ ]` and `- [x]` patterns inside the instance's Lifecycle section → `present_checkbox_count`
 
-6. Report results:
-   - Exit 0: all checks pass. Print "VALID: {path}"
-   - Exit 1: one or more violations. Print each violation to stderr:
-     ```
-     VIOLATION: missing required field "workflow_type" in {path}
-     VIOLATION: missing section "Journal" in {path}
-     VIOLATION: section order mismatch — "Files" appears before "PRs" in {path}
-     VIOLATION: lifecycle has 3 checkboxes, minimum is 4 in {path}
-     VIOLATION: missing phase "Ship" in {path}
-     ```
+7. Compare and emit violations:
+
+   **Frontmatter:**
+   - For each field in `required_fields`: if missing from `present_fields` → `VIOLATION: missing required field "{field}" in {path}`
+   - For each frontmatter value in the instance: scan for `\{[A-Z_]+\}` placeholder patterns. If found → `VIOLATION: unresolved placeholder "{placeholder}" in frontmatter of {path}`
+
+   **Sections:**
+   - For each section in `expected_sections`: if missing from `present_sections` → `VIOLATION: missing section "{section}" in {path}`
+   - For each section in `present_sections` not in `expected_sections` → `[EXTRA] unexpected section "{section}" in {path}` (advisory only, not a hard violation)
+   - Filter `expected_sections` to only sections actually present in the instance, then assert `present_sections` matches that filtered list in order. If not → `VIOLATION: section order mismatch — "{section}" appears before "{other}" in {path}`
+
+   **Lifecycle:**
+   - For each phase in `required_phases`: if not in `present_phases` → `VIOLATION: missing phase "{phase}" in {path}`
+   - If `present_checkbox_count` < `min_checkboxes` → `VIOLATION: lifecycle has {N} checkboxes, minimum is {min} (per template) in {path}`
+
+8. Report results:
+   - Exit 0 if no violations: `VALID: {path}`
+   - Exit 1 if any violations: print each to stderr, then a summary
 
 ---
 
@@ -166,9 +201,12 @@ then compare against the manifest's `filename` field. Examples:
 - `F000003_TRACKER.md` -> strip `F000003_` -> `TRACKER.md` (matches manifest)
 - `T000002_test-plan.md` -> strip `T000002_` -> `test-plan.md` (matches manifest)
 
-#### Template Frontmatter Comparison
+#### Per-Artifact Validation
 
-To validate an artifact's frontmatter against its template:
+For each required artifact in the manifest, after locating the file, validate
+its frontmatter against ITS template (looked up from the manifest's `template`
+field):
+
 1. Resolve the template file from `$_TMPL_DIR/{template}` (using the 2-level
    fallback chain from Path Resolution)
 2. Parse the template's YAML frontmatter to extract its key names
@@ -176,15 +214,18 @@ To validate an artifact's frontmatter against its template:
 4. For each key present in the template's frontmatter: check that the same key
    exists in the artifact. Comparison is key-presence only (values contain
    placeholders in templates).
-5. Check for unresolved placeholders: scan frontmatter values for `{...}` patterns
-   (regex `\{[A-Za-z_]+\}`). If found: flag `[DRIFT] {artifact} — unresolved
-   placeholder "{placeholder}" in frontmatter`
+   - Missing key: `[DRIFT] {artifact} — missing required field "{field}"`
+5. Check for unresolved placeholders: scan frontmatter values for `\{[A-Z_]+\}` patterns.
+   If found: `[DRIFT] {artifact} — unresolved placeholder "{placeholder}" in frontmatter`
+
+For tracker artifacts (the file matching `TRACKER.md`), additionally apply the
+full File Mode validation flow above (sections, lifecycle, phases, checkboxes).
 
 #### Directory Mode Error Handling
 
 - No TRACKER.md found: `"Error: no TRACKER.md found in {directory}. Not a work item directory."`
 - company-artifact-manifests.json missing: `"Error: company-artifact-manifests.json not found at {path}. Run skills-deploy install or check skill structure."`
-- Template file missing during frontmatter comparison: `"Warning: template {filename} not found at {path}. Skipping frontmatter validation for {artifact}."`
+- Template file missing: `"Warning: template {filename} not found at {path}. Skipping frontmatter validation for {artifact}."`
 
 #### Steps
 
@@ -207,14 +248,13 @@ are available for config and template lookup throughout directory mode.
    - List all `.md` files in the directory
    - Match files using the Filename Matching Rule above
    - If missing: `[MISSING] {artifact} — required artifact not found`
-   - If found: validate frontmatter using the Template Frontmatter Comparison
-     above (including placeholder detection)
-   - Missing key: `[DRIFT] {artifact} — missing required field "{field}"`
+   - If found: validate frontmatter using Per-Artifact Validation above
+     (including placeholder detection)
 
-5. **Check lifecycle** — Read TRACKER.md lifecycle section:
-   - Verify all 4 phases exist (Track, Implement, Review, Ship)
-   - Verify min 4 checkboxes total (across all phases) per contract.json
-   - Verify required sections exist per contract.json
+5. **Check tracker structure** — Apply File Mode steps 5-7 to the TRACKER.md
+   file (template-derived sections, phases, and checkbox count). Same violation
+   messages as File Mode, but emitted under the directory report's `LIFECYCLE:`
+   block.
 
 6. **Report** — Emit structured output:
    ```
@@ -226,7 +266,7 @@ are available for config and template lookup throughout directory mode.
        [MISSING] test-plan.md — required artifact not found
        [DRIFT]   ARCHITECTURE.md — missing required field "repo"
      LIFECYCLE:
-       [PASS]    4 phases present, 12 checkboxes
+       [PASS]    4 phases present, 12 checkboxes (min 12 per template)
      SUMMARY: 4 artifacts checked, 1 missing, 1 drift
    ```
 
@@ -283,7 +323,8 @@ Use these to verify the `validate` command catches violations correctly.
 | Skill assets not found | "Error: company-workflow skill assets not found." | Run `skills-deploy install` or check repo structure |
 | Target file not found | "Error: file not found: {path}" | Check the path |
 | Unparseable frontmatter | "VIOLATION: could not parse YAML frontmatter in {path}" | Fix the frontmatter |
-| contract.json missing | "Error: contract.json not found at {path}" | Reinstall skill |
+| Template not found | "Error: template tracker-{type}.md not found." | Run `skills-deploy install` or check template deployment |
+| Unknown type | "VIOLATION: unknown type \"{value}\" in {path}" | Fix the `type` field |
+| Not a tracker | "Warning: {path} does not look like a tracker file." | Use Directory Mode for doc artifacts |
 | No TRACKER.md in directory | "Error: no TRACKER.md found in {directory}. Not a work item directory." | Check the path |
 | Manifest missing | "Error: company-artifact-manifests.json not found." | Reinstall skill |
-| Template not found | "Warning: template {filename} not found. Skipping frontmatter validation." | Check template deployment |

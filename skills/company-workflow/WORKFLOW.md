@@ -37,7 +37,9 @@ level. See D000003 in the workbench's `work-items/defects/` for the rationale.
 The full type-to-artifact mapping is in `company-artifact-manifests.json`.
 
 After generation, run `company-workflow validate` to ensure the docs meet the
-structural contract (required fields, section order, lifecycle phases).
+structural rules. The validator derives those rules from the templates at
+runtime (required fields, section order, lifecycle phases, minimum checkbox
+count). Templates are the single source of truth.
 
 ### Step 2: Align the Big Picture
 
@@ -169,11 +171,12 @@ The `company-workflow validate` command has two modes:
 company-workflow validate <file>
 ```
 
-Checks a single tracker file against `contract.json` structural rules:
-- Required frontmatter fields present
-- Required sections (`## ` headings) present and in correct order
-- 4-phase lifecycle structure (Track, Implement, Review, Ship)
-- Minimum checkbox count per phase
+Checks a single tracker file against rules derived from the matching template
+at runtime (`templates/company-workflow/tracker-{type}.md`):
+- Required frontmatter fields (every key present in the template)
+- Required sections (`## ` headings present in the template, in the same order)
+- 4-phase lifecycle structure (Track, Implement, Review, Ship — derived from the template's `### Phase N:` headers)
+- Minimum checkbox count (counted from the template's Lifecycle section)
 
 Exit 0 if valid, exit 1 with violations on stderr.
 
@@ -213,9 +216,8 @@ cp -r templates/company-workflow/ ~/.claude/templates/company-workflow/
 
 ```
 ~/.claude/skills/company-workflow/
-    SKILL.md                          # validate command
+    SKILL.md                          # validate command (template-derived rules)
     WORKFLOW.md                       # this file (scaffolding + workflow)
-    contract.json                     # structural validation rules
     company-artifact-manifests.json   # type-to-artifact mapping
     examples/                         # 13 filled-in examples (AI reads these)
     reference/                        # 7 human reference guides
