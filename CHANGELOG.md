@@ -4,7 +4,7 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
-## [0.7.2] - 2026-04-16
+## [0.7.3] - 2026-04-16
 
 ### Fixed
 - **personal-workflow scaffolder no longer skips required hierarchy levels** (D000007). Root cause: `WORKFLOW.md` Step 1 was silent on recursive generation, so AIs producing trees from the spec stopped at the parent level — leaving e.g. user-stories without the task children declared as `min: 1` in `personal-artifact-manifests.json hierarchy`. Fix: added an explicit "Recursive scaffolding (required)" paragraph to Step 1 mandating that scaffolding a parent type must also scaffold at least `min` children of each `required_child` declared in the manifest, recursing until a type has no `required_child`.
@@ -19,6 +19,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 After this version, existing personal-workflow consumers with bare-slug work-item directories will fail `[MISFORMATTED]` checks during Tier 2 walks. Backfill: rename each work-item subdirectory to `{ID}_{slug}/` matching its TRACKER's `id` field. Cross-repo example: in the `portfolio` repo, the 5 user-story dirs under `work-items/features/discord-v1/` (`accounts/`, `market-regime/`, `portfolio/`, `reference/`, `trading-desk/`) need backfill to `S00000X_accounts/` etc., plus the parent `discord-v1/` itself to `F000001_discord_v1/`. The consumer-side defect record for that backfill lives at `portfolio/work-items/defects/D000001_scaffold-prefix-hierarchy/`.
 
 The deployed personal-workflow skill at `~/.claude/skills/personal-workflow/` is symlinked to the active development worktree, so changes propagate automatically once this branch merges to `claude/nostalgic-volhard`. No `skills-deploy install --overwrite` is needed unless the deployment is filename-based on a given machine.
+
+## [0.7.2] - 2026-04-16
+
+### Changed
+- **company-workflow Phase 2 trackers now gate on test verification** (D000006). All 4 tracker templates (defect, task, user-story, feature) gained a Phase 2 gate that requires the linked test-doc to be marked Pass before advancing to Review/Ship. Closes the loop where a tracker could ship with a half-empty `test-plan.md` that nobody ran. Defect: `Regression test added AND all cases in test-plan.md marked Pass`. Task: `All test cases in test-plan.md marked Pass`. User-story: `All P0 cases in TEST-SPEC.md marked Pass; remaining cases marked Pending/Skip with reason`. Feature: roll-up over child user-stories' TEST-SPECs.
+- **test-plan vs TEST-SPEC scope contract is now explicit** (D000006). Top-of-file scope comments added to `templates/{company,personal}-workflow/doc-test-plan.md` ("ONE fix or ONE task; cases concrete and reproducible") and `doc-TEST-SPEC.md` ("ENTIRE user story; every PRD acceptance criterion across happy/edge/error paths"). New `### test-plan vs TEST-SPEC` subsection added to `skills/company-workflow/WORKFLOW.md` codifying the concrete-vs-broader split so authors pick by parent type, not preference.
+- **`templates/{company,personal}-workflow/doc-test-plan.md` placeholders generalized** so the same template renders cleanly for both defects and tasks: `parent: {DEFECT_ID}` → `parent: {ITEM_ID}`, `title: "{Defect Name} — Regression Test Plan"` → `title: "{ITEM_NAME} — Test Plan"`. Both placeholders match the canonical UPPER_SNAKE form in WORKFLOW.md and are detectable by the directory-mode validator's `\{[A-Za-z_]+\}` placeholder regex.
+
+### Added
+- Regression tests in `scripts/test.sh` ("Regression test (D000006)" — 10 checks) that guard the new Phase 2 gates, scope comments, title generalization, and WORKFLOW.md subsection against silent removal. Greps anchor on `^- [ ]` checkbox prefix + key tokens so a future minor reword (`marked Pass` → `is Pass`) still trips the gate detection.
 
 ## [0.7.1] - 2026-04-16
 
