@@ -48,19 +48,17 @@ blocked_by: ""
 ### Phase 3: Ship
 
 1. Run `/personal-workflow check` — verify all validation passes
-   → should show PASS for template, lifecycle, traceability, structure badges
-2. Run `/personal-workflow tree` — verify hierarchy and structural completeness
-3. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
-4. Ensure all child tasks have shipped
-5. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
-6. Run `/land-and-deploy` — merges PR and verifies deployment
+   → should show PASS for template, lifecycle, traceability badges
+2. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
+3. Ensure all child tasks have shipped
+4. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
+5. Run `/land-and-deploy` — merges PR and verifies deployment
 
 ❌ If `/personal-workflow check` finds issues: fix findings, re-run until clean
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] `/personal-workflow tree` — structure verified
 - [ ] TEST-SPEC covers all P0 acceptance criteria
 - [ ] All children shipped
 - [ ] `/ship` — PR created

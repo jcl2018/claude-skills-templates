@@ -191,20 +191,12 @@ When scaffolding or reviewing work items, validate:
 
 Warn on missing sections. Never auto-fix without asking.
 
-## Using check and tree
-
-### check (full validation)
+## Using check
 
 ```
 /personal-workflow check                    # full work-items/ scan
 /personal-workflow check work-items/features/F000001/F000001_TRACKER.md   # single file
-/personal-workflow check work-items/features/F000001/                     # single directory + hierarchy
-```
-
-### tree (quick hierarchy view)
-
-```
-/personal-workflow tree                     # structural view with badges
+/personal-workflow check work-items/features/F000001/                     # single directory
 ```
 
 ## Installation
@@ -224,11 +216,10 @@ cp -r templates/personal-workflow/ ~/.claude/templates/personal-workflow/
 
 ```
 ~/.claude/skills/personal-workflow/
-    SKILL.md                          # check + tree commands
+    SKILL.md                          # check command
     WORKFLOW.md                       # this file (scaffolding + workflow)
     personal-artifact-manifests.json  # type-to-artifact mapping
     check.md                          # full validation logic (template-derived rules)
-    tree.md                           # hierarchy view
     fixtures/                         # test fixtures
 
 ~/.claude/templates/personal-workflow/

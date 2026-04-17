@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode) and tree.",
+  "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode).",
   "types": {
     "feature": {
       "required": [
