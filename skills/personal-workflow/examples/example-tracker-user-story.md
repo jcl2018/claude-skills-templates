@@ -27,7 +27,6 @@ blocked_by: ""
 
 ### Phase 3: Ship
 - [ ] `/personal-workflow check` — validation passed
-- [ ] `/personal-workflow tree` — structure verified
 - [ ] All children shipped
 - [ ] `/ship` — PR created
 
