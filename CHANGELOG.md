@@ -4,6 +4,21 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.8.0] - 2026-04-17
+
+### Changed
+- **Templates are now the single source of truth for both workflow skills** (D000007, supersedes D000004). Both `skills/company-workflow/contract.json` and `skills/personal-workflow/contract.json` are deleted. The validator now derives every structural rule (required frontmatter, required sections, section order, lifecycle phases, minimum checkbox count) from the matching template at runtime: it parses `templates/{skill}/tracker-{type}.md`, extracts frontmatter keys + `##` headers + `### Phase N:` headers + `- [ ]` count from the Lifecycle section, and validates instances against THAT. Edit a template, the validator's expectations move with it. Single source. No more drift between contract and templates.
+- Skill major versions bumped: `personal-workflow` 1.0.0 → 2.0.0, `company-workflow` 2.1.0 → 3.0.0. Reflects the breaking change to the validator's input contract (no more `contract.json`).
+- **`frontmatter.recommended` distinction is gone.** `repo` and `branch` were "recommended but not enforced" under the old contract. Under template-derived rules they're required (templates emit them). No observable change for compliant trackers.
+- **`type_specific_optional` is gone too.** Per-type optional sections (e.g., `Reproduction Steps` for defects) are now inferred structurally — if the per-type template includes the section, instances need it; if not, they don't. Less declarative metadata, less drift.
+- **Stricter checkbox enforcement.** The minimum checkbox count is read from the template at runtime, not from a config field. Trackers authored against an older template version that pre-dates new gates will surface as out-of-date — strictly correct, called out by the validator instead of silently passing.
+
+### Removed
+- `skills/company-workflow/contract.json` and `skills/personal-workflow/contract.json` — both deleted. After upgrading, run `skills-deploy install --overwrite` to refresh deployed copies. Existing deployed `~/.claude/skills/{company,personal}-workflow/contract.json` symlinks may linger as broken until manually removed (`rm ~/.claude/skills/{company,personal}-workflow/contract.json`); follow-up planned for `skills-deploy` to auto-clean orphan symlinks.
+
+### Added
+- Regression tests in `scripts/test.sh` ("Regression test (D000007)" — 6 checks) that prevent re-introduction of the two-source-of-truth pattern: contract.json absent in both skills, validator files don't load contract.json at runtime (cat/jq/Read pattern grep), skills-catalog.json no longer references contract.json.
+
 ## [0.7.2] - 2026-04-16
 
 ### Changed
