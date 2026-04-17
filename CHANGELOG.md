@@ -4,6 +4,22 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.7.2] - 2026-04-16
+
+### Fixed
+- **personal-workflow scaffolder no longer skips required hierarchy levels** (D000007). Root cause: `WORKFLOW.md` Step 1 was silent on recursive generation, so AIs producing trees from the spec stopped at the parent level — leaving e.g. user-stories without the task children declared as `min: 1` in `personal-artifact-manifests.json hierarchy`. Fix: added an explicit "Recursive scaffolding (required)" paragraph to Step 1 mandating that scaffolding a parent type must also scaffold at least `min` children of each `required_child` declared in the manifest, recursing until a type has no `required_child`.
+- **personal-workflow Directory Layout convention is now uniform across files and directories** (D000007). The file-prefix rule (`{ID}_TRACKER.md`, `{ID}_{artifact}.md`) was applied at the file level only; containing directories were left as bare slugs (`accounts/` instead of `S000001_accounts/`). Fix: `WORKFLOW.md § Directory Layout` now requires every work-item directory to be named `{ID}_{slug}/`, with the embedded ID matching the directory's TRACKER frontmatter `id`. Updated the layout example to show three nested levels with prefixed dirs.
+
+### Added
+- **`check.md` Step 19f — new `[MISFORMATTED]` rule** under the `structure` badge category (D000007). Walks every work-item directory in the Tier 2 hierarchy walk and validates: (1) directory name matches `^[FSTD]\d{6}_[a-z0-9_-]+$`, (2) the ID prefix letter (F/S/T/D) maps to the expected work-item type, (3) the embedded ID equals the TRACKER frontmatter `id`. Top severity in the structure badge — promoted above `INCOMPLETE` and `MISPLACED`. Step 20 (Badge Taxonomy) and Step 23 (Human-Readable Report) updated to surface MISFORMATTED in the Critical findings section and Structural Summary.
+- **3 personal-workflow fixtures** under `skills/personal-workflow/fixtures/`: `valid-nested-feature/` (positive control with full feature → user-story → task hierarchy, all dirs ID-prefixed), `invalid-unprefixed-subdir/` (parent feature with bare-slug child to demonstrate `[MISFORMATTED]`), `invalid-missing-required-child/` (user-story with zero task children to demonstrate `[INCOMPLETE]`). New `fixtures/README.md` documents each scenario and how to test Tier 2 rules.
+- **New `{SLUG}` placeholder** in `WORKFLOW.md § Placeholder Replacement` table, plus a clarifying line that work-item directories are named `{ITEM_ID}_{SLUG}/`.
+
+### Migration note
+After this version, existing personal-workflow consumers with bare-slug work-item directories will fail `[MISFORMATTED]` checks during Tier 2 walks. Backfill: rename each work-item subdirectory to `{ID}_{slug}/` matching its TRACKER's `id` field. Cross-repo example: in the `portfolio` repo, the 5 user-story dirs under `work-items/features/discord-v1/` (`accounts/`, `market-regime/`, `portfolio/`, `reference/`, `trading-desk/`) need backfill to `S00000X_accounts/` etc., plus the parent `discord-v1/` itself to `F000001_discord_v1/`. The consumer-side defect record for that backfill lives at `portfolio/work-items/defects/D000001_scaffold-prefix-hierarchy/`.
+
+The deployed personal-workflow skill at `~/.claude/skills/personal-workflow/` is symlinked to the active development worktree, so changes propagate automatically once this branch merges to `claude/nostalgic-volhard`. No `skills-deploy install --overwrite` is needed unless the deployment is filename-based on a given machine.
+
 ## [0.7.1] - 2026-04-16
 
 ### Fixed
