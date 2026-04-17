@@ -19,6 +19,17 @@ Adding hierarchy enforcement via a new config field + validator logic would have
 ### Migration note
 Existing `work-items/features/*/` directories that have no user-story children (e.g., `F000002_system_health_v1/`) no longer surface as `[INCOMPLETE]` in the `/personal-workflow check` output. Pure behavior change for that validator. If your team depended on `[INCOMPLETE]` as a signal, move the check into a PR review step or a pre-commit hook that greps `WORKFLOW.md`'s "Required children" section.
 
+## [0.9.1] - 2026-04-17
+
+### Fixed
+- **`/ship` and `/land-and-deploy` no longer waste 30 seconds on a wrong-then-right merge command in this repo** (D000008). Two related operational defects, both observed twice in this session: (1) `gh pr merge --auto --delete-branch` (per the upstream gstack /ship and /land-and-deploy Step 4) silently fails because gh CLI requires an explicit merge method when `--auto` is set — gh prints help and exits 0, no merge gets queued, the LLM only notices on the next `gh pr view`. (2) The fall-back `--delete-branch` flag does a local `git checkout main` for cleanup, which fails inside a worktree where the parent repo has `main` checked out. Local fix in this repo: a `## CI/CD merge convention` section in `CLAUDE.md` directing the LLM to use `gh pr merge <PR#> --auto --squash --delete-branch` (combined flags) and to use `gh api -X DELETE refs/heads/<branch>` for worktree-aware remote-branch cleanup. The next `/ship` + `/land-and-deploy` cycle in this repo will use the correct invocation directly with no fallback.
+
+### Added
+- Regression tests in `scripts/test.sh` ("Regression test (D000008)" — 3 checks) that prevent the `## CI/CD merge convention` section in CLAUDE.md from being silently dropped: section header presence, `gh pr merge ... --auto --squash` invocation present, `gh api -X DELETE git/refs/heads` workaround present.
+
+### Migration note
+Upstream gstack fix is filed as a separate follow-up (out of scope for this PR). The local guard in `CLAUDE.md` is defense-in-depth and works regardless of which gstack version is installed.
+
 ## [0.9.0] - 2026-04-17
 
 ### Changed
