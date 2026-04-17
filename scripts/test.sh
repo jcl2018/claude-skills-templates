@@ -377,6 +377,67 @@ else
   ok "jq -e wrapper correctly propagates false exit through pipe"
 fi
 
+echo ""
+echo "Regression test (D000006): company-workflow Phase 2 test-verification gates + scope contracts..."
+
+# Phase 2 test-verification gates in all 4 company-workflow trackers
+# Anchored on '^- [ ]' checkbox prefix + key tokens to survive minor reword but
+# fail loudly on full removal of the gate line.
+if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-defect.md"; then
+  ok "tracker-defect Phase 2 references test-plan verification"
+else
+  fail_test "tracker-defect.md is missing the test-plan.md Pass-verification Phase 2 gate"
+fi
+
+if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-task.md"; then
+  ok "tracker-task Phase 2 references test-plan verification"
+else
+  fail_test "tracker-task.md is missing the test-plan.md Pass-verification Phase 2 gate"
+fi
+
+if grep -qE '^- \[ \].*TEST-SPEC\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-user-story.md"; then
+  ok "tracker-user-story Phase 2 references TEST-SPEC verification"
+else
+  fail_test "tracker-user-story.md is missing the TEST-SPEC.md Pass-verification Phase 2 gate"
+fi
+
+if grep -qE '^- \[ \].*child user-story.*TEST-SPEC.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-feature.md"; then
+  ok "tracker-feature Phase 2 has TEST-SPEC roll-up gate"
+else
+  fail_test "tracker-feature.md is missing the child user-story TEST-SPEC roll-up gate"
+fi
+
+# Scope comments in test-doc templates (both skills)
+for tmpl in templates/company-workflow/doc-test-plan.md templates/personal-workflow/doc-test-plan.md; do
+  if grep -q "ONE fix (defect) or ONE task" "$REPO_ROOT/$tmpl"; then
+    ok "$tmpl has the test-plan scope comment"
+  else
+    fail_test "$tmpl is missing the test-plan scope comment"
+  fi
+done
+
+for tmpl in templates/company-workflow/doc-TEST-SPEC.md templates/personal-workflow/doc-TEST-SPEC.md; do
+  if grep -q "ENTIRE user story" "$REPO_ROOT/$tmpl"; then
+    ok "$tmpl has the TEST-SPEC scope comment"
+  else
+    fail_test "$tmpl is missing the TEST-SPEC scope comment"
+  fi
+done
+
+# Title generalization in company doc-test-plan
+if grep -q "{Defect Name} — Regression Test Plan" "$REPO_ROOT/templates/company-workflow/doc-test-plan.md"; then
+  fail_test "company doc-test-plan.md still uses defect-only title placeholder; expected '{Item Name} — Test Plan'"
+else
+  ok "company doc-test-plan.md title is generalized"
+fi
+
+# WORKFLOW.md has the new subsection
+if grep -q "### test-plan vs TEST-SPEC" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  ok "company-workflow WORKFLOW.md has the test-plan vs TEST-SPEC subsection"
+else
+  fail_test "company-workflow WORKFLOW.md is missing the '### test-plan vs TEST-SPEC' subsection"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
