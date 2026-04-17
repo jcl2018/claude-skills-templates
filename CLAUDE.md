@@ -21,6 +21,35 @@ When the user's request matches an available skill, invoke it:
 - "validate company work item", "company workflow" -> /company-workflow
 - "validate personal work item", "personal workflow", "check work items", "work item tree" -> /personal-workflow
 
+## CI/CD merge convention
+
+This repo uses **squash merges**. When `/ship` or `/land-and-deploy` reaches the
+merge step (`gh pr merge`), use this exact invocation:
+
+```bash
+gh pr merge <PR#> --auto --squash --delete-branch
+```
+
+The `--auto` flag enables auto-merge (queues for after CI passes); the `--squash`
+flag is mandatory because `gh pr merge --auto` without a method silently fails
+(prints help, exits 0, no merge queued). Do NOT use `gh pr merge --auto --delete-branch`
+alone, even though the upstream gstack skill instructions suggest it.
+
+**Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
+`.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
+`gh pr merge --delete-branch` does a local `git checkout main` to clean up; in a worktree
+that errors with `'main' is already checked out`. The remote merge succeeds anyway, but
+the remote branch is NOT deleted. Workaround:
+
+```bash
+gh api -X DELETE "repos/jcl2018/claude-skills-templates/git/refs/heads/<branch>"
+```
+
+Run this after the merge to actually delete the remote branch.
+
+See `work-items/defects/D000008_*` for the full root cause and the planned upstream fix
+to gstack.
+
 ## Work item templates
 
 Each workflow skill owns its own templates and artifact manifest:
