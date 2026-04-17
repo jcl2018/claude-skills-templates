@@ -25,8 +25,24 @@ For each work item type, the AI reads the template for structure:
 
 The full type-to-artifact mapping is in `personal-artifact-manifests.json`.
 
+**Recursive scaffolding (required).** When scaffolding a parent type, also
+scaffold at least `min` children of each `required_child` declared in the
+`hierarchy` block of `personal-artifact-manifests.json`. Stop only at types
+with no `required_child`. Concretely:
+
+- Scaffolding a `feature` -> also scaffold at least 1 `user-story` child.
+- Scaffolding a `user-story` -> also scaffold at least 1 `task` child.
+- `task` and `defect` have no `required_child` -> recursion stops.
+
+If the engineer has not yet named the children, scaffold a single placeholder
+child per required level (e.g. `S{NNNNNN}_placeholder/` containing the full
+artifact set) and add a Todo in the parent's TRACKER reminding the engineer
+to rename or expand. Never skip a required level — that produces incomplete
+trees that `check` will flag.
+
 After generation, run `/personal-workflow check` to ensure the docs meet the
-structural contract (required fields, section order, lifecycle phases).
+structural contract (required fields, section order, lifecycle phases, full
+hierarchy).
 
 ### Step 2: Align the Big Picture
 
@@ -91,18 +107,32 @@ Increment from the highest existing ID of that type in `work-items/`.
 
 ```
 work-items/
-  features/{slug}/
-    {ID}_TRACKER.md
-    {ID}_{artifact}.md
-    {child-slug}/              # nested: feature > user-story > task, max depth 3
-      {ID}_TRACKER.md
-      {ID}_{artifact}.md
-  defects/{slug}/
-    {ID}_TRACKER.md
-    {ID}_{artifact}.md
+  features/
+    {FEATURE_ID}_{slug}/                  # e.g. F000001_discord_v1/
+      {FEATURE_ID}_TRACKER.md
+      {FEATURE_ID}_{artifact}.md
+      {USERSTORY_ID}_{child-slug}/        # e.g. S000001_accounts/
+        {USERSTORY_ID}_TRACKER.md
+        {USERSTORY_ID}_{artifact}.md
+        {TASK_ID}_{grandchild-slug}/      # e.g. T000001_link_account/
+          {TASK_ID}_TRACKER.md
+          {TASK_ID}_{artifact}.md
+  defects/
+    {DEFECT_ID}_{slug}/                   # e.g. D000007_scaffold_subdir_prefix/
+      {DEFECT_ID}_TRACKER.md
+      {DEFECT_ID}_{artifact}.md
 ```
 
-All artifact filenames are prefixed with the item ID at scaffold time.
+**Naming rules (enforced by `check`):**
+
+- Every work-item **directory** is named `{ID}_{slug}/` — the same `{ID}_`
+  prefix used for files inside it.
+- The embedded `{ID}` must equal the directory's TRACKER frontmatter `id`.
+- Slugs are lowercase, snake-case (`a-z0-9_-`), short and descriptive.
+- Maximum nesting depth from `work-items/` is 4 (type subfolder + 3 work-item
+  levels: feature > user-story > task).
+
+Violations are flagged as `[MISFORMATTED]` (structure badge, top severity).
 
 ### Placeholder Replacement
 
@@ -112,11 +142,15 @@ When generating docs from templates, replace these placeholders:
 |-------------|-------|
 | `{ITEM_NAME}` | Human-readable name of the work item |
 | `{ITEM_ID}` | Generated ID (e.g., F000001) |
+| `{SLUG}` | Bare directory slug, lowercase snake-case (e.g., `discord_v1`) |
 | `{PARENT_ID}` | Parent work item ID (for nested items) |
 | `{FEATURE_ID}` | Top-level feature ID |
 | `{YYYY-MM-DD}` | Current date |
 | `{BRANCH_NAME}` | Current git branch |
 | `{author}` | Current user (from `whoami` or git config) |
+
+The work-item **directory** is named `{ITEM_ID}_{SLUG}/`. Files inside it are
+named `{ITEM_ID}_TRACKER.md`, `{ITEM_ID}_{artifact}.md`, etc.
 
 ### Lifecycle
 

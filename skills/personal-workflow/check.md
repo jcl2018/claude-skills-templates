@@ -333,6 +333,33 @@ For each work item in the Actual Model that has a structural requirement (per 19
 
 This flag appears in the lifecycle badge category, not the structure badge category.
 
+### 19f: Subdirectory Name Format
+
+For each work item directory in the Actual Model (every directory containing a `TRACKER.md`, with or without ID prefix):
+
+1. **ID prefix presence and shape.** The directory name must match the regex
+   `^[FSTD]\d{6}_[a-z0-9_-]+$` (uppercase type prefix from `{F, S, T, D}`,
+   six digits, underscore, then a lowercase snake-case slug).
+   - If it does not match: flag `[MISFORMATTED] {dir_name} — work-item directory must be named {ID}_{slug} (matched against ^[FSTD]\d{6}_[a-z0-9_-]+$)`
+
+2. **ID type matches work-item type.** Extract the ID prefix letter from the
+   directory name and map it via the ID Generation table in WORKFLOW.md
+   (F=feature, S=user-story, T=task, D=defect). Compare against the normalized
+   `type` field from TRACKER frontmatter.
+   - If mismatch: flag `[MISFORMATTED] {dir_name} — directory ID prefix "{letter}" maps to type "{expected}", TRACKER says type "{actual}"`
+
+3. **Embedded ID matches TRACKER frontmatter.** Extract the full ID from the
+   directory name (e.g., `S000001` from `S000001_accounts`). Compare against
+   the `id` field from TRACKER frontmatter.
+   - If mismatch: flag `[MISFORMATTED] {dir_name} — directory ID "{dir_id}" does not match TRACKER frontmatter id "{tracker_id}"`
+
+Type subfolders (`features/`, `defects/`, and any other value found in the
+manifest's `placement` field) are exempt — they are grouping containers, not
+work items, and are skipped via the same allowlist used in 19d.
+
+This flag appears in the **structure** badge category at top severity (above
+INCOMPLETE and MISPLACED).
+
 ## Step 20: Badge Taxonomy
 
 Map all check statuses to 4 badge categories with severity ordering.
@@ -344,7 +371,7 @@ Map all check statuses to 4 badge categories with severity ordering.
 | template | PASS < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 16) |
 | lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open, or broken-down cross-ref) | Check 2 (Step 17) + Step 19e |
 | traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) | Check 3 (Step 18) |
-| structure | PASS < INCOMPLETE (missing required children) < MISPLACED (wrong hierarchy level) | Check 4 (Step 19b/19c) |
+| structure | PASS < INCOMPLETE (missing required children) < MISPLACED (wrong hierarchy level) < MISFORMATTED (subdir name violates `{ID}_{slug}` or ID/type mismatch with TRACKER) | Check 4 (Step 19b/19c/19f) |
 
 Each badge for a node shows the **worst** (highest severity) status from its category.
 
@@ -477,7 +504,7 @@ One row per work item, in tree order (depth-first, alphabetical siblings).
 ## Findings
 
 ### Critical
-{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
+{list all MISFORMATTED, INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
 
 ### Warnings
 {list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
@@ -492,6 +519,7 @@ If no findings exist in a severity category, omit that subsection. If no finding
 ## Structural Summary
 
 - **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
+- **Misformatted:** {N}
 - **Incomplete:** {N}
 - **Misplaced:** {N}
 - **Lifecycle issues:** {N}
