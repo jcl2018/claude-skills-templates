@@ -1,11 +1,13 @@
 ---
 name: "Valid Test Feature"
 type: feature
+id: "F999000"
 status: active
 created: "2026-01-01"
 updated: "2026-01-01"
 repo: "test/repo"
 branch: "feat/test"
+blocked_by: ""
 ---
 
 ## Lifecycle
