@@ -1,11 +1,15 @@
 ---
 type: test-plan
-parent: {DEFECT_ID}
-title: "{Defect Name} — Regression Test Plan"
+parent: {ITEM_ID}
+title: "{ITEM_NAME} — Test Plan"
 date: {YYYY-MM-DD}
 author: {author}
 status: Draft
 ---
+
+<!-- Scope: ONE fix (defect) or ONE task. Cases must be concrete and reproducible.
+     For broader coverage of a user story, use TEST-SPEC.md instead.
+     For defects, the test cases are regression cases for the specific bug. -->
 
 ## Scope
 

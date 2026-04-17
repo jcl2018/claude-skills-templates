@@ -88,6 +88,21 @@ Freestanding templates (`doc-scrum.md`, `doc-review-notes.md`) are not tied to a
 type's required artifacts. They can be created ad-hoc in any work item directory
 or at the repo root, with no ID prefix required.
 
+### test-plan vs TEST-SPEC
+
+Both templates exist because they target different scopes:
+
+- **`test-plan.md`** (defect, task) — **concrete**. One fix or one task. Cases must be
+  reproducible and tied to the specific change. For defects, list regression cases
+  for the bug. For tasks, list the test cases that prove the change works.
+- **`TEST-SPEC.md`** (user-story) — **broader**. Covers the entire story scope. Test
+  Matrix maps every PRD acceptance criterion to at least one case across happy, edge,
+  and error paths. Includes Tier 1 (smoke) and Tier 2 (E2E) split.
+
+Pick by parent type, not by personal preference. A task that needs a TEST-SPEC-style
+matrix usually means the parent user-story's TEST-SPEC is the right home for that
+matrix; the task's test-plan stays focused on what *this task's commits* changed.
+
 ### ID Generation
 
 IDs use the format `{TYPE_PREFIX}{NNNNNN}`:

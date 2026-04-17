@@ -23,7 +23,7 @@ blocked_by: ""
 - [ ] Root cause identified (RCA in Insights section)
 - [ ] Hypothesis tested with evidence (finding entries in Journal)
 - [ ] Fix committed (>=1 commit SHA in Log)
-- [ ] Regression test added
+- [ ] Regression test added AND all cases in test-plan.md marked Pass
 - [ ] Files section updated with all changed files
 
 ### Phase 3: Review

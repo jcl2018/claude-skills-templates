@@ -22,6 +22,7 @@ blocked_by: ""
 
 ### Phase 2: Implement
 - [ ] Core changes committed (>=1 commit SHA in Log)
+- [ ] All test cases in test-plan.md marked Pass
 - [ ] Files section updated with all changed files
 - [ ] Todos section reflects remaining work (no stale items)
 
