@@ -96,7 +96,9 @@
       "company-workflow/doc-RCA.md",
       "company-workflow/doc-test-plan.md",
       "company-workflow/doc-review-notes.md",
-      "company-workflow/doc-scrum.md"
+      "company-workflow/doc-scrum.md",
+      "company-workflow/doc-pr-description-task.md",
+      "company-workflow/doc-pr-description-defect.md"
     ],
     "status": "active"
   }
