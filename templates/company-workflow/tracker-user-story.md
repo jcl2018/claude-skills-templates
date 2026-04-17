@@ -22,6 +22,7 @@ blocked_by: ""
 ### Phase 2: Implement
 - [ ] Core implementation committed (>=1 commit SHA in Log)
 - [ ] Acceptance criteria met
+- [ ] All P0 cases in TEST-SPEC.md marked Pass; remaining cases marked Pending/Skip with reason
 - [ ] Files section updated with all changed files
 
 ### Phase 3: Review

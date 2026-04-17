@@ -12,6 +12,9 @@ architecture: ARCHITECTURE.md
 reviewers: []
 ---
 
+<!-- Scope: ENTIRE user story. Test Matrix must cover every PRD acceptance criterion
+     across happy/edge/error paths. For a single fix or task, use test-plan.md instead. -->
+
 ## Test Matrix
 
 <!-- Each row maps to a PRD acceptance criterion via the AC column.
