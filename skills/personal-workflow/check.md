@@ -1,8 +1,15 @@
 # /personal-workflow check — Work Item Validation
 
-Validate work items against contract.json and personal-artifact-manifests.json.
-Two tiers: Tier 1 (single file or directory, matches company-workflow validate approach)
-and Tier 2 (full hierarchy walk with cross-checks, graph artifact, and report).
+Validate work items against the templates in `templates/personal-workflow/` and
+`personal-artifact-manifests.json`. **Templates are the single source of truth**
+for structural rules — required frontmatter fields, required sections, section
+order, lifecycle phases, and minimum checkbox counts are all derived from the
+matching template at runtime. Edit a template, the validator's expectations
+change automatically. There is no separate `contract.json`.
+
+Two tiers: Tier 1 (single file or directory, matches company-workflow validate
+approach) and Tier 2 (full hierarchy walk with cross-checks, graph artifact,
+and report).
 
 Invocation model:
 - File path argument → Tier 1 File Mode only
@@ -13,7 +20,7 @@ Invocation model:
 ---
 
 # TIER 1: Foundation
-# Matches company-workflow validate approach: contract.json + manifest-based checks.
+# Matches company-workflow validate approach: template + manifest-based checks.
 
 ## Normalization Rules
 
@@ -43,9 +50,23 @@ These rules apply throughout all checks. Define them here once; reference from a
 
 Use the first found. If none exists, warn: "Warning: template {filename} not found. Skipping validation for this artifact." and skip that artifact.
 
-**Section order validation:** When `order_skip_absent` is true in contract.json,
-filter `expected_order` to only sections actually present in the file, then assert
-the filtered list matches the file's section order.
+**Section order validation:** Derive `expected_order` from the template's `##`
+header order at runtime. Filter `expected_order` to only sections actually
+present in the instance file (sections in the template but missing from the
+instance are already flagged as missing-section violations), then assert the
+filtered list matches the instance's section order.
+
+**Template-derived rules** (the validator's spec — derived per type at runtime):
+
+| Rule | Derivation |
+|---|---|
+| Required frontmatter fields | All keys present in the template's YAML frontmatter |
+| Required sections | All `## ` headers in the template, in document order |
+| Expected section order | The template's `##` header order |
+| Required lifecycle phases | All `### Phase N: {name}` headers in the template's `## Lifecycle` section |
+| Minimum checkbox count | Count of `- [ ]` and `- [x]` patterns inside the template's `## Lifecycle` section |
+| Optional sections (per type) | Inferred structurally — if the per-type template includes the section, it's required for that type; if absent, it's not allowed (extras flagged as advisory `[EXTRA]`) |
+| Unresolved placeholder detection | Scan the instance's frontmatter values for `\{[A-Z_]+\}` patterns |
 
 ## Step 1: Determine Mode
 
@@ -55,55 +76,70 @@ Parse the user's input to determine the target path:
 - If no path is given: set target to `$REPO_ROOT/work-items` and run **Directory Mode** + **Tier 2**
 - If the path does not exist: "Error: path not found: {path}" and stop
 
-## Step 2: Read Contract (File Mode)
-
-```bash
-cat "$_SKILL_DIR/contract.json"
-```
-
-Parse the contract JSON. If missing or malformed: "Error: contract.json not found or invalid at {path}" and stop.
-
-## Step 3: Read Target File
+## Step 2: Read Target File
 
 Read the target file and parse its YAML frontmatter (between `---` markers).
 
 If the file does not contain a `## Lifecycle` section, warn:
-"Warning: {path} does not look like a tracker file. Contract checks may produce false positives."
-Continue (do not stop).
+"Warning: {path} does not look like a tracker file. File-mode validation only validates trackers — for doc artifacts (PRD, RCA, test-plan, etc.), use Directory Mode on the parent directory."
+Then stop (do not produce false positives by validating a doc against a tracker template).
 
-## Step 4: Check Required Frontmatter
+## Step 3: Resolve Template
 
-For each field in `contract.frontmatter.required`:
-- If missing from file frontmatter: `VIOLATION: missing required field "{field}" in {path}`
+Read the `type` field from the instance's frontmatter. Apply Type Spelling
+normalization from Normalization Rules.
 
-For each field in `contract.frontmatter.recommended`:
-- If missing: no violation (advisory only, do not report)
+Verify the type is one of `feature`, `defect`, `task`, `user-story`. If not:
+`VIOLATION: unknown type "{value}" in {path}` and stop.
 
-## Step 5: Check Required Sections
+Resolve the matching template file at `$_TMPL_DIR/tracker-{type}.md` via the
+2-level Template Resolution fallback chain. If the template cannot be found:
+`Error: template tracker-{type}.md not found at {_TMPL_DIR} or ~/.claude/templates/personal-workflow/. Run skills-deploy install.` and stop.
 
-Extract all `## ` headings from the file.
+## Step 4: Parse Template (derive expectations)
 
-For each section in `contract.sections.required`:
-- If missing: `VIOLATION: missing section "{section}" in {path}`
+Parse the template file:
 
-Check section order against `contract.sections.expected_order`:
-- Filter `expected_order` to only sections present in the file (skip absent optional sections per `order_skip_absent`)
-- If the filtered order does not match the file's section order:
-  `VIOLATION: section order mismatch — "{section}" appears before "{other}" in {path}`
+- Frontmatter keys → `required_fields` (every key present in the template is required in the instance)
+- `##` headers in document order → `expected_sections` (this list IS the required section list AND the expected order)
+- `### Phase N:` headers in document order, found inside the template's `## Lifecycle` section → `required_phases`
+- Count of lines matching `^\s*[-*+]\s+\[[ xX]\]` inside the template's Lifecycle section → `min_checkboxes`
 
-## Step 6: Check Lifecycle Structure
+## Step 5: Check Frontmatter
 
-Find the `## Lifecycle` section in the file.
+For each field in `required_fields`:
+- If missing from instance frontmatter: `VIOLATION: missing required field "{field}" in {path}`
 
-Count checkboxes: lines matching `^\s*[-*+]\s+\[[ xX]\]` within the Lifecycle section.
+Scan each frontmatter value in the instance for placeholder patterns matching
+`\{[A-Z_]+\}`:
+- If found: `VIOLATION: unresolved placeholder "{placeholder}" in frontmatter of {path}`
+
+## Step 6: Check Sections
+
+Extract all `## ` headings from the instance, in document order → `present_sections`.
+
+For each section in `expected_sections`:
+- If missing from `present_sections`: `VIOLATION: missing section "{section}" in {path}`
+
+For each section in `present_sections` not in `expected_sections`:
+- `[EXTRA] unexpected section "{section}" in {path}` (advisory only, not a hard violation)
+
+Check section order: filter `expected_sections` to only sections actually
+present in the instance, then assert `present_sections` matches the filtered
+list in order:
+- If not: `VIOLATION: section order mismatch — "{section}" appears before "{other}" in {path}`
+
+## Step 6.5: Check Lifecycle
+
+Find the `## Lifecycle` section in the instance.
+
+Count checkboxes: lines matching `^\s*[-*+]\s+\[[ xX]\]` inside the Lifecycle section → `present_checkbox_count`.
+
+Find `### Phase N:` headers in the instance's Lifecycle section → `present_phases`.
 
 Verify:
-- At least `contract.lifecycle.min_checkboxes` checkboxes exist (total across all phases)
-- All phases from `contract.lifecycle.phases` are present as `### Phase N: {name}` headings
-
-Violations:
-- `VIOLATION: lifecycle has {N} checkboxes, minimum is {min} in {path}`
-- `VIOLATION: missing phase "{phase}" in {path}`
+- For each phase in `required_phases`: if not in `present_phases` → `VIOLATION: missing phase "{phase}" in {path}`
+- If `present_checkbox_count` < `min_checkboxes` → `VIOLATION: lifecycle has {N} checkboxes, minimum is {min} (per template) in {path}`
 
 ## Step 7: File Mode Report
 
@@ -156,12 +192,21 @@ For each required artifact in the manifest:
 5. Check for unresolved placeholders: scan frontmatter values for `{...}` patterns
    (regex `\{[A-Za-z_]+\}`). If found: `[DRIFT] {artifact} — unresolved placeholder "{placeholder}" in frontmatter`
 
-## Step 12: Check Lifecycle
+## Step 12: Check Lifecycle (Directory Mode tracker)
 
-Read TRACKER.md lifecycle section:
-- Verify all phases from contract.json exist (Track, Implement, Ship)
-- Verify minimum checkboxes per contract.json
-- Verify required sections per contract.json
+Apply the same template-derived structural checks to the TRACKER.md as File
+Mode (Steps 3-6.5 above):
+
+1. Resolve the matching template (`tracker-{type}.md` per the TRACKER's `type` field).
+2. Derive `required_fields`, `expected_sections`, `required_phases`, `min_checkboxes` from the template.
+3. Verify the TRACKER.md instance matches all four:
+   - Required sections present and in expected order
+   - All required phases present (Track, Implement, Ship for personal-workflow)
+   - Checkbox count meets the template's minimum
+   - No unresolved frontmatter placeholders
+
+Same violation messages as File Mode, but emitted under the directory report's
+LIFECYCLE block.
 
 ## Step 13: Directory Mode Report
 
@@ -510,8 +555,9 @@ Print: "Report written to .docs/work-item-report.md"
 - **Not a tracker file:** "Warning: {path} does not look like a tracker file. Contract checks may produce false positives."
 - **No work-items/:** "INFO: no work-items/ directory found. Skipping hierarchy checks, graph artifact, and report generation."
 - **No manifest:** "Error: personal-artifact-manifests.json not found or invalid."
-- **contract.json missing:** "Error: contract.json not found or invalid at {path}."
-- **Template not found:** "Warning: template {filename} not found. Skipping validation for this artifact."
+- **Template not found (file mode):** "Error: template tracker-{type}.md not found at {_TMPL_DIR} or ~/.claude/templates/personal-workflow/. Run skills-deploy install."
+- **Template not found (directory/tier-2 mode):** "Warning: template {filename} not found. Skipping validation for this artifact."
+- **Unknown type:** "VIOLATION: unknown type \"{value}\" in {path}"
 - **Unparseable frontmatter:** "Warning: could not parse frontmatter in {path}. Skipping."
 - **No hierarchy field:** "Warning: personal-artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks."
 - **Malformed hierarchy:** "Warning: personal-artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks."

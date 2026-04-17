@@ -23,6 +23,7 @@ blocked_by: ""
 ### Phase 2: Implement
 - [ ] Core implementation committed (>=1 commit SHA in Log)
 - [ ] All child tasks completed or deferred
+- [ ] Each child user-story's TEST-SPEC has all P0 cases Pass
 - [ ] Files section updated with all changed files
 
 ### Phase 3: Review
@@ -35,6 +36,7 @@ blocked_by: ""
 - [ ] Build passes
 - [ ] Regression tests pass
 - [ ] Code review completed
+- [ ] PR description generated
 - [ ] PR created (PR link in PRs section)
 - [ ] Merged to target branch
 

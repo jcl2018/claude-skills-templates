@@ -438,6 +438,41 @@ else
   fail_test "company-workflow WORKFLOW.md is missing the '### test-plan vs TEST-SPEC' subsection"
 fi
 
+echo ""
+echo "Regression test (D000007): contract.json eliminated; templates are the single source of truth..."
+
+# contract.json must NOT exist for either skill (templates are now the source of truth)
+if [ -f "$REPO_ROOT/skills/company-workflow/contract.json" ]; then
+  fail_test "skills/company-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
+else
+  ok "skills/company-workflow/contract.json correctly absent"
+fi
+
+if [ -f "$REPO_ROOT/skills/personal-workflow/contract.json" ]; then
+  fail_test "skills/personal-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
+else
+  ok "skills/personal-workflow/contract.json correctly absent"
+fi
+
+# Validator files must not reference the deleted contract.json as a runtime dependency
+# (intentional documentation mentions like "there is no separate contract.json" are
+# fine — we grep for read/cat/load patterns that would indicate runtime use)
+for vf in skills/company-workflow/SKILL.md skills/personal-workflow/SKILL.md skills/personal-workflow/check.md; do
+  if grep -qE '(cat|jq|Read|read).*contract\.json' "$REPO_ROOT/$vf"; then
+    fail_test "$vf still has a runtime read of contract.json (line should be removed)"
+  else
+    ok "$vf does not load contract.json at runtime"
+  fi
+done
+
+# Catalog must not list contract.json under either skill (would cause validate.sh
+# orphan-file warnings after the delete)
+if jq -r '.[] | select(.name=="company-workflow" or .name=="personal-workflow") | .files[]' "$REPO_ROOT/skills-catalog.json" 2>/dev/null | grep -q "contract\.json"; then
+  fail_test "skills-catalog.json still lists contract.json under company-workflow or personal-workflow"
+else
+  ok "skills-catalog.json no longer references contract.json for either workflow skill"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

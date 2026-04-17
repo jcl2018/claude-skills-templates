@@ -1,7 +1,7 @@
 ---
 name: personal-workflow
-description: "Personal work item validation with structural completeness checks. Validates tracker files and work item directories against personal templates, contract.json, and personal-artifact-manifests.json."
-version: 1.0.0
+description: "Personal work item validation with structural completeness checks. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates are the single source of truth for structural rules."
+version: 2.0.0
 allowed-tools:
   - Bash
   - Read
@@ -32,13 +32,13 @@ _SKILL_DIR=""
 _TMPL_DIR=""
 
 # Level 1: workbench repo
-if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/personal-workflow/contract.json" ]; then
+if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json" ]; then
   _SKILL_DIR="$_REPO_ROOT/skills/personal-workflow"
   _TMPL_DIR="$_REPO_ROOT/templates/personal-workflow"
 fi
 
 # Level 2: deployed location
-if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/personal-workflow/contract.json" ]; then
+if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/personal-workflow/personal-artifact-manifests.json" ]; then
   _SKILL_DIR="$HOME/.claude/skills/personal-workflow"
   _TMPL_DIR="$HOME/.claude/templates/personal-workflow"
 fi
@@ -65,11 +65,17 @@ Run `skills-deploy install` or check the repo structure." and stop.
 ## Overview
 
 Personal work item validation skill. Enforces the personal-dev work item standard:
-structural validation via contract.json, artifact completeness via
-personal-artifact-manifests.json, and frontmatter compliance against templates.
+structural validation derived directly from the templates in
+`templates/personal-workflow/`, artifact completeness via
+`personal-artifact-manifests.json`, and frontmatter compliance against templates.
 
 Uses a 3-phase lifecycle (Track, Implement, Ship) and a 2-level template
 fallback chain (repo root, then ~/.claude/).
+
+**Templates are the single source of truth.** The validator derives every
+structural rule (required frontmatter, required sections, section order,
+lifecycle phases, minimum checkbox count) by parsing the matching template at
+runtime. There is no separate `contract.json` to drift from the templates.
 
 For the complete doc-driven development workflow (generating docs, scaffolding
 conventions, installation), see [WORKFLOW.md](WORKFLOW.md).
@@ -102,7 +108,8 @@ and follow its instructions.
 | Skill assets not found | "Error: personal-workflow skill assets not found." | Run `skills-deploy install` or check repo structure |
 | Target file not found | "Error: file not found: {path}" | Check the path |
 | Unparseable frontmatter | "VIOLATION: could not parse YAML frontmatter in {path}" | Fix the frontmatter |
-| contract.json missing | "Error: contract.json not found at {path}" | Reinstall skill |
+| Template not found | "Error: template tracker-{type}.md not found." | Run `skills-deploy install` or check template deployment |
+| Unknown type | "VIOLATION: unknown type \"{value}\" in {path}" | Fix the `type` field |
 | No TRACKER.md in directory | "Error: no TRACKER.md found in {directory}. Not a work item directory." | Check the path |
 | Manifest missing | "Error: personal-artifact-manifests.json not found." | Reinstall skill |
 | Template not found | "Warning: template {filename} not found. Skipping frontmatter validation." | Check template deployment |

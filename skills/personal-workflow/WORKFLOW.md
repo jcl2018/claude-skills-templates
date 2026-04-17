@@ -26,7 +26,9 @@ For each work item type, the AI reads the template for structure:
 The full type-to-artifact mapping is in `personal-artifact-manifests.json`.
 
 After generation, run `/personal-workflow check` to ensure the docs meet the
-structural contract (required fields, section order, lifecycle phases).
+structural rules. The validator derives those rules from the templates at
+runtime (required fields, section order, lifecycle phases, minimum checkbox
+count). Templates are the single source of truth.
 
 ### Step 2: Align the Big Picture
 
@@ -184,9 +186,8 @@ cp -r templates/personal-workflow/ ~/.claude/templates/personal-workflow/
 ~/.claude/skills/personal-workflow/
     SKILL.md                          # check + tree commands
     WORKFLOW.md                       # this file (scaffolding + workflow)
-    contract.json                     # structural validation rules
     personal-artifact-manifests.json  # type-to-artifact mapping
-    check.md                          # full validation logic
+    check.md                          # full validation logic (template-derived rules)
     tree.md                           # hierarchy view
     fixtures/                         # test fixtures
 

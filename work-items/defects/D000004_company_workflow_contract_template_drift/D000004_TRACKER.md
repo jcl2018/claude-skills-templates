@@ -2,9 +2,9 @@
 name: "company-workflow contract/template drift (workflow_type, section order)"
 type: defect
 id: "D000004"
-status: active
+status: superseded
 created: "2026-04-16"
-updated: "2026-04-16"
+updated: "2026-04-17"
 repo: "jcl2018/claude-skills-templates"
 branch: "claude/nostalgic-volhard"
 blocked_by: ""
@@ -123,6 +123,7 @@ Surfaced by deploying and using `/company-workflow` against the ai-content repo 
 - 2026-04-16: Created. Spun out of D000003 (`D000003_company_workflow_contract_template_drift`, now narrowed and renamed to `D000003_company_workflow_feature_artifact_duplication`). Carries Issues 1 (workflow_type) and 3 (section order) plus the architectural rethink for the round-trip runner.
 - 2026-04-16: Inherited design doc `chjiang-claude-nostalgic-volhard-design-20260416-142220.md` (Status: NEEDS_REVISION) which already documents the architectural finding and the 5 design-space options A-E. The doc still applies to D000004; the feature-summary.md / artifact-split portion (Issue 2) has moved to D000003.
 - 2026-04-16: Status remains BLOCKED on the architectural choice. No code work until A/B/C/D/E is decided.
+- 2026-04-17: **SUPERSEDED by D000007.** D000007 introduces option F (eliminate `contract.json`; templates ARE the spec) which dissolves both Issue 1 and Issue 3 — there is no contract for the templates to drift from. Status flipped to `superseded`. See `work-items/defects/D000007_workflow_template_single_source_of_truth/` for the architectural decision and implementation. No further work needed on D000004 itself.
 
 ## PRs
 

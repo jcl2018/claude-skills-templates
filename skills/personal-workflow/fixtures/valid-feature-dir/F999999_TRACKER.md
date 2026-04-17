@@ -1,6 +1,7 @@
 ---
 name: "Test Feature"
 type: feature
+id: "F999999"
 status: active
 created: "2026-01-01"
 updated: "2026-01-01"
@@ -12,13 +13,27 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Feature scoped (acceptance criteria defined)
+
+**Gates:**
+- [x] Acceptance criteria scoped
+- [x] Working branch created (`branch` field populated)
+- [x] Milestones scaffolded
+- [x] Broken down into child stories
 
 ### Phase 2: Implement
-- [ ] Implementation complete
+
+**Gates:**
+- [ ] All child stories have entered Phase 2+
+- [ ] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
-- [ ] PR created and merged
+
+**Gates:**
+- [ ] `/personal-workflow check` — all children pass validation
+- [ ] `/personal-workflow tree` — structure complete
+- [ ] All children shipped
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
