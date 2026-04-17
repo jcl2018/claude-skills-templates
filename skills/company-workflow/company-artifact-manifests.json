@@ -13,13 +13,15 @@
       "required": [
         {"artifact": "tracker", "template": "tracker-defect.md", "filename": "TRACKER.md"},
         {"artifact": "rca", "template": "doc-RCA.md", "filename": "RCA.md"},
-        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"}
+        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"},
+        {"artifact": "pr-description", "template": "doc-pr-description-defect.md", "filename": "PR-DESCRIPTION.md"}
       ]
     },
     "task": {
       "required": [
         {"artifact": "tracker", "template": "tracker-task.md", "filename": "TRACKER.md"},
-        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"}
+        {"artifact": "test-plan", "template": "doc-test-plan.md", "filename": "test-plan.md"},
+        {"artifact": "pr-description", "template": "doc-pr-description-task.md", "filename": "PR-DESCRIPTION.md"}
       ]
     },
     "user-story": {
