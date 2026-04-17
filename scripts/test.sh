@@ -473,6 +473,30 @@ else
   ok "skills-catalog.json no longer references contract.json for either workflow skill"
 fi
 
+echo ""
+echo "Regression test (D000008): CLAUDE.md merge convention guard..."
+
+# CLAUDE.md must keep the merge-convention section so future /ship runs in this
+# repo use the right gh pr merge invocation (--auto --squash, not --auto alone)
+# and know to use gh api for the worktree-aware remote-branch cleanup
+if grep -q "^## CI/CD merge convention" "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md has the CI/CD merge convention section"
+else
+  fail_test "CLAUDE.md is missing the '## CI/CD merge convention' section (D000008 guard)"
+fi
+
+if grep -qE 'gh pr merge.*--auto.*--squash' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md prescribes the --auto --squash combined invocation"
+else
+  fail_test "CLAUDE.md is missing the explicit --auto --squash gh pr merge invocation (D000008 guard)"
+fi
+
+if grep -qE 'gh api .*-X DELETE.*git/refs/heads' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md documents the worktree-aware remote-branch cleanup workaround"
+else
+  fail_test "CLAUDE.md is missing the 'gh api -X DELETE' worktree cleanup workaround (D000008 guard)"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
