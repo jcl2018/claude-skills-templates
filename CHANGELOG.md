@@ -4,6 +4,21 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.10.0] - 2026-04-17
+
+### Changed
+- **Hierarchy & Placement rules moved from enforcement to spec.** Both `skills/personal-workflow/WORKFLOW.md` and `skills/company-workflow/WORKFLOW.md` gain a new `### Hierarchy & Placement` section under "Scaffolding Conventions" that documents parent-child requirements (feature requires ≥1 user-story child; user-story requires ≥1 task child; defects/reviews/standalone-tasks have no required children), placement rules (features go in `features/`, defects in `defects/`, reviews in `reviews/` for company; user-stories nest under features; tasks nest under user-stories), and directory naming regex (`{ID}_{slug}/` where ID matches the type prefix F/S/T/D/R and slug matches `[a-z0-9_-]+`). The generating AI reads this spec at scaffolding time and follows it. Same trust model as D000007 (v0.9.0): templates + WORKFLOW.md are the single source of truth.
+
+### Removed
+- **`hierarchy` and `placement` blocks from `skills/personal-workflow/personal-artifact-manifests.json`** — these were the data feed for the enforcement code removed below. Schema is smaller and more consistent with D000007's "no separate config as source of truth" philosophy.
+- **Hierarchy / placement enforcement from `skills/personal-workflow/check.md`** — the `[INCOMPLETE]` and `[MISPLACED]` flags (old Steps 19a, 19b, 19c, 19e) are gone. Old Step 19 "Check 4 — Structural Completeness + Orphan Detection" collapses into a single "Check 4 — Stray Directory Detection" that flags `[STRAY]` for non-work-item directories containing `.md` files. The `structure` badge, `completeness` field in the graph artifact, and `structural_rules` top-level field are all removed. The Badge Summary and Structural Summary sections in the generated report drop the corresponding columns. The `company-workflow` validator was NEVER wired to enforce these rules, so no changes there.
+
+### Rationale
+Adding hierarchy enforcement via a new config field + validator logic would have recreated the exact drift mechanism D000007 (v0.9.0, merged yesterday) eliminated by deleting `contract.json`. Putting the rules in `WORKFLOW.md` as prose that the AI reads is consistent with the rest of the skill architecture. If AI obedience proves unreliable in practice, a future validator can read its rules from `WORKFLOW.md` (one place, same spec the AI follows) rather than a separate config field.
+
+### Migration note
+Existing `work-items/features/*/` directories that have no user-story children (e.g., `F000002_system_health_v1/`) no longer surface as `[INCOMPLETE]` in the `/personal-workflow check` output. Pure behavior change for that validator. If your team depended on `[INCOMPLETE]` as a signal, move the check into a PR review step or a pre-commit hook that greps `WORKFLOW.md`'s "Required children" section.
+
 ## [0.9.0] - 2026-04-17
 
 ### Changed

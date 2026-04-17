@@ -38,16 +38,6 @@
       "lifecycle_overrides": {}
     }
   },
-  "hierarchy": {
-    "feature": {"required_child": "user-story", "min": 1},
-    "user-story": {"required_child": "task", "min": 1}
-  },
-  "placement": {
-    "feature": "features",
-    "defect": "defects",
-    "user-story": "feature",
-    "task": "user-story"
-  },
   "template_dir": "~/.claude/templates",
   "work_items_dir": "./work-items"
 }

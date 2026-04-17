@@ -136,6 +136,47 @@ work-items/
 
 All artifact filenames are prefixed with the item ID at scaffold time.
 
+### Hierarchy & Placement
+
+When scaffolding a work item, the generating AI must also scaffold its required
+children in the same operation. Structural completeness is enforced at scaffolding
+time by the AI reading this spec, not by a separate validator or scaffolder script.
+This matches the D000007 philosophy: templates + WORKFLOW.md are the source of
+truth; the AI reads them and follows them.
+
+**Required children (scaffold these alongside the parent):**
+
+- **feature** -> at least 1 user-story child
+- **user-story** -> at least 1 task child
+- **task, defect, review** -> no required children
+
+**Placement rules:**
+
+| Type | Location |
+|------|----------|
+| feature | `work-items/features/{ID}_{slug}/` |
+| defect | `work-items/defects/{ID}_{slug}/` |
+| review | `work-items/reviews/{ID}_{slug}/` |
+| user-story | nested under a feature: `work-items/features/{feature-ID}_{slug}/{ID}_{slug}/` |
+| task | nested under a user-story |
+
+**Directory naming rule:** every work-item directory must be `{ID}_{slug}/` where:
+- `{ID}` matches the type prefix (F/S/T/D/R) + 6 digits (e.g., `F000003`, `R000001`)
+- `{slug}` matches `[a-z0-9_-]+` (lowercase, no spaces or capitals)
+- The `{ID}` inside the directory name must match the `id` field in the TRACKER
+  frontmatter
+
+**Common mistakes to avoid:**
+
+- Creating `work-items/features/F000003_my-feature/` with no child user-story directory
+- Creating a user-story at `work-items/user-stories/` (they always nest under a feature)
+- Using bare slugs like `work-items/features/my-feature/` without the ID prefix
+- Mismatching the ID in the directory name vs. the ID in the TRACKER frontmatter
+
+**Legacy directories:** if you encounter an existing bare-slug directory (e.g.,
+`work-items/features/my-feature/` without an ID prefix), treat it as legacy. Don't
+auto-rename. Flag it to the user and let them decide whether to migrate.
+
 ### Placeholder Replacement
 
 When generating docs from templates, replace these placeholders:
