@@ -4,6 +4,16 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.8.0] - 2026-04-16
+
+### Added
+- **PR description templates for company-workflow `task` and `defect` work items.** Two new templates designed as self-contained PR bodies that fit TFS's 4,000-character limit (TFS reviewers cannot click links to local work-item files like `RCA.md` or `test-plan.md`, so the PR body must inline-summarize). Defect template (~1,331 chars scaffolding, verified ~2,224 chars when filled with a realistic example): `[ID] {Name} (P{N})` → Summary → Symptom → Root Cause + Location → Fix → Changes → Test Coverage table. Task template (~976 chars scaffolding): `[ID] {Name}` → Summary → Motivation → Changes → Affected Workflows → Test Plan table. Both include strip-before-pasting instructions in an HTML comment header (frontmatter and comment block are stripped before pasting; only the body goes to TFS).
+- `pr-description` artifact entry in `skills/company-workflow/company-artifact-manifests.json` for both `task` (template: `doc-pr-description-task.md`) and `defect` (template: `doc-pr-description-defect.md`). Filename is `PR-DESCRIPTION.md` in both cases. Aligns with the Phase 4: Ship lifecycle gate "PR description generated" already present in `tracker-task.md` and `tracker-defect.md`.
+- `skills-catalog.json`: company-workflow templates list adds the two new templates (14 → 16 templates).
+
+### Migration note
+Existing company-workflow consumers with active `task` or `defect` work item directories will now see `PR-DESCRIPTION.md` flagged as missing by the directory-mode validator. Recommended migration: scaffold `PR-DESCRIPTION.md` from the new template at PR creation time (Phase 4: Ship). Older completed work items can either be backfilled or excluded from validation.
+
 ## [0.7.2] - 2026-04-16
 
 ### Changed
