@@ -107,6 +107,8 @@ blocked_by: ""
 - 2026-04-17: Full task decomposition complete. 8 tasks scaffolded across the 3 stories (T000003/T000004 under S000004; T000005/T000006/T000007 under S000005; T000008/T000009/T000010 under S000006). Each task has TRACKER + test-plan + PR-DESCRIPTION (24 artifacts). 42 artifacts total for F000004.
 - 2026-04-17: T000003 landed (commit 6265249) — AI_KNOWLEDGE_DIR resolution in SKILL.md + WORKFLOW.md configuration docs.
 - 2026-04-17: Converted F000004 scaffolding to personal-workflow structure. Dropped: feature-summary.md, per-story milestones.md, per-task PR-DESCRIPTION.md (12 files). Rewrote all TRACKERs to 3-phase lifecycle (Track/Implement/Ship — no Review) and simplified frontmatter (no workflow_type, no url). Content (AC, Todos, Log, Journal, design decisions) preserved in full. 42 → 30 artifacts.
+- 2026-04-18: /office-hours produced the S000004 design doc (alternatives audit). /plan-eng-review ran on it: 7 issues found, all resolved. Codex outside-voice caught 3 additional findings (fake CI coverage, cross-context contamination, log injection) — all applied. Sanitization patch to SKILL.md committed (a46efa9). Per-repo opt-in gate added to S000005 TRACKER as P0.
+- 2026-04-18: T000004 landed — 11 scripted assertions in scripts/test.sh, full suite passes. S000004 Phase 2 complete; child-story ready to ship whenever user runs /ship. S000005 and S000006 unblock next.
 
 ## PRs
 

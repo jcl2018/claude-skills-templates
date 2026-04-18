@@ -497,6 +497,149 @@ else
   fail_test "CLAUDE.md is missing the 'gh api -X DELETE' worktree cleanup workaround (D000008 guard)"
 fi
 
+echo ""
+echo "Regression test (T000004): AI_KNOWLEDGE_DIR resolution block (S000004)..."
+# Background: /company-workflow validate is an LLM-driven SKILL.md, not an
+# executable, so bash CI cannot invoke it end-to-end. These tests extract the
+# Knowledge Resolution bash block from SKILL.md and exec it in isolation
+# against mocked env states. That block IS the implementation for S000004;
+# testing it this way gives genuine coverage. See D000004_RCA.md for why.
+
+# Use a single tmpdir for all T000004 artifacts; portable across GNU + BSD mktemp.
+_T4_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000004' 2>/dev/null)
+_T4_KR="$_T4_TMPDIR/kr.sh"
+_T4_VALID="$_T4_TMPDIR/valid-dir"
+_T4_FILE="$_T4_TMPDIR/not-a-dir"
+mkdir -p "$_T4_VALID"
+touch "$_T4_FILE"
+
+# Extract the Knowledge Resolution bash block from SKILL.md once.
+awk '/^## Knowledge Resolution/,/^## Template Registry/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T4_KR"
+
+if [ ! -s "$_T4_KR" ]; then
+  fail_test "T000004: could not extract Knowledge Resolution bash block from SKILL.md"
+else
+  # --- Tier 1 structural greps ---
+  if grep -q "^## Knowledge Resolution" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+    ok "T000004 case 1: SKILL.md has ## Knowledge Resolution section"
+  else
+    fail_test "T000004 case 1: SKILL.md missing ## Knowledge Resolution section"
+  fi
+
+  if grep -q "AI_KNOWLEDGE_DIR" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+     && grep -q "_KNOWLEDGE_DIR=" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+    ok "T000004 case 2: SKILL.md references AI_KNOWLEDGE_DIR and exposes _KNOWLEDGE_DIR"
+  else
+    fail_test "T000004 case 2: SKILL.md missing AI_KNOWLEDGE_DIR or _KNOWLEDGE_DIR"
+  fi
+
+  if grep -q "AI_KNOWLEDGE_DIR" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+    ok "T000004 case 3: WORKFLOW.md documents AI_KNOWLEDGE_DIR"
+  else
+    fail_test "T000004 case 3: WORKFLOW.md missing AI_KNOWLEDGE_DIR documentation"
+  fi
+  # Case 4 (validate.sh passes): already asserted at top of test.sh.
+
+  # Case 11 (S6): resolution block emits nothing to stdout
+  _t4_stdout=$(env -u AI_KNOWLEDGE_DIR bash "$_T4_KR" 2>/dev/null) || true
+  if [ -z "$_t4_stdout" ]; then
+    ok "T000004 case 11: block emits nothing to stdout when env unset"
+  else
+    fail_test "T000004 case 11: block leaked to stdout: '$_t4_stdout'"
+  fi
+
+  # --- Tier 2 extract-and-exec ---
+
+  # Case 5 (E1): env unset → 1 warning line on stderr, exit 0
+  if _t4_out=$(env -u AI_KNOWLEDGE_DIR bash "$_T4_KR" 2>&1 1>/dev/null); then
+    _t4_lines=$(printf '%s\n' "$_t4_out" | grep -c "^Warning:" || true)
+    if [ "$_t4_lines" = "1" ] && printf '%s' "$_t4_out" | grep -q "not set"; then
+      ok "T000004 case 5 (E1): env unset → 1 'not set' warning, exit 0"
+    else
+      fail_test "T000004 case 5 (E1): expected 1 'not set' warning, got lines=$_t4_lines output='$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 5 (E1): exit != 0 when env unset"
+  fi
+
+  # Case 6 (E2): valid dir → silent, exit 0
+  if _t4_out=$(AI_KNOWLEDGE_DIR="$_T4_VALID" bash "$_T4_KR" 2>&1); then
+    if [ -z "$_t4_out" ]; then
+      ok "T000004 case 6 (E2): valid dir → silent, exit 0"
+    else
+      fail_test "T000004 case 6 (E2): expected silent, got: '$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 6 (E2): exit != 0 on valid dir"
+  fi
+
+  # Case 7 (E3): nonexistent path → warning names path + 'not found'
+  _t4_bad=/does/not/exist/xyz-t000004
+  if _t4_out=$(AI_KNOWLEDGE_DIR="$_t4_bad" bash "$_T4_KR" 2>&1 1>/dev/null); then
+    if printf '%s' "$_t4_out" | grep -q "not found" \
+       && printf '%s' "$_t4_out" | grep -qF "$_t4_bad"; then
+      ok "T000004 case 7 (E3): nonexistent path → warning names path + 'not found'"
+    else
+      fail_test "T000004 case 7 (E3): wrong warning for bad path. output='$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 7 (E3): exit != 0 on bad path"
+  fi
+
+  # Case 8 (E4): path is a file → 'not a directory'
+  if _t4_out=$(AI_KNOWLEDGE_DIR="$_T4_FILE" bash "$_T4_KR" 2>&1 1>/dev/null); then
+    if printf '%s' "$_t4_out" | grep -q "not a directory" \
+       && printf '%s' "$_t4_out" | grep -qF "$_T4_FILE"; then
+      ok "T000004 case 8 (E4): file-not-dir → warning + path + 'not a directory'"
+    else
+      fail_test "T000004 case 8 (E4): wrong warning for file path. output='$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 8 (E4): exit != 0 on file path"
+  fi
+
+  # Case 9 (regression diff): MANUAL ONLY per test-plan.md scope note.
+  # /company-workflow validate is LLM-driven; bash CI cannot invoke it end-to-end.
+
+  # Case 10 (E1b): empty-string env → 'not set' (parity with unset)
+  if _t4_out=$(AI_KNOWLEDGE_DIR="" bash "$_T4_KR" 2>&1 1>/dev/null); then
+    if printf '%s' "$_t4_out" | grep -q "not set"; then
+      ok "T000004 case 10 (E1b): empty-string env → 'not set' (parity with unset)"
+    else
+      fail_test "T000004 case 10 (E1b): wrong warning for empty-string. output='$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 10 (E1b): exit != 0 on empty-string"
+  fi
+
+  # Case 12 (E5): set -e safety across unset / bad / valid sub-cases
+  _t4_se_ok=1
+  if ! env -u AI_KNOWLEDGE_DIR bash -c "set -e; source '$_T4_KR'" >/dev/null 2>&1; then _t4_se_ok=0; fi
+  if ! AI_KNOWLEDGE_DIR=/no/such/path bash -c "set -e; source '$_T4_KR'" >/dev/null 2>&1; then _t4_se_ok=0; fi
+  if ! AI_KNOWLEDGE_DIR="$_T4_VALID" bash -c "set -e; source '$_T4_KR'" >/dev/null 2>&1; then _t4_se_ok=0; fi
+  if [ "$_t4_se_ok" = "1" ]; then
+    ok "T000004 case 12 (E5): block survives parent 'set -e' across unset/bad/valid"
+  else
+    fail_test "T000004 case 12 (E5): set -e propagated internal test failure"
+  fi
+
+  # Case 13 (E6): hostile newline input → single-line warning (sanitization pin)
+  if _t4_out=$(AI_KNOWLEDGE_DIR=$'/tmp/evil\npath-t000004' bash "$_T4_KR" 2>&1 1>/dev/null); then
+    _t4_lines=$(printf '%s' "$_t4_out" | grep -c "^Warning:" || true)
+    if [ "$_t4_lines" = "1" ]; then
+      ok "T000004 case 13 (E6): hostile newline input → 1 warning line (sanitized)"
+    else
+      fail_test "T000004 case 13 (E6): expected 1 warning line, got $_t4_lines. output='$_t4_out'"
+    fi
+  else
+    fail_test "T000004 case 13 (E6): exit != 0 on hostile input"
+  fi
+fi
+
+rm -rf "$_T4_TMPDIR"
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
