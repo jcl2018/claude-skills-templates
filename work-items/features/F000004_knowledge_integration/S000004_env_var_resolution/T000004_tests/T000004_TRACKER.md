@@ -71,6 +71,8 @@ blocked_by: "T000003"
 
 - 2026-04-16: Created. Adds Tier 1 smoke + Tier 2 E2E + regression check for S000004.
 - 2026-04-17: Converted to personal-workflow structure (3-phase lifecycle; simplified frontmatter; PR-DESCRIPTION.md dropped).
+- 2026-04-18: /plan-eng-review added 3 test cases to test-plan.md (empty-string parity, stdout-empty assertion, set -e safety). Coverage for S000004's Knowledge Resolution block now 100% across code paths, structural, regression, and safety dimensions.
+- 2026-04-18: Codex outside-voice (via /plan-eng-review) caught 3 gaps. Applied: (a) rewrote Tier 2 E1–E5+E1b as extract-and-exec of the SKILL.md bash block instead of "invoke /company-workflow validate" (not possible from bash CI per D000004 RCA); (b) added case 13 (hostile input) to lock in the SKILL.md sanitization patch; (c) clarified scope note at top of test-plan. Coverage model is now honest about what bash CI can enforce vs. what is manual-verification-only.
 
 ## PRs
 

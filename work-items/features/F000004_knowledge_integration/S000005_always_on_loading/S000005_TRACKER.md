@@ -88,6 +88,7 @@ blocked_by: "S000004"
 - [ ] Add a soft size cap for total always-on bytes and decide behavior when exceeded (warn? truncate? hard fail?)
 - [ ] Write Tier 1 smoke tests (structural: sections, fixture layouts)
 - [ ] Write Tier 2 E2E tests (valid always-on category → content loaded; on-demand category → nothing loaded; mixed categories → only always-on loaded)
+- [ ] **Per-repo opt-in gate** (Codex outside-voice finding F2, 2026-04-18): check for a marker file (e.g. `.claude/knowledge-enabled` or similar) in the repo root before activating knowledge loading. Without the marker, `$AI_KNOWLEDGE_DIR` is resolved but no content loads. Prevents cross-context contamination where a user with a global env var pointed at Company A's knowledge folder auto-injects Company A guidance while working in Company B or OSS repos. Decide marker filename and placement as part of this story's Phase 1 design.
 - [ ] Create fixtures under `skills/company-workflow/fixtures/`: one valid always-on category, one on-demand category, one malformed yml
 - [ ] Update WORKFLOW.md with `.knowledge.yml` schema and example
 
@@ -98,6 +99,7 @@ blocked_by: "S000004"
 - 2026-04-16: Created. Second vertical slice of F000004: always-on category loading. Blocked by S000004 (resolution). On-demand matching ships in S000006.
 - 2026-04-17: Decomposed into tasks: T000005 (build fixtures), T000006 (Knowledge Loading block in SKILL.md + WORKFLOW.md schema docs, blocked by T000005), T000007 (Tier 1 + Tier 2 + regression tests, blocked by T000006).
 - 2026-04-17: Converted to personal-workflow structure (3-phase lifecycle; simplified frontmatter with `parent: F000004`; story-level milestones.md dropped — now only at feature level).
+- 2026-04-18: Added P0 Todo: per-repo opt-in gate (Codex outside-voice finding F2 via /plan-eng-review). S000004 resolves the env var globally; S000005 must gate on a repo-level marker before actually loading content, else users leak Company A knowledge into Company B / OSS repos.
 
 ## PRs
 
