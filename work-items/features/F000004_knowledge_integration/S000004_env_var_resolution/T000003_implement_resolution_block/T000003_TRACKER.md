@@ -1,12 +1,10 @@
 ---
 name: "implement-resolution-block"
 type: task
-workflow_type: task
 id: "T000003"
 status: active
 created: "2026-04-16"
-updated: "2026-04-16"
-url: ""
+updated: "2026-04-17"
 parent: "S000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
@@ -16,28 +14,49 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Scope understood from parent work item (parent tracker read)
+
+1. Read parent tracker to understand scope and acceptance criteria
+2. Create working branch: `git checkout -b feat/{slug}`
+   (use parent's branch if the task ships in the same PR; create a new branch if it warrants its own PR)
+3. Scaffold required docs:
+   - `test-plan.md` (test scenarios for this task) — from `templates/doc-test-plan.md`
+4. Populate Files section with expected changed files
+5. Write initial Todos from parent's acceptance criteria
+
+**Gates:**
+- [x] Parent scope read (parent tracker reviewed)
 - [x] Working branch created (`branch` field populated)
-- [x] Files section has >=1 entry
+- [x] Required docs scaffolded (test-plan)
+- [x] Files section populated
 
 ### Phase 2: Implement
-- [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] All test cases in test-plan.md marked Pass
-- [ ] Files section updated with all changed files
-- [ ] Todos section reflects remaining work (no stale items)
 
-### Phase 3: Review
-- [ ] Code review requested (reviewer noted)
-- [ ] Review feedback captured (suggestions + resolutions in Journal)
-- [ ] All review suggestions resolved or marked won't-fix
+1. Work from `/office-hours` design doc + parent's acceptance criteria + your Todos
+   → design doc at `~/.gstack/projects/{slug}/`
+2. Commit changes incrementally with descriptive messages
+3. Update Todos section — check off completed items, add discoveries
+4. Update Files section with actual changed files
 
-### Phase 4: Ship
-- [ ] Linux branch build passes
-- [ ] Regression tests pass
-- [ ] Code review completed (reviewer noted in Journal)
-- [ ] PR description generated
-- [ ] PR created (PR link in PRs section)
-- [ ] Merged to target branch
+**Gates:**
+- [x] Core changes committed (>=1 commit SHA in Log)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
+
+### Phase 3: Ship
+
+1. Run `/personal-workflow check` — verify no regressions
+2. Verify test-plan: all test scenarios passing
+3. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
+4. Run `/land-and-deploy` — merges PR and verifies deployment
+
+❌ If tests fail: fix, re-run
+❌ If CI fails: fix, push, re-run `/ship`
+
+**Gates:**
+- [ ] `/personal-workflow check` — validation passed
+- [ ] Test-plan verified (all scenarios passing)
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -60,6 +79,8 @@ blocked_by: ""
 
 - 2026-04-16: Created. Implements resolution bash block in SKILL.md + docs in WORKFLOW.md for S000004 AC-1/2/3/4. No test code here — T000004 owns tests.
 - 2026-04-17: Implemented. Added `## Knowledge Resolution` section to SKILL.md (bash block + behavior contract + cross-link) and `## Knowledge Configuration` section to WORKFLOW.md (setup + layout + `.knowledge.yml` schema + current status). Three distinct warning lines per failure mode (unset/empty, not-found, not-a-directory). Ready for T000004 tests.
+- 2026-04-17: Committed as 6265249 (feat: T000003 AI_KNOWLEDGE_DIR resolution + WORKFLOW.md configuration docs).
+- 2026-04-17: Converted to personal-workflow structure (3-phase lifecycle; simplified frontmatter; PR-DESCRIPTION.md dropped).
 
 ## PRs
 

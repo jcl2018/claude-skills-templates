@@ -1,12 +1,10 @@
 ---
 name: "knowledge-integration"
 type: feature
-workflow_type: feature
 id: "F000004"
 status: active
 created: "2026-04-16"
-updated: "2026-04-16"
-url: ""
+updated: "2026-04-17"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
 blocked_by: ""
@@ -15,30 +13,47 @@ blocked_by: ""
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Feature scoped (acceptance criteria defined)
+
+1. Run `/office-hours` to explore the problem space and generate a design doc
+   → produces design doc in `~/.gstack/projects/`
+2. Create working branch: `git checkout -b feat/{slug}`
+3. Scaffold work item directory and TRACKER.md
+4. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
+5. Define acceptance criteria (what "done" looks like for the whole feature)
+6. Decompose into child user-stories
+   → detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
+
+**Gates:**
+- [x] Acceptance criteria scoped
 - [x] Working branch created (`branch` field populated)
-- [x] Feature summary + milestones created (feature-summary.md + milestones.md)
-- [x] Tasks broken down (child task items created)
+- [x] Milestones scaffolded
+- [x] Broken down into child stories
 
 ### Phase 2: Implement
-- [ ] Core implementation committed (>=1 commit SHA in Log)
-- [ ] All child tasks completed or deferred
-- [ ] Each child user-story's TEST-SPEC has all P0 cases Pass
-- [ ] Files section updated with all changed files
 
-### Phase 3: Review
-- [ ] Code review requested (reviewer noted)
-- [ ] Review feedback captured (suggestions + resolutions in Journal)
-- [ ] All review suggestions resolved or marked won't-fix
-- [ ] Feature summary + milestones pass alignment check (constituent user-stories listed; success criteria match nested PRDs)
+1. Child user-stories/tasks drive implementation (feature tracker coordinates)
+2. Monitor child progress — update this tracker when children complete phases
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with top-level changed files
 
-### Phase 4: Ship
-- [ ] Linux branch build passes
-- [ ] Regression tests pass
-- [ ] Code review completed (reviewer noted in Journal)
-- [ ] PR description generated
-- [ ] PR created (PR link in PRs section)
-- [ ] Merged to target branch
+**Gates:**
+- [ ] All child stories have entered Phase 2+
+- [ ] Feature-level Todos reflect remaining coordination work
+
+### Phase 3: Ship
+
+1. Run `/personal-workflow check` — verify full hierarchy passes all badges
+2. Run `/personal-workflow tree` — verify structural completeness (all children present)
+3. Ensure all child stories have shipped
+4. Run `/ship` — creates feature PR, includes pre-landing code review
+5. Run `/land-and-deploy` — merges and verifies
+
+**Gates:**
+- [ ] `/personal-workflow check` — all children pass validation
+- [ ] `/personal-workflow tree` — structure complete
+- [ ] All children shipped
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -90,6 +105,8 @@ blocked_by: ""
 - 2026-04-16: Scaffolded S000004 (env-var resolution + missing-folder warning) — first of 3 planned vertical slices. Two more stories (always-on loading, on-demand matching) still to scaffold.
 - 2026-04-16: Scaffolded S000005 (always-on loading) and S000006 (on-demand matching). Phase-1 decomposition complete (all 3 vertical slices scaffolded). Ready to move to Phase-2 Implement once S000004 lands.
 - 2026-04-17: Full task decomposition complete. 8 tasks scaffolded across the 3 stories (T000003/T000004 under S000004; T000005/T000006/T000007 under S000005; T000008/T000009/T000010 under S000006). Each task has TRACKER + test-plan + PR-DESCRIPTION (24 artifacts). 42 artifacts total for F000004.
+- 2026-04-17: T000003 landed (commit 6265249) — AI_KNOWLEDGE_DIR resolution in SKILL.md + WORKFLOW.md configuration docs.
+- 2026-04-17: Converted F000004 scaffolding to personal-workflow structure. Dropped: feature-summary.md, per-story milestones.md, per-task PR-DESCRIPTION.md (12 files). Rewrote all TRACKERs to 3-phase lifecycle (Track/Implement/Ship — no Review) and simplified frontmatter (no workflow_type, no url). Content (AC, Todos, Log, Journal, design decisions) preserved in full. 42 → 30 artifacts.
 
 ## PRs
 

@@ -1,9 +1,8 @@
 ---
 type: milestones
 template-version: 1
-parent: F000004_knowledge_integration
-feature: F000004
-updated: 2026-04-16
+parent: F000004
+updated: 2026-04-17
 ---
 
 ## Milestones

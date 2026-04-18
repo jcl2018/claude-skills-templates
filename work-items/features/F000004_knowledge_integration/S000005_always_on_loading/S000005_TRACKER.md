@@ -1,12 +1,11 @@
 ---
 name: "always-on-loading"
 type: user-story
-workflow_type: user-story
 id: "S000005"
 status: active
 created: "2026-04-16"
-updated: "2026-04-16"
-url: ""
+updated: "2026-04-17"
+parent: "F000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
 blocked_by: "S000004"
@@ -15,28 +14,57 @@ blocked_by: "S000004"
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Story scoped (acceptance criteria defined)
+
+1. Read parent tracker to understand scope
+2. Run `/office-hours` with your idea
+   → produces design doc in `~/.gstack/projects/`
+3. Create working branch: `git checkout -b feat/{slug}`
+4. Scaffold work item directory and TRACKER.md
+5. Scaffold required docs from design doc:
+   - `PRD.md` (requirements) — from `templates/doc-PRD.md`
+   - `ARCHITECTURE.md` (architecture decisions) — from `templates/doc-ARCHITECTURE.md`
+   - `TEST-SPEC.md` (test scenarios) — from `templates/doc-TEST-SPEC.md`
+6. Break into child tasks if scope warrants decomposition
+
+**Gates:**
+- [x] Acceptance criteria defined
 - [x] Working branch created (`branch` field populated)
-- [x] Tasks broken down (child task items created if needed)
+- [x] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC)
+- [x] Tasks broken down (if needed)
 
 ### Phase 2: Implement
-- [ ] Core implementation committed (>=1 commit SHA in Log)
-- [ ] Acceptance criteria met
-- [ ] All P0 cases in TEST-SPEC.md marked Pass; remaining cases marked Pending/Skip with reason
-- [ ] Files section updated with all changed files
 
-### Phase 3: Review
-- [ ] Code review requested (reviewer noted)
-- [ ] Review feedback captured (suggestions + resolutions in Journal)
-- [ ] All review suggestions resolved or marked won't-fix
+1. Child tasks drive implementation (user-story tracker coordinates)
+2. Monitor child progress — update this tracker when children complete phases
+3. Update Todos section — check off completed children, add discoveries
+4. Update Files section with changed file paths
 
-### Phase 4: Ship
-- [ ] Linux branch build passes
-- [ ] Regression tests pass
-- [ ] Code review completed (reviewer noted in Journal)
-- [ ] PR description generated
-- [ ] PR created (PR link in PRs section)
-- [ ] Merged to target branch
+**Gates:**
+- [ ] All child tasks have entered Phase 2+
+- [ ] Acceptance criteria verified met
+- [ ] Todos section reflects remaining work (no stale items)
+- [ ] Files section updated with changed files
+
+### Phase 3: Ship
+
+1. Run `/personal-workflow check` — verify all validation passes
+   → should show PASS for template, lifecycle, traceability, structure badges
+2. Run `/personal-workflow tree` — verify hierarchy and structural completeness
+3. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
+4. Ensure all child tasks have shipped
+5. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
+6. Run `/land-and-deploy` — merges PR and verifies deployment
+
+❌ If `/personal-workflow check` finds issues: fix findings, re-run until clean
+❌ If CI fails: fix, push, re-run `/ship`
+
+**Gates:**
+- [ ] `/personal-workflow check` — validation passed
+- [ ] `/personal-workflow tree` — structure verified
+- [ ] TEST-SPEC covers all P0 acceptance criteria
+- [ ] All children shipped
+- [ ] `/ship` — PR created
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -69,6 +97,7 @@ blocked_by: "S000004"
 
 - 2026-04-16: Created. Second vertical slice of F000004: always-on category loading. Blocked by S000004 (resolution). On-demand matching ships in S000006.
 - 2026-04-17: Decomposed into tasks: T000005 (build fixtures), T000006 (Knowledge Loading block in SKILL.md + WORKFLOW.md schema docs, blocked by T000005), T000007 (Tier 1 + Tier 2 + regression tests, blocked by T000006).
+- 2026-04-17: Converted to personal-workflow structure (3-phase lifecycle; simplified frontmatter with `parent: F000004`; story-level milestones.md dropped — now only at feature level).
 
 ## PRs
 
