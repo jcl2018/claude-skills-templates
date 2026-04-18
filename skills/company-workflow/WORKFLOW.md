@@ -242,3 +242,78 @@ Level 2: ~/.claude/skills/company-workflow/       (deployed)
 
 Templates resolve the same way: `$REPO_ROOT/templates/company-workflow/` then
 `~/.claude/templates/company-workflow/`.
+
+## Knowledge Configuration
+
+The skill supports an OPTIONAL external knowledge directory for coding
+guidance (e.g. cpp style) and company-specific domain knowledge. When
+configured, downstream features (SKILL.md §Knowledge Resolution; the
+always-on and on-demand loading layers in F000004) consume its contents.
+When unset, the skill still functions — only knowledge features are disabled.
+
+### Setup
+
+Export `AI_KNOWLEDGE_DIR` in your shell profile pointing to a directory of
+your choice:
+
+```bash
+# ~/.zshrc, ~/.bashrc, or equivalent
+export AI_KNOWLEDGE_DIR="$HOME/knowledge"
+```
+
+Create the directory and a starter category:
+
+```bash
+mkdir -p "$AI_KNOWLEDGE_DIR/coding"
+```
+
+The skill emits a one-line warning on **stderr** every invocation when the
+variable is unset, empty, points to a non-existent path, or points to a
+non-directory. Exit code is unchanged (0 on success). Suppression is
+deliberately out of scope for v1 — the warning is the nudge to finish setup.
+
+### Layout
+
+```
+$AI_KNOWLEDGE_DIR/
+  <category>/              # arbitrary name (coding, domain, runbooks, …)
+    .knowledge.yml         # optional — declares surface + triggers
+    *.md                   # knowledge files; nesting allowed
+    <subdir>/
+      *.md
+```
+
+The top-level organization is user-shaped: the skill discovers categories by
+listing immediate subdirectories of `$AI_KNOWLEDGE_DIR` at runtime. No
+taxonomy is hardcoded. `coding/` and `domain/` are illustrative examples —
+use whatever category names fit your work (`runbooks/`, `style/`, `security/`,
+etc.).
+
+### `.knowledge.yml` Schema
+
+```yaml
+# Minimum fields
+surface: always         # or: on-demand
+triggers: [keyword1, "multi-word phrase"]   # required when surface: on-demand
+                                            # ignored when surface: always
+```
+
+- **`surface: always`** — the category's markdown files are injected into
+  Claude's context on every skill invocation. Use for guidance you want
+  applied by default (house style, team conventions).
+- **`surface: on-demand`** — the category loads only when a declared trigger
+  matches the user's latest message. Match rule: case-insensitive whole-word
+  tokens for single-word triggers; case-insensitive phrase match at token
+  boundaries for quoted multi-word triggers. Multiple matches → all load.
+- A category with **no `.knowledge.yml`** is treated as on-demand with empty
+  triggers — it stays dark until you author the file.
+- A category with **malformed yml** is skipped with a one-line warning; other
+  categories are unaffected.
+
+### Current Status
+
+Knowledge *resolution* (path detection + warning) is live. Knowledge *loading*
+(always-on injection, on-demand matching) is under development in feature
+[F000004](../../work-items/features/F000004_knowledge_integration/). Until
+the loading stories land, `AI_KNOWLEDGE_DIR` is recognized but no content is
+loaded into Claude's context.
