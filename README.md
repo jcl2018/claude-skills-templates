@@ -14,29 +14,44 @@ This symlinks all skills into `~/.claude/skills/` so Claude Code discovers them 
 ```bash
 # Manage installed skills
 ./scripts/skills-deploy install              # Install all skills + templates
-./scripts/skills-deploy remove docs          # Remove a skill
+./scripts/skills-deploy remove system-health # Remove a skill
 ./scripts/skills-deploy doctor               # Check health
 ```
 
 ## Templates
 
-Doc-first development templates for structured work tracking. Create work items with type-aware artifact sets via CLAUDE.md rules (no skill needed).
+Doc-first development templates for structured work tracking. Two workflow skills each own their own template set and artifact manifest. Invoke the relevant skill to scaffold work items per the mapping below.
+
+**Company-workflow** (formal 4-phase lifecycle, PR descriptions for TFS / external review):
 
 | Type | Artifacts |
 |------|-----------|
-| Feature | TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones |
-| Defect | TRACKER + RCA + test-plan |
-| Task | TRACKER + test-plan |
+| Feature | TRACKER + feature-summary + milestones |
 | User Story | TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones |
+| Task | TRACKER + test-plan + PR-DESCRIPTION |
+| Defect | TRACKER + RCA + test-plan + PR-DESCRIPTION |
+| Review | TRACKER + review-notes |
 
-See `artifact-manifests.json` for the canonical type-to-artifact mapping.
+**Personal-workflow** (lighter 3-phase lifecycle, no PR-description artifacts):
+
+| Type | Artifacts |
+|------|-----------|
+| Feature | TRACKER + milestones |
+| User Story | TRACKER + PRD + ARCHITECTURE + TEST-SPEC |
+| Task | TRACKER + test-plan |
+| Defect | TRACKER + RCA + test-plan |
+
+Per-skill manifests are the canonical source of truth:
+- `skills/company-workflow/company-artifact-manifests.json`
+- `skills/personal-workflow/personal-artifact-manifests.json`
 
 ## Skills
 
 | Skill | What it does |
 |-------|-------------|
-| `/docs` | Doc intelligence. Generates narrative docs (PHILOSOPHY.md, OVERVIEW.md) with claims sidecar for staleness detection. |
-| `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. |
+| `/company-workflow` | Validates company work items against templates. Structural rules (required frontmatter, section order, lifecycle phases, minimum checkbox count) derived from the matching template at runtime — no separate contract file to drift. Optional `AI_KNOWLEDGE_DIR` env var scaffolds an external knowledge folder for coding guidance and domain knowledge. |
+| `/personal-workflow` | Validates personal-dev work items. Same template-derived rules, lighter 3-phase lifecycle (Track / Implement / Ship), simpler frontmatter (no `workflow_type`, no `url`). |
+| `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. Composite 0-10 health score with trend tracking. |
 
 ## Creating a New Skill
 
