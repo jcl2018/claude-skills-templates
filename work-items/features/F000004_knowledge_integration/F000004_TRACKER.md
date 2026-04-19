@@ -88,7 +88,8 @@ blocked_by: ""
 - [ ] Decide how knowledge is surfaced: skill-side lookup, slash-command, or template placeholder expansion
 - [ ] Draft a child user-story for the resolution + surfacing mechanism
 - [ ] Draft a child user-story for the knowledge folder convention + seed content (cpp guide, one domain stub)
-- [ ] Sync with `/personal-workflow`: does personal-dev need parallel knowledge support?
+- [x] Sync with `/personal-workflow`: does personal-dev need parallel knowledge support? — **Yes, eventually.** Decision: port after S000006 lands. Cheapest path is lift-and-shift of the three bash sections (Resolution, Loading, Matching) from `skills/company-workflow/SKILL.md` into `skills/personal-workflow/SKILL.md`. Same env var (`AI_KNOWLEDGE_DIR`), same conventions, zero new design. User will tackle later.
+- [ ] **Port knowledge feature to `/personal-workflow` (follow-up, blocked by S000006)** — after S000005 + S000006 land in company-workflow, copy the Knowledge Resolution + Knowledge Loading + On-Demand Matching sections into `skills/personal-workflow/SKILL.md`. Mirror the WORKFLOW.md `## Knowledge Configuration` section as well. Extend `scripts/test.sh` with a parallel T000004-style test block against personal-workflow's SKILL.md. No new env var, no new `.knowledge.yml` schema — just replicate. Expected size: ~same as the combined company-workflow implementation.
 
 ## Log
 
@@ -109,6 +110,7 @@ blocked_by: ""
 - 2026-04-17: Converted F000004 scaffolding to personal-workflow structure. Dropped: feature-summary.md, per-story milestones.md, per-task PR-DESCRIPTION.md (12 files). Rewrote all TRACKERs to 3-phase lifecycle (Track/Implement/Ship — no Review) and simplified frontmatter (no workflow_type, no url). Content (AC, Todos, Log, Journal, design decisions) preserved in full. 42 → 30 artifacts.
 - 2026-04-18: /office-hours produced the S000004 design doc (alternatives audit). /plan-eng-review ran on it: 7 issues found, all resolved. Codex outside-voice caught 3 additional findings (fake CI coverage, cross-context contamination, log injection) — all applied. Sanitization patch to SKILL.md committed (a46efa9). Per-repo opt-in gate added to S000005 TRACKER as P0.
 - 2026-04-18: T000004 landed — 11 scripted assertions in scripts/test.sh, full suite passes. S000004 Phase 2 complete; child-story ready to ship whenever user runs /ship. S000005 and S000006 unblock next.
+- 2026-04-19: Decided to also port the knowledge feature to `/personal-workflow` after S000006 lands in company-workflow. Captured as a follow-up TODO in this tracker. User will tackle later; not part of the original F000004 vertical slicing.
 
 ## PRs
 
