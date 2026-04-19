@@ -320,80 +320,42 @@ For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched 
 
 For work items missing PRD or TEST-SPEC: skip traceability (no output for this subsection).
 
-## Step 19: Check 4 — Structural Completeness + Orphan Detection
+## Step 19: Check 4 — Stray Directory Detection
 
-### 19a: Load Hierarchy Rules
+Walk `work-items/` for directories that contain `.md` files but no file matching
+`TRACKER.md` (with or without ID prefix).
 
-Read the `hierarchy` field from personal-artifact-manifests.json (already loaded in Step 10).
-
-**If `hierarchy` field is missing:** Print "Warning: personal-artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks." and skip to Step 20 (tree report still renders, structure badge shows "—" for all nodes).
-
-**If `hierarchy` field is malformed** (not a valid JSON object, or entries lack `required_child`/`min`): Print "Warning: personal-artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks." and skip to Step 20.
-
-Also read the `placement` field if present. If missing, use defaults:
-```
-feature: features, defect: defects, user-story: feature, task: user-story
-```
-
-### 19b: Structural Completeness Check
-
-For each work item in the Actual Model:
-1. Look up its normalized type in the hierarchy rules
-2. If the type has a `required_child`:
-   - Count children whose normalized type matches `required_child`
-   - If count == 0: flag `[INCOMPLETE] {slug} — {type} has 0 {required_child} children (minimum: {min})`
-   - If 0 < count < min: flag `[INCOMPLETE] {slug} — {type} has {count} {required_child} child(ren) (minimum: {min})`
-   - If count >= min: `[PASS] {slug} — {count} {required_child} child(ren)`
-   - Use "child" when count == 1, "children" when count > 1
-   - Always use the singular form of the type name (e.g., "2 user-story children")
-3. If the type has no required_child entry in hierarchy: `[PASS] {slug} — no structural requirements`
-
-### 19c: Placement Check
-
-For each work item in the Actual Model:
-1. Look up its normalized type in the placement rules
-2. If placement names a **type subfolder** (e.g., `features`, `defects`): the item must be a direct child of `work-items/{subfolder}/`. If found elsewhere, flag `[MISPLACED] {slug} — {type} must be inside work-items/{subfolder}/, found at {actual_path}`
-3. If placement names a **parent type** (e.g., `user-story` requires parent type `feature`): check the directory parent's type. If parent type does not match, flag `[MISPLACED] {slug} — {type} must be inside a {expected_parent_type}, found inside {actual_parent_type}`
-4. Items at the correct placement: no output (implicit pass)
-
-**How to distinguish subfolder vs parent-type:** If the placement value matches a key in the manifest `types` object (e.g., `feature`, `user-story`), it is a parent-type reference. Otherwise (e.g., `features`, `defects`), it is a type-subfolder name.
-
-### 19d: Stray Directory Detection
-
-Walk `work-items/` for directories that contain `.md` files but no file matching `TRACKER.md` (with or without ID prefix).
-
-**Type subfolder allowlist:** Directories that are recognized type subfolders (matching any value in the `placement` field, e.g., `features/`, `defects/`) are valid containers, not stray items. Skip them.
+**Recognized type subfolders** (valid containers, not work items, don't flag):
+`features/`, `defects/`, `reviews/`.
 
 For all other directories without a TRACKER.md:
 Flag: `[STRAY] {directory_name} — contains .md files but no TRACKER.md (not a work item)`
 
-### 19e: Lifecycle Cross-Reference
-
-For each work item in the Actual Model that has a structural requirement (per 19b):
-
-1. Read the TRACKER.md lifecycle section
-2. Search for a checkbox line containing "broken down" or "tasks broken down" (case-insensitive)
-3. If such a checkbox is checked (`- [x]`) AND the structural check from 19b found 0 children of the required type:
-   - Flag `[LIFECYCLE_INCONSISTENT] {slug} — "broken down" is checked but has 0 {required_child} children`
-
-This flag appears in the lifecycle badge category, not the structure badge category.
+**Note on hierarchy:** This validator does NOT enforce parent-child hierarchy
+(e.g., "feature must have ≥1 user-story") or placement rules (e.g., "user-story
+must nest under a feature"). Those rules live in `WORKFLOW.md` as prose and are
+followed by the generating AI at scaffolding time. Same trust model as D000007:
+templates + WORKFLOW.md are the source of truth; the AI reads them and follows
+them. If AI obedience proves unreliable in practice, add a validator later that
+reads its rules from `WORKFLOW.md`.
 
 ## Step 20: Badge Taxonomy
 
-Map all check statuses to 4 badge categories with severity ordering.
+Map all check statuses to 3 badge categories with severity ordering.
 
 **Badge categories and their status values (lowest to highest severity):**
 
 | Badge | Statuses (severity order) | Source checks |
 |-------|--------------------------|---------------|
 | template | PASS < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 16) |
-| lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open, or broken-down cross-ref) | Check 2 (Step 17) + Step 19e |
+| lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open) | Check 2 (Step 17) |
 | traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) | Check 3 (Step 18) |
-| structure | PASS < INCOMPLETE (missing required children) < MISPLACED (wrong hierarchy level) | Check 4 (Step 19b/19c) |
 
 Each badge for a node shows the **worst** (highest severity) status from its category.
 
 For work item types that don't participate in a check (e.g., tasks have no traceability check because they lack PRD/TEST-SPEC): show "—" for that badge.
+
+The `[STRAY]` flag from Check 4 (Step 19) is not a per-node badge; it appears in the Findings list only.
 
 ## Step 21: Tree Report
 
@@ -402,26 +364,26 @@ After all checks complete, emit a unified tree view. Walk `work-items/` depth-fi
 ```
 WORK ITEM TREE:
   features/
-    F000001_workflow_alpha (feature) [Closed]  completeness: 1/1 user-story
-      template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
-      S000001_workflow_implementation (user-story) [Closed]  completeness: 1/1 task
-        template: PASS  lifecycle: PASS  traceability: PASS  structure: PASS
+    F000001_workflow_alpha (feature) [Closed]
+      template: PASS  lifecycle: PASS  traceability: PASS
+      S000001_workflow_implementation (user-story) [Closed]
+        template: PASS  lifecycle: PASS  traceability: PASS
         T000001_implement_workflow (task) [Closed]
-          template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+          template: PASS  lifecycle: PASS  traceability: —
 
-    F000002_system_health_v1 (feature) [Closed]  completeness: 0/1 user-story
-      template: PASS  lifecycle: LIFECYCLE_INCONSISTENT  traceability: PASS  structure: INCOMPLETE (0 user-story children)
+    F000002_system_health_v1 (feature) [Closed]
+      template: PASS  lifecycle: PASS  traceability: PASS
 
   defects/
     D000001_milestones_artifact_placement (defect) [Closed]
-      template: PASS  lifecycle: PASS  structure: PASS  traceability: —
+      template: PASS  lifecycle: PASS  traceability: —
 ```
 
-Type subfolders (`features/`, `defects/`) are rendered as grouping headers in the tree. They are not work items and have no badges.
+Type subfolders (`features/`, `defects/`, `reviews/`) are rendered as grouping headers in the tree. They are not work items and have no badges.
 
 For each node:
-- Line 1: `{indent}{slug} ({type}) [{state}]  completeness: {count}/{min} {required_child}` (omit completeness for types with no structural requirement)
-- Line 2: `{indent}  template: {badge}  lifecycle: {badge}  traceability: {badge}  structure: {badge}`
+- Line 1: `{indent}{slug} ({type}) [{state}]`
+- Line 2: `{indent}  template: {badge}  lifecycle: {badge}  traceability: {badge}`
 
 Indent is 2 spaces per nesting level from work-items root.
 
@@ -453,14 +415,11 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
       "badges": {
         "template": "PASS",
         "lifecycle": "PASS",
-        "traceability": "PASS",
-        "structure": "PASS"
-      },
-      "completeness": {"count": 1, "min": 1, "required_child": "user-story"}
+        "traceability": "PASS"
+      }
     }
   ],
-  "edges": [],
-  "structural_rules": {}
+  "edges": []
 }
 ```
 
@@ -473,10 +432,8 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
 - `parent`: parent ID or null (for root items)
 - `children`: array of child IDs
 - `badges`: per-check badge (worst severity per category). Use "—" for non-applicable badges.
-- `completeness`: `{"count": N, "min": M, "required_child": "type"}` or null for types with no structural requirement
 
 **Top-level fields:**
-- `structural_rules`: copy the `hierarchy` object from personal-artifact-manifests.json verbatim
 - `edges`: empty array (reserved for dependency graph v2)
 - `generated_commit`: output of `git rev-parse --short HEAD 2>/dev/null` or "unknown"
 
@@ -511,9 +468,9 @@ Repo: {repo name from basename of REPO_ROOT}
 
 ## Badge Summary
 
-| Item | Type | State | Template | Lifecycle | Traceability | Structure |
-|------|------|-------|----------|-----------|--------------|-----------|
-| {slug} | {type} | {state} | {badge} | {badge} | {badge} | {badge} |
+| Item | Type | State | Template | Lifecycle | Traceability |
+|------|------|-------|----------|-----------|--------------|
+| {slug} | {type} | {state} | {badge} | {badge} | {badge} |
 ````
 
 One row per work item, in tree order (depth-first, alphabetical siblings).
@@ -522,10 +479,10 @@ One row per work item, in tree order (depth-first, alphabetical siblings).
 ## Findings
 
 ### Critical
-{list all INCOMPLETE (root items), LIFECYCLE_INCONSISTENT, MISPLACED, MISSING findings}
+{list all LIFECYCLE_INCONSISTENT, MISSING findings}
 
 ### Warnings
-{list all INCOMPLETE (non-root), DRIFT, UNTESTED, STRAY findings}
+{list all DRIFT, UNTESTED, STRAY findings}
 
 ### Advisory
 {list all INFO, EXTRA, WARN findings}
@@ -537,8 +494,6 @@ If no findings exist in a severity category, omit that subsection. If no finding
 ## Structural Summary
 
 - **Items:** {N} total ({N} features, {N} user-stories, {N} tasks, {N} defects)
-- **Incomplete:** {N}
-- **Misplaced:** {N}
 - **Lifecycle issues:** {N}
 - **Stray directories:** {N}
 ```
@@ -553,12 +508,10 @@ Print: "Report written to .docs/work-item-report.md"
 - **Skill assets not found:** "Error: personal-workflow skill assets not found."
 - **Target path not found:** "Error: path not found: {path}"
 - **Not a tracker file:** "Warning: {path} does not look like a tracker file. Contract checks may produce false positives."
-- **No work-items/:** "INFO: no work-items/ directory found. Skipping hierarchy checks, graph artifact, and report generation."
+- **No work-items/:** "INFO: no work-items/ directory found. Skipping tree walk, graph artifact, and report generation."
 - **No manifest:** "Error: personal-artifact-manifests.json not found or invalid."
 - **Template not found (file mode):** "Error: template tracker-{type}.md not found at {_TMPL_DIR} or ~/.claude/templates/personal-workflow/. Run skills-deploy install."
 - **Template not found (directory/tier-2 mode):** "Warning: template {filename} not found. Skipping validation for this artifact."
 - **Unknown type:** "VIOLATION: unknown type \"{value}\" in {path}"
 - **Unparseable frontmatter:** "Warning: could not parse frontmatter in {path}. Skipping."
-- **No hierarchy field:** "Warning: personal-artifact-manifests.json has no `hierarchy` field. Skipping structural completeness checks."
-- **Malformed hierarchy:** "Warning: personal-artifact-manifests.json `hierarchy` field is malformed. Skipping structural completeness checks."
 - **Write failure:** "[WARN] Could not write to .docs/: {error}"

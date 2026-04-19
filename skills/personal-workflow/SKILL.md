@@ -1,6 +1,6 @@
 ---
 name: personal-workflow
-description: "Personal work item validation with structural completeness checks. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates are the single source of truth for structural rules."
+description: "Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules."
 version: 2.0.0
 allowed-tools:
   - Bash
@@ -86,7 +86,6 @@ conventions, installation), see [WORKFLOW.md](WORKFLOW.md).
 /personal-workflow check                # full work-items/ scan (Tier 1 + Tier 2)
 /personal-workflow check <file>         # Tier 1 File Mode only
 /personal-workflow check <dir>          # Tier 1 Directory Mode + Tier 2
-/personal-workflow tree                 # quick hierarchy view with structural badges
 ```
 
 ## Subcommand Routing
@@ -94,7 +93,6 @@ conventions, installation), see [WORKFLOW.md](WORKFLOW.md).
 Detect the subcommand from the user's input:
 
 - `/personal-workflow check [path]` — validation (read check.md and follow it)
-- `/personal-workflow tree` — quick hierarchy view (read tree.md and follow it)
 - `/personal-workflow` with no subcommand — show the usage table above
 
 For each subcommand, read the corresponding .md file in this skill directory
@@ -113,4 +111,4 @@ and follow its instructions.
 | No TRACKER.md in directory | "Error: no TRACKER.md found in {directory}. Not a work item directory." | Check the path |
 | Manifest missing | "Error: personal-artifact-manifests.json not found." | Reinstall skill |
 | Template not found | "Warning: template {filename} not found. Skipping frontmatter validation." | Check template deployment |
-| No work-items/ directory | "INFO: no work-items/ directory found. Skipping hierarchy checks." | Create work-items/ or check path |
+| No work-items/ directory | "INFO: no work-items/ directory found. Skipping validation." | Create work-items/ or check path |

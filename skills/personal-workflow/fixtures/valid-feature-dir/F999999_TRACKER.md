@@ -30,7 +30,6 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] `/personal-workflow tree` — structure complete
 - [ ] All children shipped
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed

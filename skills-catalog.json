@@ -37,7 +37,7 @@
   {
     "name": "personal-workflow",
     "version": "2.0.0",
-    "description": "Personal work item validation with structural completeness checks. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates are the single source of truth for structural rules.",
+    "description": "Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -50,7 +50,6 @@
       "skills/personal-workflow/SKILL.md",
       "skills/personal-workflow/WORKFLOW.md",
       "skills/personal-workflow/check.md",
-      "skills/personal-workflow/tree.md",
       "skills/personal-workflow/personal-artifact-manifests.json"
     ],
     "templates": [
@@ -70,7 +69,7 @@
   {
     "name": "company-workflow",
     "version": "3.0.0",
-    "description": "Company work item specification with structural validation. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates are the single source of truth for structural rules.",
+    "description": "Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {
       "skills": [],

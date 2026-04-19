@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode) and tree.",
+  "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode).",
   "types": {
     "feature": {
       "required": [
@@ -37,16 +37,6 @@
       "optional": [],
       "lifecycle_overrides": {}
     }
-  },
-  "hierarchy": {
-    "feature": {"required_child": "user-story", "min": 1},
-    "user-story": {"required_child": "task", "min": 1}
-  },
-  "placement": {
-    "feature": "features",
-    "defect": "defects",
-    "user-story": "feature",
-    "task": "user-story"
   },
   "template_dir": "~/.claude/templates",
   "work_items_dir": "./work-items"
