@@ -4,6 +4,22 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.11.0] - 2026-04-19
+
+### Added
+- **Knowledge integration scaffolding for company-workflow (F000004, S000004 slice).** Introduces the `AI_KNOWLEDGE_DIR` environment variable as the seam between the skill and an external knowledge folder for coding guidance and company-specific domain knowledge. When set to a valid directory, downstream features (always-on category loading in S000005, on-demand trigger matching in S000006 — both unshipped) will consume its contents. When unset or invalid, the skill still functions; only knowledge features are disabled. New `## Knowledge Resolution` section in `skills/company-workflow/SKILL.md` (bash block running after Path Resolution) resolves the env var, validates the path with `[-e]` and `[-d]` checks, sets skill-local `$_KNOWLEDGE_DIR`, and emits one of three distinct warnings on stderr (not-set / not-found / not-a-directory). Exit code stays 0. New `## Knowledge Configuration` section in `skills/company-workflow/WORKFLOW.md` documenting setup, the flexible top-level category layout (arbitrary subfolder names, nesting allowed), and the `.knowledge.yml` schema (`surface: always | on-demand` + `triggers: [...]`) that S000005/S000006 will consume.
+- **Full work-item decomposition for F000004 knowledge integration.** 1 feature TRACKER + feature-level milestones, 3 user-stories (S000004 env-var-resolution, S000005 always-on-loading, S000006 on-demand-matching) each with TRACKER + PRD + ARCHITECTURE + TEST-SPEC, and 8 tasks (T000003..T000010) each with TRACKER + test-plan. Uses personal-workflow structure (3-phase lifecycle Track / Implement / Ship). 30 artifacts total. S000004 shipped complete in this PR; S000005 and S000006 are future slices that share `skills/company-workflow/SKILL.md` and must land sequentially.
+- **T000004 test coverage for the Knowledge Resolution block.** New "Regression test (T000004)" section in `scripts/test.sh` with 11 scripted assertions covering every branch and edge case: Tier 1 structural greps (section present, variable references, WORKFLOW.md docs, no stdout leakage), Tier 2 extract-and-exec against mocked env states (unset, empty-string, nonexistent path, path-is-file, valid dir, hostile newline input, parent-shell `set -e` safety). Uses portable `mktemp` patterns (GNU + BSD), single tmpdir with final cleanup. Case 9 (end-to-end regression diff) documented as manual-only — `/company-workflow validate` is an LLM-driven SKILL.md and cannot be invoked from bash CI per D000004 RCA.
+
+### Fixed
+- **Warning output in the Knowledge Resolution block is now newline-safe and terminal-safe.** The three invalid-path warnings previously echoed `$AI_KNOWLEDGE_DIR` raw. A hostile env var (embedded newline or terminal escape sequences) could split the warning into multiple stderr lines, breaking the documented "exactly one warning line" contract, or emit ANSI escapes that polluted the user's terminal. Now strips control characters via `tr -d '[:cntrl:]'` and truncates display at 200 characters with `...` before rendering. The filesystem tests still use the raw value; only display output is sanitized. Caught by Codex outside-voice during /plan-eng-review; pinned by T000004 case 13.
+
+### Rationale
+Three vertical slices for F000004 (resolve → load always-on → match on-demand) keep each PR reviewable on its own. S000004 ships the smallest viable increment: the skill knows where knowledge lives but does not read any knowledge file yet. Users can `export AI_KNOWLEDGE_DIR="$HOME/knowledge"` today and get the warning-every-invocation nudge if unset. Content loading lands in S000005 / S000006. Personal-workflow port is captured as a follow-up TODO in F000004 TRACKER, blocked on S000006.
+
+### Migration note
+Existing users will see a new stderr warning on every `/company-workflow` invocation until they configure `AI_KNOWLEDGE_DIR`. Exit code is unchanged (still 0) — the warning is intentional, it's the nudge to configure, not an error. `/company-workflow validate` stdout is byte-identical to before. All automated consumers (CI, scripting) are unaffected. Deploy: run `skills-deploy install --overwrite` to refresh `~/.claude/skills/company-workflow/SKILL.md` and `WORKFLOW.md`.
+
 ## [0.10.0] - 2026-04-17
 
 ### Changed

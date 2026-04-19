@@ -78,6 +78,48 @@ fi
 If `NOT_FOUND`: tell the user "Error: company-workflow skill assets not found.
 Run `skills-deploy install` or check the repo structure." and stop.
 
+## Knowledge Resolution
+
+After Path Resolution, the skill resolves an OPTIONAL external knowledge
+directory via the `AI_KNOWLEDGE_DIR` environment variable. When set to a
+valid directory, downstream features (always-on loading, on-demand matching —
+see F000004 user-stories S000005 and S000006) consume its contents. When unset
+or invalid, the skill still functions; only knowledge features are disabled.
+
+```bash
+_KNOWLEDGE_DIR=""
+# Sanitize for safe display in warnings: strip control chars, truncate long paths.
+# The filesystem tests below use the RAW value; only warning output uses the clean form.
+# This preserves the "exactly one warning line" contract even if the env var contains
+# newlines, terminal escape sequences, or other hostile content.
+_AKD_DISPLAY=$(printf '%s' "${AI_KNOWLEDGE_DIR:-}" | tr -d '[:cntrl:]')
+if [ ${#_AKD_DISPLAY} -gt 200 ]; then
+  _AKD_DISPLAY="${_AKD_DISPLAY:0:200}..."
+fi
+if [ -z "${AI_KNOWLEDGE_DIR:-}" ]; then
+  echo "Warning: AI_KNOWLEDGE_DIR not set — knowledge features disabled. See WORKFLOW.md." >&2
+elif [ ! -e "$AI_KNOWLEDGE_DIR" ]; then
+  echo "Warning: AI_KNOWLEDGE_DIR=\"$_AKD_DISPLAY\" not found — knowledge features disabled." >&2
+elif [ ! -d "$AI_KNOWLEDGE_DIR" ]; then
+  echo "Warning: AI_KNOWLEDGE_DIR=\"$_AKD_DISPLAY\" is not a directory — knowledge features disabled." >&2
+else
+  _KNOWLEDGE_DIR="$AI_KNOWLEDGE_DIR"
+fi
+```
+
+Behavior contract:
+- The warning is written to **stderr**; exit code is unchanged (0 on success).
+- `$_KNOWLEDGE_DIR` is an **empty string** on failure; downstream blocks guard
+  with `[ -n "$_KNOWLEDGE_DIR" ]` before enumerating categories.
+- The warning fires every invocation when the variable is missing or bad.
+  This is intentional — it nudges configuration rather than silently losing
+  the feature. Suppression is deliberately out of scope in v1.
+- Resolution runs **after** Path Resolution so the skill's own discovery
+  cannot fail because of a user-configured knowledge dir.
+
+See [WORKFLOW.md §Knowledge Configuration](WORKFLOW.md#knowledge-configuration)
+for setup instructions, the layout convention, and the `.knowledge.yml` schema.
+
 ## Template Registry
 
 This skill reads `template-registry.json` at the repo root to discover its
