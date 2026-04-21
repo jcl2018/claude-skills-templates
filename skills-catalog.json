@@ -68,7 +68,7 @@
   },
   {
     "name": "company-workflow",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "description": "Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {

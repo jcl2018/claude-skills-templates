@@ -1,7 +1,7 @@
 ---
 name: company-workflow
 description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates are the single source of truth for structural rules."
-version: 3.1.0
+version: 3.2.0
 allowed-tools:
   - Bash
   - Read
@@ -136,7 +136,8 @@ definitions stay byte-identical (see `scripts/test.sh`).
 
 | Function | Input | Output | Behavior |
 |---|---|---|---|
-| `parse_knowledge_yml(path)` | path to `.knowledge.yml` | `always` \| `on-demand` \| empty | Returns the surface value. Empty on missing file, unknown surface, or malformed yml. Tolerates: `surface: always`, `surface: "always"` (double-quoted), `surface: always # comment` (inline comment), CRLF line endings, UTF-8 BOM, trailing whitespace. Single-quoted values (`surface: 'always'`) are NOT supported — rejected as malformed. Accepts (but discards) a `triggers:` key for forward-compat with the c3 on-demand follow-up story. |
+| `parse_knowledge_yml(path)` | path to `.knowledge.yml` | `always` \| `on-demand` \| empty | Returns the surface value. Empty on missing file, unknown surface, or malformed yml. Tolerates: `surface: always`, `surface: "always"` (double-quoted), `surface: always # comment` (inline comment), CRLF line endings, UTF-8 BOM, trailing whitespace. Single-quoted values (`surface: 'always'`) are NOT supported — rejected as malformed. |
+| `parse_knowledge_triggers(path)` | path to `.knowledge.yml` | newline-separated triggers (quotes stripped) | Parses the `triggers:` list. Supports inline flow form (`triggers: [a, "b c", 'd']`) and block form (`triggers:\n  - a\n  - "b c"`). Quotes (single or double) stripped on output; empty list or missing key returns empty. |
 | `list_categories(root)` | knowledge dir absolute path | newline-separated absolute paths to immediate subdirs | Skips hidden dirs. Lex-sorted under `LC_ALL=C` for locale-independent determinism. |
 | `list_md_files(category)` | category absolute path | newline-separated absolute paths to `*.md` files | Recursive. Lex-sorted under `LC_ALL=C`. |
 
@@ -193,6 +194,68 @@ list_md_files() {
   [ -d "$category" ] || return 0
   LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
 }
+
+# parse_knowledge_triggers(path) — extracts the triggers list from a .knowledge.yml.
+# Supports:
+#   triggers: [a, "b c", 'd']     (inline flow form; quotes optional)
+#   triggers:                     (block form on next lines)
+#     - a
+#     - "b c"
+# Returns: newline-separated triggers, one per line, quotes stripped. Empty if
+# no triggers key, empty list, or malformed yml (same malformed-detection rule
+# as parse_knowledge_yml — keeps the two helpers in sync).
+parse_knowledge_triggers() {
+  local path="$1"
+  [ -f "$path" ] || return 0
+  LC_ALL=C awk '
+    NR == 1 {
+      if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
+    }
+    { sub(/\r$/, ""); sub(/#.*$/, "") }
+    /^[[:space:]]*$/ { next }
+    # Inline flow form: triggers: [...]
+    /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
+      val = $0
+      sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/, "", val)
+      sub(/\].*$/, "", val)
+      # Split on commas at top level (no nested brackets in our subset)
+      n = split(val, items, ",")
+      for (i = 1; i <= n; i++) {
+        t = items[i]
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+        # Strip double-quotes or single-quotes
+        if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
+          t = substr(t, 2, length(t) - 2)
+        else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
+          t = substr(t, 2, length(t) - 2)
+        if (t != "") print t
+      }
+      in_triggers = 0
+      next
+    }
+    # Block form header: triggers:
+    /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ {
+      in_triggers = 1
+      next
+    }
+    # Block form item: "  - value" (any indent level)
+    in_triggers && /^[[:space:]]+-[[:space:]]*/ {
+      t = $0
+      sub(/^[[:space:]]+-[[:space:]]*/, "", t)
+      sub(/[[:space:]]*$/, "", t)
+      if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
+        t = substr(t, 2, length(t) - 2)
+      else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
+        t = substr(t, 2, length(t) - 2)
+      if (t != "") print t
+      next
+    }
+    # Known surface key — tolerated, parser ignores the value here
+    /^[[:space:]]*surface[[:space:]]*:/ { in_triggers = 0; next }
+    # Anything else at column 0 = malformed yml; abort and return nothing
+    /^[^[:space:]]/ { exit }
+  ' "$path" 2>/dev/null
+}
 ```
 
 ## Knowledge Loading
@@ -219,8 +282,8 @@ but forgotten to opt the repo in):
 
 When all preconditions pass, enumerate categories via `list_categories`. For
 each category with `surface: always`, emit every `*.md` file path (recursive,
-lex-sorted). `surface: on-demand` categories are silently skipped in v1 —
-their content ships in the c3 follow-up.
+lex-sorted). `surface: on-demand` categories are not emitted here — they're
+handled by the `## On-Demand Matching` section below.
 
 **Malformed yml** (any non-empty yml that doesn't parse as the supported subset)
 emits a one-line stderr warning naming the file and skips the category; sibling
@@ -343,7 +406,7 @@ categories are unaffected.
         done < <(list_md_files "$_cat")
         ;;
       on-demand)
-        : # v1 deferred — forward-compat for c3 follow-up
+        : # handled by On-Demand Matching block; not emitted here
         ;;
       "")
         # Distinguish missing (silent) from malformed (warn)
@@ -374,6 +437,233 @@ categories are unaffected.
 )
 ```
 
+## On-Demand Matching
+
+After Knowledge Loading emits always-on content, this block enumerates
+categories with `surface: on-demand` + non-empty triggers and emits a
+`## On-Demand Knowledge Candidates` block. Claude reads this block, tokenizes
+the user's latest message, matches triggers, and Reads the files of every
+matching category before answering.
+
+Bash handles what bash can: category discovery, trigger parsing, structured
+emission. Claude handles what bash can't: seeing the user's prompt and
+matching triggers against it.
+
+**Preconditions** (same as Knowledge Loading — repo root + opt-in marker +
+env var resolved + `$AI_KNOWLEDGE_DISABLE` not truthy). If any precondition
+fails, no candidates block is emitted.
+
+**Matching rules** (enforced by Claude per the instruction block below):
+
+- **Scope**: only the user's latest message. Not the prior conversation, not
+  the system prompt, not any previous Claude reply. Prevents runaway loading
+  from long conversation history.
+- **Single-word triggers** (no spaces): case-insensitive whole-word match
+  against prompt tokens. `pricing` matches `Pricing` and `PRICING` but not
+  `pricingengine`.
+- **Multi-word phrase triggers** (contain spaces, typically quoted in yml):
+  case-insensitive substring match at token boundaries. `"pricing engine"`
+  matches "how does the pricing engine work" but NOT "what is pricing" alone.
+- **Load-all-matched**: if multiple categories match, Read files from every
+  matching category. No ranking, no deduping, no picking one.
+- **Empty triggers list** (`triggers: []` or missing): category is inert —
+  never matches, never loads.
+- **`surface: always`** categories are NOT considered here — they're already
+  loaded unconditionally by Knowledge Loading.
+
+**Match log** (stderr, one line per invocation when any match occurs):
+`[knowledge] matched: <category> via <trigger>; <category2> via <trigger>`.
+Lets users tune trigger lists by observing what matched versus what they
+expected to match.
+
+**Emit format** (bash produces this; Claude consumes it):
+
+```
+## On-Demand Knowledge Candidates
+
+category: /abs/path/to/runbooks
+triggers: pricing, "pricing engine", PE
+files:
+  - /abs/path/to/runbooks/overview.md
+  - /abs/path/to/runbooks/engine.md
+
+category: /abs/path/to/security
+triggers: auth, OAuth
+files:
+  - /abs/path/to/security/tokens.md
+```
+
+**Claude-facing instructions** — must be followed verbatim:
+
+After the `## On-Demand Knowledge Candidates` block:
+
+1. Tokenize the user's most recent message (not prior turns). Split on
+   whitespace and common punctuation. Fold to lowercase for comparison.
+2. For each category entry in the block:
+   - For each trigger in that category's `triggers:` list:
+     - If the trigger contains no spaces: check whether a case-insensitive
+       whole-word match against any prompt token succeeds.
+     - If the trigger contains spaces (was quoted in yml): check whether
+       the case-folded prompt contains the case-folded trigger phrase at
+       token boundaries (i.e., preceded and followed by whitespace or
+       punctuation, or at string edges).
+   - If any trigger matches, the category matches.
+3. For every matching category, use the Read tool to Read every file listed
+   under that category's `files:` list, before answering the user's request.
+4. Emit exactly one stderr line naming every match:
+   `[knowledge] matched: <category> via <trigger>; <category2> via <trigger>`.
+   Use the first trigger that matched per category. Omit the line if no
+   category matched.
+
+```bash
+(
+  # Preconditions: share the same fail-closed gates as Knowledge Loading.
+  _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+  [ -z "$_REPO_ROOT" ] && exit 0
+  case "${AI_KNOWLEDGE_DISABLE:-}" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON) exit 0 ;;
+  esac
+  _KDIR=""
+  if [ -n "${AI_KNOWLEDGE_DIR:-}" ] && [ -d "$AI_KNOWLEDGE_DIR" ]; then
+    _KDIR="$AI_KNOWLEDGE_DIR"
+  fi
+  [ -z "$_KDIR" ] && exit 0
+  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
+  if [ -L "$_REPO_ROOT/.claude" ] || [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
+    exit 0
+  fi
+
+  # Helpers (inline — see ## Knowledge Helpers for contract + drift tripwire)
+  parse_knowledge_yml() {
+    local path="$1"
+    [ -f "$path" ] || { printf ''; return; }
+    local surface
+    surface=$(LC_ALL=C awk '
+      NR == 1 {
+        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
+      }
+      { sub(/\r$/, ""); sub(/#.*$/, "") }
+      /^[[:space:]]*$/ { next }
+      /^[[:space:]]*surface[[:space:]]*:/ {
+        val = $0
+        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
+        sub(/[[:space:]]*$/, "", val)
+        if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
+          val = substr(val, 2, length(val)-2)
+        surface_val = val
+        next
+      }
+      /^[[:space:]]*triggers[[:space:]]*:/ { next }
+      /^[[:space:]]+-/ { next }
+      { malformed = 1; exit }
+      END {
+        if (malformed) { print ""; exit }
+        print surface_val
+      }
+    ' "$path" 2>/dev/null)
+    case "$surface" in
+      always|on-demand) printf '%s' "$surface" ;;
+      *) printf '' ;;
+    esac
+  }
+  parse_knowledge_triggers() {
+    local path="$1"
+    [ -f "$path" ] || return 0
+    LC_ALL=C awk '
+      NR == 1 {
+        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
+      }
+      { sub(/\r$/, ""); sub(/#.*$/, "") }
+      /^[[:space:]]*$/ { next }
+      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
+        val = $0
+        sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/, "", val)
+        sub(/\].*$/, "", val)
+        n = split(val, items, ",")
+        for (i = 1; i <= n; i++) {
+          t = items[i]
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+          if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
+            t = substr(t, 2, length(t) - 2)
+          else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
+            t = substr(t, 2, length(t) - 2)
+          if (t != "") print t
+        }
+        in_triggers = 0
+        next
+      }
+      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ {
+        in_triggers = 1
+        next
+      }
+      in_triggers && /^[[:space:]]+-[[:space:]]*/ {
+        t = $0
+        sub(/^[[:space:]]+-[[:space:]]*/, "", t)
+        sub(/[[:space:]]*$/, "", t)
+        if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
+          t = substr(t, 2, length(t) - 2)
+        else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
+          t = substr(t, 2, length(t) - 2)
+        if (t != "") print t
+        next
+      }
+      /^[[:space:]]*surface[[:space:]]*:/ { in_triggers = 0; next }
+      /^[^[:space:]]/ { exit }
+    ' "$path" 2>/dev/null
+  }
+  list_categories() {
+    local root="$1"
+    [ -d "$root" ] || return 0
+    LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
+  }
+  list_md_files() {
+    local category="$1"
+    [ -d "$category" ] || return 0
+    LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
+  }
+
+  # Collect on-demand categories with non-empty triggers + at least one md file.
+  # Skip control-char category paths (same rejection as Knowledge Loading).
+  _first=1
+  while IFS= read -r _cat; do
+    [ -n "$_cat" ] || continue
+    case "$_cat" in *$'\n'*|*$'\r'*) continue ;; esac
+    _sfc=$(parse_knowledge_yml "$_cat/.knowledge.yml")
+    [ "$_sfc" = "on-demand" ] || continue
+    # Parse triggers
+    _trigs=$(parse_knowledge_triggers "$_cat/.knowledge.yml")
+    [ -n "$_trigs" ] || continue
+    # Enumerate md files
+    _files=""
+    _fcount=0
+    while IFS= read -r _md; do
+      [ -f "$_md" ] || continue
+      case "$_md" in *$'\n'*|*$'\r'*) continue ;; esac
+      _files="${_files}  - ${_md}"$'\n'
+      _fcount=$((_fcount + 1))
+    done < <(list_md_files "$_cat")
+    [ "$_fcount" -gt 0 ] || continue
+
+    # Emit header once, on first emitted candidate
+    if [ "$_first" = "1" ]; then
+      echo ""
+      echo "## On-Demand Knowledge Candidates"
+      echo ""
+      echo "For each candidate below, tokenize the user's latest message, match every trigger against the prompt (case-insensitive whole-word for single tokens; case-insensitive phrase at token boundaries for multi-word phrases), and if any trigger matches, use the Read tool to Read every file listed under that candidate's files: list before answering. Log matches to stderr as [knowledge] matched: <category> via <trigger>; <category2> via <trigger> (one line per invocation, omit if zero matches). Consider only the user's most recent message — not prior turns."
+      echo ""
+      _first=0
+    fi
+    # Format triggers as comma-separated (quote phrases with spaces for readability)
+    _trig_csv=$(printf '%s\n' "$_trigs" | LC_ALL=C awk 'BEGIN{ORS=""} NR>1{print ", "} /[[:space:]]/{printf "\"%s\"", $0; next} {print $0}')
+    echo "category: $_cat"
+    echo "triggers: $_trig_csv"
+    echo "files:"
+    printf '%s' "$_files"
+    echo ""
+  done < <(list_categories "$_KDIR")
+)
+```
+
 ## Diagnostic: knowledge-doctor
 
 When the user runs `/company-workflow knowledge-doctor`, execute the bash
@@ -390,7 +680,8 @@ marker: .claude/knowledge-enabled (present)
 disable env var: not set
 categories:
   coding      surface=always     files=3    bytes=8.2KB    loads=yes
-  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=no (v1 deferred)
+  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=on-match (triggers: pricing, "pricing engine")
+  staging     surface=on-demand  files=2    bytes=1.4KB    loads=no (empty triggers)
   notes       surface=(missing yml)         loads=no
   broken      surface=(malformed yml)       loads=no (warning)
 cap status: 3/500 paths, 8.2KB/100KB bytes
@@ -508,7 +799,43 @@ result: loading enabled; 3 paths will be emitted to Claude
         printf "  %-12s surface=always     files=%-4d bytes=%sKB   loads=%s\n" "$_cname" "$_fcount" "$_hk" "$_loads"
         ;;
       on-demand)
-        printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (v1 deferred)\n" "$_cname" "$_fcount" "$_hk"
+        # c3: parse triggers to distinguish loadable (on-match) vs inert (empty triggers)
+        _trigs=$(LC_ALL=C awk '
+          NR == 1 { if (substr($0,1,3) == sprintf("%c%c%c",239,187,191)) $0 = substr($0,4) }
+          { sub(/\r$/,""); sub(/#.*$/,"") }
+          /^[[:space:]]*$/ { next }
+          /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
+            v = $0; sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/,"",v); sub(/\].*$/,"",v)
+            n = split(v, it, ",")
+            for (i=1; i<=n; i++) {
+              t = it[i]; gsub(/^[[:space:]]+|[[:space:]]+$/,"",t)
+              if (substr(t,1,1)=="\"" && substr(t,length(t),1)=="\"") t = substr(t,2,length(t)-2)
+              else if (substr(t,1,1)=="'"'"'" && substr(t,length(t),1)=="'"'"'") t = substr(t,2,length(t)-2)
+              if (t != "") print t
+            }
+            bt = 0; next
+          }
+          /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ { bt = 1; next }
+          bt && /^[[:space:]]+-[[:space:]]*/ {
+            t = $0; sub(/^[[:space:]]+-[[:space:]]*/,"",t); sub(/[[:space:]]*$/,"",t)
+            if (substr(t,1,1)=="\"" && substr(t,length(t),1)=="\"") t = substr(t,2,length(t)-2)
+            else if (substr(t,1,1)=="'"'"'" && substr(t,length(t),1)=="'"'"'") t = substr(t,2,length(t)-2)
+            if (t != "") print t
+            next
+          }
+          /^[[:space:]]*surface[[:space:]]*:/ { bt = 0; next }
+          /^[^[:space:]]/ { exit }
+        ' "$_cat/.knowledge.yml" 2>/dev/null)
+        if [ -z "$_trigs" ]; then
+          printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (empty triggers)\n" "$_cname" "$_fcount" "$_hk"
+        else
+          _trig_csv=$(printf '%s\n' "$_trigs" | LC_ALL=C awk 'BEGIN{ORS=""} NR>1{print ", "} /[[:space:]]/{printf "\"%s\"", $0; next} {print $0}')
+          if [ "$_marker_ok" = "1" ]; then
+            printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=on-match (triggers: %s)\n" "$_cname" "$_fcount" "$_hk" "$_trig_csv"
+          else
+            printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (marker absent; would match on: %s)\n" "$_cname" "$_fcount" "$_hk" "$_trig_csv"
+          fi
+        fi
         ;;
     esac
   done < <(LC_ALL=C find -H "$AI_KNOWLEDGE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort)

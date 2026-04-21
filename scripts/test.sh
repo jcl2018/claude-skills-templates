@@ -821,7 +821,7 @@ _T6L_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006l' 2>/dev/null)
 _T6L_LOADING="$_T6L_TMPDIR/loading.sh"
 _T6L_DOCTOR="$_T6L_TMPDIR/doctor.sh"
 
-awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' \
+awk '/^## Knowledge Loading/,/^## On-Demand Matching/' \
   "$REPO_ROOT/skills/company-workflow/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6L_LOADING"
 
@@ -865,15 +865,23 @@ fi
 # byte-for-byte after dedenting (indentation differs between the top-level Helpers block
 # and the inlined Loading block inside a subshell).
 _extract_helper_bodies() {
-  # Reads a bash-block content on stdin, emits only the three helper function bodies
-  # dedented. Uses balanced brace tracking to find each function's end.
-  awk '
-    BEGIN { in_fn = 0; brace = 0 }
-    /^[[:space:]]*(parse_knowledge_yml|list_categories|list_md_files)\(\)/ {
+  # Reads a bash-block content on stdin, emits the bodies of the helpers named
+  # in the first argument (pipe-separated), dedented. Uses balanced brace
+  # tracking to find each function's end. Strips comment-only lines and blank
+  # lines so the Helpers copy (which carries explanatory comments as the
+  # contract reference) compares equal to inlined copies that elide them.
+  # Drift that matters is code, not documentation.
+  local names="${1:-parse_knowledge_yml|list_categories|list_md_files}"
+  awk -v names="$names" '
+    BEGIN { in_fn = 0; brace = 0; pat = "^[[:space:]]*(" names ")\\(\\)" }
+    $0 ~ pat {
       in_fn = 1; brace = 0
     }
     in_fn {
       sub(/^[[:space:]]+/, "")
+      # Skip comment-only lines and blank lines — documentation, not code.
+      if ($0 ~ /^[[:space:]]*#/) next
+      if ($0 ~ /^[[:space:]]*$/) next
       print
       tmp = $0; n_open = gsub(/[{]/, "", tmp)
       tmp = $0; n_close = gsub(/[}]/, "", tmp)
@@ -885,7 +893,7 @@ _extract_helper_bodies() {
 
 _helpers_bodies=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
-_loading_bodies=$(awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+_loading_bodies=$(awk '/^## Knowledge Loading/,/^## On-Demand Matching/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
 
 if [ -z "$_helpers_bodies" ] || [ -z "$_loading_bodies" ]; then
@@ -1206,7 +1214,7 @@ mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
 _t6l_out=$( cd "$_t6l_repo" && AI_KNOWLEDGE_DIR="$_t6l_kdir" bash "$_T6L_DOCTOR" 2>&1 )
 if printf '%s' "$_t6l_out" | grep -q "marker: .claude/knowledge-enabled (present)" \
    && printf '%s' "$_t6l_out" | grep -q "coding.*surface=always.*loads=yes" \
-   && printf '%s' "$_t6l_out" | grep -q "runbooks.*surface=on-demand.*loads=no (v1 deferred)" \
+   && printf '%s' "$_t6l_out" | grep -q "runbooks.*surface=on-demand.*loads=on-match" \
    && printf '%s' "$_t6l_out" | grep -q "notes.*missing yml" \
    && printf '%s' "$_t6l_out" | grep -q "broken.*malformed yml" \
    && printf '%s' "$_t6l_out" | grep -q "result: loading enabled"; then
@@ -1230,6 +1238,323 @@ fi
 rm -rf "$_t6l_repo"
 
 rm -rf "$_T6L_TMPDIR"
+
+echo ""
+echo "Regression test (T000006 c3): On-Demand Matching (S000005)..."
+# Background: c3 adds `## On-Demand Matching` section to SKILL.md that emits
+# `## On-Demand Knowledge Candidates` block for on-demand categories with
+# non-empty triggers. Tests extract the block, execute against fixtures, and
+# verify the structure + trigger parsing + preconditions.
+
+_T6M_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006m' 2>/dev/null)
+_T6M_OM="$_T6M_TMPDIR/on-demand.sh"
+_T6M_HELPERS="$_T6M_TMPDIR/helpers.sh"
+
+awk '/^## On-Demand Matching/,/^## Diagnostic: knowledge-doctor/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_OM"
+
+awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_HELPERS"
+
+# --- Tier 1 structural greps ---
+
+if grep -q "^## On-Demand Matching" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 1 (S4): SKILL.md has ## On-Demand Matching section"
+else
+  fail_test "T000006 c3 case 1: SKILL.md missing ## On-Demand Matching section"
+fi
+
+if grep -q "## On-Demand Knowledge Candidates" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 2 (S5): SKILL.md emits ## On-Demand Knowledge Candidates name"
+else
+  fail_test "T000006 c3 case 2: SKILL.md missing ## On-Demand Knowledge Candidates emission"
+fi
+
+if grep -qi "tokenize" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+   && grep -qi "whole-word\|whole word" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+   && grep -qi "token boundaries" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 3 (S6/S7): SKILL.md specifies tokenization + whole-word + phrase at token boundaries"
+else
+  fail_test "T000006 c3 case 3: SKILL.md missing matching semantics (tokenize / whole-word / phrase)"
+fi
+
+if grep -qi "case-insensitive" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 4 (S7): SKILL.md specifies case-insensitive matching"
+else
+  fail_test "T000006 c3 case 4: SKILL.md missing case-insensitive spec"
+fi
+
+if grep -q "\[knowledge\] matched:" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 5 (S8): SKILL.md specifies match log format [knowledge] matched: ..."
+else
+  fail_test "T000006 c3 case 5: SKILL.md missing match log format"
+fi
+
+if grep -qi "latest user message\|most recent message\|latest message" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c3 case 6 (S9): SKILL.md pins matching scope to latest user message only"
+else
+  fail_test "T000006 c3 case 6: SKILL.md missing 'latest message only' scope"
+fi
+
+if grep -q "^parse_knowledge_triggers" "$_T6M_HELPERS"; then
+  ok "T000006 c3 case 7: Knowledge Helpers block defines parse_knowledge_triggers"
+else
+  fail_test "T000006 c3 case 7: Knowledge Helpers block missing parse_knowledge_triggers"
+fi
+
+# Drift tripwire: parse_knowledge_triggers body MUST be byte-identical between
+# Knowledge Helpers (the canonical definition) and On-Demand Matching (where it
+# is inlined for execution). Presence alone is not enough — a bug fix in one
+# copy must propagate to the other, or the On-Demand block executes stale code.
+_helpers_triggers_body=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
+_om_triggers_body=$(awk '/^## On-Demand Matching/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
+
+if [ -z "$_helpers_triggers_body" ] || [ -z "$_om_triggers_body" ]; then
+  fail_test "T000006 c3 case 8: could not extract parse_knowledge_triggers body from Helpers (len=${#_helpers_triggers_body}) or On-Demand (len=${#_om_triggers_body})"
+elif [ "$_helpers_triggers_body" = "$_om_triggers_body" ]; then
+  ok "T000006 c3 case 8: parse_knowledge_triggers body is byte-identical across Helpers + On-Demand blocks (drift tripwire active)"
+else
+  fail_test "T000006 c3 case 8: parse_knowledge_triggers drifted between Helpers and On-Demand blocks"
+fi
+
+if grep -qi "triggers" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md" \
+   && grep -qi "pricing engine\|multi-word phrase" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  ok "T000006 c3 case 9 (S13/S15): WORKFLOW.md documents triggers + multi-word phrase example"
+else
+  fail_test "T000006 c3 case 9: WORKFLOW.md missing trigger-authoring guidance"
+fi
+
+# --- Tier 2 behavioral tests ---
+
+source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+# shellcheck disable=SC1090
+source "$_T6M_HELPERS"
+
+_t6m_run_om() {
+  # $1 = AI_KNOWLEDGE_DIR, $2 = repo root with .claude/knowledge-enabled (or not)
+  local kdir="$1" repo="$2"
+  ( cd "$repo" && AI_KNOWLEDGE_DIR="$kdir" bash "$_T6M_OM" )
+}
+
+_t6m_make_repo() {
+  local repo
+  repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6m-repo' 2>/dev/null)
+  ( cd "$repo" && git init -q )
+  printf '%s' "$repo"
+}
+
+# ---------- parse_knowledge_triggers: inline form ----------
+_t6m_dir=$(mktemp -d)
+printf 'surface: on-demand\ntriggers: [pricing, "pricing engine", PE]\n' > "$_t6m_dir/inline.yml"
+_got=$(parse_knowledge_triggers "$_t6m_dir/inline.yml" | tr '\n' '|')
+if [ "$_got" = "pricing|pricing engine|PE|" ]; then
+  ok "T000006 c3 case 10: parse_knowledge_triggers handles inline flow form with quoted phrase"
+else
+  fail_test "T000006 c3 case 10: inline parse incorrect. got=[$_got]"
+fi
+
+# ---------- parse_knowledge_triggers: block form ----------
+printf 'surface: on-demand\ntriggers:\n  - pricing\n  - "pricing engine"\n  - PE\n' > "$_t6m_dir/block.yml"
+_got=$(parse_knowledge_triggers "$_t6m_dir/block.yml" | tr '\n' '|')
+if [ "$_got" = "pricing|pricing engine|PE|" ]; then
+  ok "T000006 c3 case 11: parse_knowledge_triggers handles block form with quoted phrase"
+else
+  fail_test "T000006 c3 case 11: block parse incorrect. got=[$_got]"
+fi
+
+# ---------- parse_knowledge_triggers: empty list ----------
+printf 'surface: on-demand\ntriggers: []\n' > "$_t6m_dir/empty.yml"
+_got=$(parse_knowledge_triggers "$_t6m_dir/empty.yml")
+if [ -z "$_got" ]; then
+  ok "T000006 c3 case 12: parse_knowledge_triggers returns empty for empty list"
+else
+  fail_test "T000006 c3 case 12: empty list should return empty. got=[$_got]"
+fi
+
+# ---------- parse_knowledge_triggers: missing key (surface: always only) ----------
+printf 'surface: always\n' > "$_t6m_dir/nokey.yml"
+_got=$(parse_knowledge_triggers "$_t6m_dir/nokey.yml")
+if [ -z "$_got" ]; then
+  ok "T000006 c3 case 13: parse_knowledge_triggers returns empty when triggers key absent"
+else
+  fail_test "T000006 c3 case 13: missing key should return empty. got=[$_got]"
+fi
+
+# ---------- parse_knowledge_triggers: single-quoted values ----------
+printf "surface: on-demand\ntriggers: ['a', \"b\", 'c c']\n" > "$_t6m_dir/sq.yml"
+_got=$(parse_knowledge_triggers "$_t6m_dir/sq.yml" | tr '\n' '|')
+if [ "$_got" = "a|b|c c|" ]; then
+  ok "T000006 c3 case 14: parse_knowledge_triggers strips single and double quotes"
+else
+  fail_test "T000006 c3 case 14: quote stripping wrong. got=[$_got]"
+fi
+
+rm -rf "$_t6m_dir"
+
+# ---------- On-Demand Matching: always-on categories NOT emitted ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "coding:always")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if ! printf '%s' "$_t6m_out" | grep -q "^## On-Demand Knowledge Candidates"; then
+  ok "T000006 c3 case 15 (O8): always-on-only fixture → no On-Demand block"
+else
+  fail_test "T000006 c3 case 15: always-on category leaked into On-Demand block"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- On-Demand: missing-yml categories not emitted ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "notes")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if ! printf '%s' "$_t6m_out" | grep -q "^## On-Demand Knowledge Candidates"; then
+  ok "T000006 c3 case 16: missing yml → no On-Demand block"
+else
+  fail_test "T000006 c3 case 16: missing-yml category emitted unexpectedly"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- On-Demand: empty-triggers categories not emitted (O7 equivalent) ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "staging:on-demand")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if ! printf '%s' "$_t6m_out" | grep -q "^## On-Demand Knowledge Candidates"; then
+  ok "T000006 c3 case 17 (O7): empty triggers → category NOT emitted as candidate"
+else
+  fail_test "T000006 c3 case 17: empty-triggers category leaked. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- On-Demand: single-trigger category emits correctly (O1) ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "runbooks:on-demand:pricing")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if printf '%s' "$_t6m_out" | grep -q "^## On-Demand Knowledge Candidates" \
+   && printf '%s' "$_t6m_out" | grep -q "^category: .*runbooks$" \
+   && printf '%s' "$_t6m_out" | grep -q "^triggers: pricing$" \
+   && printf '%s' "$_t6m_out" | grep -q "runbooks/a.md" \
+   && printf '%s' "$_t6m_out" | grep -q "runbooks/sub/b.md"; then
+  ok "T000006 c3 case 18 (O1): single-trigger category emits category + triggers + file list"
+else
+  fail_test "T000006 c3 case 18: single-trigger emission wrong. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- On-Demand: phrase-trigger quoted in emission (O2/O6) ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" 'domain:on-demand:pricing engine')
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if printf '%s' "$_t6m_out" | grep -q 'triggers: "pricing engine"'; then
+  ok "T000006 c3 case 19 (O2): phrase trigger emitted quoted"
+else
+  fail_test "T000006 c3 case 19: phrase trigger not quoted. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- On-Demand: multi-category + mixed modes (O5/O8) ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" \
+  "coding:always" \
+  "runbooks:on-demand:pricing" \
+  "security:on-demand:auth" \
+  "staging:on-demand" \
+  "notes" \
+  "broken:malformed")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+_expected_cats=$(printf '%s' "$_t6m_out" | grep -c "^category: ")
+# Expected: 2 (runbooks + security). coding excluded (always), staging excluded (empty triggers),
+# notes excluded (no yml), broken excluded (malformed)
+if [ "$_expected_cats" = "2" ] \
+   && printf '%s' "$_t6m_out" | grep -q "runbooks" \
+   && printf '%s' "$_t6m_out" | grep -q "security" \
+   && ! printf '%s' "$_t6m_out" | grep -q "coding" \
+   && ! printf '%s' "$_t6m_out" | grep -q "staging" \
+   && ! printf '%s' "$_t6m_out" | grep -q "notes"; then
+  ok "T000006 c3 case 20 (O5/O8): multi-category fixture emits exactly the 2 loadable on-demand cats"
+else
+  fail_test "T000006 c3 case 20: multi-cat emission wrong. got $_expected_cats category lines. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- G2: marker absent → no On-Demand block ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "runbooks:on-demand:pricing")
+# NO marker
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if [ -z "$_t6m_out" ] || ! printf '%s' "$_t6m_out" | grep -q "^## On-Demand Knowledge Candidates"; then
+  ok "T000006 c3 case 21 (G2): marker absent → no On-Demand Candidates block"
+else
+  fail_test "T000006 c3 case 21: marker-absent leaked on-demand. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- Gate: env unset → no block ----------
+_t6m_repo=$(_t6m_make_repo)
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$( cd "$_t6m_repo" && env -u AI_KNOWLEDGE_DIR bash "$_T6M_OM" 2>&1 )
+if [ -z "$_t6m_out" ]; then
+  ok "T000006 c3 case 22: env unset → silent, no block"
+else
+  fail_test "T000006 c3 case 22: env unset leaked output. [$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- Gate: AI_KNOWLEDGE_DISABLE → no block ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "runbooks:on-demand:pricing")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$( cd "$_t6m_repo" && AI_KNOWLEDGE_DIR="$_t6m_kdir" AI_KNOWLEDGE_DISABLE=1 bash "$_T6M_OM" 2>&1 )
+if [ -z "$_t6m_out" ]; then
+  ok "T000006 c3 case 23: AI_KNOWLEDGE_DISABLE=1 → one-shot skip"
+else
+  fail_test "T000006 c3 case 23: disable leaked output. [$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- Claude-facing instruction presence (S6/S7/S8/S9 consolidated) ----------
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" "runbooks:on-demand:pricing")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$(_t6m_run_om "$_t6m_kdir" "$_t6m_repo" 2>/dev/null)
+if printf '%s' "$_t6m_out" | grep -qi "tokenize" \
+   && printf '%s' "$_t6m_out" | grep -qi "case-insensitive" \
+   && printf '%s' "$_t6m_out" | grep -q "\[knowledge\] matched:"; then
+  ok "T000006 c3 case 24: emitted block includes Claude-facing instructions (tokenize + case-insensitive + match log format)"
+else
+  fail_test "T000006 c3 case 24: emitted block missing required Claude instructions"
+fi
+rm -rf "$_t6m_repo"
+
+# ---------- Doctor: on-demand with triggers shows 'on-match' ----------
+_T6M_DOCTOR="$_T6M_TMPDIR/doctor.sh"
+awk '/^## Diagnostic: knowledge-doctor/,/^## Template Registry/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_DOCTOR"
+
+_t6m_repo=$(_t6m_make_repo)
+_t6m_kdir=$(build_knowledge_fixture "$_t6m_repo/k" \
+  "runbooks:on-demand:pricing" \
+  "staging:on-demand")
+mkdir -p "$_t6m_repo/.claude" && touch "$_t6m_repo/.claude/knowledge-enabled"
+_t6m_out=$( cd "$_t6m_repo" && AI_KNOWLEDGE_DIR="$_t6m_kdir" bash "$_T6M_DOCTOR" 2>&1 )
+if printf '%s' "$_t6m_out" | grep -q "runbooks.*loads=on-match" \
+   && printf '%s' "$_t6m_out" | grep -q "staging.*loads=no (empty triggers)"; then
+  ok "T000006 c3 case 25: knowledge-doctor shows 'loads=on-match (triggers: ...)' for loadable and 'empty triggers' for inert"
+else
+  fail_test "T000006 c3 case 25: doctor on-demand rendering wrong. output=[$_t6m_out]"
+fi
+rm -rf "$_t6m_repo"
+
+rm -rf "$_T6M_TMPDIR"
 
 # Summary
 echo ""
