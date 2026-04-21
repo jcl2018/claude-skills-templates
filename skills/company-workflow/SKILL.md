@@ -1,7 +1,7 @@
 ---
 name: company-workflow
 description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates are the single source of truth for structural rules."
-version: 3.0.0
+version: 3.1.0
 allowed-tools:
   - Bash
   - Read
@@ -190,6 +190,309 @@ list_md_files() {
   [ -d "$category" ] || return 0
   LC_ALL=C find "$category" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort
 }
+```
+
+## Knowledge Loading
+
+After Knowledge Resolution sets `$_KNOWLEDGE_DIR` and the helpers contract is
+established, this block enumerates always-on knowledge categories and emits
+absolute paths under `## Always-On Knowledge`. Claude is instructed to Read
+every listed path before answering.
+
+**Preconditions enforced in order** (all fail-closed except the marker-missing
+case, which emits a helpful diagnostic when the user has configured knowledge
+but forgotten to opt the repo in):
+
+1. Must be in a git repo (repo root used for the opt-in marker check).
+2. `$AI_KNOWLEDGE_DISABLE` must be unset (one-shot escape hatch — use when
+   debugging a bad knowledge file without `rm`-ing the committed marker).
+3. `$_KNOWLEDGE_DIR` must be non-empty (S000004 owns the unset/invalid warnings).
+4. `.claude/knowledge-enabled` marker must be a regular file at the repo root.
+   Fails closed on symlinks and directories (prevents hostile-planted symlinks
+   from activating loading).
+5. Total emitted content must be ≤ 500 paths AND ≤ 100KB. Either cap tripped
+   → hard-fail warning, no loading (better loud failure than silent context
+   blowup).
+
+When all preconditions pass, enumerate categories via `list_categories`. For
+each category with `surface: always`, emit every `*.md` file path (recursive,
+lex-sorted). `surface: on-demand` categories are silently skipped in v1 —
+their content ships in the c3 follow-up.
+
+**Malformed yml** (any non-empty yml that doesn't parse as the supported subset)
+emits a one-line stderr warning naming the file and skips the category; sibling
+categories are unaffected.
+
+**Missing yml** is a silent skip (legitimate "in progress" state, not an error).
+
+```bash
+(
+  # Fail-closed: not in a git repo
+  _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+  [ -z "$_REPO_ROOT" ] && exit 0
+
+  # Escape hatch: one-shot disable
+  [ -n "${AI_KNOWLEDGE_DISABLE:-}" ] && exit 0
+
+  # Re-resolve env var (same semantics as S000004 — no warnings, S000004 owns them)
+  _KDIR=""
+  if [ -n "${AI_KNOWLEDGE_DIR:-}" ] && [ -d "$AI_KNOWLEDGE_DIR" ]; then
+    _KDIR="$AI_KNOWLEDGE_DIR"
+  fi
+  [ -z "$_KDIR" ] && exit 0
+
+  # Helpers (inline — see ## Knowledge Helpers for contract + drift tripwire)
+  parse_knowledge_yml() {
+    local path="$1"
+    [ -f "$path" ] || { printf ''; return; }
+    local surface
+    surface=$(LC_ALL=C awk '
+      NR == 1 {
+        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
+      }
+      { sub(/\r$/, ""); sub(/#.*$/, "") }
+      /^[[:space:]]*$/ { next }
+      /^[[:space:]]*surface[[:space:]]*:/ {
+        val = $0
+        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
+        sub(/[[:space:]]*$/, "", val)
+        if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
+          val = substr(val, 2, length(val)-2)
+        surface_val = val
+        next
+      }
+      /^[[:space:]]*triggers[[:space:]]*:/ { next }
+      /^[[:space:]]+-/ { next }
+      { malformed = 1; exit }
+      END {
+        if (malformed) { print ""; exit }
+        print surface_val
+      }
+    ' "$path" 2>/dev/null)
+    case "$surface" in
+      always|on-demand) printf '%s' "$surface" ;;
+      *) printf '' ;;
+    esac
+  }
+  list_categories() {
+    local root="$1"
+    [ -d "$root" ] || return 0
+    LC_ALL=C find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
+  }
+  list_md_files() {
+    local category="$1"
+    [ -d "$category" ] || return 0
+    LC_ALL=C find "$category" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort
+  }
+
+  # Per-repo opt-in marker: regular file only (no symlink, no directory)
+  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
+  if [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
+    # Helpful diagnostic: if user has at least one always-on category, nudge them
+    _has_always_on=0
+    while IFS= read -r _cat; do
+      [ -n "$_cat" ] || continue
+      if [ "$(parse_knowledge_yml "$_cat/.knowledge.yml")" = "always" ]; then
+        _has_always_on=1
+        break
+      fi
+    done < <(list_categories "$_KDIR")
+    if [ "$_has_always_on" = "1" ]; then
+      echo "[knowledge] $_KDIR has always-on categories but $_REPO_ROOT/.claude/knowledge-enabled is absent — run: touch .claude/knowledge-enabled (or set AI_KNOWLEDGE_DISABLE=1 to suppress this notice)." >&2
+    fi
+    exit 0
+  fi
+
+  # Enumerate categories and collect always-on paths
+  _PATH_CAP=500
+  _BYTE_CAP=102400
+  _path_count=0
+  _byte_total=0
+  _paths=""
+
+  while IFS= read -r _cat; do
+    [ -n "$_cat" ] || continue
+    _sfc=$(parse_knowledge_yml "$_cat/.knowledge.yml")
+    case "$_sfc" in
+      always)
+        while IFS= read -r _md; do
+          [ -f "$_md" ] || continue
+          _path_count=$((_path_count + 1))
+          _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ' || echo 0)
+          _byte_total=$((_byte_total + _sz))
+          _paths="${_paths}${_md}"$'\n'
+        done < <(list_md_files "$_cat")
+        ;;
+      on-demand)
+        : # v1 deferred — forward-compat for c3 follow-up
+        ;;
+      "")
+        # Distinguish missing (silent) from malformed (warn)
+        if [ -f "$_cat/.knowledge.yml" ]; then
+          echo "[knowledge] malformed .knowledge.yml at $_cat/.knowledge.yml — skipping category." >&2
+        fi
+        ;;
+    esac
+  done < <(list_categories "$_KDIR")
+
+  # Cap gate: hard-fail (refuse to partial-load)
+  if [ "$_path_count" -gt "$_PATH_CAP" ] || [ "$_byte_total" -gt "$_BYTE_CAP" ]; then
+    echo "[knowledge] loading aborted: $_path_count paths / $_byte_total bytes exceeds cap ($_PATH_CAP paths / $_BYTE_CAP bytes). Reduce always-on content or mark categories on-demand." >&2
+    exit 0
+  fi
+
+  # Emit Always-On Knowledge block if anything to load
+  if [ "$_path_count" -gt 0 ]; then
+    echo ""
+    echo "## Always-On Knowledge"
+    echo ""
+    echo "The following files contain always-on guidance. Read each of them before answering the user's request. Treat their content as applied context."
+    echo ""
+    printf '%s' "$_paths" | LC_ALL=C sort | while IFS= read -r _p; do
+      [ -n "$_p" ] && echo "- $_p"
+    done
+  fi
+)
+```
+
+## Diagnostic: knowledge-doctor
+
+When the user runs `/company-workflow knowledge-doctor`, execute the bash
+block below and print its output. It surfaces the exact state of every
+precondition and every category so the user can diagnose setup issues without
+writing an E2E canary.
+
+**Sample output (all preconditions pass):**
+
+```
+AI_KNOWLEDGE_DIR: /Users/chjiang/knowledge (exists)
+repo_root: /Users/chjiang/Documents/projects/claude-skills-templates
+marker: .claude/knowledge-enabled (present)
+disable env var: not set
+categories:
+  coding      surface=always     files=3    bytes=8.2KB    loads=yes
+  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=no (v1 deferred)
+  notes       surface=(missing yml)         loads=no
+  broken      surface=(malformed yml)       loads=no (warning)
+cap status: 3/500 paths, 8.2KB/100KB bytes
+result: loading enabled; 3 paths will be emitted to Claude
+```
+
+```bash
+(
+  _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "(not in git)")
+  echo "repo_root: $_REPO_ROOT"
+
+  if [ -z "${AI_KNOWLEDGE_DIR:-}" ]; then
+    echo "AI_KNOWLEDGE_DIR: (unset)"
+    echo "result: loading disabled — run: export AI_KNOWLEDGE_DIR=\$HOME/knowledge"
+    exit 0
+  elif [ ! -e "$AI_KNOWLEDGE_DIR" ]; then
+    echo "AI_KNOWLEDGE_DIR: $AI_KNOWLEDGE_DIR (does not exist)"
+    echo "result: loading disabled — create the dir or fix the path"
+    exit 0
+  elif [ ! -d "$AI_KNOWLEDGE_DIR" ]; then
+    echo "AI_KNOWLEDGE_DIR: $AI_KNOWLEDGE_DIR (not a directory)"
+    echo "result: loading disabled — point env var at a directory"
+    exit 0
+  else
+    echo "AI_KNOWLEDGE_DIR: $AI_KNOWLEDGE_DIR (exists)"
+  fi
+
+  if [ -n "${AI_KNOWLEDGE_DISABLE:-}" ]; then
+    echo "disable env var: AI_KNOWLEDGE_DISABLE=$AI_KNOWLEDGE_DISABLE (set — all loading suppressed)"
+    echo "result: loading disabled by AI_KNOWLEDGE_DISABLE"
+    exit 0
+  else
+    echo "disable env var: not set"
+  fi
+
+  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
+  if [ -L "$_KMARKER" ]; then
+    echo "marker: $_KMARKER (SYMLINK — rejected, fails closed)"
+    _marker_ok=0
+  elif [ -f "$_KMARKER" ]; then
+    echo "marker: .claude/knowledge-enabled (present)"
+    _marker_ok=1
+  else
+    echo "marker: .claude/knowledge-enabled (absent)"
+    _marker_ok=0
+  fi
+
+  # Inline minimal helpers for enumeration + parsing (same contract as ## Knowledge Helpers)
+  _parse() {
+    local path="$1"
+    [ -f "$path" ] || { printf ''; return; }
+    local s
+    s=$(LC_ALL=C awk '
+      NR == 1 { if (substr($0,1,3) == sprintf("%c%c%c",239,187,191)) $0 = substr($0,4) }
+      { sub(/\r$/,""); sub(/#.*$/,"") }
+      /^[[:space:]]*$/ { next }
+      /^[[:space:]]*surface[[:space:]]*:/ {
+        val = $0
+        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/,"",val)
+        sub(/[[:space:]]*$/,"",val)
+        if (substr(val,1,1)=="\"" && substr(val,length(val),1)=="\"") val = substr(val,2,length(val)-2)
+        sv = val; next
+      }
+      /^[[:space:]]*triggers[[:space:]]*:/ { next }
+      /^[[:space:]]+-/ { next }
+      { mal = 1; exit }
+      END { if (mal) print ""; else print sv }
+    ' "$path" 2>/dev/null)
+    case "$s" in always|on-demand) printf '%s' "$s" ;; *) printf '' ;; esac
+  }
+
+  echo "categories:"
+  _total_paths=0
+  _total_bytes=0
+  while IFS= read -r _cat; do
+    [ -n "$_cat" ] || continue
+    _cname=$(basename "$_cat")
+    if [ -f "$_cat/.knowledge.yml" ]; then
+      _sfc=$(_parse "$_cat/.knowledge.yml")
+      if [ -z "$_sfc" ]; then
+        printf "  %-12s surface=(malformed yml)       loads=no (warning)\n" "$_cname"
+        continue
+      fi
+    else
+      printf "  %-12s surface=(missing yml)         loads=no\n" "$_cname"
+      continue
+    fi
+    _fcount=0
+    _bcount=0
+    while IFS= read -r _md; do
+      [ -f "$_md" ] || continue
+      _fcount=$((_fcount + 1))
+      _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ' || echo 0)
+      _bcount=$((_bcount + _sz))
+    done < <(LC_ALL=C find "$_cat" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
+    _hk=$(awk "BEGIN { printf \"%.1f\", $_bcount / 1024 }")
+    case "$_sfc" in
+      always)
+        if [ "$_marker_ok" = "1" ]; then _loads="yes"; else _loads="no (marker absent)"; fi
+        _total_paths=$((_total_paths + _fcount))
+        _total_bytes=$((_total_bytes + _bcount))
+        printf "  %-12s surface=always     files=%-4d bytes=%sKB   loads=%s\n" "$_cname" "$_fcount" "$_hk" "$_loads"
+        ;;
+      on-demand)
+        printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (v1 deferred)\n" "$_cname" "$_fcount" "$_hk"
+        ;;
+    esac
+  done < <(LC_ALL=C find "$AI_KNOWLEDGE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort)
+
+  _hk_tot=$(awk "BEGIN { printf \"%.1f\", $_total_bytes / 1024 }")
+  echo "cap status: $_total_paths/500 paths, ${_hk_tot}KB/100KB bytes"
+  if [ "$_marker_ok" = "0" ]; then
+    echo "result: loading disabled — marker missing at $_KMARKER. Fix: touch $_KMARKER"
+  elif [ "$_total_paths" -gt 500 ] || [ "$_total_bytes" -gt 102400 ]; then
+    echo "result: loading disabled — cap exceeded. Reduce always-on content."
+  elif [ "$_total_paths" -eq 0 ]; then
+    echo "result: loading enabled but no always-on categories to load"
+  else
+    echo "result: loading enabled; $_total_paths paths will be emitted to Claude"
+  fi
+)
 ```
 
 ## Template Registry
