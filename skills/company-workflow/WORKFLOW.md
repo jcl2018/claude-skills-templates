@@ -287,16 +287,19 @@ Templates resolve the same way: `$REPO_ROOT/templates/company-workflow/` then
 ## Knowledge Configuration
 
 The skill supports an OPTIONAL external knowledge directory for coding
-guidance (e.g. cpp style) and company-specific domain knowledge. When a
-category is marked `surface: always` and the current repo has opted in via
-`.claude/knowledge-enabled`, the category's markdown files are injected into
-Claude's context on every skill invocation — no copy-paste needed.
+guidance (e.g. cpp style) and company-specific domain knowledge. Two
+surfacing modes:
 
-v1 ships always-on loading only. On-demand trigger matching (categories that
-load when the user's message mentions a trigger word) is deferred to a
-follow-up story, gated on observed user need. You can author `surface: on-demand`
-yml today — the parser accepts it as valid and silently skips it in v1, so
-your yml will activate cleanly when the follow-up ships.
+- **`surface: always`** — the category's `*.md` files are Read into Claude's
+  context on every skill invocation in an opted-in repo. Use for guidance
+  you want applied unconditionally (house coding style, team conventions).
+- **`surface: on-demand`** — the category loads only when the user's latest
+  message mentions one of the category's declared triggers. Use for
+  situational material (domain runbooks, language references, internal
+  acronyms) where loading unconditionally would waste context.
+
+Both modes require `.claude/knowledge-enabled` in the current repo root to
+activate (opt-in gate — prevents cross-context contamination between repos).
 
 ### Quick Start (5-line copy-paste)
 
@@ -327,7 +330,7 @@ precondition. Common traps:
 | `has always-on categories but .claude/knowledge-enabled is absent` | Repo not opted in | `touch .claude/knowledge-enabled` in the repo root |
 | `malformed .knowledge.yml at ...` | yml has an unknown key, single-quoted value, or similar | Fix the yml (see Schema below); only `surface` + `triggers` keys are recognized |
 | Always-On section is emitted but Claude isn't quoting canaries | Claude didn't Read the files | Check the doctor output — are paths actually listed? If so, ask Claude directly |
-| `loading aborted: N paths / N bytes exceeds cap` | Too much always-on content | Reduce files, or mark some categories `surface: on-demand` (reserved for c3 follow-up) |
+| `loading aborted: N paths / N bytes exceeds cap` | Too much always-on content | Reduce files, or mark some categories `surface: on-demand` with triggers so they only load when relevant |
 
 ### Escape Hatches
 
@@ -337,8 +340,9 @@ precondition. Common traps:
 - **Per-repo disable:** delete `.claude/knowledge-enabled` (re-add when ready).
 - **Per-category disable:** delete or rename the category's `.knowledge.yml`.
   Missing yml is a silent skip.
-- **Per-category opt-in later:** author yml as `surface: on-demand` (currently
-  inert in v1, ready for c3 follow-up).
+- **Per-category opt-in later:** author yml as `surface: on-demand` with
+  narrow triggers — the category only loads when the user's prompt mentions
+  one of those triggers.
 
 ### Layout
 
@@ -363,10 +367,24 @@ etc.).
 ### `.knowledge.yml` Schema
 
 ```yaml
-surface: always        # v1 active: files load on every skill invocation
-# or:
-surface: on-demand     # v1 inert (forward-compat — activates with c3 follow-up)
-triggers: [keyword1, "multi-word phrase"]   # used in c3 follow-up; v1 ignores
+# Always-on: content loads on every skill invocation
+surface: always
+
+# --- or ---
+
+# On-demand: content loads only when the user's latest message mentions a trigger
+surface: on-demand
+triggers: [pricing, "pricing engine", PE]
+```
+
+Both inline flow form (`triggers: [a, "b c", 'd']`) and block form work:
+
+```yaml
+surface: on-demand
+triggers:
+  - pricing
+  - "pricing engine"
+  - PE
 ```
 
 **Supported value forms for `surface`:**
@@ -382,12 +400,38 @@ triggers: [keyword1, "multi-word phrase"]   # used in c3 follow-up; v1 ignores
 
 **Category behavior summary:**
 
-| `.knowledge.yml` | v1 behavior | c3 follow-up |
-|---|---|---|
-| `surface: always` | Content loaded every invocation | (unchanged) |
-| `surface: on-demand` | Silent skip (forward-compat) | Loaded when triggers match user prompt |
-| Missing | Silent skip | (unchanged) |
-| Malformed | Category skipped, one-line stderr warning | (unchanged) |
+| `.knowledge.yml` | Behavior |
+|---|---|
+| `surface: always` | Content loaded on every invocation (in opted-in repos) |
+| `surface: on-demand` + non-empty `triggers` | Loaded when user's latest message matches a trigger |
+| `surface: on-demand` + empty/missing `triggers` | Inert — never loads until you add triggers |
+| Missing | Silent skip |
+| Malformed | Category skipped, one-line stderr warning |
+
+### Trigger authoring guidance
+
+Triggers are literal keywords or phrases. The match is:
+- **Single-word triggers** (no spaces): case-insensitive whole-word match
+  against prompt tokens. `pricing` matches `Pricing` and `PRICING` but NOT
+  `pricingengine` (substring inside a word).
+- **Multi-word phrase triggers** (contain spaces, must be quoted in yml):
+  case-insensitive phrase match at token boundaries. `"pricing engine"`
+  matches "how does the pricing engine work" but NOT "what is pricing" alone.
+
+Good trigger hygiene:
+- **Specific > generic.** `"pricing engine"` beats `pricing` — fewer false
+  positives for unrelated prompts that happen to mention pricing.
+- **Include your domain's internal acronyms** — `PE`, `OKR`, `SLA` — if
+  colleagues type them, the category should load.
+- **Avoid common English words** — `the`, `and`, `code` — these match
+  everything and defeat the on-demand filter.
+- **Watch false positives in diagnostic logs.** Every match emits a
+  `[knowledge] matched: <cat> via <trigger>` line on stderr. If you see
+  unexpected matches, narrow the trigger.
+
+On-demand loading is narrowed to the **user's latest message only** —
+not prior turns, not system prompt, not Claude's own replies. Keeps
+context from ballooning over long conversations.
 
 ### Security
 
@@ -414,9 +458,15 @@ the opted-in repo.
 
 File paths containing control characters (newline, CR) are rejected during
 enumeration — they'd otherwise forge line structure in the `## Always-On
-Knowledge` block Claude sees. Hidden files and directories (anything starting
-with `.`) under a category are skipped, so a stray `.draft/notes.md` won't
-leak into Claude's context.
+Knowledge` or `## On-Demand Knowledge Candidates` block Claude sees. Hidden
+files and directories (anything starting with `.`) under a category are
+skipped, so a stray `.draft/notes.md` won't leak into Claude's context.
+
+On-demand content has the same trust boundary as always-on: it reaches
+Claude's context via the Read tool once a trigger matches. Review triggers
+against the prompts you actually expect, not just the ones you hope for —
+a trigger like `code` would match nearly every prompt and pull the category
+into context on every invocation.
 
 ### Bytes + path caps
 
@@ -442,22 +492,33 @@ marker: .claude/knowledge-enabled (present)
 disable env var: not set
 categories:
   coding      surface=always     files=3    bytes=8.2KB    loads=yes
-  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=no (v1 deferred)
+  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=on-match (triggers: pricing, "pricing engine")
+  staging     surface=on-demand  files=2    bytes=1.4KB    loads=no (empty triggers)
   notes       surface=(missing yml)         loads=no
   broken      surface=(malformed yml)       loads=no (warning)
 cap status: 3/500 paths, 8.2KB/100KB bytes
 result: loading enabled; 3 paths will be emitted to Claude
 ```
 
+`loads=on-match` means the category will load IF the user's latest prompt
+mentions one of the listed triggers. `loads=no (empty triggers)` means the
+category is inert — add triggers to activate it.
+
 ### Current Status
 
+F000004 ships the full knowledge-integration feature in three slices:
+
 - **Resolution** (path detection + unset/invalid warnings): shipped in S000004
-  (PR #38).
+  (PR #38, v0.11.0).
 - **Always-on loading + per-repo opt-in gate + knowledge-doctor**: shipped in
-  S000005 (T000006 c1+c2).
-- **On-demand trigger matching + trigger DSL**: deferred to a follow-up story
-  after /autoplan CEO dual-voice review (2026-04-21). Unblock condition: a
-  specific user incident where always-on alone was insufficient and on-demand
-  trigger matching would have saved context/time. See
-  [F000004 feature tracker](../../work-items/features/F000004_knowledge_integration/F000004_TRACKER.md)
-  for status.
+  S000005 c1+c2 (PR #40, v0.12.0).
+- **On-demand trigger matching**: shipped in S000005 c3 (v0.13.0). User's
+  latest message is tokenized, triggers are matched case-insensitively
+  against the prompt (whole-word for single tokens; phrase at token
+  boundaries for quoted multi-word triggers), and matched categories'
+  files Read into context before answering.
+
+Matching is intentionally simple: literal triggers, no fuzzy/semantic
+match, no embedding similarity. Quality of surfacing is bounded by the
+quality of the user's trigger lists. See [F000004 feature tracker](../../work-items/features/F000004_knowledge_integration/F000004_TRACKER.md)
+for history.

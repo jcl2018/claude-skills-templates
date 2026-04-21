@@ -4,6 +4,27 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.13.0] - 2026-04-20
+
+### Added
+- **On-demand trigger matching for `/company-workflow` (F000004, S000005 c3).** Drop `.knowledge.yml { surface: on-demand, triggers: [pricing, "pricing engine"] }` next to a category directory. New `## On-Demand Matching` section in `skills/company-workflow/SKILL.md` enumerates on-demand categories with non-empty triggers and emits a `## On-Demand Knowledge Candidates` block listing each category, its triggers, and its files. Claude matches the latest user message against triggers (case-insensitive whole-word for single-word triggers, phrase match at token boundaries for quoted multi-word triggers), loads every matched category's files, and logs `[knowledge] matched: <cat> via <trigger>` for each hit. Categories with `surface: on-demand` but no triggers are documented as intentionally inert. Together with always-on loading (v0.12.0), this completes the knowledge-loading vertical slice.
+- **`parse_knowledge_triggers` helper.** New bash function in `## Knowledge Helpers` that tolerates both YAML flow form (`triggers: [a, "b c", 'd']`) and block form (`triggers:` followed by `  - a`); strips single + double quotes; honors `#` comments, CRLF, and UTF-8 BOM — same grammar tolerance as `parse_knowledge_yml`. Defined once, inlined into the On-Demand Matching block (drift-tested to byte-identicality).
+- **`knowledge-doctor` distinguishes loadable vs inert on-demand categories.** Output now shows `runbooks surface=on-demand files=5 loads=on-match (triggers: pricing, "pricing engine")` for categories that will activate vs `staging surface=on-demand files=2 loads=no (empty triggers)` for inert ones. Same diagnostic covers both always-on (c2) and on-demand (c3) surfacing.
+- **25 new c3 test assertions in `scripts/test.sh`.** Structural (section presence, matching-semantics spec, helper drift across blocks), unit tests for `parse_knowledge_triggers` (inline flow, block form, empty list, missing key, quote stripping), behavioral tests (always-on excluded from on-demand block, missing yml excluded, empty triggers excluded, single-trigger emission, quoted phrase emission, multi-category correctness), gate tests (marker absent, env unset, `AI_KNOWLEDGE_DISABLE=1` all suppress the block), and instruction-presence + doctor-output assertions.
+- **WORKFLOW.md trigger authoring guidance.** New section covering single-word vs multi-word phrase semantics, why quoting matters, hygiene tips (keep triggers concrete, avoid single common verbs, quote multi-word phrases to scope them to contiguous token matches).
+
+### Changed
+- **`skills/company-workflow` bumped to v3.2.0.** Additive feature; no breaking changes. `## On-Demand Matching` inserted between `## Knowledge Loading` and `## Diagnostic: knowledge-doctor`. Always-on loading behavior unchanged; on-demand categories that previously parsed-and-discarded now enumerate + emit.
+- **Removed "v1 deferred" language throughout `skills/company-workflow/WORKFLOW.md` and SKILL.md.** On-demand is no longer deferred; both surfacing modes ship in this release. The Loading block's `on-demand)` case now reads "handled by On-Demand Matching block; not emitted here" instead of "v1 deferred — forward-compat for c3 follow-up."
+- **c2 test extraction bounds updated.** Tests that extract the Knowledge Loading bash block now bound at `## On-Demand Matching` (not `## Diagnostic: knowledge-doctor`) so the Loading extraction captures only the Loading block. Drift tripwire and A2-leak test now pass deterministically regardless of On-Demand Matching's presence.
+
+### Skipped (explicit non-scope)
+- **50KB on-demand soft threshold.** Dual-voice review flagged the proposed soft-cap-with-warning as theater: no real protection (still loads), no user action (just noise), and the existing hard 500-path / 100KB caps in Loading already protect always-on. Skipping reduces complexity without reducing safety. If on-demand bloat becomes a real incident, revisit with a concrete threshold tuned to observed pain.
+
+### Rationale
+Completes F000004 S000005. Knowledge integration now supports both loading modes: always-on (v0.12.0, ship with every invocation) and on-demand (this release, ship when Claude matches triggers in the user's message). The c1 + c2 + c3 split was deliberate — each slice shipped something usable on its own, and c3's scope was re-evaluated after c2 landed. One piece of c3's original scope (50KB soft threshold) was dropped at the gate rather than shipped reflexively. Boiling the lake means doing the complete thing, not every proposed thing.
+
+
 ## [0.12.0] - 2026-04-21
 
 ### Added
