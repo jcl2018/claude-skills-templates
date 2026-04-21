@@ -49,7 +49,7 @@ Per-skill manifests are the canonical source of truth:
 
 | Skill | What it does |
 |-------|-------------|
-| `/company-workflow` | Validates company work items against templates. Structural rules (required frontmatter, section order, lifecycle phases, minimum checkbox count) derived from the matching template at runtime — no separate contract file to drift. Optional `AI_KNOWLEDGE_DIR` env var scaffolds an external knowledge folder for coding guidance and domain knowledge. |
+| `/company-workflow` | Validates company work items against templates. Structural rules (required frontmatter, section order, lifecycle phases, minimum checkbox count) derived from the matching template at runtime — no separate contract file to drift. Optional `AI_KNOWLEDGE_DIR` env var points at an external knowledge folder for coding guidance and domain knowledge; categories marked `surface: always` inject their `*.md` files into Claude's context on every invocation when the repo opts in via `.claude/knowledge-enabled`. Ships with a `knowledge-doctor` diagnostic subcommand for troubleshooting. |
 | `/personal-workflow` | Validates personal-dev work items. Same template-derived rules, lighter 3-phase lifecycle (Track / Implement / Ship), simpler frontmatter (no `workflow_type`, no `url`). |
 | `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. Composite 0-10 health score with trend tracking. |
 
