@@ -1331,6 +1331,7 @@ fi
 # --- Tier 2 behavioral tests ---
 
 source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+# shellcheck disable=SC1090
 source "$_T6M_HELPERS"
 
 _t6m_run_om() {
