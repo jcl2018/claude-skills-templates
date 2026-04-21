@@ -865,15 +865,23 @@ fi
 # byte-for-byte after dedenting (indentation differs between the top-level Helpers block
 # and the inlined Loading block inside a subshell).
 _extract_helper_bodies() {
-  # Reads a bash-block content on stdin, emits only the three helper function bodies
-  # dedented. Uses balanced brace tracking to find each function's end.
-  awk '
-    BEGIN { in_fn = 0; brace = 0 }
-    /^[[:space:]]*(parse_knowledge_yml|list_categories|list_md_files)\(\)/ {
+  # Reads a bash-block content on stdin, emits the bodies of the helpers named
+  # in the first argument (pipe-separated), dedented. Uses balanced brace
+  # tracking to find each function's end. Strips comment-only lines and blank
+  # lines so the Helpers copy (which carries explanatory comments as the
+  # contract reference) compares equal to inlined copies that elide them.
+  # Drift that matters is code, not documentation.
+  local names="${1:-parse_knowledge_yml|list_categories|list_md_files}"
+  awk -v names="$names" '
+    BEGIN { in_fn = 0; brace = 0; pat = "^[[:space:]]*(" names ")\\(\\)" }
+    $0 ~ pat {
       in_fn = 1; brace = 0
     }
     in_fn {
       sub(/^[[:space:]]+/, "")
+      # Skip comment-only lines and blank lines — documentation, not code.
+      if ($0 ~ /^[[:space:]]*#/) next
+      if ($0 ~ /^[[:space:]]*$/) next
       print
       tmp = $0; n_open = gsub(/[{]/, "", tmp)
       tmp = $0; n_close = gsub(/[}]/, "", tmp)
@@ -1296,13 +1304,21 @@ else
   fail_test "T000006 c3 case 7: Knowledge Helpers block missing parse_knowledge_triggers"
 fi
 
-# Drift check: parse_knowledge_triggers should also appear in Loading + On-Demand blocks
-_helpers_has=$(grep -c "^parse_knowledge_triggers" "$_T6M_HELPERS" 2>/dev/null || echo 0)
-_om_has=$(grep -c "parse_knowledge_triggers()" "$_T6M_OM" 2>/dev/null || echo 0)
-if [ "$_helpers_has" -ge 1 ] && [ "$_om_has" -ge 1 ]; then
-  ok "T000006 c3 case 8: parse_knowledge_triggers present in both Helpers block and On-Demand block"
+# Drift tripwire: parse_knowledge_triggers body MUST be byte-identical between
+# Knowledge Helpers (the canonical definition) and On-Demand Matching (where it
+# is inlined for execution). Presence alone is not enough — a bug fix in one
+# copy must propagate to the other, or the On-Demand block executes stale code.
+_helpers_triggers_body=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
+_om_triggers_body=$(awk '/^## On-Demand Matching/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
+
+if [ -z "$_helpers_triggers_body" ] || [ -z "$_om_triggers_body" ]; then
+  fail_test "T000006 c3 case 8: could not extract parse_knowledge_triggers body from Helpers (len=${#_helpers_triggers_body}) or On-Demand (len=${#_om_triggers_body})"
+elif [ "$_helpers_triggers_body" = "$_om_triggers_body" ]; then
+  ok "T000006 c3 case 8: parse_knowledge_triggers body is byte-identical across Helpers + On-Demand blocks (drift tripwire active)"
 else
-  fail_test "T000006 c3 case 8: parse_knowledge_triggers missing from one of the blocks (helpers=$_helpers_has, om=$_om_has)"
+  fail_test "T000006 c3 case 8: parse_knowledge_triggers drifted between Helpers and On-Demand blocks"
 fi
 
 if grep -qi "triggers" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md" \

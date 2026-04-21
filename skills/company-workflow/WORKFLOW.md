@@ -478,7 +478,8 @@ v1 enforces:
 Either cap tripped → hard-fail warning, nothing loads (better a loud failure
 than silent context blowup). If you hit the cap, consider splitting your
 most sprawling category into multiple categories and moving some to
-`surface: on-demand` (reserved for c3 follow-up).
+`surface: on-demand` — on-demand categories only load when the user's
+prompt matches a trigger, so they don't count against always-on caps.
 
 ### Diagnostic: knowledge-doctor
 

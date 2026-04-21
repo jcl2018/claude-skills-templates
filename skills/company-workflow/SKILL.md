@@ -282,8 +282,8 @@ but forgotten to opt the repo in):
 
 When all preconditions pass, enumerate categories via `list_categories`. For
 each category with `surface: always`, emit every `*.md` file path (recursive,
-lex-sorted). `surface: on-demand` categories are silently skipped in v1 —
-their content ships in the c3 follow-up.
+lex-sorted). `surface: on-demand` categories are not emitted here — they're
+handled by the `## On-Demand Matching` section below.
 
 **Malformed yml** (any non-empty yml that doesn't parse as the supported subset)
 emits a one-line stderr warning naming the file and skips the category; sibling
@@ -353,51 +353,6 @@ categories are unaffected.
     local category="$1"
     [ -d "$category" ] || return 0
     LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
-  }
-  parse_knowledge_triggers() {
-    local path="$1"
-    [ -f "$path" ] || return 0
-    LC_ALL=C awk '
-      NR == 1 {
-        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-      }
-      { sub(/\r$/, ""); sub(/#.*$/, "") }
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
-        val = $0
-        sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/, "", val)
-        sub(/\].*$/, "", val)
-        n = split(val, items, ",")
-        for (i = 1; i <= n; i++) {
-          t = items[i]
-          gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-          if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-            t = substr(t, 2, length(t) - 2)
-          else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-            t = substr(t, 2, length(t) - 2)
-          if (t != "") print t
-        }
-        in_triggers = 0
-        next
-      }
-      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ {
-        in_triggers = 1
-        next
-      }
-      in_triggers && /^[[:space:]]+-[[:space:]]*/ {
-        t = $0
-        sub(/^[[:space:]]+-[[:space:]]*/, "", t)
-        sub(/[[:space:]]*$/, "", t)
-        if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-          t = substr(t, 2, length(t) - 2)
-        else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-          t = substr(t, 2, length(t) - 2)
-        if (t != "") print t
-        next
-      }
-      /^[[:space:]]*surface[[:space:]]*:/ { in_triggers = 0; next }
-      /^[^[:space:]]/ { exit }
-    ' "$path" 2>/dev/null
   }
 
   # Per-repo opt-in marker: regular file only, AND its parent .claude/ dir must
