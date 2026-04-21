@@ -397,13 +397,26 @@ is valid and categories exist. This prevents cross-context contamination:
 a global env var pointed at Company A's knowledge folder will NOT inject
 Company A guidance into Company B or OSS repos.
 
-The marker must be a **regular file** (not a symlink, not a directory).
-Symlinks fail closed (blocks hostile-planted markers via symlink).
+The marker must be a regular file (not a symlink, not a directory). Symlinks
+fail closed (blocks hostile-planted markers via symlink). The marker's parent
+`.claude/` directory must also not be a symlink — a `repo/.claude -> /tmp/attacker`
+redirect would otherwise allow an out-of-repo file to pass the regular-file
+check. Both parent-symlink and marker-symlink are explicitly rejected.
 
-Knowledge file content is **Read** into Claude's context — same trust
-boundary as any other Read call. Review knowledge files before opting a
-repo in. Don't commit secrets, PII, or unreviewed third-party content
-into the knowledge folder.
+Knowledge file content is Read into Claude's context on every invocation —
+same trust boundary as any other Read call, which means knowledge files are a
+potential prompt-injection channel if unreviewed. Review knowledge files
+before opting a repo in. Don't commit secrets, PII, or unreviewed third-party
+content into the knowledge folder. A malicious `.md` (synced from a
+compromised source, auto-generated, committed by a rushed colleague) becomes
+a full prompt-injection surface on every `/company-workflow` invocation in
+the opted-in repo.
+
+File paths containing control characters (newline, CR) are rejected during
+enumeration — they'd otherwise forge line structure in the `## Always-On
+Knowledge` block Claude sees. Hidden files and directories (anything starting
+with `.`) under a category are skipped, so a stray `.draft/notes.md` won't
+leak into Claude's context.
 
 ### Bytes + path caps
 

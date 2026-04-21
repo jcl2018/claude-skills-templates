@@ -861,15 +861,39 @@ else
   fail_test "T000006 c2 case 5: SKILL.md missing knowledge-doctor section"
 fi
 
-# Drift tripwire: helper definitions in Knowledge Helpers must match Knowledge Loading
-_helpers_fns=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | grep -E '^(parse_knowledge_yml|list_categories|list_md_files)\(\)' | LC_ALL=C sort)
-_loading_fns=$(awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | grep -E '^(parse_knowledge_yml|list_categories|list_md_files)\(\)' | LC_ALL=C sort)
-if [ "$_helpers_fns" = "$_loading_fns" ] && [ -n "$_helpers_fns" ]; then
-  ok "T000006 c2 case 6: helper function names in Helpers block match Loading block"
+# Drift tripwire: helper function BODIES in Knowledge Helpers must match Knowledge Loading
+# byte-for-byte after dedenting (indentation differs between the top-level Helpers block
+# and the inlined Loading block inside a subshell).
+_extract_helper_bodies() {
+  # Reads a bash-block content on stdin, emits only the three helper function bodies
+  # dedented. Uses balanced brace tracking to find each function's end.
+  awk '
+    BEGIN { in_fn = 0; brace = 0 }
+    /^[[:space:]]*(parse_knowledge_yml|list_categories|list_md_files)\(\)/ {
+      in_fn = 1; brace = 0
+    }
+    in_fn {
+      sub(/^[[:space:]]+/, "")
+      print
+      tmp = $0; n_open = gsub(/[{]/, "", tmp)
+      tmp = $0; n_close = gsub(/[}]/, "", tmp)
+      brace = brace + n_open - n_close
+      if (brace == 0 && /[}]/) { in_fn = 0 }
+    }
+  '
+}
+
+_helpers_bodies=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
+_loading_bodies=$(awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
+
+if [ -z "$_helpers_bodies" ] || [ -z "$_loading_bodies" ]; then
+  fail_test "T000006 c2 case 6: could not extract helper bodies from one or both blocks"
+elif [ "$_helpers_bodies" = "$_loading_bodies" ]; then
+  ok "T000006 c2 case 6: helper function bodies are byte-identical across Helpers + Loading blocks (drift tripwire active)"
 else
-  fail_test "T000006 c2 case 6: helper definitions drifted. helpers=[$_helpers_fns] loading=[$_loading_fns]"
+  fail_test "T000006 c2 case 6: helper bodies drifted between Helpers and Loading blocks. Run 'diff <(...) <(...)' manually to see the delta."
 fi
 
 # WORKFLOW.md docs (S14, S16)

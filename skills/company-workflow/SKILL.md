@@ -178,17 +178,20 @@ parse_knowledge_yml() {
 }
 
 # list_categories(root) — immediate subdirs, skip hidden, lex-sorted (LC_ALL=C).
+# Uses find -H so a symlinked root (common when AI_KNOWLEDGE_DIR points at
+# ~/knowledge that's a symlink from a dotfile manager / iCloud) still descends.
 list_categories() {
   local root="$1"
   [ -d "$root" ] || return 0
-  LC_ALL=C find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
+  LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
 }
 
 # list_md_files(category) — recursive *.md, lex-sorted by path (LC_ALL=C).
+# Skips hidden dirs so .hidden/draft.md inside a category isn't emitted.
 list_md_files() {
   local category="$1"
   [ -d "$category" ] || return 0
-  LC_ALL=C find "$category" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort
+  LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
 }
 ```
 
@@ -231,8 +234,12 @@ categories are unaffected.
   _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
   [ -z "$_REPO_ROOT" ] && exit 0
 
-  # Escape hatch: one-shot disable
-  [ -n "${AI_KNOWLEDGE_DISABLE:-}" ] && exit 0
+  # Escape hatch: one-shot disable. Accept only explicit truthy values (1/true/yes).
+  # Other non-empty values like "false" or "0" leave loading enabled — matches
+  # user intuition better than "any non-empty string = disable".
+  case "${AI_KNOWLEDGE_DISABLE:-}" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON) exit 0 ;;
+  esac
 
   # Re-resolve env var (same semantics as S000004 — no warnings, S000004 owns them)
   _KDIR=""
@@ -277,17 +284,19 @@ categories are unaffected.
   list_categories() {
     local root="$1"
     [ -d "$root" ] || return 0
-    LC_ALL=C find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
+    LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
   }
   list_md_files() {
     local category="$1"
     [ -d "$category" ] || return 0
-    LC_ALL=C find "$category" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort
+    LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
   }
 
-  # Per-repo opt-in marker: regular file only (no symlink, no directory)
+  # Per-repo opt-in marker: regular file only, AND its parent .claude/ dir must
+  # not be a symlink (otherwise attacker can plant `repo/.claude -> /tmp/attacker`
+  # + `/tmp/attacker/knowledge-enabled` to bypass the regular-file check).
   _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
-  if [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
+  if [ -L "$_REPO_ROOT/.claude" ] || [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
     # Helpful diagnostic: if user has at least one always-on category, nudge them
     _has_always_on=0
     while IFS= read -r _cat; do
@@ -298,7 +307,10 @@ categories are unaffected.
       fi
     done < <(list_categories "$_KDIR")
     if [ "$_has_always_on" = "1" ]; then
-      echo "[knowledge] $_KDIR has always-on categories but $_REPO_ROOT/.claude/knowledge-enabled is absent — run: touch .claude/knowledge-enabled (or set AI_KNOWLEDGE_DISABLE=1 to suppress this notice)." >&2
+      # Sanitize $_KDIR for safe display (strip control chars, truncate)
+      _KDIR_DISPLAY=$(printf '%s' "$_KDIR" | LC_ALL=C tr -d '[:cntrl:]')
+      [ ${#_KDIR_DISPLAY} -gt 200 ] && _KDIR_DISPLAY="${_KDIR_DISPLAY:0:200}..."
+      echo "[knowledge] $_KDIR_DISPLAY has always-on categories but $_REPO_ROOT/.claude/knowledge-enabled is absent — run: touch .claude/knowledge-enabled (or set AI_KNOWLEDGE_DISABLE=1 to suppress this notice)." >&2
     fi
     exit 0
   fi
@@ -312,13 +324,20 @@ categories are unaffected.
 
   while IFS= read -r _cat; do
     [ -n "$_cat" ] || continue
+    # Reject category paths with control chars (newline/CR) — they'd forge the
+    # emitted ## Always-On Knowledge block's line structure.
+    case "$_cat" in *$'\n'*|*$'\r'*) continue ;; esac
     _sfc=$(parse_knowledge_yml "$_cat/.knowledge.yml")
     case "$_sfc" in
       always)
         while IFS= read -r _md; do
           [ -f "$_md" ] || continue
+          # Same rejection for md file paths — an attacker who can name files in
+          # the knowledge dir could inject lines into Claude's rendered preamble.
+          case "$_md" in *$'\n'*|*$'\r'*) continue ;; esac
           _path_count=$((_path_count + 1))
-          _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ' || echo 0)
+          _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ')
+          _sz="${_sz:-0}"
           _byte_total=$((_byte_total + _sz))
           _paths="${_paths}${_md}"$'\n'
         done < <(list_md_files "$_cat")
@@ -399,16 +418,28 @@ result: loading enabled; 3 paths will be emitted to Claude
     echo "AI_KNOWLEDGE_DIR: $AI_KNOWLEDGE_DIR (exists)"
   fi
 
-  if [ -n "${AI_KNOWLEDGE_DISABLE:-}" ]; then
-    echo "disable env var: AI_KNOWLEDGE_DISABLE=$AI_KNOWLEDGE_DISABLE (set — all loading suppressed)"
-    echo "result: loading disabled by AI_KNOWLEDGE_DISABLE"
-    exit 0
-  else
-    echo "disable env var: not set"
-  fi
+  _DISABLE_DISPLAY=$(printf '%s' "${AI_KNOWLEDGE_DISABLE:-}" | LC_ALL=C tr -d '[:cntrl:]')
+  [ ${#_DISABLE_DISPLAY} -gt 64 ] && _DISABLE_DISPLAY="${_DISABLE_DISPLAY:0:64}..."
+  # Same truthy-value policy as Loading block
+  case "${AI_KNOWLEDGE_DISABLE:-}" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON)
+      echo "disable env var: AI_KNOWLEDGE_DISABLE=$_DISABLE_DISPLAY (set — all loading suppressed)"
+      echo "result: loading disabled by AI_KNOWLEDGE_DISABLE"
+      exit 0
+      ;;
+    '')
+      echo "disable env var: not set"
+      ;;
+    *)
+      echo "disable env var: AI_KNOWLEDGE_DISABLE=$_DISABLE_DISPLAY (non-truthy, ignored)"
+      ;;
+  esac
 
   _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
-  if [ -L "$_KMARKER" ]; then
+  if [ -L "$_REPO_ROOT/.claude" ]; then
+    echo "marker: .claude/ parent is a symlink — rejected, fails closed"
+    _marker_ok=0
+  elif [ -L "$_KMARKER" ]; then
     echo "marker: $_KMARKER (SYMLINK — rejected, fails closed)"
     _marker_ok=0
   elif [ -f "$_KMARKER" ]; then
@@ -464,9 +495,10 @@ result: loading enabled; 3 paths will be emitted to Claude
     while IFS= read -r _md; do
       [ -f "$_md" ] || continue
       _fcount=$((_fcount + 1))
-      _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ' || echo 0)
+      _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ')
+      _sz="${_sz:-0}"
       _bcount=$((_bcount + _sz))
-    done < <(LC_ALL=C find "$_cat" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
+    done < <(LC_ALL=C find -H "$_cat" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort)
     _hk=$(awk "BEGIN { printf \"%.1f\", $_bcount / 1024 }")
     case "$_sfc" in
       always)
@@ -479,7 +511,7 @@ result: loading enabled; 3 paths will be emitted to Claude
         printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (v1 deferred)\n" "$_cname" "$_fcount" "$_hk"
         ;;
     esac
-  done < <(LC_ALL=C find "$AI_KNOWLEDGE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort)
+  done < <(LC_ALL=C find -H "$AI_KNOWLEDGE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort)
 
   _hk_tot=$(awk "BEGIN { printf \"%.1f\", $_total_bytes / 1024 }")
   echo "cap status: $_total_paths/500 paths, ${_hk_tot}KB/100KB bytes"
