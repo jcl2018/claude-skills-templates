@@ -514,7 +514,10 @@ mkdir -p "$_T4_VALID"
 touch "$_T4_FILE"
 
 # Extract the Knowledge Resolution bash block from SKILL.md once.
-awk '/^## Knowledge Resolution/,/^## Template Registry/' \
+# End-bound updated to ## Knowledge Helpers (introduced in S000005 c1) so the
+# extraction stays scoped to the Resolution block even as new Knowledge-* sections
+# get added between Resolution and Template Registry.
+awk '/^## Knowledge Resolution/,/^## Knowledge Helpers/' \
   "$REPO_ROOT/skills/company-workflow/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T4_KR"
 
@@ -639,6 +642,594 @@ else
 fi
 
 rm -rf "$_T4_TMPDIR"
+
+echo ""
+echo "Regression test (T000006 c1): Knowledge Helpers (S000005)..."
+# Background: c1 adds a ## Knowledge Helpers section with three bash helpers
+# (parse_knowledge_yml, list_categories, list_md_files). These are reused by
+# the Knowledge Loading block (c2). Tests extract the helpers block and source
+# it in a test subshell to exercise each function directly against fixtures
+# built by scripts/test-helpers/knowledge.sh.
+
+_T6H_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006h' 2>/dev/null)
+_T6H_HELPERS="$_T6H_TMPDIR/helpers.sh"
+
+# Extract the Knowledge Helpers bash block.
+awk '/^## Knowledge Helpers/,/^## Template Registry/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6H_HELPERS"
+
+# --- Tier 1 structural greps ---
+
+if grep -q "^## Knowledge Helpers" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c1 case 1: SKILL.md has ## Knowledge Helpers section"
+else
+  fail_test "T000006 c1 case 1: SKILL.md missing ## Knowledge Helpers section"
+fi
+
+if [ -f "$REPO_ROOT/scripts/test-helpers/knowledge.sh" ]; then
+  ok "T000006 c1 case 2: scripts/test-helpers/knowledge.sh exists"
+else
+  fail_test "T000006 c1 case 2: scripts/test-helpers/knowledge.sh missing"
+fi
+
+if [ -s "$_T6H_HELPERS" ]; then
+  ok "T000006 c1 case 3: Knowledge Helpers bash block extracts non-empty"
+else
+  fail_test "T000006 c1 case 3: Knowledge Helpers bash block extraction empty"
+fi
+
+# Both SKILL.md helpers and scripts/test-helpers/knowledge.sh must define the
+# expected function names. Script-level grep confirms public API is stable.
+for _fn in parse_knowledge_yml list_categories list_md_files; do
+  if grep -q "^${_fn}()" "$_T6H_HELPERS"; then
+    ok "T000006 c1 case 4.${_fn}: Helpers block defines ${_fn}()"
+  else
+    fail_test "T000006 c1 case 4.${_fn}: Helpers block missing ${_fn}() definition"
+  fi
+done
+
+if grep -q '^build_knowledge_fixture()' "$REPO_ROOT/scripts/test-helpers/knowledge.sh"; then
+  ok "T000006 c1 case 5: test-helpers/knowledge.sh defines build_knowledge_fixture()"
+else
+  fail_test "T000006 c1 case 5: test-helpers/knowledge.sh missing build_knowledge_fixture()"
+fi
+
+# --- Tier 2 helper behavior (source + exercise) ---
+
+if [ -s "$_T6H_HELPERS" ]; then
+  # Build a fixture covering every mode the helpers care about
+  source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+  _T6H_FIX=$(build_knowledge_fixture "$_T6H_TMPDIR/fixture" \
+    "coding:always" \
+    "runbooks:on-demand" \
+    "domain:on-demand:pricing" \
+    "broken:malformed" \
+    "notes")
+
+  # Source the helpers from SKILL.md into this shell
+  # shellcheck disable=SC1090
+  source "$_T6H_HELPERS"
+
+  # Case 6: parse_knowledge_yml on surface: always
+  _r=$(parse_knowledge_yml "$_T6H_FIX/coding/.knowledge.yml")
+  if [ "$_r" = "always" ]; then
+    ok "T000006 c1 case 6: parse_knowledge_yml(coding) → always"
+  else
+    fail_test "T000006 c1 case 6: parse_knowledge_yml(coding) got '$_r', expected 'always'"
+  fi
+
+  # Case 7: parse_knowledge_yml on surface: on-demand
+  _r=$(parse_knowledge_yml "$_T6H_FIX/runbooks/.knowledge.yml")
+  if [ "$_r" = "on-demand" ]; then
+    ok "T000006 c1 case 7: parse_knowledge_yml(runbooks) → on-demand"
+  else
+    fail_test "T000006 c1 case 7: parse_knowledge_yml(runbooks) got '$_r', expected 'on-demand'"
+  fi
+
+  # Case 8: forward-compat — on-demand + triggers parses clean
+  _r=$(parse_knowledge_yml "$_T6H_FIX/domain/.knowledge.yml")
+  if [ "$_r" = "on-demand" ]; then
+    ok "T000006 c1 case 8: parse_knowledge_yml(domain w/triggers) → on-demand (triggers ignored in v1, forward-compat)"
+  else
+    fail_test "T000006 c1 case 8: parse_knowledge_yml(domain) got '$_r', expected 'on-demand'"
+  fi
+
+  # Case 9: malformed → empty
+  _r=$(parse_knowledge_yml "$_T6H_FIX/broken/.knowledge.yml")
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 9: parse_knowledge_yml(broken) → empty (malformed detected)"
+  else
+    fail_test "T000006 c1 case 9: parse_knowledge_yml(broken) got '$_r', expected empty"
+  fi
+
+  # Case 10: missing yml → empty
+  _r=$(parse_knowledge_yml "$_T6H_FIX/notes/.knowledge.yml")
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 10: parse_knowledge_yml(missing) → empty"
+  else
+    fail_test "T000006 c1 case 10: parse_knowledge_yml(missing) got '$_r', expected empty"
+  fi
+
+  # Case 11: yml edge cases — quoted, comment, CRLF, BOM
+  _T6H_EDGE="$_T6H_TMPDIR/edge"
+  mkdir -p "$_T6H_EDGE"
+  printf 'surface: "always"\n' > "$_T6H_EDGE/q.yml"
+  printf 'surface: always # house style\n' > "$_T6H_EDGE/c.yml"
+  printf 'surface: always\r\n' > "$_T6H_EDGE/crlf.yml"
+  printf '\xef\xbb\xbfsurface: always\n' > "$_T6H_EDGE/bom.yml"
+  printf "surface: 'always'\n" > "$_T6H_EDGE/sq.yml"
+  _edge_ok=1
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/q.yml")"    = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/c.yml")"    = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/crlf.yml")" = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/bom.yml")"  = "always" ] || _edge_ok=0
+  [ -z "$(parse_knowledge_yml "$_T6H_EDGE/sq.yml")" ] || _edge_ok=0   # single-quote NOT supported
+  if [ "$_edge_ok" = "1" ]; then
+    ok "T000006 c1 case 11: parser handles quoted/comment/CRLF/BOM, rejects single-quote"
+  else
+    fail_test "T000006 c1 case 11: yml edge-case handling incorrect"
+  fi
+
+  # Case 12: list_categories lex-sorted, skips hidden
+  mkdir -p "$_T6H_FIX/.hidden"
+  _cats=$(list_categories "$_T6H_FIX" | LC_ALL=C sort | tr '\n' ',')
+  # Expected (lex-sorted): broken, coding, domain, notes, runbooks
+  _exp_cats="$_T6H_FIX/broken,$_T6H_FIX/coding,$_T6H_FIX/domain,$_T6H_FIX/notes,$_T6H_FIX/runbooks,"
+  if [ "$_cats" = "$_exp_cats" ]; then
+    ok "T000006 c1 case 12: list_categories returns lex-sorted + skips hidden dirs"
+  else
+    fail_test "T000006 c1 case 12: list_categories output mismatch. got='$_cats' expected='$_exp_cats'"
+  fi
+
+  # Case 13: list_md_files recursive + lex-sorted
+  _mdfs=$(list_md_files "$_T6H_FIX/coding" | tr '\n' ',')
+  # Expected: a.md then sub/b.md (lex-sorted by path)
+  _exp_mdfs="$_T6H_FIX/coding/a.md,$_T6H_FIX/coding/sub/b.md,"
+  if [ "$_mdfs" = "$_exp_mdfs" ]; then
+    ok "T000006 c1 case 13: list_md_files returns recursive *.md lex-sorted"
+  else
+    fail_test "T000006 c1 case 13: list_md_files output mismatch. got='$_mdfs' expected='$_exp_mdfs'"
+  fi
+
+  # Case 14: list_categories on non-existent dir → empty
+  _r=$(list_categories /nonexistent-t6h-$$)
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 14: list_categories(nonexistent) → empty"
+  else
+    fail_test "T000006 c1 case 14: list_categories(nonexistent) got '$_r', expected empty"
+  fi
+
+  # Case 15: list_md_files on non-existent dir → empty
+  _r=$(list_md_files /nonexistent-t6h-$$)
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 15: list_md_files(nonexistent) → empty"
+  else
+    fail_test "T000006 c1 case 15: list_md_files(nonexistent) got '$_r', expected empty"
+  fi
+fi
+
+rm -rf "$_T6H_TMPDIR"
+
+echo ""
+echo "Regression test (T000006 c2): Knowledge Loading + per-repo opt-in gate + knowledge-doctor (S000005)..."
+# Background: c2 ships always-on loading. Tests extract the Knowledge Loading
+# bash block and exec it against fixture repos built via build_knowledge_fixture.
+# Separate tests exercise the knowledge-doctor diagnostic block.
+
+_T6L_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006l' 2>/dev/null)
+_T6L_LOADING="$_T6L_TMPDIR/loading.sh"
+_T6L_DOCTOR="$_T6L_TMPDIR/doctor.sh"
+
+awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6L_LOADING"
+
+awk '/^## Diagnostic: knowledge-doctor/,/^## Template Registry/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6L_DOCTOR"
+
+# --- Tier 1 structural greps ---
+
+if grep -q "^## Knowledge Loading" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c2 case 1 (S1): SKILL.md has ## Knowledge Loading section"
+else
+  fail_test "T000006 c2 case 1: SKILL.md missing ## Knowledge Loading section"
+fi
+
+if grep -q "## Always-On Knowledge" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c2 case 2 (S2): SKILL.md emits ## Always-On Knowledge section name"
+else
+  fail_test "T000006 c2 case 2: SKILL.md missing ## Always-On Knowledge emission"
+fi
+
+if grep -qi "read.*always-on knowledge\|read every path\|read each" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c2 case 3 (S3): SKILL.md instructs Claude to Read the listed paths"
+else
+  fail_test "T000006 c2 case 3: SKILL.md missing Claude-facing Read instruction"
+fi
+
+if grep -q "knowledge-enabled" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c2 case 4 (S10): SKILL.md references per-repo opt-in marker"
+else
+  fail_test "T000006 c2 case 4: SKILL.md missing opt-in marker reference"
+fi
+
+if grep -q "^## Diagnostic: knowledge-doctor" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c2 case 5: SKILL.md has knowledge-doctor diagnostic section"
+else
+  fail_test "T000006 c2 case 5: SKILL.md missing knowledge-doctor section"
+fi
+
+# Drift tripwire: helper function BODIES in Knowledge Helpers must match Knowledge Loading
+# byte-for-byte after dedenting (indentation differs between the top-level Helpers block
+# and the inlined Loading block inside a subshell).
+_extract_helper_bodies() {
+  # Reads a bash-block content on stdin, emits only the three helper function bodies
+  # dedented. Uses balanced brace tracking to find each function's end.
+  awk '
+    BEGIN { in_fn = 0; brace = 0 }
+    /^[[:space:]]*(parse_knowledge_yml|list_categories|list_md_files)\(\)/ {
+      in_fn = 1; brace = 0
+    }
+    in_fn {
+      sub(/^[[:space:]]+/, "")
+      print
+      tmp = $0; n_open = gsub(/[{]/, "", tmp)
+      tmp = $0; n_close = gsub(/[}]/, "", tmp)
+      brace = brace + n_open - n_close
+      if (brace == 0 && /[}]/) { in_fn = 0 }
+    }
+  '
+}
+
+_helpers_bodies=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
+_loading_bodies=$(awk '/^## Knowledge Loading/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
+
+if [ -z "$_helpers_bodies" ] || [ -z "$_loading_bodies" ]; then
+  fail_test "T000006 c2 case 6: could not extract helper bodies from one or both blocks"
+elif [ "$_helpers_bodies" = "$_loading_bodies" ]; then
+  ok "T000006 c2 case 6: helper function bodies are byte-identical across Helpers + Loading blocks (drift tripwire active)"
+else
+  fail_test "T000006 c2 case 6: helper bodies drifted between Helpers and Loading blocks. Run 'diff <(...) <(...)' manually to see the delta."
+fi
+
+# WORKFLOW.md docs (S14, S16)
+if grep -qE "surface.*always" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  ok "T000006 c2 case 7 (S14): WORKFLOW.md documents .knowledge.yml schema"
+else
+  fail_test "T000006 c2 case 7: WORKFLOW.md missing .knowledge.yml schema"
+fi
+
+if grep -q "knowledge-enabled" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  ok "T000006 c2 case 8 (S16): WORKFLOW.md documents per-repo opt-in gate"
+else
+  fail_test "T000006 c2 case 8: WORKFLOW.md missing opt-in marker docs"
+fi
+
+if grep -qi "trust boundary\|prompt injection\|Read into Claude" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  ok "T000006 c2 case 9 (S15): WORKFLOW.md includes security callout"
+else
+  fail_test "T000006 c2 case 9: WORKFLOW.md missing security callout about Read trust boundary"
+fi
+
+# Loading block extracts non-empty
+if [ -s "$_T6L_LOADING" ]; then
+  ok "T000006 c2 case 10: Knowledge Loading bash block extracts non-empty"
+else
+  fail_test "T000006 c2 case 10: Knowledge Loading bash block extraction empty"
+fi
+
+# Doctor block extracts non-empty
+if [ -s "$_T6L_DOCTOR" ]; then
+  ok "T000006 c2 case 11: knowledge-doctor bash block extracts non-empty"
+else
+  fail_test "T000006 c2 case 11: knowledge-doctor bash block extraction empty"
+fi
+
+# --- Tier 2 behavioral tests ---
+
+# Helper: build a fixture repo with marker + knowledge dir and run loading
+_t6l_run_loading() {
+  # $1 = AI_KNOWLEDGE_DIR, $2 = repo root with .claude/knowledge-enabled
+  # Additional env vars passed through (AI_KNOWLEDGE_DISABLE, etc.)
+  local kdir="$1" repo="$2"
+  ( cd "$repo" && AI_KNOWLEDGE_DIR="$kdir" bash "$_T6L_LOADING" )
+}
+
+# Fixture repo factory
+_t6l_make_repo() {
+  local repo
+  repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6l-repo' 2>/dev/null)
+  ( cd "$repo" && git init -q )
+  printf '%s' "$repo"
+}
+
+source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+
+# ---------- A1/E1: always-on category → emits paths ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge" \
+   && printf '%s' "$_t6l_out" | grep -q "coding/a.md" \
+   && printf '%s' "$_t6l_out" | grep -q "coding/sub/b.md"; then
+  ok "T000006 c2 case 12 (A1): always-on category emits nested + flat *.md absolute paths"
+else
+  fail_test "T000006 c2 case 12 (A1): always-on emission incorrect. output=[$_t6l_out]"
+fi
+
+# Lex-sorted verification (A5)
+_t6l_paths=$(printf '%s' "$_t6l_out" | grep "^- " | sort -C && echo "sorted" || echo "unsorted")
+if [ "$_t6l_paths" = "sorted" ]; then
+  ok "T000006 c2 case 13 (A5): emitted paths are lex-sorted"
+else
+  fail_test "T000006 c2 case 13 (A5): paths not lex-sorted"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- A2: on-demand category NOT in always-on ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "runbooks:on-demand:pricing")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if ! printf '%s' "$_t6l_out" | grep -q "runbooks"; then
+  ok "T000006 c2 case 14 (A2): on-demand category NOT emitted under Always-On Knowledge"
+else
+  fail_test "T000006 c2 case 14 (A2): on-demand category leaked into Always-On output"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- A3: missing yml = silent skip, no warning ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "notes")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out_all=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1)
+if [ -z "$_t6l_out_all" ] || ! printf '%s' "$_t6l_out_all" | grep -qi "warning\|malformed"; then
+  ok "T000006 c2 case 15 (A3): missing yml → silent skip, no warning"
+else
+  fail_test "T000006 c2 case 15 (A3): missing yml emitted unexpected output: [$_t6l_out_all]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- A4/E3: malformed yml warns, sibling still loads ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always" "broken:malformed")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+_t6l_err=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1 1>/dev/null)
+if printf '%s' "$_t6l_out" | grep -q "coding/a.md" \
+   && printf '%s' "$_t6l_err" | grep -q "malformed" \
+   && printf '%s' "$_t6l_err" | grep -q "broken"; then
+  ok "T000006 c2 case 16 (A4/E3): malformed yml → warning names file, sibling category still loads"
+else
+  fail_test "T000006 c2 case 16 (A4/E3): malformed yml resilience incorrect. stdout=[$_t6l_out] stderr=[$_t6l_err]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- A6/E4: unset env → no loading sections ----------
+_t6l_repo=$(_t6l_make_repo)
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$( cd "$_t6l_repo" && env -u AI_KNOWLEDGE_DIR bash "$_T6L_LOADING" 2>&1 )
+if [ -z "$_t6l_out" ] || ! printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 17 (A6/E4): env unset → no Always-On Knowledge section"
+else
+  fail_test "T000006 c2 case 17: env unset emitted loading output: [$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- G1: marker absent → no loading (silent when no always-on) ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "runbooks:on-demand:pricing")
+# NO marker
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1)
+if ! printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 18 (G1): marker absent + on-demand only → no Always-On section"
+else
+  fail_test "T000006 c2 case 18 (G1): marker absent leaked Always-On content: [$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Helpful-silence-no-more: marker absent + has always-on → one diagnostic line ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+# NO marker; always-on category exists
+_t6l_err=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1 1>/dev/null)
+_t6l_lines=$(printf '%s' "$_t6l_err" | grep -c "^\[knowledge\]" || true)
+if [ "$_t6l_lines" = "1" ] \
+   && printf '%s' "$_t6l_err" | grep -q "knowledge-enabled is absent" \
+   && printf '%s' "$_t6l_err" | grep -q "touch .claude/knowledge-enabled"; then
+  ok "T000006 c2 case 19: marker absent + always-on → 1 helpful diagnostic line (problem+cause+fix)"
+else
+  fail_test "T000006 c2 case 19: helpful diagnostic wrong shape. stderr=[$_t6l_err]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- G3-always-on: marker present + always-on → loads ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 20 (G3): marker present + always-on → Always-On section emitted"
+else
+  fail_test "T000006 c2 case 20 (G3): marker present failed to activate loading: [$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Forward-compat: surface: on-demand + triggers: [x] parses clean, emits nothing, no warning ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "domain:on-demand:pricing")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_all=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1)
+if ! printf '%s' "$_t6l_all" | grep -q "^## Always-On Knowledge" \
+   && ! printf '%s' "$_t6l_all" | grep -qi "malformed\|warning"; then
+  ok "T000006 c2 case 21 (forward-compat): surface: on-demand + triggers parses clean, emits nothing, no warning"
+else
+  fail_test "T000006 c2 case 21: forward-compat on-demand emitted unexpected output: [$_t6l_all]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Marker hardening: symlink marker → fails closed ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+mkdir -p "$_t6l_repo/.claude"
+# Create a symlink marker (points to /dev/null — hostile-style)
+ln -s /dev/null "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if ! printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 22 (marker hardening): symlink marker fails closed, no loading"
+else
+  fail_test "T000006 c2 case 22: symlink marker allowed loading"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Marker hardening: directory marker → fails closed ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+mkdir -p "$_t6l_repo/.claude/knowledge-enabled"  # dir instead of file
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if ! printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 23 (marker hardening): directory marker fails closed"
+else
+  fail_test "T000006 c2 case 23: directory marker allowed loading"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Marker hardening: nested .claude/knowledge-enabled in subdir of unmarked repo ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+# NO marker at repo root. Create one in a subdir — should NOT activate loading
+mkdir -p "$_t6l_repo/subdir/.claude"
+touch "$_t6l_repo/subdir/.claude/knowledge-enabled"
+# Run loading from the subdir — but the block uses git rev-parse --show-toplevel which still returns repo root
+_t6l_out=$( cd "$_t6l_repo/subdir" && AI_KNOWLEDGE_DIR="$_t6l_kdir" bash "$_T6L_LOADING" 2>/dev/null )
+if ! printf '%s' "$_t6l_out" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 24 (marker hardening): nested marker in subdir of unmarked repo does NOT activate loading"
+else
+  fail_test "T000006 c2 case 24: subdir marker defeated the repo-root gate"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- AI_KNOWLEDGE_DISABLE escape hatch ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$( cd "$_t6l_repo" && AI_KNOWLEDGE_DIR="$_t6l_kdir" AI_KNOWLEDGE_DISABLE=1 bash "$_T6L_LOADING" 2>&1 )
+if [ -z "$_t6l_out" ]; then
+  ok "T000006 c2 case 25: AI_KNOWLEDGE_DISABLE=1 → one-shot disable, empty output"
+else
+  fail_test "T000006 c2 case 25: AI_KNOWLEDGE_DISABLE=1 emitted output: [$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Path cap: 500+1 paths → hard fail ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "bulk:always")
+# Fixture adds a.md + sub/b.md. Add 500 more to exceed cap.
+for i in $(seq 1 501); do
+  echo "pad$i" > "$_t6l_kdir/bulk/pad_$i.md"
+done
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_all=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>&1)
+if printf '%s' "$_t6l_all" | grep -q "loading aborted" \
+   && printf '%s' "$_t6l_all" | grep -q "exceeds cap" \
+   && ! printf '%s' "$_t6l_all" | grep -q "^## Always-On Knowledge"; then
+  ok "T000006 c2 case 26 (scale): 500+1 paths → hard-fail warning, no loading"
+else
+  fail_test "T000006 c2 case 26: cap gate wrong behavior. output=[$_t6l_all]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- yml edge cases: trailing ws, quoted, comment, CRLF, BOM ----------
+_t6l_repo=$(_t6l_make_repo)
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_kdir="$_t6l_repo/k"
+mkdir -p "$_t6l_kdir"
+for _variant in ws quot cmt crlf bom; do
+  mkdir -p "$_t6l_kdir/$_variant/sub"
+  printf '# content\nCANARY_%s\n' "$_variant" > "$_t6l_kdir/$_variant/a.md"
+  printf 'CANARY_%s_NESTED\n' "$_variant" > "$_t6l_kdir/$_variant/sub/b.md"
+done
+printf 'surface: always   \n' > "$_t6l_kdir/ws/.knowledge.yml"
+printf 'surface: "always"\n' > "$_t6l_kdir/quot/.knowledge.yml"
+printf 'surface: always # house style\n' > "$_t6l_kdir/cmt/.knowledge.yml"
+printf 'surface: always\r\n' > "$_t6l_kdir/crlf/.knowledge.yml"
+printf '\xef\xbb\xbfsurface: always\n' > "$_t6l_kdir/bom/.knowledge.yml"
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+_t6l_missing=""
+for _variant in ws quot cmt crlf bom; do
+  if ! printf '%s' "$_t6l_out" | grep -q "$_variant/a.md"; then
+    _t6l_missing="$_t6l_missing $_variant"
+  fi
+done
+if [ -z "$_t6l_missing" ]; then
+  ok "T000006 c2 case 27 (yml edge cases): trailing-ws/quoted/comment/CRLF/BOM all parse as always"
+else
+  fail_test "T000006 c2 case 27: yml variants failed to load: $_t6l_missing. stdout=[$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Absolute path with spaces ----------
+_t6l_repo=$(_t6l_make_repo)
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_kdir="$_t6l_repo/k with spaces"
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_kdir" "coding:always")
+_t6l_out=$(_t6l_run_loading "$_t6l_kdir" "$_t6l_repo" 2>/dev/null)
+if printf '%s' "$_t6l_out" | grep -q "k with spaces/coding/a.md"; then
+  ok "T000006 c2 case 28: paths with spaces survive emission"
+else
+  fail_test "T000006 c2 case 28: space-in-path handling broken. output=[$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- Invalid-env passthrough: AI_KNOWLEDGE_DIR pointing at a regular file ----------
+_t6l_repo=$(_t6l_make_repo)
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_file="$_t6l_repo/notdir"
+touch "$_t6l_file"
+_t6l_all=$( cd "$_t6l_repo" && AI_KNOWLEDGE_DIR="$_t6l_file" bash "$_T6L_LOADING" 2>&1 )
+if [ -z "$_t6l_all" ]; then
+  ok "T000006 c2 case 29: AI_KNOWLEDGE_DIR=<regular file> → silent pass-through (S000004 owns warnings)"
+else
+  fail_test "T000006 c2 case 29: invalid env emitted unexpected output: [$_t6l_all]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- knowledge-doctor: all preconditions pass ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always" "runbooks:on-demand:pricing" "notes" "broken:malformed")
+mkdir -p "$_t6l_repo/.claude" && touch "$_t6l_repo/.claude/knowledge-enabled"
+_t6l_out=$( cd "$_t6l_repo" && AI_KNOWLEDGE_DIR="$_t6l_kdir" bash "$_T6L_DOCTOR" 2>&1 )
+if printf '%s' "$_t6l_out" | grep -q "marker: .claude/knowledge-enabled (present)" \
+   && printf '%s' "$_t6l_out" | grep -q "coding.*surface=always.*loads=yes" \
+   && printf '%s' "$_t6l_out" | grep -q "runbooks.*surface=on-demand.*loads=no (v1 deferred)" \
+   && printf '%s' "$_t6l_out" | grep -q "notes.*missing yml" \
+   && printf '%s' "$_t6l_out" | grep -q "broken.*malformed yml" \
+   && printf '%s' "$_t6l_out" | grep -q "result: loading enabled"; then
+  ok "T000006 c2 case 30: knowledge-doctor surfaces state of every category + preconditions"
+else
+  fail_test "T000006 c2 case 30: doctor output wrong shape. output=[$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+# ---------- knowledge-doctor: marker missing ----------
+_t6l_repo=$(_t6l_make_repo)
+_t6l_kdir=$(build_knowledge_fixture "$_t6l_repo/k" "coding:always")
+# NO marker
+_t6l_out=$( cd "$_t6l_repo" && AI_KNOWLEDGE_DIR="$_t6l_kdir" bash "$_T6L_DOCTOR" 2>&1 )
+if printf '%s' "$_t6l_out" | grep -q "marker: .claude/knowledge-enabled (absent)" \
+   && printf '%s' "$_t6l_out" | grep -q "result: loading disabled — marker missing"; then
+  ok "T000006 c2 case 31: knowledge-doctor reports marker-missing with actionable fix"
+else
+  fail_test "T000006 c2 case 31: doctor missing-marker output wrong. output=[$_t6l_out]"
+fi
+rm -rf "$_t6l_repo"
+
+rm -rf "$_T6L_TMPDIR"
 
 # Summary
 echo ""

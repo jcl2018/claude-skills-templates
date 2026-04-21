@@ -4,7 +4,7 @@ type: user-story
 id: "S000004"
 status: active
 created: "2026-04-16"
-updated: "2026-04-17"
+updated: "2026-04-19"
 parent: "F000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
@@ -70,12 +70,12 @@ blocked_by: ""
 
 <!-- What "done" looks like for this story. -->
 
-- [x] `company-workflow` skill reads `AI_KNOWLEDGE_DIR` on every invocation and exposes the resolved path as a skill-internal variable for downstream code — T000003 shipped; T000004 cases 1/2/6 verify
-- [x] When `AI_KNOWLEDGE_DIR` is unset OR empty: skill emits exactly one warning line on stderr naming the variable and pointing to docs, exit code remains 0 — T000004 cases 5 (E1) + 10 (E1b) + 11 verify
-- [x] When `AI_KNOWLEDGE_DIR` is set but the path does not exist or is not a directory: skill emits a warning mentioning the configured path, exit code remains 0 — T000004 cases 7 (E3) + 8 (E4) verify
-- [x] When `AI_KNOWLEDGE_DIR` is set and points to a valid directory: no warning emitted — T000004 case 6 (E2) verifies
+- [x] `company-workflow` skill reads `AI_KNOWLEDGE_DIR` on every invocation and exposes the resolved path as a skill-internal variable for downstream code — T000003 cases 1/2/6 verify
+- [x] When `AI_KNOWLEDGE_DIR` is unset OR empty: skill emits exactly one warning line on stderr naming the variable and pointing to docs, exit code remains 0 — T000003 cases 5 (E1) + 10 (E1b) + 11 verify
+- [x] When `AI_KNOWLEDGE_DIR` is set but the path does not exist or is not a directory: skill emits a warning mentioning the configured path, exit code remains 0 — T000003 cases 7 (E3) + 8 (E4) verify
+- [x] When `AI_KNOWLEDGE_DIR` is set and points to a valid directory: no warning emitted — T000003 case 6 (E2) verifies
 - [x] No knowledge files are read or loaded by this story (resolution only — loading lands in S000005 always-on and S000006 on-demand stories) — T000003 bash block does only `[ -e ]`/`[ -d ]` checks, no file I/O (verified by code review + case 11 stdout-empty)
-- [x] Existing `validate` command produces byte-identical output with and without `AI_KNOWLEDGE_DIR` set (zero regression) — T000004 case 11 (stdout-empty) scripted + case 9 deferred to manual (not scriptable: LLM skill)
+- [x] Existing `validate` command produces byte-identical output with and without `AI_KNOWLEDGE_DIR` set (zero regression) — T000003 case 11 (stdout-empty) scripted + case 9 deferred to manual (not scriptable: LLM skill)
 
 ## Todos
 
@@ -98,6 +98,7 @@ blocked_by: ""
 - 2026-04-17: T000003 landed (commit 6265249).
 - 2026-04-17: Converted to personal-workflow structure (3-phase lifecycle; simplified frontmatter with `parent: F000004`; story-level milestones.md dropped — now only at feature level).
 - 2026-04-18: T000004 (tests) landed. scripts/test.sh has 11 new assertions covering all scriptable branches; `./scripts/test.sh` passes end-to-end. All 6 S000004 AC verified or explicitly deferred to S000005/S000006. Phase 2 gates all satisfied; Phase 3 ready.
+- 2026-04-19: Consolidated T000004_tests into T000003_implement_resolution_block (impl + tests ship as one unit). Both already landed in squash PR #38; the split was bookkeeping-only. Matches F000001/F000003 precedent of collapsing redundant task decomposition.
 
 ## PRs
 
@@ -109,7 +110,7 @@ blocked_by: ""
 
 - skills/company-workflow/SKILL.md (modified — `## Knowledge Resolution` section added in T000003; sanitization patch in commit a46efa9)
 - skills/company-workflow/WORKFLOW.md (modified — `## Knowledge Configuration` section added in T000003)
-- scripts/test.sh (modified — T000004 added "Regression test (T000004)" section with 11 scripted assertions covering all branches of the Knowledge Resolution block)
+- scripts/test.sh (modified — T000003 added "Regression test (T000004)" section with 11 scripted assertions covering all branches of the Knowledge Resolution block)
 
 ## Insights
 

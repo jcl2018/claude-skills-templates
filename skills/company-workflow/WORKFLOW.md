@@ -287,41 +287,71 @@ Templates resolve the same way: `$REPO_ROOT/templates/company-workflow/` then
 ## Knowledge Configuration
 
 The skill supports an OPTIONAL external knowledge directory for coding
-guidance (e.g. cpp style) and company-specific domain knowledge. When
-configured, downstream features (SKILL.md §Knowledge Resolution; the
-always-on and on-demand loading layers in F000004) consume its contents.
-When unset, the skill still functions — only knowledge features are disabled.
+guidance (e.g. cpp style) and company-specific domain knowledge. When a
+category is marked `surface: always` and the current repo has opted in via
+`.claude/knowledge-enabled`, the category's markdown files are injected into
+Claude's context on every skill invocation — no copy-paste needed.
 
-### Setup
+v1 ships always-on loading only. On-demand trigger matching (categories that
+load when the user's message mentions a trigger word) is deferred to a
+follow-up story, gated on observed user need. You can author `surface: on-demand`
+yml today — the parser accepts it as valid and silently skips it in v1, so
+your yml will activate cleanly when the follow-up ships.
 
-Export `AI_KNOWLEDGE_DIR` in your shell profile pointing to a directory of
-your choice:
+### Quick Start (5-line copy-paste)
 
 ```bash
-# ~/.zshrc, ~/.bashrc, or equivalent
 export AI_KNOWLEDGE_DIR="$HOME/knowledge"
-```
-
-Create the directory and a starter category:
-
-```bash
 mkdir -p "$AI_KNOWLEDGE_DIR/coding"
+printf 'surface: always\n' > "$AI_KNOWLEDGE_DIR/coding/.knowledge.yml"
+printf '# Canary\nCANARY_SETUP_TEST\n' > "$AI_KNOWLEDGE_DIR/coding/notes.md"
+mkdir -p .claude && touch .claude/knowledge-enabled
 ```
 
-The skill emits a one-line warning on **stderr** every invocation when the
-variable is unset, empty, points to a non-existent path, or points to a
-non-directory. Exit code is unchanged (0 on success). Suppression is
-deliberately out of scope for v1 — the warning is the nudge to finish setup.
+Then run `/company-workflow knowledge-doctor` in this repo. You should see
+`result: loading enabled; 1 paths will be emitted to Claude`. Ask Claude
+what canary strings it has seen; it should quote `CANARY_SETUP_TEST`.
+
+Add `AI_KNOWLEDGE_DIR=...` to `~/.zshrc` / `~/.bashrc` so it persists across
+shell sessions.
+
+### Troubleshooting
+
+Run `/company-workflow knowledge-doctor` first. It prints the state of every
+precondition. Common traps:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Warning: AI_KNOWLEDGE_DIR not set` on every skill run | Env var not exported | `export AI_KNOWLEDGE_DIR="$HOME/knowledge"` |
+| `Warning: AI_KNOWLEDGE_DIR=... not found` | Path doesn't exist | `mkdir -p "$AI_KNOWLEDGE_DIR"` |
+| `has always-on categories but .claude/knowledge-enabled is absent` | Repo not opted in | `touch .claude/knowledge-enabled` in the repo root |
+| `malformed .knowledge.yml at ...` | yml has an unknown key, single-quoted value, or similar | Fix the yml (see Schema below); only `surface` + `triggers` keys are recognized |
+| Always-On section is emitted but Claude isn't quoting canaries | Claude didn't Read the files | Check the doctor output — are paths actually listed? If so, ask Claude directly |
+| `loading aborted: N paths / N bytes exceeds cap` | Too much always-on content | Reduce files, or mark some categories `surface: on-demand` (reserved for c3 follow-up) |
+
+### Escape Hatches
+
+- **One-shot disable:** `AI_KNOWLEDGE_DISABLE=1 /company-workflow ...` — bypasses
+  all loading for that invocation regardless of marker state. Use when
+  debugging a bad knowledge file without `rm`-ing the committed marker.
+- **Per-repo disable:** delete `.claude/knowledge-enabled` (re-add when ready).
+- **Per-category disable:** delete or rename the category's `.knowledge.yml`.
+  Missing yml is a silent skip.
+- **Per-category opt-in later:** author yml as `surface: on-demand` (currently
+  inert in v1, ready for c3 follow-up).
 
 ### Layout
 
 ```
 $AI_KNOWLEDGE_DIR/
   <category>/              # arbitrary name (coding, domain, runbooks, …)
-    .knowledge.yml         # optional — declares surface + triggers
+    .knowledge.yml         # declares surface mode
     *.md                   # knowledge files; nesting allowed
     <subdir>/
       *.md
+<repo root>/
+  .claude/
+    knowledge-enabled      # empty file; presence = repo opts into knowledge loading
 ```
 
 The top-level organization is user-shaped: the skill discovers categories by
@@ -333,28 +363,101 @@ etc.).
 ### `.knowledge.yml` Schema
 
 ```yaml
-# Minimum fields
-surface: always         # or: on-demand
-triggers: [keyword1, "multi-word phrase"]   # required when surface: on-demand
-                                            # ignored when surface: always
+surface: always        # v1 active: files load on every skill invocation
+# or:
+surface: on-demand     # v1 inert (forward-compat — activates with c3 follow-up)
+triggers: [keyword1, "multi-word phrase"]   # used in c3 follow-up; v1 ignores
 ```
 
-- **`surface: always`** — the category's markdown files are injected into
-  Claude's context on every skill invocation. Use for guidance you want
-  applied by default (house style, team conventions).
-- **`surface: on-demand`** — the category loads only when a declared trigger
-  matches the user's latest message. Match rule: case-insensitive whole-word
-  tokens for single-word triggers; case-insensitive phrase match at token
-  boundaries for quoted multi-word triggers. Multiple matches → all load.
-- A category with **no `.knowledge.yml`** is treated as on-demand with empty
-  triggers — it stays dark until you author the file.
-- A category with **malformed yml** is skipped with a one-line warning; other
-  categories are unaffected.
+**Supported value forms for `surface`:**
+- Bare: `surface: always`
+- Double-quoted: `surface: "always"`
+- With inline comment: `surface: always # house style`
+- CRLF line endings and UTF-8 BOM are tolerated.
+
+**NOT supported (treated as malformed):**
+- Single-quoted: `surface: 'always'` (v1 limitation; use bare or double-quoted).
+- Unknown root keys (anything other than `surface` / `triggers`).
+- Multi-line scalars, YAML anchors, etc.
+
+**Category behavior summary:**
+
+| `.knowledge.yml` | v1 behavior | c3 follow-up |
+|---|---|---|
+| `surface: always` | Content loaded every invocation | (unchanged) |
+| `surface: on-demand` | Silent skip (forward-compat) | Loaded when triggers match user prompt |
+| Missing | Silent skip | (unchanged) |
+| Malformed | Category skipped, one-line stderr warning | (unchanged) |
+
+### Security
+
+The per-repo opt-in marker (`.claude/knowledge-enabled`) is the central
+security control. Without it, no knowledge loads — even when `$AI_KNOWLEDGE_DIR`
+is valid and categories exist. This prevents cross-context contamination:
+a global env var pointed at Company A's knowledge folder will NOT inject
+Company A guidance into Company B or OSS repos.
+
+The marker must be a regular file (not a symlink, not a directory). Symlinks
+fail closed (blocks hostile-planted markers via symlink). The marker's parent
+`.claude/` directory must also not be a symlink — a `repo/.claude -> /tmp/attacker`
+redirect would otherwise allow an out-of-repo file to pass the regular-file
+check. Both parent-symlink and marker-symlink are explicitly rejected.
+
+Knowledge file content is Read into Claude's context on every invocation —
+same trust boundary as any other Read call, which means knowledge files are a
+potential prompt-injection channel if unreviewed. Review knowledge files
+before opting a repo in. Don't commit secrets, PII, or unreviewed third-party
+content into the knowledge folder. A malicious `.md` (synced from a
+compromised source, auto-generated, committed by a rushed colleague) becomes
+a full prompt-injection surface on every `/company-workflow` invocation in
+the opted-in repo.
+
+File paths containing control characters (newline, CR) are rejected during
+enumeration — they'd otherwise forge line structure in the `## Always-On
+Knowledge` block Claude sees. Hidden files and directories (anything starting
+with `.`) under a category are skipped, so a stray `.draft/notes.md` won't
+leak into Claude's context.
+
+### Bytes + path caps
+
+v1 enforces:
+- **500 path cap:** no more than 500 absolute paths emitted under
+  `## Always-On Knowledge`.
+- **100KB byte cap:** cumulative content of emitted `*.md` files.
+
+Either cap tripped → hard-fail warning, nothing loads (better a loud failure
+than silent context blowup). If you hit the cap, consider splitting your
+most sprawling category into multiple categories and moving some to
+`surface: on-demand` (reserved for c3 follow-up).
+
+### Diagnostic: knowledge-doctor
+
+Run `/company-workflow knowledge-doctor` to see the exact state of every
+precondition and every category. Sample output:
+
+```
+AI_KNOWLEDGE_DIR: /Users/chjiang/knowledge (exists)
+repo_root: /Users/chjiang/Documents/projects/claude-skills-templates
+marker: .claude/knowledge-enabled (present)
+disable env var: not set
+categories:
+  coding      surface=always     files=3    bytes=8.2KB    loads=yes
+  runbooks    surface=on-demand  files=5    bytes=12.1KB   loads=no (v1 deferred)
+  notes       surface=(missing yml)         loads=no
+  broken      surface=(malformed yml)       loads=no (warning)
+cap status: 3/500 paths, 8.2KB/100KB bytes
+result: loading enabled; 3 paths will be emitted to Claude
+```
 
 ### Current Status
 
-Knowledge *resolution* (path detection + warning) is live. Knowledge *loading*
-(always-on injection, on-demand matching) is under development in feature
-[F000004](../../work-items/features/F000004_knowledge_integration/). Until
-the loading stories land, `AI_KNOWLEDGE_DIR` is recognized but no content is
-loaded into Claude's context.
+- **Resolution** (path detection + unset/invalid warnings): shipped in S000004
+  (PR #38).
+- **Always-on loading + per-repo opt-in gate + knowledge-doctor**: shipped in
+  S000005 (T000006 c1+c2).
+- **On-demand trigger matching + trigger DSL**: deferred to a follow-up story
+  after /autoplan CEO dual-voice review (2026-04-21). Unblock condition: a
+  specific user incident where always-on alone was insufficient and on-demand
+  trigger matching would have saved context/time. See
+  [F000004 feature tracker](../../work-items/features/F000004_knowledge_integration/F000004_TRACKER.md)
+  for status.

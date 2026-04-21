@@ -56,8 +56,7 @@ Extend the `company-workflow` skill's existing Path Resolution section (see SKIL
 |-----------|------|------------|-------------|
 | skills/company-workflow/SKILL.md | claude-skills-templates | Modified | Add Knowledge Resolution section after Path Resolution |
 | skills/company-workflow/WORKFLOW.md | claude-skills-templates | Modified | Document `AI_KNOWLEDGE_DIR` under Installation / Configuration |
-| skills/company-workflow/fixtures/ | claude-skills-templates | Modified | Add fixtures for env-var-unset / env-var-invalid scenarios (Tier 2) |
-| scripts/test.sh | claude-skills-templates | Modified | Include new Tier 1 smoke check for the resolution block's presence |
+| scripts/test.sh | claude-skills-templates | Modified | Tier 1 smoke checks + Tier 2 extract-and-exec scenarios (shipped as T000003) |
 
 ### Data Flow
 

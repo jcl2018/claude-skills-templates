@@ -4,7 +4,7 @@ type: feature
 id: "F000004"
 status: active
 created: "2026-04-16"
-updated: "2026-04-17"
+updated: "2026-04-20"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
 blocked_by: ""
@@ -61,10 +61,12 @@ blocked_by: ""
      testable and specific. -->
 
 - [ ] Company-workflow skill resolves an external knowledge folder (path is configurable, not hardcoded)
+- [ ] ~~Personal-workflow skill resolves the same external knowledge folder with identical semantics (S000006 parity port)~~ **DEFERRED 2026-04-20** — evidence-gated (see Log)
 - [ ] Arbitrary category subfolders supported (no fixed taxonomy); `coding/` and `domain/` are illustrative, not required
 - [ ] Two-tier surfacing works: `surface: always` categories auto-inject; `surface: on-demand` load only when a declared `triggers` keyword/phrase appears in the prompt
-- [ ] Skill can surface relevant knowledge during work-item workflows (Track / Implement / Review phases) without the user having to copy-paste
-- [ ] Knowledge folder structure has a documented convention (directory layout, file naming, frontmatter if any)
+- [ ] Company-workflow surfaces relevant knowledge during work-item workflows (Track / Implement / Ship phases) without the user having to copy-paste
+- [ ] Knowledge folder structure has a documented convention (directory layout, file naming, frontmatter if any) — documented in company-workflow's WORKFLOW.md
+- [ ] Per-repo opt-in marker (`.claude/knowledge-enabled`) is honored by company-workflow
 - [ ] Works when the knowledge folder is absent (graceful degradation, not an error)
 - [ ] Zero regression for existing company-workflow validate / scaffolding flows
 
@@ -89,7 +91,10 @@ blocked_by: ""
 - [ ] Draft a child user-story for the resolution + surfacing mechanism
 - [ ] Draft a child user-story for the knowledge folder convention + seed content (cpp guide, one domain stub)
 - [x] Sync with `/personal-workflow`: does personal-dev need parallel knowledge support? — **Yes, eventually.** Decision: port after S000006 lands. Cheapest path is lift-and-shift of the three bash sections (Resolution, Loading, Matching) from `skills/company-workflow/SKILL.md` into `skills/personal-workflow/SKILL.md`. Same env var (`AI_KNOWLEDGE_DIR`), same conventions, zero new design. User will tackle later.
-- [ ] **Port knowledge feature to `/personal-workflow` (follow-up, blocked by S000006)** — after S000005 + S000006 land in company-workflow, copy the Knowledge Resolution + Knowledge Loading + On-Demand Matching sections into `skills/personal-workflow/SKILL.md`. Mirror the WORKFLOW.md `## Knowledge Configuration` section as well. Extend `scripts/test.sh` with a parallel T000004-style test block against personal-workflow's SKILL.md. No new env var, no new `.knowledge.yml` schema — just replicate. Expected size: ~same as the combined company-workflow implementation.
+- [x] Port knowledge feature to `/personal-workflow` — scoped into `S000006_personal_workflow_port` (2026-04-20), then **DEFERRED 2026-04-20** after /autoplan dual-voice CEO review. Evidence gate: reopen when a specific personal-repo task where missing knowledge-loading is an observed blocker surfaces. Artifacts retained (see S000006_* and T000007_* directories + design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260420-203757.md`).
+- [ ] Ship S000004 (landed via PR #38)
+- [ ] Ship S000005 (knowledge-loading — in flight)
+- [ ] ~~Ship S000006 (personal-workflow port)~~ **DEFERRED** — evidence-gated unblock
 
 ## Log
 
@@ -111,6 +116,11 @@ blocked_by: ""
 - 2026-04-18: /office-hours produced the S000004 design doc (alternatives audit). /plan-eng-review ran on it: 7 issues found, all resolved. Codex outside-voice caught 3 additional findings (fake CI coverage, cross-context contamination, log injection) — all applied. Sanitization patch to SKILL.md committed (a46efa9). Per-repo opt-in gate added to S000005 TRACKER as P0.
 - 2026-04-18: T000004 landed — 11 scripted assertions in scripts/test.sh, full suite passes. S000004 Phase 2 complete; child-story ready to ship whenever user runs /ship. S000005 and S000006 unblock next.
 - 2026-04-19: Decided to also port the knowledge feature to `/personal-workflow` after S000006 lands in company-workflow. Captured as a follow-up TODO in this tracker. User will tackle later; not part of the original F000004 vertical slicing.
+- 2026-04-19: Fixture scope change for S000005/S000006. Rejected committing static fixtures under `skills/company-workflow/fixtures/` — conflates skill source with user-owned `$AI_KNOWLEDGE_DIR`. Revised to shared bash helper `scripts/test-helpers/knowledge.sh` that synthesizes fixtures in `mktemp -d` per test case.
+- 2026-04-19: Task consolidation across all three stories. Collapsed 8 tasks → 3 (one task per story) per F000001/F000003 precedent. S000004: T000004_tests absorbed into T000003. S000005: T000005_build_fixtures + T000007_tests absorbed into T000006. S000006: T000008_refactor_shared_helper + T000010_tests absorbed into T000009. Separate tests/refactor/fixture tasks were bookkeeping overhead — each story fits in one PR. Artifact count dropped 30 → 18.
+- 2026-04-19: **Story consolidation: S000005 + S000006 → single S000005.** Merged former S000006 (on-demand matching) into S000005, renamed `always-on-loading` → `knowledge-loading`. Both surfacing paths share the `.knowledge.yml` parser, file enumeration, per-repo opt-in gate, and fixture builder; T000009 was already blocked on T000006 to extract a shared helper, exposing the slice boundary as a refactor inside the next slice (i.e. not a real PR boundary). T000009 absorbed into T000006 (renamed `implement-loading-and-matching`). Trade-off accepted: one bigger PR (~400 lines bash + tests) vs. two smaller; lose option to ship always-on alone if on-demand stalls, mitigated by sequencing impl within T000006 (always-on first, then on-demand). Stories: 3 → 2. Tasks: 3 → 2. Artifacts: 18 → 12. Follow-up "port to /personal-workflow" rebased from "blocked by S000006" → "blocked by S000005" (the merged story).
+- 2026-04-20: **Scope extension: `/personal-workflow` parity port scoped into S000006.** Promoted the "port to /personal-workflow" follow-up TODO into a proper user-story (S000006_personal_workflow_port) with full artifact set (TRACKER + PRD + ARCHITECTURE + TEST-SPEC) and a single task child T000007. Single-story approach (not split by resolution/loading) to avoid a half-ported cutover where personal-workflow resolves the env var but doesn't load content. Blocked by S000005 landing. No new design, env var, schema, or opt-in marker — everything mirrors what S000004+S000005 ship for company-workflow. Feature AC + milestones updated to reflect both skills. Stories: 2 → 3. Tasks: 2 → 3. Artifacts: 12 → 18.
+- 2026-04-20: **S000006 DEFERRED after /autoplan dual-voice CEO review.** Ran /autoplan on the S000006 execution-plan design doc. Codex (CEO voice) and an independent Claude subagent both returned NO-GO independently. CEO dual-voice consensus table: 5/6 dimensions CONFIRMED-NO, 0 DISAGREE. Key findings both voices raised: (1) plan depends on S000005 being on `main` and on `scripts/test-helpers/knowledge.sh` existing — neither is true yet; (2) no documented personal-repo user task that knowledge loading would unlock — this is symmetry work, not product work, for a single-user workbench; (3) the "~20 line drift tripwire" is a shared abstraction smeared across `scripts/test.sh` instead of a shared helper file — Approach B (extract `scripts/knowledge.sh`) is the cleaner form of the same idea; (4) premises asserted not verified. User chose at premise gate to defer rather than override dual-voice signal. Scope reverts: F000004 stories back to 2 active (S000004 + S000005) + 1 deferred (S000006). Artifacts retained (not deleted) so the work is resumable; design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260420-203757.md` has the full review report appended. Evidence gate to reopen: a specific personal-repo task where missing knowledge-loading is an observed blocker.
 
 ## PRs
 
