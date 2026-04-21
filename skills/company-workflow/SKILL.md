@@ -120,6 +120,78 @@ Behavior contract:
 See [WORKFLOW.md §Knowledge Configuration](WORKFLOW.md#knowledge-configuration)
 for setup instructions, the layout convention, and the `.knowledge.yml` schema.
 
+## Knowledge Helpers
+
+Three shared bash helper functions used by the Knowledge Loading section below
+and reserved for future knowledge features (on-demand matching, etc.).
+
+**Runtime note:** Each `## Knowledge ...` code block in SKILL.md runs as its
+own Bash tool invocation — functions defined in one block don't persist to the
+next. The Knowledge Loading block below redefines these functions inline so
+that block is self-contained at runtime. The canonical definitions live here
+(for documentation + c1 helper self-tests); a tier-1 test asserts the two
+definitions stay byte-identical (see `scripts/test.sh`).
+
+**Helper contract:**
+
+| Function | Input | Output | Behavior |
+|---|---|---|---|
+| `parse_knowledge_yml(path)` | path to `.knowledge.yml` | `always` \| `on-demand` \| empty | Returns the surface value. Empty on missing file, unknown surface, or malformed yml. Tolerates: `surface: always`, `surface: "always"` (double-quoted), `surface: always # comment` (inline comment), CRLF line endings, UTF-8 BOM, trailing whitespace. Single-quoted values (`surface: 'always'`) are NOT supported — rejected as malformed. Accepts (but discards) a `triggers:` key for forward-compat with the c3 on-demand follow-up story. |
+| `list_categories(root)` | knowledge dir absolute path | newline-separated absolute paths to immediate subdirs | Skips hidden dirs. Lex-sorted under `LC_ALL=C` for locale-independent determinism. |
+| `list_md_files(category)` | category absolute path | newline-separated absolute paths to `*.md` files | Recursive. Lex-sorted under `LC_ALL=C`. |
+
+```bash
+# parse_knowledge_yml(path) — minimal bash parser for the .knowledge.yml subset.
+# Returns: always | on-demand | empty (empty on missing/malformed/unknown).
+# Strictly validates root keys — any non-{surface,triggers} key = malformed.
+parse_knowledge_yml() {
+  local path="$1"
+  [ -f "$path" ] || { printf ''; return; }
+  local surface
+  surface=$(LC_ALL=C awk '
+    NR == 1 {
+      if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
+    }
+    { sub(/\r$/, ""); sub(/#.*$/, "") }
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*surface[[:space:]]*:/ {
+      val = $0
+      sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
+      sub(/[[:space:]]*$/, "", val)
+      if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
+        val = substr(val, 2, length(val)-2)
+      surface_val = val
+      next
+    }
+    /^[[:space:]]*triggers[[:space:]]*:/ { next }
+    /^[[:space:]]+-/ { next }
+    { malformed = 1; exit }
+    END {
+      if (malformed) { print ""; exit }
+      print surface_val
+    }
+  ' "$path" 2>/dev/null)
+  case "$surface" in
+    always|on-demand) printf '%s' "$surface" ;;
+    *) printf '' ;;
+  esac
+}
+
+# list_categories(root) — immediate subdirs, skip hidden, lex-sorted (LC_ALL=C).
+list_categories() {
+  local root="$1"
+  [ -d "$root" ] || return 0
+  LC_ALL=C find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
+}
+
+# list_md_files(category) — recursive *.md, lex-sorted by path (LC_ALL=C).
+list_md_files() {
+  local category="$1"
+  [ -d "$category" ] || return 0
+  LC_ALL=C find "$category" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort
+}
+```
+
 ## Template Registry
 
 This skill reads `template-registry.json` at the repo root to discover its

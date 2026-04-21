@@ -514,7 +514,10 @@ mkdir -p "$_T4_VALID"
 touch "$_T4_FILE"
 
 # Extract the Knowledge Resolution bash block from SKILL.md once.
-awk '/^## Knowledge Resolution/,/^## Template Registry/' \
+# End-bound updated to ## Knowledge Helpers (introduced in S000005 c1) so the
+# extraction stays scoped to the Resolution block even as new Knowledge-* sections
+# get added between Resolution and Template Registry.
+awk '/^## Knowledge Resolution/,/^## Knowledge Helpers/' \
   "$REPO_ROOT/skills/company-workflow/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T4_KR"
 
@@ -639,6 +642,174 @@ else
 fi
 
 rm -rf "$_T4_TMPDIR"
+
+echo ""
+echo "Regression test (T000006 c1): Knowledge Helpers (S000005)..."
+# Background: c1 adds a ## Knowledge Helpers section with three bash helpers
+# (parse_knowledge_yml, list_categories, list_md_files). These are reused by
+# the Knowledge Loading block (c2). Tests extract the helpers block and source
+# it in a test subshell to exercise each function directly against fixtures
+# built by scripts/test-helpers/knowledge.sh.
+
+_T6H_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006h' 2>/dev/null)
+_T6H_HELPERS="$_T6H_TMPDIR/helpers.sh"
+
+# Extract the Knowledge Helpers bash block.
+awk '/^## Knowledge Helpers/,/^## Template Registry/' \
+  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6H_HELPERS"
+
+# --- Tier 1 structural greps ---
+
+if grep -q "^## Knowledge Helpers" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  ok "T000006 c1 case 1: SKILL.md has ## Knowledge Helpers section"
+else
+  fail_test "T000006 c1 case 1: SKILL.md missing ## Knowledge Helpers section"
+fi
+
+if [ -f "$REPO_ROOT/scripts/test-helpers/knowledge.sh" ]; then
+  ok "T000006 c1 case 2: scripts/test-helpers/knowledge.sh exists"
+else
+  fail_test "T000006 c1 case 2: scripts/test-helpers/knowledge.sh missing"
+fi
+
+if [ -s "$_T6H_HELPERS" ]; then
+  ok "T000006 c1 case 3: Knowledge Helpers bash block extracts non-empty"
+else
+  fail_test "T000006 c1 case 3: Knowledge Helpers bash block extraction empty"
+fi
+
+# Both SKILL.md helpers and scripts/test-helpers/knowledge.sh must define the
+# expected function names. Script-level grep confirms public API is stable.
+for _fn in parse_knowledge_yml list_categories list_md_files; do
+  if grep -q "^${_fn}()" "$_T6H_HELPERS"; then
+    ok "T000006 c1 case 4.${_fn}: Helpers block defines ${_fn}()"
+  else
+    fail_test "T000006 c1 case 4.${_fn}: Helpers block missing ${_fn}() definition"
+  fi
+done
+
+if grep -q '^build_knowledge_fixture()' "$REPO_ROOT/scripts/test-helpers/knowledge.sh"; then
+  ok "T000006 c1 case 5: test-helpers/knowledge.sh defines build_knowledge_fixture()"
+else
+  fail_test "T000006 c1 case 5: test-helpers/knowledge.sh missing build_knowledge_fixture()"
+fi
+
+# --- Tier 2 helper behavior (source + exercise) ---
+
+if [ -s "$_T6H_HELPERS" ]; then
+  # Build a fixture covering every mode the helpers care about
+  source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+  _T6H_FIX=$(build_knowledge_fixture "$_T6H_TMPDIR/fixture" \
+    "coding:always" \
+    "runbooks:on-demand" \
+    "domain:on-demand:pricing" \
+    "broken:malformed" \
+    "notes")
+
+  # Source the helpers from SKILL.md into this shell
+  # shellcheck disable=SC1090
+  source "$_T6H_HELPERS"
+
+  # Case 6: parse_knowledge_yml on surface: always
+  _r=$(parse_knowledge_yml "$_T6H_FIX/coding/.knowledge.yml")
+  if [ "$_r" = "always" ]; then
+    ok "T000006 c1 case 6: parse_knowledge_yml(coding) → always"
+  else
+    fail_test "T000006 c1 case 6: parse_knowledge_yml(coding) got '$_r', expected 'always'"
+  fi
+
+  # Case 7: parse_knowledge_yml on surface: on-demand
+  _r=$(parse_knowledge_yml "$_T6H_FIX/runbooks/.knowledge.yml")
+  if [ "$_r" = "on-demand" ]; then
+    ok "T000006 c1 case 7: parse_knowledge_yml(runbooks) → on-demand"
+  else
+    fail_test "T000006 c1 case 7: parse_knowledge_yml(runbooks) got '$_r', expected 'on-demand'"
+  fi
+
+  # Case 8: forward-compat — on-demand + triggers parses clean
+  _r=$(parse_knowledge_yml "$_T6H_FIX/domain/.knowledge.yml")
+  if [ "$_r" = "on-demand" ]; then
+    ok "T000006 c1 case 8: parse_knowledge_yml(domain w/triggers) → on-demand (triggers ignored in v1, forward-compat)"
+  else
+    fail_test "T000006 c1 case 8: parse_knowledge_yml(domain) got '$_r', expected 'on-demand'"
+  fi
+
+  # Case 9: malformed → empty
+  _r=$(parse_knowledge_yml "$_T6H_FIX/broken/.knowledge.yml")
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 9: parse_knowledge_yml(broken) → empty (malformed detected)"
+  else
+    fail_test "T000006 c1 case 9: parse_knowledge_yml(broken) got '$_r', expected empty"
+  fi
+
+  # Case 10: missing yml → empty
+  _r=$(parse_knowledge_yml "$_T6H_FIX/notes/.knowledge.yml")
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 10: parse_knowledge_yml(missing) → empty"
+  else
+    fail_test "T000006 c1 case 10: parse_knowledge_yml(missing) got '$_r', expected empty"
+  fi
+
+  # Case 11: yml edge cases — quoted, comment, CRLF, BOM
+  _T6H_EDGE="$_T6H_TMPDIR/edge"
+  mkdir -p "$_T6H_EDGE"
+  printf 'surface: "always"\n' > "$_T6H_EDGE/q.yml"
+  printf 'surface: always # house style\n' > "$_T6H_EDGE/c.yml"
+  printf 'surface: always\r\n' > "$_T6H_EDGE/crlf.yml"
+  printf '\xef\xbb\xbfsurface: always\n' > "$_T6H_EDGE/bom.yml"
+  printf "surface: 'always'\n" > "$_T6H_EDGE/sq.yml"
+  _edge_ok=1
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/q.yml")"    = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/c.yml")"    = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/crlf.yml")" = "always" ] || _edge_ok=0
+  [ "$(parse_knowledge_yml "$_T6H_EDGE/bom.yml")"  = "always" ] || _edge_ok=0
+  [ -z "$(parse_knowledge_yml "$_T6H_EDGE/sq.yml")" ] || _edge_ok=0   # single-quote NOT supported
+  if [ "$_edge_ok" = "1" ]; then
+    ok "T000006 c1 case 11: parser handles quoted/comment/CRLF/BOM, rejects single-quote"
+  else
+    fail_test "T000006 c1 case 11: yml edge-case handling incorrect"
+  fi
+
+  # Case 12: list_categories lex-sorted, skips hidden
+  mkdir -p "$_T6H_FIX/.hidden"
+  _cats=$(list_categories "$_T6H_FIX" | LC_ALL=C sort | tr '\n' ',')
+  # Expected (lex-sorted): broken, coding, domain, notes, runbooks
+  _exp_cats="$_T6H_FIX/broken,$_T6H_FIX/coding,$_T6H_FIX/domain,$_T6H_FIX/notes,$_T6H_FIX/runbooks,"
+  if [ "$_cats" = "$_exp_cats" ]; then
+    ok "T000006 c1 case 12: list_categories returns lex-sorted + skips hidden dirs"
+  else
+    fail_test "T000006 c1 case 12: list_categories output mismatch. got='$_cats' expected='$_exp_cats'"
+  fi
+
+  # Case 13: list_md_files recursive + lex-sorted
+  _mdfs=$(list_md_files "$_T6H_FIX/coding" | tr '\n' ',')
+  # Expected: a.md then sub/b.md (lex-sorted by path)
+  _exp_mdfs="$_T6H_FIX/coding/a.md,$_T6H_FIX/coding/sub/b.md,"
+  if [ "$_mdfs" = "$_exp_mdfs" ]; then
+    ok "T000006 c1 case 13: list_md_files returns recursive *.md lex-sorted"
+  else
+    fail_test "T000006 c1 case 13: list_md_files output mismatch. got='$_mdfs' expected='$_exp_mdfs'"
+  fi
+
+  # Case 14: list_categories on non-existent dir → empty
+  _r=$(list_categories /nonexistent-t6h-$$)
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 14: list_categories(nonexistent) → empty"
+  else
+    fail_test "T000006 c1 case 14: list_categories(nonexistent) got '$_r', expected empty"
+  fi
+
+  # Case 15: list_md_files on non-existent dir → empty
+  _r=$(list_md_files /nonexistent-t6h-$$)
+  if [ -z "$_r" ]; then
+    ok "T000006 c1 case 15: list_md_files(nonexistent) → empty"
+  else
+    fail_test "T000006 c1 case 15: list_md_files(nonexistent) got '$_r', expected empty"
+  fi
+fi
+
+rm -rf "$_T6H_TMPDIR"
 
 # Summary
 echo ""
