@@ -4,6 +4,30 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [0.12.0] - 2026-04-21
+
+### Added
+- **Always-on knowledge loading for `/company-workflow` (F000004, S000005).** Drop `.knowledge.yml { surface: always }` + `*.md` files under a category directory in `$AI_KNOWLEDGE_DIR`, touch `.claude/knowledge-enabled` in any repo where you want knowledge injected, and every `/company-workflow` invocation in that repo automatically includes your house-style guidance in Claude's context. No more copy-pasting a cpp style guide into every prompt. New `## Knowledge Helpers` + `## Knowledge Loading` sections in `skills/company-workflow/SKILL.md` do the discovery (category enumeration, `.knowledge.yml` parsing with tolerance for quoted values, inline comments, CRLF, and UTF-8 BOM), emit a `## Always-On Knowledge` block with absolute paths, and instruct Claude to Read them before answering.
+- **Per-repo opt-in marker: `.claude/knowledge-enabled`.** Prevents cross-context contamination — a global `$AI_KNOWLEDGE_DIR` pointing at Company A's knowledge folder will NOT inject Company A guidance into Company B or OSS repos. Only loads when the current repo explicitly opts in. Marker hardening rejects symlinks, directories, and `repo/.claude -> /tmp/attacker` redirection.
+- **`/company-workflow knowledge-doctor` diagnostic subcommand.** Prints the state of every precondition and every category (env var, repo root, marker presence, category surface modes, byte totals, cap status, final verdict). Debug setup issues in one shot instead of iterating with canary tests.
+- **`AI_KNOWLEDGE_DISABLE=1` one-shot escape hatch.** Bypass loading for a single invocation without touching the committed marker. Useful when debugging a bad knowledge file. Accepts only explicit truthy values (`1`/`true`/`yes`/`on` and capitalized variants) — `AI_KNOWLEDGE_DISABLE=false` leaves loading enabled, matching user intuition.
+- **Helpful missing-marker diagnostic.** When `$AI_KNOWLEDGE_DIR` is configured AND at least one category has `surface: always` AND the repo's marker is absent, emits exactly one stderr line naming the missing marker and the fix command. Problem + cause + fix in one line; silent fail used to train users to distrust the feature.
+- **Forward compatibility for on-demand surfacing.** Categories authored today with `surface: on-demand` + `triggers: [...]` parse cleanly and are silently skipped in v1. When the on-demand follow-up ships, these files activate automatically — no re-authoring needed.
+- **Shared fixture builder `scripts/test-helpers/knowledge.sh`.** `build_knowledge_fixture()` synthesizes knowledge dirs in `mktemp -d` per test case with canary strings (`CANARY_<cat>_TOP`, `CANARY_<cat>_NESTED`). No fixtures committed under `skills/` — the knowledge dir is user-owned and external by design.
+- **35+ new test assertions across `scripts/test.sh`.** T000006 c1: 15 helper self-tests covering parser edge cases (quoted/comment/CRLF/BOM/malformed) + enumeration determinism + nonexistent-dir handling. T000006 c2: 20 behavioral tests covering always-on emission, on-demand forward-compat, marker hardening (symlink/directory/nested-subdir all fail closed), 500-path cap enforcement, yml edge cases, absolute-path-with-spaces, invalid-env pass-through, and knowledge-doctor state reporting. Drift tripwire does real byte-level diff of helper function bodies between `## Knowledge Helpers` and `## Knowledge Loading` blocks — prevents silent drift between the canonical definitions and their inlined copy.
+- **WORKFLOW.md `## Knowledge Configuration` rewrite with Quick Start IA.** Copy-paste 5-line quick-start, troubleshooting table with problem+cause+fix for every common trap, documented escape hatches, explicit security callout covering prompt-injection risk + control-char rejection + hidden-dir skip + parent-symlink hardening.
+
+### Changed
+- **`skills/company-workflow` bumped to v3.1.0.** Additive feature; no breaking changes to existing `validate` command behavior. Zero regression assertion: `/company-workflow validate` output is byte-identical when `$AI_KNOWLEDGE_DIR` is unset and `.claude/knowledge-enabled` is absent.
+- **F000004 scope restructure.** Collapsed former S000005 "always-on-loading" + S000006 "on-demand-matching" stories into single `S000005_knowledge_loading` (same PR, both surfacing modes' infrastructure shared one helper layer; slice boundary was bookkeeping). S000006 slot now holds `S000006_personal_workflow_port` (parity port of the knowledge feature to `/personal-workflow`), which was scaffolded, /autoplan-reviewed, and DEFERRED after dual-voice CEO review flagged it as symmetry work rather than product work for a single-user workbench. Unblock condition: a specific personal-repo user incident where missing knowledge-loading blocks work.
+
+### Deferred
+- **On-demand trigger matching (c3 follow-up).** Parsing infrastructure is in place (forward-compat parse-and-discard); matching logic + trigger DSL + match log + 50KB soft threshold will land in a follow-up story. Unblock condition: a specific user incident where always-on alone was insufficient and on-demand triggers would have saved context or time. Re-evaluated if Anthropic ships native Claude Code knowledge-base support first.
+
+### Rationale
+Ships the user-visible half of F000004. Knowledge moves from "the skill knows where your folder is" (v0.11.0) to "the skill reads from your folder and Claude acts on it" (this release). The half-deferred (on-demand matching) was explicitly evidence-gated after /autoplan CEO dual-voice review converged that v1 had 60% of the complexity for 30% of the value without documented user demand. Boiling the lake here means deciding what NOT to boil, not just what to boil.
+
+
 ## [0.11.0] - 2026-04-19
 
 ### Added
