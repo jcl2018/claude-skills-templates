@@ -60,15 +60,16 @@ blocked_by: ""
 
 ## Todos
 
-- [ ] Write `work-copilot/prompts/validate.prompt.md` with YAML frontmatter (`mode`, `description`) and prose instructions
-- [ ] Copy `skills/company-workflow/company-artifact-manifests.json` to `work-copilot/copilot-artifact-manifests.json` and update description + filename conventions
-- [ ] Mirror `templates/company-workflow/` -> `work-copilot/templates/` (bundled)
-- [ ] Write fixtures: one known-good work item dir and one with an artifact removed, for manual E2E diff vs `/company-workflow check`
-- [ ] Verify prompt runs on the work machine in VS Code Copilot Chat (E1 test)
+- [x] Write `work-copilot/prompts/validate.prompt.md` with YAML frontmatter (`mode`, `description`) and prose instructions
+- [x] Copy `skills/company-workflow/company-artifact-manifests.json` to `work-copilot/copilot-artifact-manifests.json` and update description + filename conventions
+- [x] Mirror `templates/company-workflow/` -> `work-copilot/templates/` (bundled)
+- [x] Write fixtures: one known-good work item dir and one with an artifact removed, for manual E2E diff vs `/company-workflow check`
+- [ ] Verify prompt runs on the work machine in VS Code Copilot Chat (E1 test) — **blocked on S000008 installer**
 
 ## Log
 
 - 2026-04-22: Created. Implements S000007 acceptance criteria for the Copilot prompt packaging story.
+- 2026-04-22: Bundle implemented — 23 files, 96 KB total. `validate.prompt.md` (7 KB), manifest (2 KB), 16 mirrored templates, 4 fixture files. Local source on `feat/work-copilot`.
 
 ## PRs
 
@@ -86,6 +87,14 @@ blocked_by: ""
   replace references to `/company-workflow check` with `/validate`, and
   replace "skill assets path resolution" with "bundle path resolution
   inside `.github/work-copilot/`".
+- The 2 KB prompt budget estimated in S000007's ARCHITECTURE risk table was
+  too tight. Final prompt is 7 KB because the validator logic (File Mode +
+  Directory Mode + output contract + anti-hallucination rules) doesn't
+  compress well without losing fidelity. 7 KB is still fine for Copilot's
+  context window. Updating the risk assessment accordingly.
+- The anti-hallucination rule ("read the file, do NOT recall") is explicit
+  at the top of the prompt. Every time the prompt references a bundle path,
+  it's named with its relative path so the model can Read it deterministically.
 
 ## Journal
 
