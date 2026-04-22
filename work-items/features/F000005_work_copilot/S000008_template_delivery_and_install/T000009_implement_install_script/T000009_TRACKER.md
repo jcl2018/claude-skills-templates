@@ -68,6 +68,7 @@ blocked_by: ""
 - 2026-04-22: Created. Implements S000008 acceptance criteria for delivery + installer.
 - 2026-04-22: Installer implemented. 3 subcommands (install/doctor/remove), Python 3 stdlib only, binary-mode SHA256, install-manifest generated inline at install time. Tier 1 smoke tests T1–T7 and T10 all pass on macOS against a temp target directory. validate.sh gained Error check 10 (work-copilot/templates sync with templates/company-workflow).
 - 2026-04-22: Dropped the separate `scripts/build-copilot-bundle.sh` idea — the installer walks the source bundle on each install and generates the manifest itself. No build step, no source-side manifest to commit.
+- 2026-04-22: Committed as `1a4efe3` on `feat/work-copilot`.
 
 ## PRs
 
