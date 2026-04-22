@@ -38,9 +38,9 @@ blocked_by: ""
 4. Update Files section with actual changed files
 
 **Gates:**
-- [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Core changes committed (>=1 commit SHA in Log)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -70,6 +70,7 @@ blocked_by: ""
 
 - 2026-04-22: Created. Implements S000007 acceptance criteria for the Copilot prompt packaging story.
 - 2026-04-22: Bundle implemented — 23 files, 96 KB total. `validate.prompt.md` (7 KB), manifest (2 KB), 16 mirrored templates, 4 fixture files. Local source on `feat/work-copilot`.
+- 2026-04-22: Committed as `ffd0e3c` on `feat/work-copilot`.
 
 ## PRs
 
