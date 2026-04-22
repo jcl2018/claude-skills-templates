@@ -4,6 +4,17 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+
+## [0.13.1] - 2026-04-22
+
+### Added
+- **`DESIGN.md` is now a required feature artifact for both personal-workflow and company-workflow (D000009).** Feature work items must now carry a cross-story engineering design doc — capturing the problem, solution shape, big decisions, risks, and ship criteria that don't fit in any single user-story's `ARCHITECTURE.md`. Two new templates (`templates/personal-workflow/doc-DESIGN.md` with 7 sections, `templates/company-workflow/doc-DESIGN.md` with 6 sections — company's drops "Not in scope" since `feature-summary.md` already owns Out-of-Scope). `feature.required` updated in both artifact manifests. Existing closed features (F000001–F000004) get a minimal `status: Backfill` DESIGN.md pointing at the original TRACKER/ARCHITECTURE for context.
+- D000009 regression block in `scripts/test.sh` — 4 checks guarding against the DESIGN entry silently disappearing from either manifest or either template file vanishing.
+
+### Changed
+- Template count for personal-workflow bumps from 10 → 11 (new `doc-DESIGN.md`); `scripts/test.sh` count assertion updated to match.
+- `skills-catalog.json` template lists for both personal-workflow and company-workflow now include `doc-DESIGN.md`.
+
 ## [0.13.0] - 2026-04-20
 
 ### Added
