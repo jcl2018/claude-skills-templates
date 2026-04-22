@@ -262,10 +262,10 @@ fi
 
 # Personal-workflow template directory exists with expected count
 pw_count=$(find "$REPO_ROOT/templates/personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-if [ "$pw_count" -eq 10 ]; then
-  ok "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+if [ "$pw_count" -eq 11 ]; then
+  ok "templates/personal-workflow/ contains $pw_count templates (expected 11)"
 else
-  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 11)"
 fi
 
 # Personal-workflow catalog entry exists
@@ -495,6 +495,38 @@ if grep -qE 'gh api .*-X DELETE.*git/refs/heads' "$REPO_ROOT/CLAUDE.md"; then
   ok "CLAUDE.md documents the worktree-aware remote-branch cleanup workaround"
 else
   fail_test "CLAUDE.md is missing the 'gh api -X DELETE' worktree cleanup workaround (D000008 guard)"
+fi
+
+echo ""
+echo "Regression test (D000009): feature type requires DESIGN.md artifact..."
+
+# Both manifests must declare a design artifact under types.feature.required,
+# and matching doc-DESIGN.md templates must exist. Prevents a future refactor
+# from silently dropping the DESIGN requirement back to where it was before.
+if jq -e '.types.feature.required[] | select(.filename == "DESIGN.md" and .template == "doc-DESIGN.md")' \
+     "$REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json" > /dev/null; then
+  ok "personal-artifact-manifests.json feature.required includes DESIGN.md"
+else
+  fail_test "personal-artifact-manifests.json feature.required missing DESIGN.md entry (D000009 guard)"
+fi
+
+if jq -e '.types.feature.required[] | select(.filename == "DESIGN.md" and .template == "doc-DESIGN.md")' \
+     "$REPO_ROOT/skills/company-workflow/company-artifact-manifests.json" > /dev/null; then
+  ok "company-artifact-manifests.json feature.required includes DESIGN.md"
+else
+  fail_test "company-artifact-manifests.json feature.required missing DESIGN.md entry (D000009 guard)"
+fi
+
+if [ -f "$REPO_ROOT/templates/personal-workflow/doc-DESIGN.md" ]; then
+  ok "templates/personal-workflow/doc-DESIGN.md present"
+else
+  fail_test "templates/personal-workflow/doc-DESIGN.md missing (D000009 guard)"
+fi
+
+if [ -f "$REPO_ROOT/templates/company-workflow/doc-DESIGN.md" ]; then
+  ok "templates/company-workflow/doc-DESIGN.md present"
+else
+  fail_test "templates/company-workflow/doc-DESIGN.md missing (D000009 guard)"
 fi
 
 echo ""
