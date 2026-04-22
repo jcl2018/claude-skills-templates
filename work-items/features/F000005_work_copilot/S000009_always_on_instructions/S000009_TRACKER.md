@@ -67,27 +67,30 @@ blocked_by: ""
 
 <!-- What "done" looks like for this story. -->
 
-- [ ] `work-copilot/instructions/copilot-instructions.md` exists and, when
+- [x] `work-copilot/instructions/copilot-instructions.md` exists and, when
   installed to `<target>/.github/copilot-instructions.md`, gives Copilot
   always-on awareness of the work-item conventions (hierarchy, IDs,
-  lifecycle, artifact manifest)
-- [ ] The instructions file summarizes — but does not duplicate — the
+  lifecycle, artifact manifest) — verified via round-trip install/doctor
+- [x] The instructions file summarizes — but does not duplicate — the
   validate prompt; users still run `/validate` for actual checks
-- [ ] The file is ≤ 8 KB so it fits within Copilot's always-on budget
-  without crowding out repo-specific context
-- [ ] Every claim in the instructions is sourced: it links back to the
-  templates, manifest, or WORKFLOW.md for authority
+- [x] The file is ≤ 8 KB so it fits within Copilot's always-on budget
+  without crowding out repo-specific context — 5061 bytes
+- [x] Every claim in the instructions is sourced: it links back to the
+  templates, manifest, or WORKFLOW.md for authority — every H2 section has a
+  `Source:` footer; the final "Sources of truth" table indexes all authorities
 - [ ] When a user opens Copilot chat in a repo with the bundle installed,
   asking "how do I add a work item?" yields an answer aligned with the
-  personal/company workflow conventions
+  personal/company workflow conventions — **blocked on Windows work box
+  install + E2E verification** (milestone #5)
 
 ## Todos
 
-- [ ] [T000010_author_instructions_file](T000010_author_instructions_file/T000010_TRACKER.md) — write the instructions file
+- [x] [T000010_author_instructions_file](T000010_author_instructions_file/T000010_TRACKER.md) — write the instructions file (committed as `1e5c1a9`, Phase 2 complete; Phase 3 blocked on E2E)
 
 ## Log
 
 - 2026-04-22: Created. Author the always-on copilot-instructions.md so Copilot answers work-item questions using our conventions.
+- 2026-04-22: T000010 complete (commit `1e5c1a9`). 4/5 acceptance criteria met; last criterion (E2E behavior in Copilot chat) waits on milestone #5.
 
 ## PRs
 

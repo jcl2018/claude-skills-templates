@@ -66,6 +66,7 @@ blocked_by: ""
 
 - 2026-04-22: Created. Implements S000009 acceptance criteria for the always-on instructions file.
 - 2026-04-22: Drafted `work-copilot/instructions/copilot-instructions.md` (5061 bytes, 6 H2 sections, each with a `Source:` footer). Every claim points back to the template, manifest, validate.prompt.md, or fixtures — nothing is stated without a source. Installer picks it up automatically via `map_dest` (no manifest edit needed).
+- 2026-04-22: Committed as `1e5c1a9` on `feat/work-copilot`.
 
 ## PRs
 
