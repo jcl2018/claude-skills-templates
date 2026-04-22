@@ -36,9 +36,9 @@ blocked_by: ""
 4. Update Files section with actual changed files
 
 **Gates:**
-- [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Core changes committed (>=1 commit SHA in Log)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -55,32 +55,42 @@ blocked_by: ""
 
 ## Todos
 
-- [ ] Verify Python 3.10+ is on the work machine (if not, switch plan to PowerShell)
-- [ ] Implement `scripts/copilot-deploy.py` with `install`, `doctor`, `remove` subcommands (stdlib only)
-- [ ] Generate `work-copilot/install-manifest.json` at build time (new `scripts/build-copilot-bundle.sh` or inline in deploy)
-- [ ] Binary-mode file reads for SHA256 (prevent D000005 CRLF rerun)
-- [ ] Add template-sync check to `scripts/validate.sh`
-- [ ] Add Tier 1 smoke tests (S1–S5 from TEST-SPEC)
-- [ ] Dry-run on macOS, then run on Windows work box
+- [ ] Verify Python 3.10+ is on the work machine (if not, switch plan to PowerShell) — **blocked on Windows box access**
+- [x] Implement `scripts/copilot-deploy.py` with `install`, `doctor`, `remove` subcommands (stdlib only)
+- [x] Generate `install-manifest.json` inline during install (written to target, not the source bundle — simpler than a separate build step, kept the spec in the installer per the Journal decision)
+- [x] Binary-mode file reads for SHA256 (prevent D000005 CRLF rerun)
+- [x] Add template-sync check to `scripts/validate.sh`
+- [x] Add Tier 1 smoke tests — T1–T7 and T10 from the test-plan pass on macOS
+- [ ] Dry-run on macOS, then run on Windows work box — **blocked on Windows box access** (E1 E2E test)
 
 ## Log
 
 - 2026-04-22: Created. Implements S000008 acceptance criteria for delivery + installer.
+- 2026-04-22: Installer implemented. 3 subcommands (install/doctor/remove), Python 3 stdlib only, binary-mode SHA256, install-manifest generated inline at install time. Tier 1 smoke tests T1–T7 and T10 all pass on macOS against a temp target directory. validate.sh gained Error check 10 (work-copilot/templates sync with templates/company-workflow).
+- 2026-04-22: Dropped the separate `scripts/build-copilot-bundle.sh` idea — the installer walks the source bundle on each install and generates the manifest itself. No build step, no source-side manifest to commit.
 
 ## PRs
 
 ## Files
 
-- scripts/copilot-deploy.py
-- scripts/build-copilot-bundle.sh (or equivalent manifest generator)
-- scripts/validate.sh (modified)
-- work-copilot/install-manifest.json (generated)
+- scripts/copilot-deploy.py (new)
+- scripts/validate.sh (added work-copilot template sync check)
 
 ## Insights
 
 - Python stdlib covers everything we need: `pathlib`, `hashlib`, `argparse`,
   `json`, `shutil`. No pip install. This matters because work machines often
   restrict `pip` behind corporate proxies.
+- Keeping the install-manifest out of the source bundle was the right call.
+  If it lived in the repo it would churn on every unrelated template change
+  (because hashes update), and doctor-on-target would work identically
+  either way (it only needs a manifest *next to the installed files*).
+- The install logic has three distinguishable states for an existing file:
+  SKIP (identical to source), UPDATE (target matches prior manifest, source
+  newer — safe to update), DRIFT (target doesn't match prior manifest —
+  user edit). Only DRIFT requires `--overwrite`. This is a richer contract
+  than the S000008 PRD asked for, but it costs almost nothing and makes
+  "skill updated upstream" a one-step non-interactive update.
 
 ## Journal
 

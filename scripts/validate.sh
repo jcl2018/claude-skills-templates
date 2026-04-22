@@ -162,6 +162,33 @@ for dir in "$DOCS_DIR"/*/; do
   fi
 done
 
+# Error check 10: work-copilot bundle mirrors company-workflow templates
+echo ""
+echo "Checking work-copilot/templates sync with templates/company-workflow..."
+if [ -d "work-copilot/templates" ]; then
+  for src in templates/company-workflow/*.md; do
+    [ -f "$src" ] || continue
+    base=$(basename "$src")
+    dst="work-copilot/templates/$base"
+    if [ ! -f "$dst" ]; then
+      fail "work-copilot/templates/$base missing (must mirror templates/company-workflow/)"
+    elif ! cmp -s "$src" "$dst"; then
+      fail "work-copilot/templates/$base differs from templates/company-workflow/$base"
+    else
+      pass "work-copilot/templates/$base in sync"
+    fi
+  done
+  for dst in work-copilot/templates/*.md; do
+    [ -f "$dst" ] || continue
+    base=$(basename "$dst")
+    if [ ! -f "templates/company-workflow/$base" ]; then
+      warn "work-copilot/templates/$base has no counterpart in templates/company-workflow/"
+    fi
+  done
+else
+  pass "no work-copilot/templates/ directory (sync check skipped)"
+fi
+
 # Warning check 3: Orphan template files (walks subdirectories)
 echo ""
 echo "Checking for orphan template files..."
