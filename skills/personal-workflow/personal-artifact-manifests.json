@@ -5,6 +5,7 @@
     "feature": {
       "required": [
         {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"},
+        {"artifact": "design", "template": "doc-DESIGN.md", "filename": "DESIGN.md"},
         {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
       ],
       "optional": [],
