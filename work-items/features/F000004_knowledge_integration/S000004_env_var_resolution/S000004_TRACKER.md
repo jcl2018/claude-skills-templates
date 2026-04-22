@@ -2,9 +2,9 @@
 name: "env-var-resolution"
 type: user-story
 id: "S000004"
-status: active
+status: shipped
 created: "2026-04-16"
-updated: "2026-04-19"
+updated: "2026-04-21"
 parent: "F000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
@@ -59,12 +59,12 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] `/personal-workflow tree` — structure verified
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] `/personal-workflow tree` — structure verified
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped (T000003 shipped in PR #38)
+- [x] `/ship` — PR created (PR #38)
+- [x] `/land-and-deploy` — merged and deployed (v0.11.0, commit aca2674)
 
 ## Acceptance Criteria
 
@@ -81,13 +81,13 @@ blocked_by: ""
 
 <!-- Actionable items for this story. -->
 
-- [ ] Draft the exact warning text (one line, ≤100 chars, names the variable, points to docs)
-- [ ] Add resolution block to SKILL.md Path Resolution section
-- [ ] Decide where the warning is emitted (skill preamble? every command? only when knowledge is expected to be consulted?)
-- [ ] Write Tier 1 smoke test (SKILL.md contains the resolution block; warning text present)
-- [ ] Write Tier 2 E2E test (env var unset / set-valid / set-invalid scenarios)
-- [ ] Update WORKFLOW.md or SKILL.md docs with the `AI_KNOWLEDGE_DIR` setup instructions
-- [ ] Confirm no regression against existing fixtures (`fixtures/valid-feature-dir/`, etc.)
+- [x] Draft the exact warning text (one line, ≤100 chars, names the variable, points to docs) — 3 variants shipped (unset/empty, path-not-found, path-is-file)
+- [x] Add resolution block to SKILL.md Path Resolution section — `## Knowledge Resolution` shipped
+- [x] Decide where the warning is emitted — skill preamble, every invocation (intentionally noisy per design journal)
+- [x] Write Tier 1 smoke test — shipped in scripts/test.sh
+- [x] Write Tier 2 E2E test — extract-and-exec pattern; cases 1/2/3/5/6/7/8/10/11/12/13 all scripted
+- [x] Update WORKFLOW.md or SKILL.md docs with the `AI_KNOWLEDGE_DIR` setup instructions — `## Knowledge Configuration` shipped in WORKFLOW.md
+- [x] Confirm no regression against existing fixtures — case 11 stdout-empty assertion; case 9 deferred to manual (LLM skill, not scriptable)
 
 ## Log
 
@@ -103,6 +103,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). F000004 scaffolding + S000004 env-var resolution.
 
 ## Files
 

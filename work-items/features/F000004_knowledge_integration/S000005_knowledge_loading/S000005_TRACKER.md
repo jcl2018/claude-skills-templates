@@ -2,13 +2,13 @@
 name: "knowledge-loading"
 type: user-story
 id: "S000005"
-status: active
+status: shipped
 created: "2026-04-16"
-updated: "2026-04-19"
+updated: "2026-04-21"
 parent: "F000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
-blocked_by: "S000004"
+blocked_by: ""
 ---
 
 ## Lifecycle
@@ -40,10 +40,10 @@ blocked_by: "S000004"
 4. Update Files section with changed file paths
 
 **Gates:**
-- [ ] All child tasks have entered Phase 2+
-- [ ] Acceptance criteria verified met
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] All child tasks have entered Phase 2+
+- [x] Acceptance criteria verified met (all 14 ACs below)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -59,12 +59,12 @@ blocked_by: "S000004"
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] `/personal-workflow tree` — structure verified
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] `/personal-workflow tree` — structure verified
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped (T000006 shipped in PRs #40 + #41)
+- [x] `/ship` — PRs created (#40 always-on + gate; #41 on-demand)
+- [x] `/land-and-deploy` — merged and deployed (v0.12.0 + v0.13.0)
 
 ## Acceptance Criteria
 
@@ -76,44 +76,45 @@ blocked_by: "S000004"
 
 ### Always-on loading
 
-- [ ] Given `$_KNOWLEDGE_DIR` is a valid directory (from S000004), skill enumerates top-level subdirectories as categories
-- [ ] For each category with `.knowledge.yml { surface: always }`: all nested `*.md` files under that category are loaded into Claude's context (via Claude Read on emitted paths)
-- [ ] Load order is deterministic: categories sorted by name, files within each category sorted by relative path
-- [ ] A category with no `.knowledge.yml`, or with `surface: on-demand`, contributes zero content via the always-on path
+- [x] Given `$_KNOWLEDGE_DIR` is a valid directory (from S000004), skill enumerates top-level subdirectories as categories — shipped via `list_categories()` in #40
+- [x] For each category with `.knowledge.yml { surface: always }`: all nested `*.md` files are loaded into Claude's context (Claude Reads emitted paths)
+- [x] Load order is deterministic: `LC_ALL=C` lex-sort of categories and md files
+- [x] A category with no `.knowledge.yml`, or with `surface: on-demand`, contributes zero content via always-on
 
 ### On-demand matching
 
-- [ ] For each category with `.knowledge.yml { surface: on-demand }`, the skill emits its declared `triggers` list and category root path under a `## On-Demand Knowledge Candidates` block
-- [ ] Claude matches the user's latest prompt against every on-demand category's triggers (case-insensitive whole-word match on prompt tokens; quoted multi-word trigger phrases matched as a unit at token boundaries)
-- [ ] When one or more categories match, Claude Reads every `*.md` file under each matched category (recursive, same enumeration rules as always-on)
-- [ ] When multiple categories match, content from all matched categories is loaded
-- [ ] Categories with empty `triggers: []` never match; they remain dark until the user adds triggers
-- [ ] A `surface: always` category is never considered by the on-demand matching logic (it's already loaded)
+- [x] Categories with `surface: on-demand` emit triggers + category root under `## On-Demand Knowledge Candidates` — shipped in #41
+- [x] Claude matches user's latest prompt (case-insensitive whole-word; quoted multi-word phrases at token boundaries)
+- [x] Matched categories: Claude Reads every `*.md` under each match (recursive, same enumeration rules)
+- [x] Multiple matches: content from all matched categories is loaded
+- [x] Empty `triggers: []` never match; inert category until user adds triggers
+- [x] `surface: always` never considered by on-demand matching logic
 
 ### Common gating + resilience
 
-- [ ] **Per-repo opt-in gate** (Codex outside-voice finding F2, 2026-04-18): a marker file (e.g. `.claude/knowledge-enabled`) in the repo root is required before activating either loading path. Without the marker, `$_KNOWLEDGE_DIR` is resolved (S000004) but no content loads. Prevents cross-context contamination where a user with a global env var pointed at Company A's knowledge folder auto-injects Company A guidance while working in Company B or OSS repos
-- [ ] A category with malformed `.knowledge.yml` triggers a one-line warning naming the file and skip; sibling categories continue loading; exit 0
-- [ ] When `$_KNOWLEDGE_DIR` is empty (S000004 emitted the unset warning): nothing is loaded, no matching, no additional warning
-- [ ] Existing `validate` command produces byte-identical output with and without any configured knowledge categories (zero regression)
+- [x] **Per-repo opt-in gate** (`.claude/knowledge-enabled`, regular file only; symlinks fail closed; helpful diagnostic if absent + always-on present) — Codex F2 finding, shipped in #40
+- [x] Malformed `.knowledge.yml` → one-line stderr warning naming the file, skip the category, siblings continue, exit 0
+- [x] `$_KNOWLEDGE_DIR` empty → no loading, no matching, no additional warning (S000004's warning already emitted)
+- [x] `validate` output byte-identical with and without knowledge (zero regression)
+- [x] **Bonus hardening beyond original AC:** log-injection sanitization on env-var display; 500-path / 100KB hard-fail cap; `AI_KNOWLEDGE_DISABLE` one-shot escape hatch; `knowledge-doctor` diagnostic; helpers-drift tripwire test
 
 ## Todos
 
 <!-- Actionable items for this story. Implementation lives in T000006. -->
 
-- [ ] Decide exact injection mechanism: how does loaded content reach Claude's context? Options: skill preamble inlines via `cat`, skill preamble lists paths for Claude to read with the Read tool, or skill emits a reserved `## Knowledge Context` section. (Leaning: Claude Reads the listed paths — keeps preamble small, uses Claude's native tool, lets Claude paginate huge files)
-- [ ] Decide `.knowledge.yml` parser: native bash + `grep` (tiny and no deps) for the supported subset (`surface`, `triggers` flat keys), or invoke `yq` if available (clean but adds a dependency)
-- [ ] Define malformed-file warning text
-- [ ] Add a soft size cap for total always-on bytes and decide behavior when exceeded (warn? truncate? hard fail?) — leaning: soft warn at 50KB
-- [ ] Decide who tokenizes the prompt for on-demand matching: skill emits a "matching spec" and Claude does the match, or skill emits triggers and Claude handles both tokenization and match. (Leaning: Claude does both — bash can't see the prompt)
-- [ ] Decide diagnostic surfacing: should Claude log which triggers matched, to help users tune? (Proposal: yes, one line per matched category, format `[knowledge] matched: <cat> via <trigger>`)
-- [ ] Disambiguate "prompt tokens" — does that include prior turns in the conversation or only the latest user message? (Proposal: only the latest user message to avoid runaway loading)
-- [ ] Decide behavior when a trigger is a single very-common word like "the" or "code". (Proposal: no skill-side filtering; user's responsibility to pick specific triggers)
-- [ ] Decide marker filename and placement for the per-repo opt-in gate (`.claude/knowledge-enabled` is the leading candidate)
-- [ ] Build `scripts/test-helpers/knowledge.sh` with `build_knowledge_fixture()` — synthesizes knowledge dirs in `mktemp -d` per test case. No fixtures committed under `skills/company-workflow/` (the knowledge dir is user-owned, external by design)
-- [ ] Write Tier 1 smoke tests for both loading paths (structural: sections, fixture layouts, instruction text)
-- [ ] Write Tier 2 E2E tests covering both paths (always-on canary visibility; on-demand match/non-match/multi-match/case-variants/empty-triggers; malformed-yml resilience; opt-in gate behavior)
-- [ ] Update WORKFLOW.md with `.knowledge.yml` schema, on-demand worked example, trigger-authoring guidance, security callout (knowledge file content is trusted by Claude via Read), opt-in marker docs
+- [x] Decide injection mechanism — **Claude Reads listed paths** (keeps preamble small, uses native Read tool, pagination free)
+- [x] Decide `.knowledge.yml` parser — **native bash + awk** (zero deps; supports `surface` + `triggers` flat keys; tolerates CRLF/BOM/comments/quotes)
+- [x] Define malformed-file warning text — `[knowledge] malformed .knowledge.yml at <path> — skipping category.`
+- [x] ~~Soft size cap at 50KB~~ — SUPERSEDED: **hard-fail at 500 paths / 100KB** (loud refusal over silent partial load, per dual-voice review)
+- [x] Tokenize prompt for on-demand — **Claude does both tokenization + match** (bash can't see the prompt)
+- [x] Diagnostic surfacing — yes, `[knowledge] matched: <cat> via <trigger>` per matched category (stderr)
+- [x] "Prompt tokens" scope — **latest user message only** (prevents runaway loading from long conversation history)
+- [x] Common-word triggers — **no skill-side filtering**; user's responsibility to pick specific triggers (documented in WORKFLOW.md trigger-authoring guidance)
+- [x] Per-repo opt-in marker — **`.claude/knowledge-enabled`** (regular file only; symlinks fail closed; `.claude/` parent symlink also fails closed)
+- [x] `scripts/test-helpers/knowledge.sh` with `build_knowledge_fixture()` — shipped in #40
+- [x] Tier 1 smoke tests — structural greps for all sections, fixture layouts, instruction text
+- [x] Tier 2 E2E tests — ~35 cases covering always-on, on-demand match/non-match/multi/case-variants/empty, malformed yml, opt-in gate + hardening, path cap, AI_KNOWLEDGE_DISABLE, yml edge cases, doctor
+- [x] WORKFLOW.md updates — `## Knowledge Configuration` with quick-start + troubleshooting + escape hatches + schema + trigger-authoring + security + caps + doctor
 
 ## Log
 
@@ -127,19 +128,25 @@ blocked_by: "S000004"
 - 2026-04-19: Task consolidation. Collapsed T000005 (fixtures) + T000006 (impl) + T000007 (tests) → single T000006_implement_loading_block. Convention change per F000001/F000003 precedent (impl + test-helper + tests ship as one unit). Removes bookkeeping overhead for what will be a single ~200-line PR.
 - 2026-04-19: **Story consolidation.** Merged former S000006 (on-demand matching) into this story. Renamed from `always-on-loading` to `knowledge-loading`. Rationale: both surfacing paths share the yml parser, file enumeration, per-repo opt-in gate, and fixture builder. T000009 (S000006's task) was already blocked on T000006 to extract a shared helper — that refactor lived inside the second slice, exposing the slice boundary as artificial. One PR is honest. Trade-off accepted: bigger review surface, lose option to ship always-on alone if on-demand stalls. Absorbs S000006's 8 AC + Todos + Journal into the sections above; S000006 dir + T000009 dir deleted.
 - 2026-04-20: **c3 shipped.** On-Demand Matching implemented on branch `feat/s000005-c3-on-demand-matching`. Adds `parse_knowledge_triggers` helper + `## On-Demand Matching` SKILL.md section that enumerates on-demand categories with non-empty triggers and emits `## On-Demand Knowledge Candidates` block. Claude-facing matching rules specified in prose: case-insensitive whole-word for single-word triggers, phrase match at token boundaries for quoted multi-word triggers, scope pinned to latest user message, match log format `[knowledge] matched: <cat> via <trigger>`. knowledge-doctor updated to distinguish loadable (`loads=on-match (triggers: …)`) vs inert (`loads=no (empty triggers)`) on-demand categories. WORKFLOW.md updated: trigger-authoring guidance, removed "v1 deferred" language, updated security section. Skipped the 50KB on-demand byte cap (dual-voice review: "theater", no real protection). 25 new c3 test cases added to scripts/test.sh; c2 extraction bounds updated to new section layout (Loading now bounded at `## On-Demand Matching` not `## Diagnostic`). All tests pass.
+- 2026-04-20: **PR #40 merged (v0.12.0, commit 5919369)** — c2 always-on loading + per-repo opt-in gate + knowledge-doctor.
+- 2026-04-20: **PR #41 merged (v0.13.0, commit b27946f)** — c3 on-demand matching.
+- 2026-04-21: Story closed — all 14 AC verified met. Tracker reconciled during F000004 closure audit.
 
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [#40](https://github.com/jcl2018/claude-skills-templates/pull/40) — merged 2026-04-20 (v0.12.0, commit 5919369). Always-on loading + per-repo opt-in gate + knowledge-doctor.
+- [#41](https://github.com/jcl2018/claude-skills-templates/pull/41) — merged 2026-04-20 (v0.13.0, commit b27946f). On-demand matching.
+
 ## Files
 
 <!-- Affected file paths. -->
 
-- skills/company-workflow/SKILL.md (to be modified — `## Knowledge Loading` + `## On-Demand Matching` sections + Claude-facing instructions + per-repo opt-in gate)
-- skills/company-workflow/WORKFLOW.md (to be modified — `.knowledge.yml` schema + always-on + on-demand worked examples + trigger-authoring guidance + security callout + opt-in marker docs)
-- scripts/test-helpers/knowledge.sh (to be created — shared fixture builder used by both loading paths' tests)
-- scripts/test.sh (to be modified — Tier 1 + Tier 2 + regression assertions for both paths)
+- skills/company-workflow/SKILL.md (modified — `## Knowledge Helpers` + `## Knowledge Loading` + `## On-Demand Matching` + `## Diagnostic: knowledge-doctor` sections; per-repo opt-in gate; symlink hardening; 500-path / 100KB hard-fail cap)
+- skills/company-workflow/WORKFLOW.md (modified — `## Knowledge Configuration` expanded with quick-start + troubleshooting + escape hatches + schema + trigger-authoring + security + caps + doctor docs)
+- scripts/test-helpers/knowledge.sh (new, 96 lines — shared fixture builder)
+- scripts/test.sh (modified — ~35 F000004 test cases across tier-1 structural + tier-2 behavioral; full suite passes)
 
 ## Insights
 

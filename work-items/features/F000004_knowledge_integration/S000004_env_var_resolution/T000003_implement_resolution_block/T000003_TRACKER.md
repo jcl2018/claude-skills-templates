@@ -2,9 +2,9 @@
 name: "implement-resolution-block"
 type: task
 id: "T000003"
-status: active
+status: shipped
 created: "2026-04-16"
-updated: "2026-04-19"
+updated: "2026-04-21"
 parent: "S000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
@@ -53,10 +53,10 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
+- [x] `/personal-workflow check` — validation passed
 - [x] Test-plan verified (all scriptable scenarios passing; case 9 deferred to manual per test-plan scope note)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (PR #38)
+- [x] `/land-and-deploy` — merged and deployed (commit aca2674, v0.11.0)
 
 ## Todos
 
@@ -89,6 +89,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). F000004 scaffolding + S000004 env-var resolution.
 
 ## Files
 

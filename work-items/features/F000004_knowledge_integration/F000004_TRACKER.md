@@ -2,9 +2,9 @@
 name: "knowledge-integration"
 type: feature
 id: "F000004"
-status: active
+status: shipped
 created: "2026-04-16"
-updated: "2026-04-20"
+updated: "2026-04-21"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
 blocked_by: ""
@@ -37,8 +37,8 @@ blocked_by: ""
 4. Update Files section with top-level changed files
 
 **Gates:**
-- [ ] All child stories have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] All child stories have entered Phase 2+ (S000004 + S000005 shipped; S000006 deferred)
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
@@ -49,26 +49,26 @@ blocked_by: ""
 5. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
-- [ ] `/personal-workflow check` — all children pass validation
-- [ ] `/personal-workflow tree` — structure complete
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — all children pass validation (validate.sh: 0 errors, 0 warnings on 2026-04-21)
+- [x] `/personal-workflow tree` — structure complete (S000004 + S000005 shipped; S000006 deferred with artifacts retained)
+- [x] All children shipped (S000004 via PR #38; S000005 via PRs #40 + #41; S000006 deferred)
+- [x] `/ship` — PRs created (#38, #40, #41)
+- [x] `/land-and-deploy` — merged and deployed (v0.11.0, v0.12.0, v0.13.0)
 
 ## Acceptance Criteria
 
 <!-- What "done" looks like for this feature. Each criterion should be
      testable and specific. -->
 
-- [ ] Company-workflow skill resolves an external knowledge folder (path is configurable, not hardcoded)
+- [x] Company-workflow skill resolves an external knowledge folder (path is configurable, not hardcoded) — `AI_KNOWLEDGE_DIR` shipped in PR #38
 - [ ] ~~Personal-workflow skill resolves the same external knowledge folder with identical semantics (S000006 parity port)~~ **DEFERRED 2026-04-20** — evidence-gated (see Log)
-- [ ] Arbitrary category subfolders supported (no fixed taxonomy); `coding/` and `domain/` are illustrative, not required
-- [ ] Two-tier surfacing works: `surface: always` categories auto-inject; `surface: on-demand` load only when a declared `triggers` keyword/phrase appears in the prompt
-- [ ] Company-workflow surfaces relevant knowledge during work-item workflows (Track / Implement / Ship phases) without the user having to copy-paste
-- [ ] Knowledge folder structure has a documented convention (directory layout, file naming, frontmatter if any) — documented in company-workflow's WORKFLOW.md
-- [ ] Per-repo opt-in marker (`.claude/knowledge-enabled`) is honored by company-workflow
-- [ ] Works when the knowledge folder is absent (graceful degradation, not an error)
-- [ ] Zero regression for existing company-workflow validate / scaffolding flows
+- [x] Arbitrary category subfolders supported (no fixed taxonomy) — runtime discovery via `list_categories()`; `coding/` and `domain/` are illustrative only
+- [x] Two-tier surfacing works: `surface: always` auto-injects; `surface: on-demand` loads only when declared `triggers` match the prompt — PRs #40 + #41
+- [x] Company-workflow surfaces relevant knowledge during work-item workflows — emitted as `## Always-On Knowledge` + `## On-Demand Knowledge Candidates` blocks read by Claude
+- [x] Knowledge folder structure has a documented convention — `## Knowledge Configuration` in WORKFLOW.md
+- [x] Per-repo opt-in marker (`.claude/knowledge-enabled`) honored by company-workflow — regular file only; symlinks fail closed
+- [x] Works when the knowledge folder is absent (graceful degradation) — warning to stderr, exit 0; `$_KNOWLEDGE_DIR` empty; downstream sections no-op
+- [x] Zero regression for existing validate / scaffolding flows — scripted assertion in `scripts/test.sh`
 
 ## Todos
 
@@ -87,13 +87,13 @@ blocked_by: ""
 - [x] Decide default when `.knowledge.yml` is missing — **`surface: on-demand` with empty `triggers`** (category stays dark until user writes the file)
 - [x] Match semantics — **case-insensitive, whole-word on prompt tokens; quoted multi-word phrases match as a unit; multiple on-demand matches → load all**
 - [x] `triggers` on `surface: always` — **ignored** (always-on loads unconditionally)
-- [ ] Decide how knowledge is surfaced: skill-side lookup, slash-command, or template placeholder expansion
-- [ ] Draft a child user-story for the resolution + surfacing mechanism
-- [ ] Draft a child user-story for the knowledge folder convention + seed content (cpp guide, one domain stub)
+- [x] Decide how knowledge is surfaced — **skill-side lookup**: bash enumerates categories + parses yml; Claude Reads emitted paths and does on-demand matching against the latest user message
+- [x] Draft a child user-story for the resolution + surfacing mechanism — S000004 (resolution) + S000005 (loading + matching)
+- [x] ~~Draft a child user-story for the knowledge folder convention + seed content~~ — **DROPPED 2026-04-21** (milestone #5). Rationale: workbench repo, `$AI_KNOWLEDGE_DIR` external by design, 5-line quick-start in WORKFLOW.md + knowledge-doctor already demonstrate the layout. Reopen if a user reports discoverability trouble.
 - [x] Sync with `/personal-workflow`: does personal-dev need parallel knowledge support? — **Yes, eventually.** Decision: port after S000006 lands. Cheapest path is lift-and-shift of the three bash sections (Resolution, Loading, Matching) from `skills/company-workflow/SKILL.md` into `skills/personal-workflow/SKILL.md`. Same env var (`AI_KNOWLEDGE_DIR`), same conventions, zero new design. User will tackle later.
 - [x] Port knowledge feature to `/personal-workflow` — scoped into `S000006_personal_workflow_port` (2026-04-20), then **DEFERRED 2026-04-20** after /autoplan dual-voice CEO review. Evidence gate: reopen when a specific personal-repo task where missing knowledge-loading is an observed blocker surfaces. Artifacts retained (see S000006_* and T000007_* directories + design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260420-203757.md`).
-- [ ] Ship S000004 (landed via PR #38)
-- [ ] Ship S000005 (knowledge-loading — in flight)
+- [x] Ship S000004 (landed via PR #38, v0.11.0)
+- [x] Ship S000005 (landed via PRs #40 v0.12.0 + #41 v0.13.0)
 - [ ] ~~Ship S000006 (personal-workflow port)~~ **DEFERRED** — evidence-gated unblock
 
 ## Log
@@ -121,14 +121,26 @@ blocked_by: ""
 - 2026-04-19: **Story consolidation: S000005 + S000006 → single S000005.** Merged former S000006 (on-demand matching) into S000005, renamed `always-on-loading` → `knowledge-loading`. Both surfacing paths share the `.knowledge.yml` parser, file enumeration, per-repo opt-in gate, and fixture builder; T000009 was already blocked on T000006 to extract a shared helper, exposing the slice boundary as a refactor inside the next slice (i.e. not a real PR boundary). T000009 absorbed into T000006 (renamed `implement-loading-and-matching`). Trade-off accepted: one bigger PR (~400 lines bash + tests) vs. two smaller; lose option to ship always-on alone if on-demand stalls, mitigated by sequencing impl within T000006 (always-on first, then on-demand). Stories: 3 → 2. Tasks: 3 → 2. Artifacts: 18 → 12. Follow-up "port to /personal-workflow" rebased from "blocked by S000006" → "blocked by S000005" (the merged story).
 - 2026-04-20: **Scope extension: `/personal-workflow` parity port scoped into S000006.** Promoted the "port to /personal-workflow" follow-up TODO into a proper user-story (S000006_personal_workflow_port) with full artifact set (TRACKER + PRD + ARCHITECTURE + TEST-SPEC) and a single task child T000007. Single-story approach (not split by resolution/loading) to avoid a half-ported cutover where personal-workflow resolves the env var but doesn't load content. Blocked by S000005 landing. No new design, env var, schema, or opt-in marker — everything mirrors what S000004+S000005 ship for company-workflow. Feature AC + milestones updated to reflect both skills. Stories: 2 → 3. Tasks: 2 → 3. Artifacts: 12 → 18.
 - 2026-04-20: **S000006 DEFERRED after /autoplan dual-voice CEO review.** Ran /autoplan on the S000006 execution-plan design doc. Codex (CEO voice) and an independent Claude subagent both returned NO-GO independently. CEO dual-voice consensus table: 5/6 dimensions CONFIRMED-NO, 0 DISAGREE. Key findings both voices raised: (1) plan depends on S000005 being on `main` and on `scripts/test-helpers/knowledge.sh` existing — neither is true yet; (2) no documented personal-repo user task that knowledge loading would unlock — this is symmetry work, not product work, for a single-user workbench; (3) the "~20 line drift tripwire" is a shared abstraction smeared across `scripts/test.sh` instead of a shared helper file — Approach B (extract `scripts/knowledge.sh`) is the cleaner form of the same idea; (4) premises asserted not verified. User chose at premise gate to defer rather than override dual-voice signal. Scope reverts: F000004 stories back to 2 active (S000004 + S000005) + 1 deferred (S000006). Artifacts retained (not deleted) so the work is resumable; design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260420-203757.md` has the full review report appended. Evidence gate to reopen: a specific personal-repo task where missing knowledge-loading is an observed blocker.
+- 2026-04-20: **S000005 shipped in two slices: PR #40 (v0.12.0, commit 5919369)** always-on loading + per-repo opt-in gate + knowledge-doctor diagnostic; **PR #41 (v0.13.0, commit b27946f)** on-demand matching. Hardening added beyond original plan: log-injection sanitization, symlink fails-closed on marker + `.claude/` parent, 500-path / 100KB hard-fail cap (replaced original 50KB soft-warn per dual-voice review).
+- 2026-04-21: **Closure audit.** Implementation fully shipped (S000004 + S000005). 8/9 ACs met; remaining AC is the deferred S000006 port. Child trackers (S000004, S000005, T000003, T000006) reconciled to `status: shipped`. Milestone #5 (seed content) remains open — pending user decision on drop/defer/scope.
+- 2026-04-21: **Milestone #5 dropped; feature closed.** User decided against seed content on the grounds that `$AI_KNOWLEDGE_DIR` is user-owned and external by design — committing seed files inside the skill repo would blur the boundary drawn in the 2026-04-19 fixture-scope decision. The 5-line quick-start in `skills/company-workflow/WORKFLOW.md` + `knowledge-doctor` diagnostic already demonstrate a valid layout end-to-end. F000004 flipped to `status: shipped`. Reopen with a new milestone if a user later reports layout discoverability trouble.
 
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). F000004 scaffolding + S000004 env-var resolution.
+- [#40](https://github.com/jcl2018/claude-skills-templates/pull/40) — merged 2026-04-20 (v0.12.0, commit 5919369). S000005 c2 always-on loading + per-repo opt-in gate + knowledge-doctor.
+- [#41](https://github.com/jcl2018/claude-skills-templates/pull/41) — merged 2026-04-20 (v0.13.0, commit b27946f). S000005 c3 on-demand matching.
+
 ## Files
 
 <!-- Affected file paths. Populated during Track phase, updated during Implement. -->
+
+- skills/company-workflow/SKILL.md (modified — `## Knowledge Resolution` + `## Knowledge Helpers` + `## Knowledge Loading` + `## On-Demand Matching` + `## Diagnostic: knowledge-doctor` sections; +778 lines net)
+- skills/company-workflow/WORKFLOW.md (modified — `## Knowledge Configuration` section with quick-start, troubleshooting, escape hatches, schema, trigger-authoring, security, caps, doctor; +240 lines net)
+- scripts/test-helpers/knowledge.sh (new, 96 lines — shared fixture builder used by all F000004 tests)
+- scripts/test.sh (modified — ~35 F000004 test cases across tier-1 structural + tier-2 behavioral; +1059 lines net)
 
 ## Insights
 
