@@ -52,20 +52,21 @@ templates that define the required shape).
 Source: `.github/work-copilot/templates/` and
 `.github/work-copilot/copilot-artifact-manifests.json`.
 
-## How work progresses: Track, Implement, Ship
+## How work progresses: Track, Implement, Review, Ship
 
-Every tracker has three phases, each with a Gates checklist:
+Every tracker has four phases, each with a Gates checklist:
 
 - **Track** — scope the work, scaffold required docs, decompose into
   children if needed. Exit when all Phase 1 gates are checked.
 - **Implement** — write code and docs in parallel, commit incrementally,
   keep the tracker's Todos and Files sections current.
-- **Ship** — run `/validate`, verify the test-plan, open a PR, land it,
-  confirm deployment.
+- **Review** — run `/validate`, self-review the diff, address findings
+  before requesting outside review.
+- **Ship** — verify the test-plan, open a PR, land it, confirm deployment.
 
 Do not skip phases. Do not check a gate until its evidence exists (a commit
 SHA, a green test run, a merged PR). A work item is "done" only when all
-Phase 3 gates are checked.
+Phase 4 gates are checked.
 
 Source: `.github/work-copilot/templates/tracker-<type>.md` — the Gates list
 for each type lives in the template itself. The template **is** the spec.

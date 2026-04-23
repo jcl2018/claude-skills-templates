@@ -6,8 +6,9 @@ Subcommands:
   doctor   <target>                 verify installed files match the manifest
   remove   <target>                 remove the installed bundle
 
-Stdlib only. Runs on Python 3.8+, macOS and Windows. Uses binary-mode file
-reads for SHA256 so CRLF-converted working copies produce stable hashes.
+Stdlib only. Runs on Python 3.8+, macOS and Windows. Text files (.md, .json,
+.yaml, .yml, .txt) are normalized CRLF/CR -> LF before hashing so hashes are
+stable across platforms regardless of git autocrlf settings.
 """
 
 import argparse
@@ -22,11 +23,20 @@ INSTALL_MANIFEST = "install-manifest.json"
 BUNDLE_DIR_NAME = "work-copilot"
 
 
+TEXT_SUFFIXES = (".md", ".json", ".yaml", ".yml", ".txt")
+
+
 def sha256_file(path):
     h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
+    is_text = str(path).endswith(TEXT_SUFFIXES)
+    if is_text:
+        data = Path(path).read_bytes()
+        data = data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        h.update(data)
+    else:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
     return h.hexdigest()
 
 
