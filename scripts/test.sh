@@ -1600,13 +1600,14 @@ if command -v python3 >/dev/null 2>&1; then
 
   # install
   _cd_install_out=$(python3 "$_CD_PY" install "$_CD_TMP/target" 2>&1)
-  if [ $? -eq 0 ] && echo "$_cd_install_out" | grep -q "SUMMARY: installed=" \
+  _cd_install_rc=$?
+  if [ "$_cd_install_rc" -eq 0 ] && echo "$_cd_install_out" | grep -q "SUMMARY: installed=" \
      && [ -f "$_CD_TMP/target/.github/copilot-instructions.md" ] \
      && [ -f "$_CD_TMP/target/.github/work-copilot/copilot-artifact-manifests.json" ] \
      && [ -f "$_CD_TMP/target/.github/work-copilot/install-manifest.json" ]; then
     ok "copilot-deploy install lands bundle files into target .github/"
   else
-    fail_test "copilot-deploy install failed or missing expected files. output=[$_cd_install_out]"
+    fail_test "copilot-deploy install failed or missing expected files. rc=$_cd_install_rc output=[$_cd_install_out]"
   fi
 
   # doctor (expect all PASS, exit 0)
@@ -1640,12 +1641,13 @@ p.write_bytes(data)
 
   # remove
   _cd_remove_out=$(python3 "$_CD_PY" remove "$_CD_TMP/target" 2>&1)
-  if [ $? -eq 0 ] && echo "$_cd_remove_out" | grep -q "SUMMARY: removed=" \
+  _cd_remove_rc=$?
+  if [ "$_cd_remove_rc" -eq 0 ] && echo "$_cd_remove_out" | grep -q "SUMMARY: removed=" \
      && [ ! -f "$_CD_TMP/target/.github/copilot-instructions.md" ] \
      && [ ! -f "$_CD_TMP/target/.github/work-copilot/install-manifest.json" ]; then
     ok "copilot-deploy remove deletes installed files"
   else
-    fail_test "copilot-deploy remove failed. output=[$_cd_remove_out]"
+    fail_test "copilot-deploy remove failed. rc=$_cd_remove_rc output=[$_cd_remove_out]"
   fi
 
   rm -rf "$_CD_TMP"
