@@ -53,6 +53,18 @@ Per-skill manifests are the canonical source of truth:
 | `/personal-workflow` | Validates personal-dev work items. Same template-derived rules, lighter 3-phase lifecycle (Track / Implement / Ship), simpler frontmatter (no `workflow_type`, no `url`). |
 | `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. Composite 0-10 health score with trend tracking. |
 
+## GitHub Copilot bundle
+
+Non-Claude machines (e.g. a Windows work laptop with GitHub Copilot but no Claude) can still get the same "scaffold + validate" discipline via `work-copilot/` — a standalone Copilot bundle that mirrors `/company-workflow`. Install it into any target repo:
+
+```bash
+python3 scripts/copilot-deploy.py install <target-repo>
+python3 scripts/copilot-deploy.py doctor  <target-repo>   # verify
+python3 scripts/copilot-deploy.py remove  <target-repo>   # uninstall
+```
+
+This writes `.github/copilot-instructions.md` (always-on context), `.github/prompts/validate.prompt.md` (slash command), and `.github/work-copilot/` (templates, manifest, fixtures) into the target. `work-copilot/templates/*.md` are kept byte-for-byte identical to `templates/company-workflow/*.md` (enforced by `validate.sh` Error check 10).
+
 ## Creating a New Skill
 
 Create the directory and files directly (see CLAUDE.md "Creating a new skill" section for the full guide):
@@ -68,6 +80,7 @@ Create the directory and files directly (see CLAUDE.md "Creating a new skill" se
 |--------|---------|
 | `setup.sh` | Bootstrap installer (clone + deploy symlinks) |
 | `skills-deploy` | Manage installed skills (install/remove/relink/doctor) |
+| `copilot-deploy.py` | Install/doctor/remove the GitHub Copilot bundle into a target repo |
 | `validate.sh` | Catalog-to-filesystem validation |
 | `test.sh` | Full test suite |
 | `test-deploy.sh` | Deploy pipeline tests |
