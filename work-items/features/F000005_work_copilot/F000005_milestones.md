@@ -2,7 +2,7 @@
 type: milestones
 template-version: 1
 parent: F000005_work_copilot
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 ## Milestones
@@ -19,6 +19,8 @@ updated: 2026-04-22
 | 4 | Always-on instructions (S000009) | 2026-05-06 | Not Started | chjiang | `copilot-instructions.md` with work-item conventions (hierarchy, naming, lifecycle) | #1 |
 | 5 | End-to-end verification on work machine | 2026-05-08 | Not Started | chjiang | Install on the Windows work box, scaffold + validate a real work item via Copilot chat | #2, #3, #4 |
 | 6 | Feature shipped (`/ship` + `/land-and-deploy`) | 2026-05-10 | Not Started | chjiang | Merge to main, tag, update catalog | #5 |
+| 7 | Symlink setup docs in the bundle | 2026-05-12 | Not Started | chjiang | Add a "Setting up on a new machine" section to `work-copilot/instructions/copilot-instructions.md` (or a sibling `SETUP.md`) documenting the symlink approach: clone `claude-skills-templates` once, then `ln -s` the three artifacts into each target repo's `.github/`. Single source of truth, update-once-apply-everywhere. Optional stretch: add `--symlink` mode to `scripts/copilot-deploy.py` that writes symlinks instead of copies (~30 LOC). | #6 |
+| 8 | Document (or unify) the Claude+Copilot install story | 2026-05-14 | Not Started | chjiang | Confirm and document that `skills-deploy` (Claude → `~/.claude/`) and `scripts/copilot-deploy.py` (Copilot → `<target>/.github/`) write to disjoint paths and can coexist in the same repo without conflict. Decide whether to leave them as two separate tools (clearer blast radius) or unify behind a single `deploy.py --target claude\|copilot\|both` entry point (one command, two modes). Ship: a short section in README or CLAUDE.md naming the guarantee, plus the decision. | #6 |
 
 ## Dependency Graph
 <!-- Visual representation of milestone ordering and blocking relationships.
@@ -31,7 +33,7 @@ updated: 2026-04-22
       |
       +--> #2 prompt packaging (S000007) ---+
       |                                      |
-      +--> #3 template delivery (S000008) ---+--> #5 work-machine verify --> #6 ship
-      |                                      |
-      +--> #4 always-on instructions (S000009)
+      +--> #3 template delivery (S000008) ---+--> #5 work-machine verify --> #6 ship --+--> #7 symlink setup docs
+      |                                      |                                         |
+      +--> #4 always-on instructions (S000009)                                          +--> #8 two-install story / unification
 ```
