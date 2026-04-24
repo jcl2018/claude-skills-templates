@@ -1588,6 +1588,73 @@ rm -rf "$_t6m_repo"
 
 rm -rf "$_T6M_TMPDIR"
 
+# ---------- copilot-deploy.py: install → doctor → remove round-trip ----------
+# Guards against regressions in the 264-LoC Python installer. Tier 1 smoke:
+# install the bundle into a tmp target, run doctor (expect all PASS), then
+# remove and verify cleanup. This is the only automated coverage for
+# scripts/copilot-deploy.py.
+if command -v python3 >/dev/null 2>&1; then
+  _CD_TMP=$(mktemp -d -t copilot-deploy-test.XXXXXX)
+  mkdir -p "$_CD_TMP/target"
+  _CD_PY="$REPO_ROOT/scripts/copilot-deploy.py"
+
+  # install
+  _cd_install_out=$(python3 "$_CD_PY" install "$_CD_TMP/target" 2>&1)
+  _cd_install_rc=$?
+  if [ "$_cd_install_rc" -eq 0 ] && echo "$_cd_install_out" | grep -q "SUMMARY: installed=" \
+     && [ -f "$_CD_TMP/target/.github/copilot-instructions.md" ] \
+     && [ -f "$_CD_TMP/target/.github/work-copilot/copilot-artifact-manifests.json" ] \
+     && [ -f "$_CD_TMP/target/.github/work-copilot/install-manifest.json" ]; then
+    ok "copilot-deploy install lands bundle files into target .github/"
+  else
+    fail_test "copilot-deploy install failed or missing expected files. rc=$_cd_install_rc output=[$_cd_install_out]"
+  fi
+
+  # doctor (expect all PASS, exit 0)
+  _cd_doctor_out=$(python3 "$_CD_PY" doctor "$_CD_TMP/target" 2>&1)
+  _cd_doctor_rc=$?
+  if [ "$_cd_doctor_rc" -eq 0 ] \
+     && ! echo "$_cd_doctor_out" | grep -qE "\[MISSING\]|\[DRIFT\]|\[ORPHAN\]"; then
+    ok "copilot-deploy doctor reports clean install (no MISSING/DRIFT/ORPHAN)"
+  else
+    fail_test "copilot-deploy doctor found issues. rc=$_cd_doctor_rc output=[$_cd_doctor_out]"
+  fi
+
+  # CRLF normalization: mutate a .md file to add CRLF line endings, doctor
+  # should still PASS (hash is computed on normalized LF content).
+  _cd_test_file="$_CD_TMP/target/.github/copilot-instructions.md"
+  python3 -c "
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = p.read_bytes().replace(b'\n', b'\r\n')
+p.write_bytes(data)
+" "$_cd_test_file"
+  _cd_doctor_crlf_out=$(python3 "$_CD_PY" doctor "$_CD_TMP/target" 2>&1)
+  _cd_doctor_crlf_rc=$?
+  if [ "$_cd_doctor_crlf_rc" -eq 0 ] \
+     && ! echo "$_cd_doctor_crlf_out" | grep -qE "\[DRIFT\]"; then
+    ok "copilot-deploy doctor treats CRLF and LF as equivalent for text files"
+  else
+    fail_test "copilot-deploy doctor flagged CRLF as drift (Windows autocrlf regression). rc=$_cd_doctor_crlf_rc output=[$_cd_doctor_crlf_out]"
+  fi
+
+  # remove
+  _cd_remove_out=$(python3 "$_CD_PY" remove "$_CD_TMP/target" 2>&1)
+  _cd_remove_rc=$?
+  if [ "$_cd_remove_rc" -eq 0 ] && echo "$_cd_remove_out" | grep -q "SUMMARY: removed=" \
+     && [ ! -f "$_CD_TMP/target/.github/copilot-instructions.md" ] \
+     && [ ! -f "$_CD_TMP/target/.github/work-copilot/install-manifest.json" ]; then
+    ok "copilot-deploy remove deletes installed files"
+  else
+    fail_test "copilot-deploy remove failed. rc=$_cd_remove_rc output=[$_cd_remove_out]"
+  fi
+
+  rm -rf "$_CD_TMP"
+else
+  echo "  SKIP: python3 not available, skipping copilot-deploy smoke test"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

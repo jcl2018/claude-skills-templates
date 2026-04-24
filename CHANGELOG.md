@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [0.14.0] - 2026-04-23
+
+### Added
+- **`work-copilot/` — a standalone GitHub Copilot bundle that ports the `/company-workflow` validation logic to VS Code Copilot Chat (F000005).** Installable into any repo with one command: `python3 scripts/copilot-deploy.py install <target>`. Produces `.github/copilot-instructions.md` (always-on context, 5 KB) + `.github/prompts/validate.prompt.md` (slash command, 7 KB) + `.github/work-copilot/` (templates, manifest, fixtures). Lets a Windows work machine get the same "scaffold + validate + ship" discipline Claude users have, without installing Claude.
+- **`scripts/copilot-deploy.py` — Python 3 stdlib installer (no pip)** with three subcommands: `install` (SKIP/UPDATE/DRIFT/OVERWRITE/WRITE tri-state logic — skips user-edited files by default, replaces skill-upstream-updated files, respects `--overwrite` for forced replacement), `doctor` (PASS/MISSING/DRIFT/ORPHAN reporting against the install-manifest), and `remove` (cleans up only files the installer wrote). Text files (.md, .json, .yaml) are CRLF/CR → LF normalized before SHA256 hashing so hashes are stable across macOS and Windows regardless of git autocrlf settings.
+- **`scripts/test.sh` — `copilot-deploy.py` installer smoke test** — install → doctor (expect all PASS) → CRLF-mutation → doctor (still PASS, guarding the CRLF normalization) → remove round-trip, executed against a tmp target. Closes the previous 0% automated coverage gap on the 264-LoC installer.
+- **`work-copilot/instructions/copilot-instructions.md`** — 6 H2 sections (work-item conventions, IDs, hierarchy, lifecycle phases, validation, sources of truth). Every section ends with a `Source:` footer linking back to the template, manifest, or validator — single source of truth pattern.
+- **`work-copilot/prompts/validate.prompt.md`** — ports the full `/company-workflow check` validator logic (File Mode + Directory Mode, PASS/MISSING/DRIFT/EXTRA/WARN/VALID/VIOLATION output contract) to a single Copilot `.prompt.md` file.
+- **`work-copilot/fixtures/`** — one known-good fixture + one known-bad fixture for E2E self-test on any machine: `/validate work-copilot/fixtures/valid-feature-dir/` prints all `[PASS]`; the invalid fixture prints at least one `[MISSING]`.
+- **`scripts/validate.sh` Error check 10** — enforces byte-for-byte sync between `templates/company-workflow/*.md` and `work-copilot/templates/*.md`, so the Copilot bundle can't silently drift from the Claude-side source of truth.
+
+### Changed
+- **`work-copilot/copilot-artifact-manifests.json`** mirrors `skills/company-workflow/company-artifact-manifests.json` with an annotation noting the mirror relationship. Includes the `design` artifact entry added by D000009.
+- **`work-copilot/instructions/copilot-instructions.md` — lifecycle section corrected from 3 phases to 4 (Track, Implement, Review, Ship)** to match all five `tracker-*.md` templates. The previous "three phases" wording (copied from personal-workflow) would have made Copilot give wrong answers about Phase 3 being Ship, when Phase 3 is actually Review. Surfaced by Codex adversarial review during the /ship of F000005.
+
+### Deferred
+- **D000010 — copilot-deploy.py security hardening (path traversal + symlink escape).** Adversarial review (Claude + Codex) found the installer trusts `install-manifest.json` `dest` values verbatim (doctor/remove can read/unlink outside the target repo given a poisoned manifest) and follows symlinks in both source and destination trees. Both are latent in the current single-user self-install threat model. Tracker: `work-items/defects/D000010_copilot_deploy_security_hardening/`. Fix before recommending `copilot-deploy.py` to other users.
+
 ## [0.13.1] - 2026-04-22
 
 ### Added

@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 3 custom skills (personal-workflow, company-workflow, system-health), a template library for doc-first development, and tooling to validate, test, and distribute skills.
+A skill development workbench for Claude Code. Contains 3 custom skills (personal-workflow, company-workflow, system-health), a template library for doc-first development, a standalone GitHub Copilot bundle (`work-copilot/`) mirroring company-workflow validation for non-Claude machines, and tooling to validate, test, and distribute skills.
 
 ## Quick start
 
@@ -72,6 +72,7 @@ Templates live in `templates/` organized by skill:
 - `templates/personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
 - `templates/company-workflow/` — company work item templates (tracker-*.md, doc-*.md)
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
+- `work-copilot/templates/` — GitHub Copilot bundle templates. Must stay byte-for-byte identical to `templates/company-workflow/*.md`; `validate.sh` Error check 10 enforces the sync.
 
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
@@ -144,3 +145,4 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `generate-readme.sh` | Regenerates README.md from catalog | After catalog changes |
 | `sync-upstream.sh` | Compares upstream gstack skills | When updating from gstack |
 | `setup-hooks.sh` | Installs pre-commit hook | Once per clone |
+| `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
