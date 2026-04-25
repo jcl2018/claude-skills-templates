@@ -83,8 +83,10 @@ Run `skills-deploy install` or check the repo structure." and stop.
 After Path Resolution, the skill resolves an OPTIONAL external knowledge
 directory via the `AI_KNOWLEDGE_DIR` environment variable. When set to a
 valid directory, downstream features (always-on loading, on-demand matching —
-see F000004 user-stories S000005 and S000006) consume its contents. When unset
-or invalid, the skill still functions; only knowledge features are disabled.
+see F000003 user-story S000005, originally tracked under F000004 before the
+2026-04-24 one-feature-per-skill consolidation) consume its contents. When
+unset or invalid, the skill still functions; only knowledge features are
+disabled.
 
 ```bash
 _KNOWLEDGE_DIR=""

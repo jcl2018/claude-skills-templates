@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Shared fixture builder for F000004 knowledge-integration tests (S000005).
+# Shared fixture builder for F000003 knowledge-integration tests (S000005).
+# (Originally F000004; merged into F000003_company_workflow on 2026-04-24.)
 #
 # Materializes a knowledge dir tree under a caller-provided root, based on
 # category specs. Each test case builds its fixture in mktemp -d so the user's

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.14.1] - 2026-04-24
+
+### Changed
+- **Work item consolidation: one feature per skill.** Each skill in the workbench (`personal-workflow`, `system-health`, `company-workflow`, `work-copilot`) now maps to exactly one canonical feature work item, so future work on a skill has an obvious home and the skill's full arc reads in one tracker. F000001 renamed `workflow_alpha` → `personal_workflow`. F000002 renamed `system_health_v1` → `system_health`. F000003 renamed `company_spec_system` → `company_workflow` and absorbed former F000004's shipped knowledge-integration stories (S000004 + S000005). F000004's deferred personal-workflow port (S000006) reparented to F000001. F000005 renumbered to F000004 (`work_copilot`) so feature IDs stay contiguous. Story and task IDs are unchanged — they are globally unique, not per-feature.
+- **External references updated to point at the new IDs.** `skills/company-workflow/SKILL.md`, `skills/company-workflow/WORKFLOW.md`, `scripts/test-helpers/knowledge.sh`, `work-copilot/instructions/copilot-instructions.md`, `work-copilot/prompts/validate.prompt.md`, and the example tree output in `skills/personal-workflow/check.md` were updated. CHANGELOG and defect tracker references (D000009, D000010) intentionally left as historical records — they describe state at the time of writing.
+- **Status fields aligned to actual delivery state.** F000001 / F000002 / F000003 flipped to `status: shipped` (previously a mix of `closed` and `active` that didn't reflect the merged shipped work). F000004 (work-copilot) stays `active` — three child stories still mid-flight.
+
+### Notes
+- Pure restructure of `work-items/` plus six small documentation pointers. No skill code, template, validator, or manifest changed. `./scripts/validate.sh` PASS (0 errors, 0 warnings); `./scripts/test.sh` PASS (0 failures).
+
 ## [0.14.0] - 2026-04-23
 
 ### Added

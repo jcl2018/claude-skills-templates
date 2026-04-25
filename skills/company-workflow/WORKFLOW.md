@@ -507,7 +507,9 @@ category is inert — add triggers to activate it.
 
 ### Current Status
 
-F000004 ships the full knowledge-integration feature in three slices:
+F000003 (originally tracked as F000004_knowledge_integration; merged into
+F000003_company_workflow on 2026-04-24) ships the full knowledge-integration
+feature in three slices:
 
 - **Resolution** (path detection + unset/invalid warnings): shipped in S000004
   (PR #38, v0.11.0).
@@ -521,5 +523,5 @@ F000004 ships the full knowledge-integration feature in three slices:
 
 Matching is intentionally simple: literal triggers, no fuzzy/semantic
 match, no embedding similarity. Quality of surfacing is bounded by the
-quality of the user's trigger lists. See [F000004 feature tracker](../../work-items/features/F000004_knowledge_integration/F000004_TRACKER.md)
+quality of the user's trigger lists. See [F000003 feature tracker](../../work-items/features/F000003_company_workflow/F000003_TRACKER.md)
 for history.

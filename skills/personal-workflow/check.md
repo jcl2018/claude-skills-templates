@@ -364,14 +364,14 @@ After all checks complete, emit a unified tree view. Walk `work-items/` depth-fi
 ```
 WORK ITEM TREE:
   features/
-    F000001_workflow_alpha (feature) [Closed]
+    F000001_personal_workflow (feature) [Shipped]
       template: PASS  lifecycle: PASS  traceability: PASS
       S000001_workflow_implementation (user-story) [Closed]
         template: PASS  lifecycle: PASS  traceability: PASS
         T000001_implement_workflow (task) [Closed]
           template: PASS  lifecycle: PASS  traceability: —
 
-    F000002_system_health_v1 (feature) [Closed]
+    F000002_system_health (feature) [Shipped]
       template: PASS  lifecycle: PASS  traceability: PASS
 
   defects/
@@ -406,10 +406,10 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
   "nodes": [
     {
       "id": "F000001",
-      "slug": "F000001_workflow_alpha",
+      "slug": "F000001_personal_workflow",
       "type": "feature",
-      "state": "Closed",
-      "path": "work-items/features/F000001_workflow_alpha",
+      "state": "Shipped",
+      "path": "work-items/features/F000001_personal_workflow",
       "parent": null,
       "children": ["S000001"],
       "badges": {
@@ -424,7 +424,7 @@ Write `.docs/work-item-graph.json` with this schema (v1.0.0):
 ```
 
 **Node fields:**
-- `id`: work item ID extracted from slug (e.g., "F000001" from "F000001_workflow_alpha")
+- `id`: work item ID extracted from slug (e.g., "F000001" from "F000001_personal_workflow")
 - `slug`: directory name
 - `type`: normalized type (hyphenated form: "user-story")
 - `state`: "Open" / "In Progress" / "Closed"

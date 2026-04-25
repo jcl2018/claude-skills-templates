@@ -24,7 +24,7 @@ Work-item IDs follow the regex `[FSTDR][0-9]{6}` with these prefixes:
 - `R` — review
 
 Hierarchy max depth is 3: **feature > user-story > task**. Example path:
-`work-items/features/F000005_work_copilot/S000009_always_on_instructions/T000010_author_instructions_file/`.
+`work-items/features/F000004_work_copilot/S000009_always_on_instructions/T000010_author_instructions_file/`.
 
 Source: `.github/work-copilot/copilot-artifact-manifests.json` (which
 artifacts each type needs) and `.github/work-copilot/templates/` (the actual
