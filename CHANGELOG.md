@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [0.14.3] - 2026-04-24
+
+### Changed
+- **Knowledge helpers extracted to `skills/company-workflow/bin/knowledge-helpers.sh` — one canonical implementation, sourced by every `## Knowledge ...` block in `SKILL.md`.** Replaces 4× inline duplication of `parse_knowledge_yml`, `parse_knowledge_triggers`, `list_categories`, `list_md_files` (Helpers, Loading, On-Demand Matching, Diagnostic blocks). Diagnostic block's `_parse` shim and inline trigger awk parser also replaced with calls to the canonical helpers.
+- **`SKILL.md`: 1109 → 851 lines (~258 saved)** — duplicated awk parsers gone. Token cost on every `/company-workflow` invocation reduced commensurately.
+- **Drift tripwires removed from `scripts/test.sh`** — impossible by construction now that there's only one definition. Replaced with structural greps verifying each Knowledge block sources `bin/knowledge-helpers.sh`. Test fixture repos now symlink the helpers in so the Loading / On-Demand / Doctor blocks resolve them via the workbench-relative fallback.
+
+### Notes
+- Pure refactor. `knowledge-doctor` smoke-test (unset env + tiny knowledge dir) produces identical output to v0.14.2. `./scripts/test.sh` PASS (0 failures).
+
 ## [0.14.2] - 2026-04-24
 
 ### Fixed
