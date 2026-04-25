@@ -291,24 +291,24 @@ guidance (e.g. cpp style) and company-specific domain knowledge. Two
 surfacing modes:
 
 - **`surface: always`** — the category's `*.md` files are Read into Claude's
-  context on every skill invocation in an opted-in repo. Use for guidance
-  you want applied unconditionally (house coding style, team conventions).
+  context on every skill invocation. Use for guidance you want applied
+  unconditionally (house coding style, team conventions).
 - **`surface: on-demand`** — the category loads only when the user's latest
   message mentions one of the category's declared triggers. Use for
   situational material (domain runbooks, language references, internal
   acronyms) where loading unconditionally would waste context.
 
-Both modes require `.claude/knowledge-enabled` in the current repo root to
-activate (opt-in gate — prevents cross-context contamination between repos).
+Both modes activate whenever `$AI_KNOWLEDGE_DIR` resolves to a valid directory.
+Cross-context isolation is the user's responsibility — scope `$AI_KNOWLEDGE_DIR`
+per shell or per repo if you want to keep one client's knowledge out of another.
 
-### Quick Start (5-line copy-paste)
+### Quick Start (4-line copy-paste)
 
 ```bash
 export AI_KNOWLEDGE_DIR="$HOME/knowledge"
 mkdir -p "$AI_KNOWLEDGE_DIR/coding"
 printf 'surface: always\n' > "$AI_KNOWLEDGE_DIR/coding/.knowledge.yml"
 printf '# Canary\nCANARY_SETUP_TEST\n' > "$AI_KNOWLEDGE_DIR/coding/notes.md"
-mkdir -p .claude && touch .claude/knowledge-enabled
 ```
 
 Then run `/company-workflow knowledge-doctor` in this repo. You should see
@@ -327,7 +327,6 @@ precondition. Common traps:
 |---|---|---|
 | `Warning: AI_KNOWLEDGE_DIR not set` on every skill run | Env var not exported | `export AI_KNOWLEDGE_DIR="$HOME/knowledge"` |
 | `Warning: AI_KNOWLEDGE_DIR=... not found` | Path doesn't exist | `mkdir -p "$AI_KNOWLEDGE_DIR"` |
-| `has always-on categories but .claude/knowledge-enabled is absent` | Repo not opted in | `touch .claude/knowledge-enabled` in the repo root |
 | `malformed .knowledge.yml at ...` | yml has an unknown key, single-quoted value, or similar | Fix the yml (see Schema below); only `surface` + `triggers` keys are recognized |
 | Always-On section is emitted but Claude isn't quoting canaries | Claude didn't Read the files | Check the doctor output — are paths actually listed? If so, ask Claude directly |
 | `loading aborted: N paths / N bytes exceeds cap` | Too much always-on content | Reduce files, or mark some categories `surface: on-demand` with triggers so they only load when relevant |
@@ -335,9 +334,10 @@ precondition. Common traps:
 ### Escape Hatches
 
 - **One-shot disable:** `AI_KNOWLEDGE_DISABLE=1 /company-workflow ...` — bypasses
-  all loading for that invocation regardless of marker state. Use when
-  debugging a bad knowledge file without `rm`-ing the committed marker.
-- **Per-repo disable:** delete `.claude/knowledge-enabled` (re-add when ready).
+  all loading for that invocation. Use when debugging a bad knowledge file
+  without unsetting the env var.
+- **Session disable:** `unset AI_KNOWLEDGE_DIR` (or `export AI_KNOWLEDGE_DIR=`)
+  in the shell where you want loading off.
 - **Per-category disable:** delete or rename the category's `.knowledge.yml`.
   Missing yml is a silent skip.
 - **Per-category opt-in later:** author yml as `surface: on-demand` with
@@ -353,9 +353,6 @@ $AI_KNOWLEDGE_DIR/
     *.md                   # knowledge files; nesting allowed
     <subdir>/
       *.md
-<repo root>/
-  .claude/
-    knowledge-enabled      # empty file; presence = repo opts into knowledge loading
 ```
 
 The top-level organization is user-shaped: the skill discovers categories by
@@ -402,7 +399,7 @@ triggers:
 
 | `.knowledge.yml` | Behavior |
 |---|---|
-| `surface: always` | Content loaded on every invocation (in opted-in repos) |
+| `surface: always` | Content loaded on every invocation |
 | `surface: on-demand` + non-empty `triggers` | Loaded when user's latest message matches a trigger |
 | `surface: on-demand` + empty/missing `triggers` | Inert — never loads until you add triggers |
 | Missing | Silent skip |
@@ -435,26 +432,33 @@ context from ballooning over long conversations.
 
 ### Security
 
-The per-repo opt-in marker (`.claude/knowledge-enabled`) is the central
-security control. Without it, no knowledge loads — even when `$AI_KNOWLEDGE_DIR`
-is valid and categories exist. This prevents cross-context contamination:
-a global env var pointed at Company A's knowledge folder will NOT inject
-Company A guidance into Company B or OSS repos.
+**Cross-context isolation is the user's responsibility.** Knowledge loads
+whenever `$AI_KNOWLEDGE_DIR` resolves to a valid directory — there is no
+per-repo opt-in gate. If you work across multiple clients or contexts and
+do not want one client's knowledge bleeding into another's repo, scope the
+env var per shell instead of exporting it globally:
 
-The marker must be a regular file (not a symlink, not a directory). Symlinks
-fail closed (blocks hostile-planted markers via symlink). The marker's parent
-`.claude/` directory must also not be a symlink — a `repo/.claude -> /tmp/attacker`
-redirect would otherwise allow an out-of-repo file to pass the regular-file
-check. Both parent-symlink and marker-symlink are explicitly rejected.
+```bash
+# In the shell where you want Company A loaded:
+export AI_KNOWLEDGE_DIR="$HOME/knowledge-company-a"
 
-Knowledge file content is Read into Claude's context on every invocation —
-same trust boundary as any other Read call, which means knowledge files are a
-potential prompt-injection channel if unreviewed. Review knowledge files
-before opting a repo in. Don't commit secrets, PII, or unreviewed third-party
-content into the knowledge folder. A malicious `.md` (synced from a
-compromised source, auto-generated, committed by a rushed colleague) becomes
-a full prompt-injection surface on every `/company-workflow` invocation in
-the opted-in repo.
+# In a different shell for OSS work:
+unset AI_KNOWLEDGE_DIR
+```
+
+For one-off bypass without unsetting, use `AI_KNOWLEDGE_DISABLE=1`. For
+fine-grained control inside a single knowledge folder, mark situational
+categories `surface: on-demand` with narrow triggers — they only load when
+the user's prompt explicitly mentions a trigger.
+
+**Knowledge files are a prompt-injection surface.** Knowledge file content
+is Read into Claude's context on every invocation — same trust boundary as
+any other Read call. Review knowledge files before pointing
+`$AI_KNOWLEDGE_DIR` at them. Don't commit secrets, PII, or unreviewed
+third-party content into the knowledge folder. A malicious `.md` (synced
+from a compromised source, auto-generated, committed by a rushed colleague)
+becomes a full prompt-injection surface on every `/company-workflow`
+invocation while the env var points at that folder.
 
 File paths containing control characters (newline, CR) are rejected during
 enumeration — they'd otherwise forge line structure in the `## Always-On
@@ -489,7 +493,6 @@ precondition and every category. Sample output:
 ```
 AI_KNOWLEDGE_DIR: /Users/chjiang/knowledge (exists)
 repo_root: /Users/chjiang/Documents/projects/claude-skills-templates
-marker: .claude/knowledge-enabled (present)
 disable env var: not set
 categories:
   coding      surface=always     files=3    bytes=8.2KB    loads=yes
@@ -513,8 +516,10 @@ feature in three slices:
 
 - **Resolution** (path detection + unset/invalid warnings): shipped in S000004
   (PR #38, v0.11.0).
-- **Always-on loading + per-repo opt-in gate + knowledge-doctor**: shipped in
-  S000005 c1+c2 (PR #40, v0.12.0).
+- **Always-on loading + knowledge-doctor**: shipped in S000005 c1+c2
+  (PR #40, v0.12.0). The per-repo opt-in marker that originally shipped here
+  was removed in v1.0.0 — cross-context isolation is now the user's
+  responsibility (scope `$AI_KNOWLEDGE_DIR` per shell).
 - **On-demand trigger matching**: shipped in S000005 c3 (v0.13.0). User's
   latest message is tokenized, triggers are matched case-insensitively
   against the prompt (whole-word for single tokens; phrase at token
