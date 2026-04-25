@@ -14,7 +14,7 @@ reviewers: []
      DEFINITION OF DONE, and out-of-scope boundaries. Story-scope detail
      (PRD/ARCHITECTURE/TEST-SPEC) lives on the nested user-stories — do
      not duplicate it here. For a filled-in example, see
-     `work-items/features/F000005_work_copilot/F000005_DESIGN.md`. -->
+     `work-items/features/F000004_work_copilot/F000004_DESIGN.md`. -->
 
 ## Problem
 
