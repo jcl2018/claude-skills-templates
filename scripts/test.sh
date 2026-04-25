@@ -677,19 +677,16 @@ rm -rf "$_T4_TMPDIR"
 
 echo ""
 echo "Regression test (T000006 c1): Knowledge Helpers (S000005)..."
-# Background: c1 adds a ## Knowledge Helpers section with three bash helpers
-# (parse_knowledge_yml, list_categories, list_md_files). These are reused by
-# the Knowledge Loading block (c2). Tests extract the helpers block and source
-# it in a test subshell to exercise each function directly against fixtures
-# built by scripts/test-helpers/knowledge.sh.
+# Background: c1 adds a ## Knowledge Helpers section that documents four bash
+# helpers (parse_knowledge_yml, parse_knowledge_triggers, list_categories,
+# list_md_files). Canonical implementations live in
+# skills/company-workflow/bin/knowledge-helpers.sh; SKILL.md blocks source
+# that file rather than inlining definitions. Tests source the canonical
+# file directly and exercise each function against fixtures built by
+# scripts/test-helpers/knowledge.sh.
 
 _T6H_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006h' 2>/dev/null)
-_T6H_HELPERS="$_T6H_TMPDIR/helpers.sh"
-
-# Extract the Knowledge Helpers bash block.
-awk '/^## Knowledge Helpers/,/^## Template Registry/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6H_HELPERS"
+_T6H_CANONICAL="$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
 
 # --- Tier 1 structural greps ---
 
@@ -705,19 +702,18 @@ else
   fail_test "T000006 c1 case 2: scripts/test-helpers/knowledge.sh missing"
 fi
 
-if [ -s "$_T6H_HELPERS" ]; then
-  ok "T000006 c1 case 3: Knowledge Helpers bash block extracts non-empty"
+if [ -f "$_T6H_CANONICAL" ]; then
+  ok "T000006 c1 case 3: bin/knowledge-helpers.sh exists (canonical helpers)"
 else
-  fail_test "T000006 c1 case 3: Knowledge Helpers bash block extraction empty"
+  fail_test "T000006 c1 case 3: bin/knowledge-helpers.sh missing at $_T6H_CANONICAL"
 fi
 
-# Both SKILL.md helpers and scripts/test-helpers/knowledge.sh must define the
-# expected function names. Script-level grep confirms public API is stable.
-for _fn in parse_knowledge_yml list_categories list_md_files; do
-  if grep -q "^${_fn}()" "$_T6H_HELPERS"; then
-    ok "T000006 c1 case 4.${_fn}: Helpers block defines ${_fn}()"
+# Canonical helpers must define every public function the contract documents.
+for _fn in parse_knowledge_yml parse_knowledge_triggers list_categories list_md_files; do
+  if grep -q "^${_fn}()" "$_T6H_CANONICAL"; then
+    ok "T000006 c1 case 4.${_fn}: bin/knowledge-helpers.sh defines ${_fn}()"
   else
-    fail_test "T000006 c1 case 4.${_fn}: Helpers block missing ${_fn}() definition"
+    fail_test "T000006 c1 case 4.${_fn}: bin/knowledge-helpers.sh missing ${_fn}() definition"
   fi
 done
 
@@ -727,9 +723,18 @@ else
   fail_test "T000006 c1 case 5: test-helpers/knowledge.sh missing build_knowledge_fixture()"
 fi
 
+# Every Knowledge ... block in SKILL.md must source bin/knowledge-helpers.sh
+# (catches the case where someone copy-pastes a block and forgets the source).
+_T6H_SOURCE_COUNT=$(grep -c 'bin/knowledge-helpers\.sh' "$REPO_ROOT/skills/company-workflow/SKILL.md" || true)
+if [ "$_T6H_SOURCE_COUNT" -ge 4 ]; then
+  ok "T000006 c1 case 5b: SKILL.md references bin/knowledge-helpers.sh from $_T6H_SOURCE_COUNT places (≥4 expected: Helpers + Loading + On-Demand + Diagnostic)"
+else
+  fail_test "T000006 c1 case 5b: SKILL.md references bin/knowledge-helpers.sh from only $_T6H_SOURCE_COUNT places (≥4 expected)"
+fi
+
 # --- Tier 2 helper behavior (source + exercise) ---
 
-if [ -s "$_T6H_HELPERS" ]; then
+if [ -f "$_T6H_CANONICAL" ]; then
   # Build a fixture covering every mode the helpers care about
   source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
   _T6H_FIX=$(build_knowledge_fixture "$_T6H_TMPDIR/fixture" \
@@ -739,9 +744,9 @@ if [ -s "$_T6H_HELPERS" ]; then
     "broken:malformed" \
     "notes")
 
-  # Source the helpers from SKILL.md into this shell
+  # Source the canonical helpers directly (cleaner than extracting from SKILL.md)
   # shellcheck disable=SC1090
-  source "$_T6H_HELPERS"
+  source "$_T6H_CANONICAL"
 
   # Case 6: parse_knowledge_yml on surface: always
   _r=$(parse_knowledge_yml "$_T6H_FIX/coding/.knowledge.yml")
@@ -893,47 +898,14 @@ else
   fail_test "T000006 c2 case 5: SKILL.md missing knowledge-doctor section"
 fi
 
-# Drift tripwire: helper function BODIES in Knowledge Helpers must match Knowledge Loading
-# byte-for-byte after dedenting (indentation differs between the top-level Helpers block
-# and the inlined Loading block inside a subshell).
-_extract_helper_bodies() {
-  # Reads a bash-block content on stdin, emits the bodies of the helpers named
-  # in the first argument (pipe-separated), dedented. Uses balanced brace
-  # tracking to find each function's end. Strips comment-only lines and blank
-  # lines so the Helpers copy (which carries explanatory comments as the
-  # contract reference) compares equal to inlined copies that elide them.
-  # Drift that matters is code, not documentation.
-  local names="${1:-parse_knowledge_yml|list_categories|list_md_files}"
-  awk -v names="$names" '
-    BEGIN { in_fn = 0; brace = 0; pat = "^[[:space:]]*(" names ")\\(\\)" }
-    $0 ~ pat {
-      in_fn = 1; brace = 0
-    }
-    in_fn {
-      sub(/^[[:space:]]+/, "")
-      # Skip comment-only lines and blank lines — documentation, not code.
-      if ($0 ~ /^[[:space:]]*#/) next
-      if ($0 ~ /^[[:space:]]*$/) next
-      print
-      tmp = $0; n_open = gsub(/[{]/, "", tmp)
-      tmp = $0; n_close = gsub(/[}]/, "", tmp)
-      brace = brace + n_open - n_close
-      if (brace == 0 && /[}]/) { in_fn = 0 }
-    }
-  '
-}
-
-_helpers_bodies=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
-_loading_bodies=$(awk '/^## Knowledge Loading/,/^## On-Demand Matching/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies)
-
-if [ -z "$_helpers_bodies" ] || [ -z "$_loading_bodies" ]; then
-  fail_test "T000006 c2 case 6: could not extract helper bodies from one or both blocks"
-elif [ "$_helpers_bodies" = "$_loading_bodies" ]; then
-  ok "T000006 c2 case 6: helper function bodies are byte-identical across Helpers + Loading blocks (drift tripwire active)"
+# Knowledge Loading block must source bin/knowledge-helpers.sh (replaces the
+# pre-extraction byte-identity drift tripwire — there's now only one canonical
+# definition, so drift is impossible by construction). This case verifies the
+# block correctly references the canonical helpers.
+if grep -q 'bin/knowledge-helpers\.sh' "$_T6L_LOADING"; then
+  ok "T000006 c2 case 6: Knowledge Loading block sources bin/knowledge-helpers.sh"
 else
-  fail_test "T000006 c2 case 6: helper bodies drifted between Helpers and Loading blocks. Run 'diff <(...) <(...)' manually to see the delta."
+  fail_test "T000006 c2 case 6: Knowledge Loading block missing reference to bin/knowledge-helpers.sh"
 fi
 
 # WORKFLOW.md docs (S14, S16)
@@ -979,11 +951,15 @@ _t6l_run_loading() {
   ( cd "$repo" && AI_KNOWLEDGE_DIR="$kdir" bash "$_T6L_LOADING" )
 }
 
-# Fixture repo factory
+# Fixture repo factory. Provisions the canonical helpers via symlink so the
+# Loading + Doctor blocks find them through the workbench-relative fallback
+# (same shape as a real workbench checkout).
 _t6l_make_repo() {
   local repo
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6l-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
+  mkdir -p "$repo/skills/company-workflow"
+  ln -snf "$REPO_ROOT/skills/company-workflow/bin" "$repo/skills/company-workflow/bin"
   printf '%s' "$repo"
 }
 
@@ -1330,27 +1306,19 @@ else
   fail_test "T000006 c3 case 6: SKILL.md missing 'latest message only' scope"
 fi
 
-if grep -q "^parse_knowledge_triggers" "$_T6M_HELPERS"; then
-  ok "T000006 c3 case 7: Knowledge Helpers block defines parse_knowledge_triggers"
+if grep -q "^parse_knowledge_triggers" "$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"; then
+  ok "T000006 c3 case 7: bin/knowledge-helpers.sh defines parse_knowledge_triggers"
 else
-  fail_test "T000006 c3 case 7: Knowledge Helpers block missing parse_knowledge_triggers"
+  fail_test "T000006 c3 case 7: bin/knowledge-helpers.sh missing parse_knowledge_triggers"
 fi
 
-# Drift tripwire: parse_knowledge_triggers body MUST be byte-identical between
-# Knowledge Helpers (the canonical definition) and On-Demand Matching (where it
-# is inlined for execution). Presence alone is not enough — a bug fix in one
-# copy must propagate to the other, or the On-Demand block executes stale code.
-_helpers_triggers_body=$(awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
-_om_triggers_body=$(awk '/^## On-Demand Matching/,/^## Diagnostic: knowledge-doctor/' "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-  | awk '/^```bash/,/^```$/' | sed '/^```/d' | _extract_helper_bodies "parse_knowledge_triggers")
-
-if [ -z "$_helpers_triggers_body" ] || [ -z "$_om_triggers_body" ]; then
-  fail_test "T000006 c3 case 8: could not extract parse_knowledge_triggers body from Helpers (len=${#_helpers_triggers_body}) or On-Demand (len=${#_om_triggers_body})"
-elif [ "$_helpers_triggers_body" = "$_om_triggers_body" ]; then
-  ok "T000006 c3 case 8: parse_knowledge_triggers body is byte-identical across Helpers + On-Demand blocks (drift tripwire active)"
+# Replaces the pre-extraction drift tripwire: with one canonical definition
+# in bin/knowledge-helpers.sh, drift is impossible. Verify the On-Demand block
+# correctly sources the canonical helpers.
+if grep -q 'bin/knowledge-helpers\.sh' "$_T6M_OM"; then
+  ok "T000006 c3 case 8: On-Demand Matching block sources bin/knowledge-helpers.sh"
 else
-  fail_test "T000006 c3 case 8: parse_knowledge_triggers drifted between Helpers and On-Demand blocks"
+  fail_test "T000006 c3 case 8: On-Demand Matching block missing reference to bin/knowledge-helpers.sh"
 fi
 
 if grep -qi "triggers" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md" \
@@ -1363,8 +1331,9 @@ fi
 # --- Tier 2 behavioral tests ---
 
 source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
+# Source canonical helpers directly — see ## Knowledge Helpers in SKILL.md
 # shellcheck disable=SC1090
-source "$_T6M_HELPERS"
+source "$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
 
 _t6m_run_om() {
   # $1 = AI_KNOWLEDGE_DIR, $2 = repo root with .claude/knowledge-enabled (or not)
@@ -1372,10 +1341,14 @@ _t6m_run_om() {
   ( cd "$repo" && AI_KNOWLEDGE_DIR="$kdir" bash "$_T6M_OM" )
 }
 
+# Fixture repo factory. Provisions canonical helpers via symlink so the
+# On-Demand block finds them via the workbench-relative fallback.
 _t6m_make_repo() {
   local repo
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6m-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
+  mkdir -p "$repo/skills/company-workflow"
+  ln -snf "$REPO_ROOT/skills/company-workflow/bin" "$repo/skills/company-workflow/bin"
   printf '%s' "$repo"
 }
 
