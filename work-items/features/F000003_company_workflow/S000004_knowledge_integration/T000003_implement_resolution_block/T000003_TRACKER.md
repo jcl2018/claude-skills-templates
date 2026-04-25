@@ -90,7 +90,7 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
-- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). F000004 scaffolding + S000004 env-var resolution.
+- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). Knowledge-integration scaffolding + env-var resolution.
 
 ## Files
 

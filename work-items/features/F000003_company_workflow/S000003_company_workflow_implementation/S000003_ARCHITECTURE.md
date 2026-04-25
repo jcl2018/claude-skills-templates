@@ -15,8 +15,8 @@ reviewers: []
 
 A standalone Claude Code skill that packages an entire company work item specification.
 One unified validate command with two modes: file mode (structural rules) and directory
-mode (artifact completeness). Zero external dependencies. No gstack, no /docs check,
-no analytics. Read-only: validates but never modifies files.
+mode (artifact completeness). No external skillset / harness dependencies. Read-only:
+validates but never modifies files.
 
 ## Architecture
 
@@ -106,9 +106,9 @@ Artifact counts: feature=5, defect=3, task=2, userstory=5, review=2.
 
 | Decision | Chosen | Rejected | Why |
 |----------|--------|----------|-----|
-| Standalone | Zero gstack deps | Extend /docs check | Portable to any repo |
+| Standalone | No external skillset / harness deps | Extend an external validation skill | Portable to any repo |
 | Namespacing | Subfolder (templates/company-workflow/) | Top-level dir | Matches existing patterns |
-| Validation | Skill with unified validate | Shared scripts | /docs check pattern, CI-callable |
+| Validation | Skill with unified validate | Shared scripts | Skill-owned; CI-callable |
 | userstory spelling | Preserve spec exact | Normalize to user-story | Company spec is truth |
 | Import method | One-time copy | Git submodule | Repo is source after commit |
 | Enforcement | Own manifest | Extend artifact-manifests.json | Two independent systems |

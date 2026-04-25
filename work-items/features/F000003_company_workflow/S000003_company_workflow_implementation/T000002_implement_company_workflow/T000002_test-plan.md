@@ -44,7 +44,7 @@ fixtures), template-registry.json, and skills-catalog.json.
 | 17 | Complete feature passes check | Scaffold all 5, run check | 5x [PASS] | Pending |
 | 18 | Incomplete feature caught | Remove PRD, run check | [MISSING] PRD.md | Pending |
 | 19 | Drift caught | Remove workflow_type, run check | [DRIFT] | Pending |
-| 20 | /docs check unaffected | Run before and after | Identical output | Pending |
+| 20 | external validation skill unaffected | Run before and after | Identical output | Pending |
 
 ### Scaffolding (from original T000004)
 

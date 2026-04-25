@@ -40,7 +40,7 @@ reviewers: []
 | 15 | dir-validate | No TRACKER.md in dir | Error message | P0 | Pending |
 | 16 | dir-validate | Unresolved placeholder | [DRIFT] {PLACEHOLDER} detected | P0 | Pending |
 | 17 | dir-validate | ID prefix stripping | S000003_PRD.md matches PRD.md | P0 | Pending |
-| 18 | dir-validate | /docs check unaffected | Identical output before/after | P0 | Pending |
+| 18 | dir-validate | external validation skill unaffected | Identical output before/after | P0 | Pending |
 
 ### Examples
 
@@ -78,7 +78,7 @@ reviewers: []
 
 | # | Tag | Test Case | Expected Result | Priority | Status |
 |---|-----|-----------|-----------------|----------|--------|
-| 36 | deploy | Skill works without gstack | cp to temp repo, validate runs | P0 | Pending |
+| 36 | deploy | Skill works without any external skillset / harness | cp to temp repo, validate runs | P0 | Pending |
 
 ## Test Tiers
 
@@ -94,7 +94,7 @@ reviewers: []
 | S6 | workflow_type in every tracker | `grep -c workflow_type` = 5 |
 | S7 | Root templates untouched | `git diff --stat templates/*.md` empty |
 | S8 | Manifest has 5 types | Parse company-artifact-manifests.json |
-| S9 | SKILL.md has no gstack refs | `grep -c gstack skills/company-workflow/SKILL.md` = 0 |
+| S9 | SKILL.md has no external-skillset refs | `grep -c gstack skills/company-workflow/SKILL.md` = 0 |
 | S10 | 13 examples present | `ls skills/company-workflow/examples/*.md \| wc -l` = 13 |
 | S11 | No placeholders in examples | `grep -r '{PLACEHOLDER}' examples/` = 0 |
 | S12 | WORKFLOW.md present | `[ -f skills/company-workflow/WORKFLOW.md ]` |

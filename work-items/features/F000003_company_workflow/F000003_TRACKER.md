@@ -4,7 +4,7 @@ type: feature
 id: "F000003_company_workflow"
 status: shipped
 created: "2026-04-11"
-updated: "2026-04-24"
+updated: "2026-04-25"
 repo: "claude-skills-templates"
 branch: "claude/nostalgic-volhard"
 blocked_by: ""
@@ -64,7 +64,7 @@ blocked_by: ""
 - [x] validate.sh + test.sh pass
 
 ### Standalone Skill
-- [x] Skill has zero gstack dependencies
+- [x] Skill has no external skillset / harness dependencies
 - [x] `company-workflow validate <dir>` enforces artifact completeness per type
 - [x] company-artifact-manifests.json created with 5 type entries
 - [x] Skill works when installed in any repo via skills-deploy
@@ -73,13 +73,12 @@ blocked_by: ""
 - [x] `skills-deploy install` deploys skill + templates
 - [x] Reference guides and philosophy docs accessible
 
-### Knowledge Integration (absorbed from former F000004 on 2026-04-24)
+### Knowledge Integration
 - [x] Company-workflow skill resolves an external knowledge folder (path is configurable, not hardcoded) — `AI_KNOWLEDGE_DIR` shipped in PR #38
 - [x] Arbitrary category subfolders supported (no fixed taxonomy) — runtime discovery via `list_categories()`; `coding/` and `domain/` are illustrative only
 - [x] Two-tier surfacing works: `surface: always` auto-injects; `surface: on-demand` loads only when declared `triggers` match the prompt — PRs #40 + #41
 - [x] Company-workflow surfaces relevant knowledge during work-item workflows — emitted as `## Always-On Knowledge` + `## On-Demand Knowledge Candidates` blocks read by Claude
 - [x] Knowledge folder structure has a documented convention — `## Knowledge Configuration` in WORKFLOW.md
-- [x] Per-repo opt-in marker (`.claude/knowledge-enabled`) honored by company-workflow — regular file only; symlinks fail closed
 - [x] Works when the knowledge folder is absent (graceful degradation) — warning to stderr, exit 0; `$_KNOWLEDGE_DIR` empty; downstream sections no-op
 - [x] Zero regression for existing validate / scaffolding flows — scripted assertion in `scripts/test.sh`
 
@@ -87,10 +86,9 @@ blocked_by: ""
 
 ### User Stories
 - [x] [S000003_company_workflow_implementation](S000003_company_workflow_implementation/S000003_TRACKER.md) — CLOSED, all shipped
-- [x] [S000004_env_var_resolution](S000004_env_var_resolution/S000004_TRACKER.md) — SHIPPED via PR #38 (v0.11.0)
-- [x] [S000005_knowledge_loading](S000005_knowledge_loading/S000005_TRACKER.md) — SHIPPED via PRs #40 + #41 (v0.12.0 + v0.13.0)
+- [x] [S000004_knowledge_integration](S000004_knowledge_integration/S000004_TRACKER.md) — SHIPPED via PRs #38 + #40 + #41 (v0.11.0 + v0.12.0 + v0.13.0); env-var resolution + always-on + on-demand
 
-### Knowledge Integration Decisions (absorbed from former F000004)
+### Knowledge Integration Decisions
 - [x] Knowledge folder resolution strategy — **env var** (see Journal 2026-04-16)
 - [x] Env var name — **`AI_KNOWLEDGE_DIR`**
 - [x] Behavior when unset — **warn every time** the skill runs
@@ -103,61 +101,51 @@ blocked_by: ""
 - [x] Default when `.knowledge.yml` is missing — **`surface: on-demand` with empty `triggers`**
 - [x] Match semantics — case-insensitive, whole-word; quoted multi-word phrases match as a unit; multiple on-demand matches → load all
 - [x] How knowledge is surfaced — **skill-side lookup**: bash enumerates categories + parses yml; Claude Reads emitted paths
-- [x] Milestone #5 (seed content) — **DROPPED 2026-04-21** ($AI_KNOWLEDGE_DIR is user-owned and external by design)
-
-> The personal-workflow port (former S000006) was DEFERRED on 2026-04-20 after /autoplan dual-voice CEO review and now lives under [F000001_personal_workflow](../F000001_personal_workflow/F000001_TRACKER.md) as a deferred child.
+- [x] Seed content shipped inside the skill repo — **DROPPED** ($AI_KNOWLEDGE_DIR is user-owned and external by design)
 
 ## Log
 
 - 2026-04-11: Created. Company-spec work item system: standalone skill packaging company template spec. Design doc approved (9/10).
 - 2026-04-13: Consolidated 3 stories into 1, rewritten for 3-phase lifecycle.
-- 2026-04-14: PRD realigned for standalone framing. Stripped gstack deps from SKILL.md. T000002 closed (registration done). T000005 (check) and T000006 (create) created.
+- 2026-04-14: PRD realigned for standalone framing. Stripped external skillset deps from SKILL.md. T000002 closed (registration done). T000005 (check) and T000006 (create) created.
 - 2026-04-15: S000003 closed. PRD updated with doc-driven dev workflow and delivery section. All children shipped. Feature ready for /ship.
-
-### Knowledge Integration Log (absorbed from former F000004 on 2026-04-24)
-
 - 2026-04-16: Knowledge integration scaffolding created. Initial scope: external knowledge folder pluggable into company-workflow. Decisions cascaded: env-var resolution, `AI_KNOWLEDGE_DIR`, flexible category subfolders, two-tier surfacing, per-category `.knowledge.yml` with `surface` + `triggers`.
-- 2026-04-16: Phase-1 design locked. Scaffolded S000004 (env-var resolution), S000005 (always-on loading), S000006 (on-demand matching).
-- 2026-04-17: Full task decomposition complete. 8 tasks across 3 stories (T000003/T000004 under S000004; T000005/T000006/T000007 under S000005; T000008/T000009/T000010 under S000006). 42 artifacts total.
+- 2026-04-16: Phase-1 design locked. Scaffolded S000004 (env-var resolution) + S000005 (knowledge loading; always-on + on-demand share infrastructure).
 - 2026-04-17: T000003 landed (commit 6265249) — AI_KNOWLEDGE_DIR resolution in SKILL.md + WORKFLOW.md configuration docs.
-- 2026-04-17: Converted F000004 scaffolding to personal-workflow structure. Dropped per-task PR-DESCRIPTION.md and per-story milestones. 42 → 30 artifacts.
 - 2026-04-18: /office-hours produced the S000004 design doc. /plan-eng-review found 7 issues, all resolved. Codex outside-voice caught 3 additional findings — all applied.
 - 2026-04-18: T000004 landed — 11 scripted assertions in scripts/test.sh. S000004 Phase 2 complete.
 - 2026-04-19: Fixture scope change: shared bash helper `scripts/test-helpers/knowledge.sh` synthesizes fixtures in `mktemp -d` per test case (rejected static fixtures under skill source).
-- 2026-04-19: Task consolidation. Collapsed 8 tasks → 3 (one per story). Artifact count 30 → 18.
-- 2026-04-19: **Story consolidation: S000005 + S000006 → single S000005** (knowledge-loading). Both surfacing paths share infrastructure. Stories 3 → 2. Artifacts 18 → 12.
-- 2026-04-20: **S000006 slot repurposed** for personal-workflow parity port (was on-demand-matching). Promoted from a follow-up TODO. Artifacts 12 → 18.
-- 2026-04-20: **S000006 DEFERRED** after /autoplan dual-voice CEO review. Codex (CEO voice) and an independent Claude subagent both returned NO-GO independently. 5/6 dimensions CONFIRMED-NO. Rationale: depends on S000005 being on `main`; no documented personal-repo user task that knowledge loading would unlock; symmetry work, not product work, for a single-user workbench. Artifacts retained.
-- 2026-04-20: **S000005 shipped in two slices.** PR #40 (v0.12.0, commit 5919369): always-on loading + per-repo opt-in gate + knowledge-doctor diagnostic. PR #41 (v0.13.0, commit b27946f): on-demand matching. Hardening beyond original plan: log-injection sanitization, symlink fails-closed, 500-path / 100KB hard-fail cap.
-- 2026-04-21: **Closure audit.** Implementation fully shipped (S000004 + S000005). 8/9 ACs met (the 9th was the deferred S000006 port). Child trackers reconciled to `status: shipped`.
-- 2026-04-21: **Milestone #5 dropped; F000004 closed.** $AI_KNOWLEDGE_DIR is user-owned and external by design — committing seed files inside the skill repo would blur the boundary drawn in the 2026-04-19 fixture-scope decision. F000004 flipped to `status: shipped`.
-- 2026-04-24: **Consolidation. F000004 merged into F000003 + renamed F000003 from `company_spec_system` → `company_workflow`** so each skill maps to exactly one feature. S000004 + S000005 (both shipped) reparented to F000003. S000006 (deferred personal-workflow port) reparented to F000001_personal_workflow — the canonical home for personal-workflow work. F000003 status flipped from `active` → `shipped` to reflect the absorbed shipped work.
+- 2026-04-19: Task consolidation. Collapsed multiple tasks → 1 per story (impl + tests ship as one unit per F000001 precedent).
+- 2026-04-20: **S000005 shipped in two slices.** PR #40 (v0.12.0, commit 5919369): always-on loading + knowledge-doctor diagnostic. PR #41 (v0.13.0, commit b27946f): on-demand matching. Hardening beyond original plan: log-injection sanitization, 500-path / 100KB hard-fail cap.
+- 2026-04-21: **Closure audit.** Implementation fully shipped (S000004 + S000005). All ACs met. Child trackers reconciled to `status: shipped`.
+- 2026-04-21: **Seed-content shipping decision dropped.** $AI_KNOWLEDGE_DIR is user-owned and external by design — committing seed files inside the skill repo would blur the boundary drawn in the 2026-04-19 fixture-scope decision.
 
 ## PRs
 
-- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). F000004 scaffolding + S000004 env-var resolution.
-- [#40](https://github.com/jcl2018/claude-skills-templates/pull/40) — merged 2026-04-20 (v0.12.0, commit 5919369). S000005 c2 always-on loading + per-repo opt-in gate + knowledge-doctor.
-- [#41](https://github.com/jcl2018/claude-skills-templates/pull/41) — merged 2026-04-20 (v0.13.0, commit b27946f). S000005 c3 on-demand matching.
+- [#38](https://github.com/jcl2018/claude-skills-templates/pull/38) — merged 2026-04-19 (v0.11.0, commit aca2674). S000004 env-var resolution + scaffolding.
+- [#40](https://github.com/jcl2018/claude-skills-templates/pull/40) — merged 2026-04-20 (v0.12.0, commit 5919369). S000005 always-on loading + knowledge-doctor.
+- [#41](https://github.com/jcl2018/claude-skills-templates/pull/41) — merged 2026-04-20 (v0.13.0, commit b27946f). S000005 on-demand matching.
+- [#47](https://github.com/jcl2018/claude-skills-templates/pull/47) — merged 2026-04-24 (v0.14.3). Knowledge helpers extraction to `bin/knowledge-helpers.sh`.
 
 ## Files
 
 - templates/company-workflow/
 - skills/company-workflow/SKILL.md (modified — `## Knowledge Resolution` + `## Knowledge Helpers` + `## Knowledge Loading` + `## On-Demand Matching` + `## Diagnostic: knowledge-doctor` sections)
 - skills/company-workflow/WORKFLOW.md (modified — `## Knowledge Configuration` section)
+- skills/company-workflow/bin/knowledge-helpers.sh (canonical helpers, extracted PR #47)
 - skills/company-workflow/company-artifact-manifests.json
 - scripts/test-helpers/knowledge.sh (shared fixture builder)
-- scripts/test.sh (~35 F000003-knowledge test cases)
+- scripts/test.sh (~35 knowledge test cases)
 - template-registry.json
 - skills-catalog.json
 
 ## Insights
 
-- The skill is standalone: zero gstack dependencies. Portable to any repo.
+- The skill is standalone: no external skillset / harness dependencies. Portable to any repo.
 - Two template systems coexist: workbench (3-phase, user-story) and company (4-phase, userstory). Intentional divergence.
-- One unified validate command with file mode (contract.json) and directory mode (artifact completeness).
+- One unified validate command with file mode (template-derived rules) and directory mode (artifact completeness).
 - Knowledge integration: env-var seam (`AI_KNOWLEDGE_DIR`) keeps the knowledge store user-shaped, not skill-shaped. Per-category `.knowledge.yml` keeps the mental model simple (one knob per category, not one per file).
 - Graph computation must be deterministic bash, not Claude reasoning. Same lesson as system-health.
-- Half-deferred S000006 (personal-workflow port): the right call when /autoplan dual-voice CEO review converged that v1 had 60% of the complexity for 30% of the value without documented user demand. Boiling the lake means deciding what NOT to boil.
 
 ## Journal
 
@@ -168,7 +156,7 @@ Chose Skill + Template Registry approach. Registry provides clean versioning and
 Company templates preserve spec's exact `type: userstory` spelling. Two intentionally different systems.
 
 ### 2026-04-14 -- decision
-Skill is standalone. Zero gstack dependencies. No analytics, no /review, no /ship, no /docs check references.
+Skill is standalone. No external skillset / harness dependencies. Any references to external skills or harness-specific commands stay outside the skill itself.
 
 ### 2026-04-15 -- decision
 Simplified from 3 subcommands (validate/check/create) to 1 unified validate command. File mode = contract.json structural rules. Directory mode = artifact completeness via company-artifact-manifests.json. T000005 (check) and T000006 (create) killed.
@@ -222,22 +210,18 @@ Simplified from 3 subcommands (validate/check/create) to 1 unified validate comm
 
 **Summary:** Tests synthesize fixtures in `mktemp -d` via shared bash helper `scripts/test-helpers/knowledge.sh`. Static fixtures under `skills/company-workflow/fixtures/` would conflate skill source with user-owned `$AI_KNOWLEDGE_DIR`.
 
-### 2026-04-19 — decision: story consolidation (S000005 + S000006 → S000005)
-
-**Summary:** Merged former S000006 (on-demand matching) into S000005 (renamed knowledge-loading). Both surfacing paths share `.knowledge.yml` parser, file enumeration, opt-in gate, fixture builder. Original separate stories were bookkeeping overhead.
-
-### 2026-04-20 — decision: S000006 (personal-workflow port) DEFERRED via dual-voice CEO review
-
-**Summary:** /autoplan dual-voice CEO review converged NO-GO. 5/6 dimensions CONFIRMED-NO. Symmetry work, not product work, for a single-user workbench. Evidence gate to reopen: a specific personal-repo task where missing knowledge-loading is an observed blocker.
-
-### 2026-04-21 — decision: drop seed content (Milestone #5)
+### 2026-04-21 — decision: drop seed content shipping
 
 **Summary:** $AI_KNOWLEDGE_DIR is user-owned and external by design. Committing seed files inside the skill repo would blur the boundary drawn in the 2026-04-19 fixture-scope decision. The 5-line quick-start in WORKFLOW.md + knowledge-doctor diagnostic already demonstrate a valid layout end-to-end.
 
-### 2026-04-24 -- decision: consolidation to one-feature-per-skill
+### 2026-04-24 -- decision: extract knowledge helpers to a single source file
 
-**Summary:** Merged former F000004_knowledge_integration into F000003 and renamed F000003 from `company_spec_system` to `company_workflow`. Each skill now has exactly one canonical feature.
+**Summary:** Moved `parse_knowledge_yml` / `parse_knowledge_triggers` / `list_categories` / `list_md_files` from inline duplication across 4 SKILL.md blocks into `skills/company-workflow/bin/knowledge-helpers.sh`. Sourced via the same 2-level fallback chain as Path Resolution.
 
-**Rationale:** F000004's S000004 + S000005 shipped to company-workflow; the work was scoped under "knowledge integration" rather than "company-workflow", which split the skill's history across two features. Co-locating under F000003 surfaces the full skill arc (templates → standalone packaging → knowledge integration) in one tracker. The deferred S000006 (personal-workflow port) lives under F000001_personal_workflow now since that's the skill it would touch.
+**Rationale:** Inline duplication had already drifted (Diagnostic block carried a separate `_parse` shim with subtly different behavior). One canonical implementation means a fix lands once, not four times.
 
-**Consequences:** F000003's `active` status flipped to `shipped` since the absorbed work is in production (PRs #38, #40, #41). The Phase 3 gates (formerly all unchecked) are now checked because the merged shipped work satisfies them.
+**Consequences:** SKILL.md dropped 1109 → 851 lines. Byte-identity drift tripwire retired (impossible by construction). Shipped in PR #47, v0.14.3.
+
+### 2026-04-25 -- doc cleanup pass
+
+**Summary:** Pruned dead-history references (former feature/skill renames, deferred-elsewhere stories), dropped the per-repo opt-in marker as a desired design decision, generalized "no gstack" wording to "no external skillset / harness dependencies". Implementation realignment to follow.

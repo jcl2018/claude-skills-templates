@@ -47,17 +47,17 @@ blocked_by: ""
 
 ### Phase 3: Ship
 
-1. Run `/docs check` -- verify all validation passes
+1. Run `/personal-workflow check` -- verify all validation passes
    -> should show PASS for template, lifecycle, traceability, structure badges
-2. Run `/docs tree` -- verify hierarchy and structural completeness
+2. Run `/personal-workflow tree` -- verify hierarchy and structural completeness
 3. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
 4. Ensure all child tasks have shipped
 5. Run `/ship` -- creates PR, bumps version, updates changelog (includes pre-landing code review)
 6. Run `/land-and-deploy` -- merges PR and verifies deployment
 
 **Gates:**
-- [x] `/docs check` -- validation passed
-- [x] `/docs tree` -- structure verified
+- [x] `/personal-workflow check` -- validation passed
+- [x] `/personal-workflow tree` -- structure verified
 - [x] TEST-SPEC covers all P0 acceptance criteria
 - [x] All children shipped
 - [x] `/ship` -- PR created
@@ -72,7 +72,7 @@ blocked_by: ""
 - [x] Existing `templates/*.md` unchanged
 - [x] `./scripts/validate.sh` passes
 - [x] SKILL.md with validate subcommand working
-- [x] Skill is standalone (zero gstack dependencies)
+- [x] Skill is standalone (no external skillset / harness dependencies)
 
 ### Directory Validation
 - [x] company-artifact-manifests.json created with 5 type entries
@@ -80,7 +80,7 @@ blocked_by: ""
 - [x] All 5 types enforced (feature=5, defect=3, task=2, userstory=5, review=2)
 - [x] Missing artifacts flagged [MISSING], drift flagged [DRIFT]
 - [x] Unresolved placeholders detected in frontmatter values
-- [x] Independent from /docs check
+- [x] Independent from any external validation skill
 
 ## Todos
 
@@ -92,7 +92,7 @@ blocked_by: ""
 - 2026-04-11: Created. Template registry, namespace coexistence, company skill scaffold.
 - 2026-04-11: Implemented template registry. 27 files copied. validate.sh PASS, test.sh PASS.
 - 2026-04-13: Consolidated from 3 stories into 1. Rewritten for 3-phase lifecycle.
-- 2026-04-14: PRD realigned for standalone framing. T000002 closed (registration done). T000005 (check) and T000006 (create) created. Stripped gstack from SKILL.md.
+- 2026-04-14: PRD realigned for standalone framing. T000002 closed (registration done). T000005 (check) and T000006 (create) created. Stripped external-skillset references from SKILL.md.
 - 2026-04-15: Closed. PRD updated with doc-driven dev workflow (3 steps), delivery section, removed ~/Downloads/spec references. ARCHITECTURE and TEST-SPEC updated with delivery. All acceptance criteria met.
 
 ## PRs
@@ -111,7 +111,7 @@ blocked_by: ""
 
 ## Insights
 
-- The skill is standalone: zero gstack deps. Works in any repo via skills-deploy.
+- The skill is standalone: no external skillset / harness dependencies. Works in any repo via skills-deploy.
 - Company 4-phase lifecycle preserved even though workbench uses 3-phase. Intentional divergence.
 - One unified validate command: file mode (contract.json) and directory mode (artifact completeness).
 
@@ -129,7 +129,7 @@ Separate enforcement per skill, not extending artifact-manifests.json. Two indep
 Two subcommands: `validate` (contract rules) and `check` (artifact completeness). Different concerns.
 
 ### 2026-04-14 -- decision
-Skill is standalone. Zero gstack dependencies. No analytics, no /review, no /docs check. Portable to any repo.
+Skill is standalone. No external skillset / harness dependencies. Any references to external skills or harness-specific commands stay outside the skill itself. Portable to any repo.
 
 ### 2026-04-15 -- decision
 Simplified from 3 subcommands to 1 unified validate. T000005 (check) and T000006 (create) killed. Directory mode added to validate. company-artifact-manifests.json created. Templates fixed (tracker-review.md phase headings, tracker-feature.md N/A removal, Handoff removed from contract.json).

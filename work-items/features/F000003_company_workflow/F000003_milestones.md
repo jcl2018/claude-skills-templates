@@ -13,7 +13,7 @@ updated: 2026-04-15
 | 2 | Create template-registry.json | -- | Done | chjiang | workbench + company-workflow sets | #1 |
 | 3 | Create skills/company-workflow/ scaffold | -- | Done | chjiang | SKILL.md, contract.json, reference/, philosophy/, fixtures/ | #1 |
 | 4 | Verify zero regression + catalog entry | -- | Done | chjiang | validate.sh + test.sh PASS | #2, #3 |
-| 5 | Strip gstack from SKILL.md | -- | Done | chjiang | Zero gstack deps, standalone | #3 |
+| 5 | Strip external-skillset refs from SKILL.md | -- | Done | chjiang | No external skillset / harness deps, standalone | #3 |
 | 6 | Create company-artifact-manifests.json | -- | Done | chjiang | 5 type entries, mirrors artifact-manifests.json schema | #3 |
 | 7 | Implement directory mode validate in SKILL.md | -- | Done | chjiang | Unified validate command (file + dir modes) | #6 |
 | 8 | Fix templates (tracker-review.md, tracker-feature.md) | -- | Done | chjiang | Phase headings, remove Handoff, remove N/A language | #7 |
@@ -28,7 +28,7 @@ updated: 2026-04-15
 ```
 #1 Copy templates --+-- #2 Registry --+-- #4 Regression check
                     |                  |
-                    +-- #3 Scaffold ---+-- #5 Strip gstack
+                    +-- #3 Scaffold ---+-- #5 Strip external-skillset refs
                          |
                          +-- #6 Manifest --> #7 Dir validate --> #8 Fix templates
                                          |                   +--> #9 Dir fixtures

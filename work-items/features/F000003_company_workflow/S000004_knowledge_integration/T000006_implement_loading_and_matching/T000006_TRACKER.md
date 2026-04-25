@@ -5,7 +5,7 @@ id: "T000006"
 status: shipped
 created: "2026-04-16"
 updated: "2026-04-21"
-parent: "S000005"
+parent: "S000004"
 repo: "claude-skills-templates"
 branch: "claude/heuristic-almeida-2f246d"
 blocked_by: ""
@@ -141,7 +141,7 @@ blocked_by: ""
 - skills/company-workflow/SKILL.md (modified — `## Knowledge Helpers` + `## Knowledge Loading` + `## On-Demand Matching` + `## Diagnostic: knowledge-doctor` sections; per-repo opt-in gate; symlink hardening; 500-path / 100KB hard-fail cap)
 - skills/company-workflow/WORKFLOW.md (modified — `## Knowledge Configuration` expanded with quick-start, troubleshooting, escape hatches, schema, trigger-authoring, security, caps, doctor docs)
 - scripts/test-helpers/knowledge.sh (new, 96 lines — shared fixture builder)
-- scripts/test.sh (modified — ~35 F000004 test cases across tier-1 structural + tier-2 behavioral; full suite passes)
+- scripts/test.sh (modified — ~35 knowledge test cases across tier-1 structural + tier-2 behavioral; full suite passes)
 
 ## Insights
 
