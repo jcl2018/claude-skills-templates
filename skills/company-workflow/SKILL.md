@@ -124,15 +124,16 @@ for setup instructions, the layout convention, and the `.knowledge.yml` schema.
 
 ## Knowledge Helpers
 
-Three shared bash helper functions used by the Knowledge Loading section below
-and reserved for future knowledge features (on-demand matching, etc.).
+Four shared bash helper functions used by every Knowledge block below
+(Loading, On-Demand Matching, Diagnostic). The canonical implementation
+lives in `bin/knowledge-helpers.sh` — a sourceable file, not inline.
 
 **Runtime note:** Each `## Knowledge ...` code block in SKILL.md runs as its
-own Bash tool invocation — functions defined in one block don't persist to the
-next. The Knowledge Loading block below redefines these functions inline so
-that block is self-contained at runtime. The canonical definitions live here
-(for documentation + c1 helper self-tests); a tier-1 test asserts the two
-definitions stay byte-identical (see `scripts/test.sh`).
+own Bash tool invocation — functions defined in one block don't persist to
+the next. So every block independently sources `bin/knowledge-helpers.sh`
+using the same 2-level fallback chain as Path Resolution (workbench repo
+first, deployed `~/.claude/` second). One canonical definition, sourced from
+multiple invocations — no inline duplication, no drift tripwire needed.
 
 **Helper contract:**
 
@@ -144,120 +145,14 @@ definitions stay byte-identical (see `scripts/test.sh`).
 | `list_md_files(category)` | category absolute path | newline-separated absolute paths to `*.md` files | Recursive. Lex-sorted under `LC_ALL=C`. |
 
 ```bash
-# parse_knowledge_yml(path) — minimal bash parser for the .knowledge.yml subset.
-# Returns: always | on-demand | empty (empty on missing/malformed/unknown).
-# Strictly validates root keys — any non-{surface,triggers} key = malformed.
-parse_knowledge_yml() {
-  local path="$1"
-  [ -f "$path" ] || { printf ''; return; }
-  local surface
-  surface=$(LC_ALL=C awk '
-    NR == 1 {
-      if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-    }
-    { sub(/\r$/, ""); sub(/#.*$/, "") }
-    /^[[:space:]]*$/ { next }
-    /^[[:space:]]*surface[[:space:]]*:/ {
-      val = $0
-      sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
-      sub(/[[:space:]]*$/, "", val)
-      if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
-        val = substr(val, 2, length(val)-2)
-      surface_val = val
-      next
-    }
-    /^[[:space:]]*triggers[[:space:]]*:/ { next }
-    /^[[:space:]]+-/ { next }
-    { malformed = 1; exit }
-    END {
-      if (malformed) { print ""; exit }
-      print surface_val
-    }
-  ' "$path" 2>/dev/null)
-  case "$surface" in
-    always|on-demand) printf '%s' "$surface" ;;
-    *) printf '' ;;
-  esac
-}
-
-# list_categories(root) — immediate subdirs, skip hidden, lex-sorted (LC_ALL=C).
-# Uses find -H so a symlinked root (common when AI_KNOWLEDGE_DIR points at
-# ~/knowledge that's a symlink from a dotfile manager / iCloud) still descends.
-list_categories() {
-  local root="$1"
-  [ -d "$root" ] || return 0
-  LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
-}
-
-# list_md_files(category) — recursive *.md, lex-sorted by path (LC_ALL=C).
-# Skips hidden dirs so .hidden/draft.md inside a category isn't emitted.
-list_md_files() {
-  local category="$1"
-  [ -d "$category" ] || return 0
-  LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
-}
-
-# parse_knowledge_triggers(path) — extracts the triggers list from a .knowledge.yml.
-# Supports:
-#   triggers: [a, "b c", 'd']     (inline flow form; quotes optional)
-#   triggers:                     (block form on next lines)
-#     - a
-#     - "b c"
-# Returns: newline-separated triggers, one per line, quotes stripped. Empty if
-# no triggers key, empty list, or malformed yml (same malformed-detection rule
-# as parse_knowledge_yml — keeps the two helpers in sync).
-parse_knowledge_triggers() {
-  local path="$1"
-  [ -f "$path" ] || return 0
-  LC_ALL=C awk '
-    NR == 1 {
-      if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-    }
-    { sub(/\r$/, ""); sub(/#.*$/, "") }
-    /^[[:space:]]*$/ { next }
-    # Inline flow form: triggers: [...]
-    /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
-      val = $0
-      sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/, "", val)
-      sub(/\].*$/, "", val)
-      # Split on commas at top level (no nested brackets in our subset)
-      n = split(val, items, ",")
-      for (i = 1; i <= n; i++) {
-        t = items[i]
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-        # Strip double-quotes or single-quotes
-        if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-          t = substr(t, 2, length(t) - 2)
-        else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-          t = substr(t, 2, length(t) - 2)
-        if (t != "") print t
-      }
-      in_triggers = 0
-      next
-    }
-    # Block form header: triggers:
-    /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ {
-      in_triggers = 1
-      next
-    }
-    # Block form item: "  - value" (any indent level)
-    in_triggers && /^[[:space:]]+-[[:space:]]*/ {
-      t = $0
-      sub(/^[[:space:]]+-[[:space:]]*/, "", t)
-      sub(/[[:space:]]*$/, "", t)
-      if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-        t = substr(t, 2, length(t) - 2)
-      else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-        t = substr(t, 2, length(t) - 2)
-      if (t != "") print t
-      next
-    }
-    # Known surface key — tolerated, parser ignores the value here
-    /^[[:space:]]*surface[[:space:]]*:/ { in_triggers = 0; next }
-    # Anything else at column 0 = malformed yml; abort and return nothing
-    /^[^[:space:]]/ { exit }
-  ' "$path" 2>/dev/null
-}
+# Resolve and source the canonical helpers. Each Knowledge block below uses
+# the same pattern — paste verbatim into any block that needs the helpers.
+_RR=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$_RR" ] && [ -f "$_RR/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+  . "$_RR/skills/company-workflow/bin/knowledge-helpers.sh"
+elif [ -f "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+  . "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
+fi
 ```
 
 ## Knowledge Loading
@@ -313,49 +208,15 @@ categories are unaffected.
   fi
   [ -z "$_KDIR" ] && exit 0
 
-  # Helpers (inline — see ## Knowledge Helpers for contract + drift tripwire)
-  parse_knowledge_yml() {
-    local path="$1"
-    [ -f "$path" ] || { printf ''; return; }
-    local surface
-    surface=$(LC_ALL=C awk '
-      NR == 1 {
-        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-      }
-      { sub(/\r$/, ""); sub(/#.*$/, "") }
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*surface[[:space:]]*:/ {
-        val = $0
-        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
-        sub(/[[:space:]]*$/, "", val)
-        if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
-          val = substr(val, 2, length(val)-2)
-        surface_val = val
-        next
-      }
-      /^[[:space:]]*triggers[[:space:]]*:/ { next }
-      /^[[:space:]]+-/ { next }
-      { malformed = 1; exit }
-      END {
-        if (malformed) { print ""; exit }
-        print surface_val
-      }
-    ' "$path" 2>/dev/null)
-    case "$surface" in
-      always|on-demand) printf '%s' "$surface" ;;
-      *) printf '' ;;
-    esac
-  }
-  list_categories() {
-    local root="$1"
-    [ -d "$root" ] || return 0
-    LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
-  }
-  list_md_files() {
-    local category="$1"
-    [ -d "$category" ] || return 0
-    LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
-  }
+  # Source canonical helpers from bin/knowledge-helpers.sh (see ## Knowledge Helpers)
+  if [ -f "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
+  elif [ -f "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
+  else
+    echo "[knowledge] helpers not found at \$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh or ~/.claude/skills/company-workflow/bin/knowledge-helpers.sh — knowledge loading disabled" >&2
+    exit 0
+  fi
 
   # Per-repo opt-in marker: regular file only, AND its parent .claude/ dir must
   # not be a symlink (otherwise attacker can plant `repo/.claude -> /tmp/attacker`
@@ -535,94 +396,15 @@ After the `## On-Demand Knowledge Candidates` block:
     exit 0
   fi
 
-  # Helpers (inline — see ## Knowledge Helpers for contract + drift tripwire)
-  parse_knowledge_yml() {
-    local path="$1"
-    [ -f "$path" ] || { printf ''; return; }
-    local surface
-    surface=$(LC_ALL=C awk '
-      NR == 1 {
-        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-      }
-      { sub(/\r$/, ""); sub(/#.*$/, "") }
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*surface[[:space:]]*:/ {
-        val = $0
-        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/, "", val)
-        sub(/[[:space:]]*$/, "", val)
-        if (substr(val, 1, 1) == "\"" && substr(val, length(val), 1) == "\"")
-          val = substr(val, 2, length(val)-2)
-        surface_val = val
-        next
-      }
-      /^[[:space:]]*triggers[[:space:]]*:/ { next }
-      /^[[:space:]]+-/ { next }
-      { malformed = 1; exit }
-      END {
-        if (malformed) { print ""; exit }
-        print surface_val
-      }
-    ' "$path" 2>/dev/null)
-    case "$surface" in
-      always|on-demand) printf '%s' "$surface" ;;
-      *) printf '' ;;
-    esac
-  }
-  parse_knowledge_triggers() {
-    local path="$1"
-    [ -f "$path" ] || return 0
-    LC_ALL=C awk '
-      NR == 1 {
-        if (substr($0, 1, 3) == sprintf("%c%c%c", 239, 187, 191)) $0 = substr($0, 4)
-      }
-      { sub(/\r$/, ""); sub(/#.*$/, "") }
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
-        val = $0
-        sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/, "", val)
-        sub(/\].*$/, "", val)
-        n = split(val, items, ",")
-        for (i = 1; i <= n; i++) {
-          t = items[i]
-          gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-          if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-            t = substr(t, 2, length(t) - 2)
-          else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-            t = substr(t, 2, length(t) - 2)
-          if (t != "") print t
-        }
-        in_triggers = 0
-        next
-      }
-      /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ {
-        in_triggers = 1
-        next
-      }
-      in_triggers && /^[[:space:]]+-[[:space:]]*/ {
-        t = $0
-        sub(/^[[:space:]]+-[[:space:]]*/, "", t)
-        sub(/[[:space:]]*$/, "", t)
-        if (substr(t, 1, 1) == "\"" && substr(t, length(t), 1) == "\"")
-          t = substr(t, 2, length(t) - 2)
-        else if (substr(t, 1, 1) == "'"'"'" && substr(t, length(t), 1) == "'"'"'")
-          t = substr(t, 2, length(t) - 2)
-        if (t != "") print t
-        next
-      }
-      /^[[:space:]]*surface[[:space:]]*:/ { in_triggers = 0; next }
-      /^[^[:space:]]/ { exit }
-    ' "$path" 2>/dev/null
-  }
-  list_categories() {
-    local root="$1"
-    [ -d "$root" ] || return 0
-    LC_ALL=C find -H "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort
-  }
-  list_md_files() {
-    local category="$1"
-    [ -d "$category" ] || return 0
-    LC_ALL=C find -H "$category" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort
-  }
+  # Source canonical helpers from bin/knowledge-helpers.sh (see ## Knowledge Helpers)
+  if [ -f "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
+  elif [ -f "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
+  else
+    echo "[knowledge] helpers not found at \$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh or ~/.claude/skills/company-workflow/bin/knowledge-helpers.sh — on-demand matching disabled" >&2
+    exit 0
+  fi
 
   # Collect on-demand categories with non-empty triggers + at least one md file.
   # Skip control-char category paths (same rejection as Knowledge Loading).
@@ -743,29 +525,15 @@ result: loading enabled; 3 paths will be emitted to Claude
     _marker_ok=0
   fi
 
-  # Inline minimal helpers for enumeration + parsing (same contract as ## Knowledge Helpers)
-  _parse() {
-    local path="$1"
-    [ -f "$path" ] || { printf ''; return; }
-    local s
-    s=$(LC_ALL=C awk '
-      NR == 1 { if (substr($0,1,3) == sprintf("%c%c%c",239,187,191)) $0 = substr($0,4) }
-      { sub(/\r$/,""); sub(/#.*$/,"") }
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*surface[[:space:]]*:/ {
-        val = $0
-        sub(/^[[:space:]]*surface[[:space:]]*:[[:space:]]*/,"",val)
-        sub(/[[:space:]]*$/,"",val)
-        if (substr(val,1,1)=="\"" && substr(val,length(val),1)=="\"") val = substr(val,2,length(val)-2)
-        sv = val; next
-      }
-      /^[[:space:]]*triggers[[:space:]]*:/ { next }
-      /^[[:space:]]+-/ { next }
-      { mal = 1; exit }
-      END { if (mal) print ""; else print sv }
-    ' "$path" 2>/dev/null)
-    case "$s" in always|on-demand) printf '%s' "$s" ;; *) printf '' ;; esac
-  }
+  # Source canonical helpers from bin/knowledge-helpers.sh (see ## Knowledge Helpers)
+  if [ -n "$_REPO_ROOT" ] && [ "$_REPO_ROOT" != "(not in git)" ] && [ -f "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
+  elif [ -f "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
+    . "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
+  else
+    echo "result: knowledge-doctor disabled — helpers not found at \$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh or ~/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
+    exit 0
+  fi
 
   echo "categories:"
   _total_paths=0
@@ -774,7 +542,7 @@ result: loading enabled; 3 paths will be emitted to Claude
     [ -n "$_cat" ] || continue
     _cname=$(basename "$_cat")
     if [ -f "$_cat/.knowledge.yml" ]; then
-      _sfc=$(_parse "$_cat/.knowledge.yml")
+      _sfc=$(parse_knowledge_yml "$_cat/.knowledge.yml")
       if [ -z "$_sfc" ]; then
         printf "  %-12s surface=(malformed yml)       loads=no (warning)\n" "$_cname"
         continue
@@ -791,7 +559,7 @@ result: loading enabled; 3 paths will be emitted to Claude
       _sz=$(LC_ALL=C wc -c < "$_md" 2>/dev/null | tr -d ' ')
       _sz="${_sz:-0}"
       _bcount=$((_bcount + _sz))
-    done < <(LC_ALL=C find -H "$_cat" -type f -name '*.md' ! -path '*/.*' 2>/dev/null | LC_ALL=C sort)
+    done < <(list_md_files "$_cat")
     _hk=$(awk "BEGIN { printf \"%.1f\", $_bcount / 1024 }")
     case "$_sfc" in
       always)
@@ -802,32 +570,7 @@ result: loading enabled; 3 paths will be emitted to Claude
         ;;
       on-demand)
         # c3: parse triggers to distinguish loadable (on-match) vs inert (empty triggers)
-        _trigs=$(LC_ALL=C awk '
-          NR == 1 { if (substr($0,1,3) == sprintf("%c%c%c",239,187,191)) $0 = substr($0,4) }
-          { sub(/\r$/,""); sub(/#.*$/,"") }
-          /^[[:space:]]*$/ { next }
-          /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/ {
-            v = $0; sub(/^[[:space:]]*triggers[[:space:]]*:[[:space:]]*\[/,"",v); sub(/\].*$/,"",v)
-            n = split(v, it, ",")
-            for (i=1; i<=n; i++) {
-              t = it[i]; gsub(/^[[:space:]]+|[[:space:]]+$/,"",t)
-              if (substr(t,1,1)=="\"" && substr(t,length(t),1)=="\"") t = substr(t,2,length(t)-2)
-              else if (substr(t,1,1)=="'"'"'" && substr(t,length(t),1)=="'"'"'") t = substr(t,2,length(t)-2)
-              if (t != "") print t
-            }
-            bt = 0; next
-          }
-          /^[[:space:]]*triggers[[:space:]]*:[[:space:]]*$/ { bt = 1; next }
-          bt && /^[[:space:]]+-[[:space:]]*/ {
-            t = $0; sub(/^[[:space:]]+-[[:space:]]*/,"",t); sub(/[[:space:]]*$/,"",t)
-            if (substr(t,1,1)=="\"" && substr(t,length(t),1)=="\"") t = substr(t,2,length(t)-2)
-            else if (substr(t,1,1)=="'"'"'" && substr(t,length(t),1)=="'"'"'") t = substr(t,2,length(t)-2)
-            if (t != "") print t
-            next
-          }
-          /^[[:space:]]*surface[[:space:]]*:/ { bt = 0; next }
-          /^[^[:space:]]/ { exit }
-        ' "$_cat/.knowledge.yml" 2>/dev/null)
+        _trigs=$(parse_knowledge_triggers "$_cat/.knowledge.yml")
         if [ -z "$_trigs" ]; then
           printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (empty triggers)\n" "$_cname" "$_fcount" "$_hk"
         else
@@ -840,7 +583,7 @@ result: loading enabled; 3 paths will be emitted to Claude
         fi
         ;;
     esac
-  done < <(LC_ALL=C find -H "$AI_KNOWLEDGE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | LC_ALL=C sort)
+  done < <(list_categories "$AI_KNOWLEDGE_DIR")
 
   _hk_tot=$(awk "BEGIN { printf \"%.1f\", $_total_bytes / 1024 }")
   echo "cap status: $_total_paths/500 paths, ${_hk_tot}KB/100KB bytes"
