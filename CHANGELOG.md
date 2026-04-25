@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [0.14.2] - 2026-04-24
+
+### Fixed
+- **`feature-summary.md` is now required for personal-workflow features.** Adds the artifact to `personal-artifact-manifests.json`, copies the template + example from company-workflow, and backfills F000001-F000004 (and a `milestones.md` for F000002 which had been missing). Personal-workflow scaffolds and company-workflow scaffolds now produce the same 4-artifact set for `type: feature`.
+- **F000003 + both `valid-feature-dir/` fixtures pass their own validators.** F000003 had been missing `feature-summary.md` since it was scaffolded with personal-workflow templates; the company-workflow fixture had been missing `DESIGN.md` since D000009 added it as a required artifact (v0.13.1) without updating the fixture. Both `tracker-feature.md` Phase 1 gates updated to mention DESIGN.
+- **`F000003_DESIGN.md` big-decisions table populated** with 6 lifted journal entries (was a stub backfill from D000009).
+
+### Added
+- **`scripts/validate.sh` Error check 11 — pure-bash manifest reconciliation gate.** Enumerates every `*_TRACKER.md` directory under `work-items/` plus every `valid-*-dir/` fixture, strips the ID prefix, and compares against `required[].filename` in the matching manifest. Catches manifest-vs-filesystem drift that the LLM-driven `/personal-workflow check` and `/company-workflow validate` commands would otherwise miss in CI.
+
+### Notes
+- Pure compliance + tooling fix. No skill behavior change. `./scripts/validate.sh` PASS (0 errors, 0 warnings); `./scripts/test.sh` PASS (0 failures).
+
 ## [0.14.1] - 2026-04-24
 
 ### Changed

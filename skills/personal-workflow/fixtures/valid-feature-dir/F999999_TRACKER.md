@@ -17,7 +17,7 @@ blocked_by: ""
 **Gates:**
 - [x] Acceptance criteria scoped
 - [x] Working branch created (`branch` field populated)
-- [x] Milestones scaffolded
+- [x] feature-summary + DESIGN + milestones scaffolded
 - [x] Broken down into child stories
 
 ### Phase 2: Implement
