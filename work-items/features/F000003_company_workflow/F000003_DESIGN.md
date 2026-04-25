@@ -30,19 +30,32 @@ A second work item skill targeting the company/formal workflow. Cross-story deta
 
 ## Big decisions
 
-See `F000003_TRACKER.md` Journal, nested ARCHITECTURE docs, and the company-workflow philosophy notes at `skills/company-workflow/philosophy/`.
+The full chronological Journal lives in `F000003_TRACKER.md`. The decisions below
+are the architectural through-line — the ones a future maintainer needs to
+understand the shape of the skill without reading the whole Journal.
 
 | # | Decision | Why |
 |---|----------|-----|
-| — | (captured in TRACKER Journal, nested ARCHITECTURE docs, and philosophy notes) | — |
+| 1 | Skill is standalone — zero gstack dependencies (2026-04-14) | The skill must run on a company machine where gstack isn't installed. No analytics, no `/review`, no `/ship`, no `/docs check` references inside the skill itself. |
+| 2 | One unified `validate` command with file mode (template-derived rules) and directory mode (artifact completeness via `company-artifact-manifests.json`) (2026-04-15) | Original 3 subcommands (`validate` / `check` / `create`) were redundant. Templates are the single source of truth — the validator derives rules at runtime, no separate `contract.json` to drift from. |
+| 3 | `$AI_KNOWLEDGE_DIR` env-var seam for the knowledge folder, with warn-every-invocation when unset (2026-04-16) | Rejected fixed paths (couples to home-dir layout), per-repo `.knowledge/` (defeats cross-project knowledge), and multi-source overlay (deferred). Single env-var knob, testable in CI, degrades cleanly. Warn-every-invocation nudges configuration over silent value loss. |
+| 4 | Two-tier surfacing — `surface: always` auto-injects per invocation; `surface: on-demand` loads only when literal triggers in the user's latest prompt match (2026-04-16) | "Everything always" overwhelms context; "nothing unless asked" loses default-guidance value. Per-category `.knowledge.yml` keeps the mental model simple (one knob per category, not one per file). Literal triggers (no fuzzy/semantic match) keep matching deterministic and reviewable. |
+| 5 | Per-repo `.claude/knowledge-enabled` opt-in marker — regular file only, fails closed on symlinks (parent dir AND marker) (2026-04-20) | Central security control: prevents cross-context contamination across repos. A global env var pointed at Company A's knowledge folder must NOT inject Company A guidance into Company B or OSS repos. Symlink fail-closed prevents hostile-planted markers via `.claude → /tmp/attacker` redirect. |
+| 6 | One-feature-per-skill consolidation — former `F000004_knowledge_integration` merged into F000003, `F000003_company_spec_system` renamed to `company_workflow` (2026-04-24) | F000004's S000004 + S000005 shipped to company-workflow; the work was scoped under "knowledge integration" rather than "company-workflow", which split the skill's history across two features. Co-locating surfaces the full skill arc (templates → standalone packaging → knowledge integration) in one tracker. |
+
+For story-scope detail and the full chronological Journal (15+ entries), see
+`F000003_TRACKER.md`. For the per-doc design rationale, see
+`skills/company-workflow/philosophy/`.
 
 ## Risks & open questions
 
-Feature shipped. Edge-case defects tracked in `work-items/defects/` (D000003 onward all trace to this feature's original design).
+Feature shipped. Edge-case defects tracked in `work-items/defects/`
+(D000003 onward all trace to this feature's original design).
 
 | Risk / Question | Next check |
 |-----------------|-----------|
-| — | — |
+| `parse_knowledge_yml` is duplicated 4× inside `skills/company-workflow/SKILL.md` (Helpers, Loading, On-Demand Matching, Diagnostic). Drift tripwire only covers Helpers ↔ Loading. | Tracked for v1.0: extract helpers to `bin/knowledge-helpers.sh` and `source` from each block (see follow-up integration). |
+| Personal-workflow knowledge-loading port (S000006) DEFERRED — reopen condition is a specific personal-repo task where missing knowledge-loading is an observed blocker. | Re-evaluate when an actual personal-repo workflow needs cross-repo knowledge; `/autoplan` dual-voice CEO review converged NO-GO on speculative parity work. |
 
 ## Definition of done
 
@@ -52,9 +65,10 @@ Feature shipped. Backfill status only.
 
 ## Not in scope
 
-See `F000003_TRACKER.md`.
-
-- (see TRACKER)
+- Personal-workflow port of knowledge loading — DEFERRED via S000006 after `/autoplan` dual-voice CEO review (now reparented under [F000001_personal_workflow](../F000001_personal_workflow/F000001_TRACKER.md)).
+- Seed knowledge content shipped inside the skill repo — `$AI_KNOWLEDGE_DIR` is user-owned and external by design (Milestone #5 dropped 2026-04-21).
+- Fuzzy / semantic / embedding-based on-demand matching — v1 is literal-trigger only.
+- Multi-source knowledge resolution (env var + per-repo overlay) — deferred follow-up.
 
 ## Pointers
 

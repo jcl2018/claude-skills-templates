@@ -18,15 +18,17 @@ blocked_by: ""
    → produces design doc in `~/.gstack/projects/`
 2. Create working branch: `git checkout -b feat/{slug}`
 3. Scaffold work item directory and TRACKER.md
-4. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
-5. Define acceptance criteria (what "done" looks like for the whole feature)
-6. Decompose into child user-stories
+4. Scaffold `feature-summary.md` (roll-up identity: scope, success criteria, constituent stories, non-goals) — from `templates/doc-feature-summary.md`
+5. Scaffold `DESIGN.md` (problem shape, big decisions, risks) — from `templates/doc-DESIGN.md`
+6. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
+7. Define acceptance criteria (what "done" looks like for the whole feature)
+8. Decompose into child user-stories
    → detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
 
 **Gates:**
 - [ ] Acceptance criteria scoped
 - [ ] Working branch created (`branch` field populated)
-- [ ] Milestones scaffolded
+- [ ] feature-summary + DESIGN + milestones scaffolded
 - [ ] Broken down into child stories
 
 ### Phase 2: Implement

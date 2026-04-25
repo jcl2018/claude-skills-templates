@@ -189,6 +189,111 @@ else
   pass "no work-copilot/templates/ directory (sync check skipped)"
 fi
 
+# Error check 11: Manifest reconciliation — work-items + fixtures vs manifests
+# Catches the drift case where the manifest declares a required artifact but
+# real work-item directories or "valid-*" fixtures don't have it. The skills'
+# /personal-workflow check and /company-workflow validate commands are
+# LLM-driven; bash CI cannot invoke them end-to-end, so this is the only
+# gate that catches manifest-vs-filesystem drift on every CI run.
+echo ""
+echo "Checking manifest reconciliation (work-items + fixtures)..."
+
+PERSONAL_MANIFEST="$REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json"
+COMPANY_MANIFEST="$REPO_ROOT/skills/company-workflow/company-artifact-manifests.json"
+
+# Strip ID prefix (^[A-Z][0-9]+_) — same rule used by the LLM-driven validator.
+strip_id_prefix() {
+  local name="$1"
+  if [[ "$name" =~ ^[A-Z][0-9]+_(.*)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "$name"
+  fi
+}
+
+# Validate one work-item directory against a manifest.
+# Args: <dir> <manifest-path> <label>
+check_work_item_dir() {
+  local dir="$1"
+  local manifest="$2"
+  local label="$3"
+
+  # Find a TRACKER (with or without ID prefix); alphabetical first if multiple.
+  local tracker
+  tracker=$(find "$dir" -maxdepth 1 -type f \( -name '*_TRACKER.md' -o -name 'TRACKER.md' \) 2>/dev/null | LC_ALL=C sort | head -1 || true)
+  [ -n "$tracker" ] || return 0
+
+  # Extract `type:` from frontmatter (between the first --- pair). Tolerates
+  # quoted/unquoted, leading whitespace, trailing whitespace.
+  local type
+  type=$(awk '
+    /^---$/ { f++; next }
+    f == 1 && /^type:/ {
+      sub(/^type:[[:space:]]*/, "")
+      sub(/[[:space:]]*$/, "")
+      gsub(/^"|"$/, "")
+      print
+      exit
+    }
+  ' "$tracker")
+
+  # Normalize: company-workflow accepts userstory as alias for user-story.
+  [ "$type" = "userstory" ] && type="user-story"
+
+  # Skip if type isn't declared in this manifest (silent — same as the validator).
+  jq -e --arg t "$type" '.types[$t]' "$manifest" >/dev/null 2>&1 || return 0
+
+  # Build a set of canonical filenames present in the dir.
+  local -a present=()
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    present+=("$(strip_id_prefix "$(basename "$f")")")
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
+
+  # For each required filename, check presence.
+  local req found p
+  while IFS= read -r req; do
+    [ -n "$req" ] || continue
+    found=0
+    if [ "${#present[@]}" -gt 0 ]; then
+      for p in "${present[@]}"; do
+        if [ "$p" = "$req" ]; then
+          found=1
+          break
+        fi
+      done
+    fi
+    if [ "$found" = "1" ]; then
+      pass "$label ${dir#"$REPO_ROOT"/} has $req (type=$type)"
+    else
+      fail "$label ${dir#"$REPO_ROOT"/} missing $req (required for type=$type per $(basename "$manifest"))"
+    fi
+  done < <(jq -r --arg t "$type" '.types[$t].required[].filename' "$manifest")
+}
+
+# Walk every dir under work-items/ that has a TRACKER. All work-items in this
+# repo are personal-workflow (templates were scaffolded from personal-workflow).
+echo ""
+echo "  Reconciling work-items/ against personal-workflow manifest..."
+while IFS= read -r tracker; do
+  d=$(dirname "$tracker")
+  check_work_item_dir "$d" "$PERSONAL_MANIFEST" "work-item"
+done < <(find "$REPO_ROOT/work-items" -type f \( -name '*_TRACKER.md' -o -name 'TRACKER.md' \) 2>/dev/null | LC_ALL=C sort)
+
+# Walk personal-workflow fixtures.
+echo ""
+echo "  Reconciling personal-workflow fixtures..."
+while IFS= read -r d; do
+  check_work_item_dir "$d" "$PERSONAL_MANIFEST" "personal-fixture"
+done < <(find "$REPO_ROOT/skills/personal-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
+
+# Walk company-workflow fixtures.
+echo ""
+echo "  Reconciling company-workflow fixtures..."
+while IFS= read -r d; do
+  check_work_item_dir "$d" "$COMPANY_MANIFEST" "company-fixture"
+done < <(find "$REPO_ROOT/skills/company-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
+
 # Warning check 3: Orphan template files (walks subdirectories)
 echo ""
 echo "Checking for orphan template files..."
