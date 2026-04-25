@@ -4,7 +4,7 @@ type: feature
 id: "F000004_work_copilot"
 status: active
 created: "2026-04-22"
-updated: "2026-04-22"
+updated: "2026-04-25"
 repo: "claude-skills-templates"
 branch: "feat/work-copilot"
 blocked_by: ""
@@ -37,8 +37,8 @@ blocked_by: ""
 4. Update Files section with top-level changed files
 
 **Gates:**
-- [ ] All child stories have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] All child stories have entered Phase 2+
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
@@ -48,39 +48,39 @@ blocked_by: ""
 4. Run `/land-and-deploy` — merges and verifies
 
 **Gates:**
-- [ ] `/personal-workflow check` — all children pass validation
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — all children pass validation
+- [ ] All children shipped — S000007 + S000008 shipped; S000009 has 1 outstanding AC (live E2E in Copilot chat on Windows box)
+- [x] `/ship` — PR created (#43)
+- [x] `/land-and-deploy` — merged and deployed (v0.14.0)
 
 ## Acceptance Criteria
 
 <!-- What "done" looks like for this feature. Each criterion should be
      testable and specific. -->
 
-- [ ] `work-copilot/` directory contains a portable bundle that mirrors the
+- [x] `work-copilot/` directory contains a portable bundle that mirrors the
   intent of `skills/company-workflow/`: templates, artifact manifest,
   validation instructions, reference guides
-- [ ] The bundle installs into a target repo's `.github/` directory as a
+- [x] The bundle installs into a target repo's `.github/` directory as a
   `copilot-instructions.md` file plus `.prompt.md` prompt files
 - [ ] A GitHub Copilot user in the target repo can invoke the equivalent of
   `/company-workflow check` via a Copilot prompt/chat mode and get
-  [PASS]/[MISSING]/[DRIFT] output on work items
+  [PASS]/[MISSING]/[DRIFT] output on work items — pending live E2E verification
 - [ ] Installation works on a Windows work machine with Copilot (matches the
-  "work machine" delivery constraint)
-- [ ] Zero dependency on Claude Code, gstack, or any Anthropic-specific
+  "work machine" delivery constraint) — pending Windows box install
+- [x] Zero dependency on Claude Code, gstack, or any Anthropic-specific
   tooling — the bundle is Copilot-native
-- [ ] `skills-deploy install work-copilot <target-repo>` (or equivalent)
-  copies the bundle into `<target-repo>/.github/` idempotently
+- [x] `scripts/copilot-deploy.py install <target-repo>` copies the bundle
+  into `<target-repo>/.github/` idempotently — verified via test.sh smoke
 
 ## Todos
 
 <!-- Actionable items for this feature. Break into child tasks for
      large features. -->
 
-- [ ] [S000007_copilot_prompt_packaging](S000007_copilot_prompt_packaging/S000007_TRACKER.md) — port the validator as a Copilot prompt file
-- [ ] [S000008_template_delivery_and_install](S000008_template_delivery_and_install/S000008_TRACKER.md) — deliver templates + install into target repo's `.github/`
-- [ ] [S000009_always_on_instructions](S000009_always_on_instructions/S000009_TRACKER.md) — author `copilot-instructions.md` for always-on workflow context
+- [x] [S000007_copilot_prompt_packaging](S000007_copilot_prompt_packaging/S000007_TRACKER.md) — port the validator as a Copilot prompt file (shipped v0.14.0)
+- [x] [S000008_template_delivery_and_install](S000008_template_delivery_and_install/S000008_TRACKER.md) — deliver templates + install into target repo's `.github/` (shipped v0.14.0)
+- [ ] [S000009_always_on_instructions](S000009_always_on_instructions/S000009_TRACKER.md) — author `copilot-instructions.md` for always-on workflow context — file shipped v0.14.0; live E2E in Copilot chat on Windows box still pending
 
 ## Log
 
@@ -88,10 +88,13 @@ blocked_by: ""
 
 - 2026-04-22: Created. Port company-workflow semantics (templates + validator + install) to GitHub Copilot so it can run on the user's work machine without Claude Code.
 - 2026-04-24: Renumbered from F000005 → F000004 as part of the one-feature-per-skill consolidation (former F000004_knowledge_integration was merged into F000003_company_workflow). Also renamed `created` and `updated` reflect the renumber. Story IDs (S000007, S000008, S000009) and task IDs (T000008, T000009, T000010) preserved — they are globally unique, not per-feature.
+- 2026-04-25: Tracker reconciliation during F000003 v1.0.0 cut. Build artifacts (bundle, validator prompt, installer, doctor) all shipped in v0.14.0 (PR #43). S000007 + S000008 closed. S000009 + parent stay `active` until live E2E verification on Windows machine — that AC requires a running Copilot session, not a build check.
 
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [#43](https://github.com/jcl2018/claude-skills-templates/pull/43) — merged 2026-04-23 (v0.14.0). Full work-copilot bundle: validator prompt, installer (install/doctor/remove), instructions file, fixtures, smoke tests.
 
 ## Files
 

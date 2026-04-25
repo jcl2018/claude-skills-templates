@@ -2,9 +2,9 @@
 name: "Eliminate contract.json — templates as single source of truth (supersedes D000004)"
 type: defect
 id: "D000007"
-status: active
+status: closed
 created: "2026-04-17"
-updated: "2026-04-17"
+updated: "2026-04-25"
 repo: "jcl2018/claude-skills-templates"
 branch: "claude/nostalgic-volhard"
 blocked_by: ""
@@ -53,10 +53,10 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] Test-plan verified (regression scenarios passing) — `find . -name contract.json` returns nothing across the repo
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed (contract.json removed from skills tree; F000003 DESIGN.md decision #2 codifies "templates are the single source of truth")
 
 ## Reproduction Steps
 
@@ -138,6 +138,7 @@ The defect is the **drift between `contract.json` and the templates** in both wo
 
 - 2026-04-17: Created. Audit at 2026-04-17 (via /office-hours invocation, repurposed as direct review per user preference for skipping design ceremonies on small tasks) surfaced 4 new template/contract drift findings on top of D000004 (BLOCKED) and D000006's partial fix (deferred validator enforcement). User asked whether the validator is even needed. Conclusion: no — templates can be the single source of truth. This defect captures the architectural choice and supersedes D000004.
 - 2026-04-17: Implemented. 12 files modified (validator rewrites, WORKFLOW updates, catalog cleanup, fixture backfills, test.sh regression block) + 2 contract.json files deleted + D000004 superseded. Verifications: `./scripts/validate.sh` PASS (0/0); `./scripts/test.sh` PASS (0 failures, all D000005/D000006/D000007 regression blocks green); manual rule-derivation spot-check shows D000007 itself + D000003/D000005/D000006 all match template-derived rules exactly; legacy F000002/F000003 features now surface 1-checkbox drift each (the "Milestones scaffolded" gate added to template after they were authored — strictly correct enforcement, documented as expected-behavior-change). No CI / deploy script changes needed beyond catalog. Pending: CHANGELOG + VERSION bump in `/ship`.
+- 2026-04-25: Closed. The fix has been in main since shortly after 2026-04-17 — `contract.json` files don't exist anywhere in the repo, F000003 DESIGN.md decision #2 explicitly codifies "Templates are the single source of truth", and the validator derives every rule at runtime from the matching template. Tracker drift fixed during F000003 v1.0.0 cut.
 
 ## PRs
 

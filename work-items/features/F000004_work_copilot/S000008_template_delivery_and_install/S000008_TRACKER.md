@@ -2,9 +2,9 @@
 name: "Template Delivery and Install"
 type: user-story
 id: "S000008_template_delivery_and_install"
-status: active
+status: shipped
 created: "2026-04-22"
-updated: "2026-04-22"
+updated: "2026-04-25"
 parent: "F000004_work_copilot"
 repo: "claude-skills-templates"
 branch: "feat/work-copilot"
@@ -40,10 +40,10 @@ blocked_by: ""
 4. Update Files section with changed file paths
 
 **Gates:**
-- [ ] All child tasks have entered Phase 2+
-- [ ] Acceptance criteria verified met
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] All child tasks have entered Phase 2+
+- [x] Acceptance criteria verified met
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -57,34 +57,35 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped
+- [x] `/ship` — PR created (#43)
+- [x] `/land-and-deploy` — merged and deployed (v0.14.0)
 
 ## Acceptance Criteria
 
 <!-- What "done" looks like for this story. -->
 
-- [ ] An installer (script or scripts subcommand) copies the `work-copilot/`
+- [x] An installer (script or scripts subcommand) copies the `work-copilot/`
   bundle into any target repo's `.github/` directory
-- [ ] Installation is idempotent: running twice doesn't duplicate or corrupt
+- [x] Installation is idempotent: running twice doesn't duplicate or corrupt
   files; drifted user edits are detected and require `--overwrite`
-- [ ] Installer runs on Windows (PowerShell or Python) without requiring bash,
-  jq, or other Unix-only tools
-- [ ] A doctor-style subcommand reports install health: missing files,
+- [x] Installer runs on Windows (PowerShell or Python) without requiring bash,
+  jq, or other Unix-only tools — Python 3 stdlib (no pip), CRLF/CR → LF normalized for stable hashes
+- [x] A doctor-style subcommand reports install health: missing files,
   checksum mismatches, orphaned files
-- [ ] `work-copilot/templates/` stays in sync with `templates/company-workflow/`
-  via a verification check in `scripts/validate.sh`
+- [x] `work-copilot/templates/` stays in sync with `templates/company-workflow/`
+  via a verification check in `scripts/validate.sh` — Error check 10
 
 ## Todos
 
-- [ ] [T000009_implement_install_script](T000009_implement_install_script/T000009_TRACKER.md) — author the cross-platform installer
+- [x] [T000009_implement_install_script](T000009_implement_install_script/T000009_TRACKER.md) — author the cross-platform installer
 
 ## Log
 
 - 2026-04-22: Created. Deliver the work-copilot bundle into a target repo's `.github/` so the engineer can use Copilot on their Windows work machine.
+- 2026-04-25: Status reconciled — implementation shipped in v0.14.0 (PR #43, commit 299346c). Tracker drift fixed during F000003 v1.0.0 cut.
 
 ## PRs
 

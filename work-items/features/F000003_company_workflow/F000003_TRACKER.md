@@ -225,3 +225,11 @@ Simplified from 3 subcommands (validate/check/create) to 1 unified validate comm
 ### 2026-04-25 -- doc cleanup pass
 
 **Summary:** Pruned dead-history references (former feature/skill renames, deferred-elsewhere stories), dropped the per-repo opt-in marker as a desired design decision, generalized "no gstack" wording to "no external skillset / harness dependencies". Implementation realignment to follow.
+
+### 2026-04-25 -- decision: implementation realignment for v1.0.0
+
+**Summary:** Removed the `.claude/knowledge-enabled` opt-in marker from `skills/company-workflow/SKILL.md`, `skills/company-workflow/WORKFLOW.md`, and `scripts/test.sh`. Knowledge loading now activates whenever `$AI_KNOWLEDGE_DIR` resolves to a valid directory. Cross-context isolation is the user's responsibility (scope `$AI_KNOWLEDGE_DIR` per shell, or use `AI_KNOWLEDGE_DISABLE=1` for one-shot bypass).
+
+**Rationale:** S000004_ARCHITECTURE.md and DESIGN.md decision #4 already documented the marker as REJECTED ("redundant on top of two-tier surfacing + env-var control") — the v0.12.0 marker implementation never matched the v1.0 design intent. Realignment makes the impl match the design exactly. v0→v1.0.0 is the right semver boundary for the breaking change to anyone who had `.claude/knowledge-enabled` set up.
+
+**Consequences:** ~50 marker references stripped from SKILL.md + WORKFLOW.md. 7 marker-specific test cases deleted (G1, G2 absent gates; symlink/directory/nested-marker hardening; doctor marker-missing); case 20 simplified; case 30 inverted to assert no `marker:` line in doctor output. SKILL.md's "Knowledge Loading" preconditions list went 5 → 4 entries; the helpful-diagnostic branch for marker-absent + always-on is gone (no marker, no diagnostic). All tests PASS post-realignment.
