@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.0.0] - 2026-04-25
+
+First major release. The skill bundle (`personal-workflow`, `company-workflow`,
+`system-health`, plus the `work-copilot/` Copilot port) is feature-complete for
+the 1.x line; future work in this stream is bug fixes and incremental
+enhancements rather than ground-up changes.
+
+### Changed (BREAKING)
+- **Knowledge integration: removed the per-repo `.claude/knowledge-enabled` opt-in marker.** Knowledge loading now activates whenever `$AI_KNOWLEDGE_DIR` resolves to a valid directory; the marker file is no longer consulted by `## Knowledge Loading`, `## On-Demand Matching`, or `## Diagnostic: knowledge-doctor` in `skills/company-workflow/SKILL.md`. **Cross-context isolation is now the user's responsibility** — scope `$AI_KNOWLEDGE_DIR` per shell (don't export globally if you work across multiple clients), or use `AI_KNOWLEDGE_DISABLE=1` for one-shot bypass. Rationale: F000003_DESIGN.md decision #4 and S000004_ARCHITECTURE.md already documented the marker as REJECTED ("redundant on top of two-tier surfacing + env-var control"); the v0.12.0 marker implementation never matched the v1.0 design intent. v0→1.0.0 is the right semver boundary for the breaking change.
+  - **Migration:** if you previously relied on `.claude/knowledge-enabled` as a security gate, the file is now a no-op. Replace it with per-shell scoping of `AI_KNOWLEDGE_DIR`. The marker file itself can be safely deleted; nothing reads it.
+- **`skills/company-workflow/SKILL.md` simplified:** preconditions list went from 5 → 4 entries, the helpful-diagnostic branch for "marker absent + has always-on" is gone, the `_marker_ok` variable is removed from `knowledge-doctor`, and the `marker:` line no longer appears in doctor output.
+- **`skills/company-workflow/WORKFLOW.md` Security section rewritten** to put cross-context isolation guidance front and center (per-shell `AI_KNOWLEDGE_DIR` scoping + `AI_KNOWLEDGE_DISABLE=1` + per-category on-demand triggers). The marker-as-security-control framing is gone.
+
+### Removed
+- **7 marker-specific test cases** from `scripts/test.sh`: G1 marker-absent gates (cases 18, 19), the symlink/directory/nested-marker hardening trio (cases 22, 23, 24), `knowledge-doctor` marker-missing (case 31), and on-demand G2 marker-absent (c3 case 21). Cases 4 + 8 inverted to assert the marker string does NOT appear in `SKILL.md` / `WORKFLOW.md`. Case 20 simplified. Case 30 inverted to require no `marker:` line in `knowledge-doctor` output.
+
+### Fixed
+- **Tracker reconciliation across the `work-items/` tree.** Drift accumulated as work shipped without trackers being closed:
+  - **F000003 (company-workflow):** journal entry added recording the v1.0.0 implementation realignment.
+  - **F000004 (work-copilot):** S000007 + S000008 closed (status: shipped) — bundle, validator prompt, installer, doctor, smoke test all shipped in v0.14.0 (PR #43). S000009 + parent F000004 stay `active` because their last AC requires live E2E in Copilot chat on a Windows box, which is a user-side acceptance test, not a build artifact. Phase 2 + most Phase 3 gates updated to match the v0.14.0 ship state.
+  - **D000007** (eliminate `contract.json`) and **D000009** (require DESIGN.md for personal-workflow features) closed. D000007's evidence: `find . -name contract.json` returns zero hits + F000003_DESIGN.md decision #2 codifies templates-as-SSoT. D000009's evidence: `jq '.types.feature.required'` on the personal manifest now includes `design`/`DESIGN.md` (shipped v0.13.1); v0.14.2 extended the same pattern to `feature-summary.md`.
+
+### Added
+- **`.context/` added to `.gitignore`.** Local retro / scratch directory was being shown as an untracked path on every `git status`; gitignored now.
+
+### Notes
+- Pure realignment + tracker hygiene + version semantics. No new features. The bundle that ships here is the same bundle that shipped in v0.14.3 minus the marker code path.
+- `./scripts/validate.sh` PASS (0 errors, 0 warnings); `./scripts/test.sh` PASS (0 failures, all knowledge-loading + on-demand + doctor + copilot-deploy regression blocks green after the marker removal and test-case revisions).
+
 ## [0.14.3] - 2026-04-24
 
 ### Changed
