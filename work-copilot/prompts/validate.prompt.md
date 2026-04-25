@@ -83,7 +83,7 @@ directory separately.
 Strip a leading ID prefix matching `^[A-Z]\d+_` from each file, then compare
 to the manifest's `filename` field. Examples:
 - `S000003_PRD.md` → `PRD.md` (matches `PRD.md`)
-- `F000005_TRACKER.md` → `TRACKER.md` (matches `TRACKER.md`)
+- `F000004_TRACKER.md` → `TRACKER.md` (matches `TRACKER.md`)
 - `T000008_test-plan.md` → `test-plan.md` (matches `test-plan.md`)
 
 ### Steps
