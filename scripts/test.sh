@@ -1512,6 +1512,234 @@ else
   echo "  SKIP: python3 not available, skipping copilot-deploy smoke test"
 fi
 
+# ---------- S000010: bundle artifact completeness coverage ----------
+# Tests the v2 mirror artifacts beyond the v1 templates check.
+# (S000010_TEST-SPEC.md tests 8, 9, 10, 12 — install-side coverage.)
+#
+# These tests deliberately invoke commands that exit non-zero (validate.sh
+# failing on drift, doctor refusing path-traversal). Disable errexit for
+# this block; restore at the end. Test failures still report via fail_test.
+
+set +e
+
+echo ""
+echo "Checking S000010 bundle-artifact-completeness coverage..."
+
+# Test 8 (S000010): copilot-instructions.md ≤ 8192 bytes
+_ci_size=$(wc -c < "$REPO_ROOT/work-copilot/instructions/copilot-instructions.md" | tr -d ' ')
+if [ "$_ci_size" -le 8192 ]; then
+  ok "S000010 test 8: copilot-instructions.md is $_ci_size bytes (≤8192 budget)"
+else
+  fail_test "S000010 test 8: copilot-instructions.md is $_ci_size bytes (over 8192 budget)"
+fi
+
+# Test 9 (S000010): bundle-layout pointers present (grep -F per path)
+_ci_file="$REPO_ROOT/work-copilot/instructions/copilot-instructions.md"
+_ci_missing=""
+for _path in "work-copilot/WORKFLOW.md" "work-copilot/reference/" "work-copilot/philosophy/" "work-copilot/examples/" "work-copilot/fixtures/"; do
+  if ! grep -qF "$_path" "$_ci_file"; then
+    _ci_missing="$_ci_missing $_path"
+  fi
+done
+if [ -z "$_ci_missing" ]; then
+  ok "S000010 test 9: copilot-instructions.md references all 5 new bundle dirs"
+else
+  fail_test "S000010 test 9: copilot-instructions.md missing path strings:$_ci_missing"
+fi
+
+# Test 10 (S000010): install spot-checks for each new bundle dir + DRIFT case
+if command -v python3 >/dev/null 2>&1; then
+  _S010_TMP=$(mktemp -d -t s010-test.XXXXXX)
+  mkdir -p "$_S010_TMP/target"
+  python3 "$REPO_ROOT/scripts/copilot-deploy.py" install "$_S010_TMP/target" >/dev/null 2>&1
+  _spot_missing=""
+  for _spot in \
+    ".github/work-copilot/WORKFLOW.md" \
+    ".github/work-copilot/reference/guide-general.md" \
+    ".github/work-copilot/philosophy/rationale-PRD.md" \
+    ".github/work-copilot/examples/example-doc-ARCHITECTURE.md" \
+    ".github/work-copilot/fixtures/invalid-bad-frontmatter.md"; do
+    [ -f "$_S010_TMP/target/$_spot" ] || _spot_missing="$_spot_missing $_spot"
+  done
+  if [ -z "$_spot_missing" ]; then
+    ok "S000010 test 10: install lays down 5/5 new mirror artifacts (1 per new bundle dir)"
+  else
+    fail_test "S000010 test 10: install missing artifacts:$_spot_missing"
+  fi
+
+  # Test 12 (S000010): doctor reports DRIFT on a NESTED fixture (G9 — the file
+  # that historically drifted, not just top-level WORKFLOW.md)
+  _nested="$_S010_TMP/target/.github/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
+  if [ -f "$_nested" ]; then
+    echo "extra mutation" >> "$_nested"
+    _drift_out=$(python3 "$REPO_ROOT/scripts/copilot-deploy.py" doctor "$_S010_TMP/target" 2>&1)
+    _drift_rc=$?
+    if [ "$_drift_rc" -ne 0 ] && echo "$_drift_out" | grep -qF "[DRIFT]" && echo "$_drift_out" | grep -qF "valid-feature-dir/TRACKER.md"; then
+      ok "S000010 test 12 (G9): doctor reports DRIFT on nested fixture mutation"
+    else
+      fail_test "S000010 test 12 (G9): doctor missed DRIFT on nested fixture. rc=$_drift_rc output=[$_drift_out]"
+    fi
+  else
+    fail_test "S000010 test 12 (G9): nested fixture not installed; cannot test DRIFT detection"
+  fi
+
+  # Test 13 (autoplan G3): path-traversal defense in doctor
+  python3 -c "
+import json, sys
+mp = sys.argv[1]
+with open(mp) as f: m = json.load(f)
+m['files'].append({'src':'fake', 'dest':'../../../etc/passwd', 'sha256':'fake'})
+with open(mp, 'w') as f: json.dump(m, f, indent=2)
+" "$_S010_TMP/target/.github/work-copilot/install-manifest.json"
+  _trav_out=$(python3 "$REPO_ROOT/scripts/copilot-deploy.py" doctor "$_S010_TMP/target" 2>&1)
+  _trav_rc=$?
+  if [ "$_trav_rc" -eq 2 ] && echo "$_trav_out" | grep -qF "escapes target directory"; then
+    ok "autoplan G3: doctor refuses path-traversal in install-manifest"
+  else
+    fail_test "autoplan G3: doctor accepted path-traversal entry. rc=$_trav_rc output=[$_trav_out]"
+  fi
+
+  # Test 14 (DX3): --dry-run leaves filesystem untouched
+  _DRY_TMP=$(mktemp -d -t s010-dry.XXXXXX)
+  mkdir -p "$_DRY_TMP/target"
+  python3 "$REPO_ROOT/scripts/copilot-deploy.py" install --dry-run "$_DRY_TMP/target" >/dev/null 2>&1
+  if [ ! -d "$_DRY_TMP/target/.github" ]; then
+    ok "DX3: install --dry-run does not write to filesystem"
+  else
+    fail_test "DX3: install --dry-run created $_DRY_TMP/target/.github (should not write)"
+  fi
+  rm -rf "$_DRY_TMP"
+
+  rm -rf "$_S010_TMP"
+else
+  echo "  SKIP: python3 not available, skipping S000010 install tests"
+fi
+
+# ---------- T000011: MIRROR_SPECS sync-check synthetic cases ----------
+# Validates the v2 sync-check behaviors directly: drift detection + orphan
+# FAIL-vs-WARN policy split + manifest schema parity.
+
+echo ""
+echo "Checking T000011 MIRROR_SPECS sync-check behaviors..."
+
+# Helper: run validate.sh, return exit code; capture output. Block sits inside
+# set +e so non-zero exits (drift / orphan-FAIL cases) are captured, not fatal.
+_run_validate() {
+  ( cd "$REPO_ROOT" && bash scripts/validate.sh 2>&1 )
+}
+
+# Smoke 1 (T000011 case 1, single-file shape, drift): mutate WORKFLOW.md
+# and assert validate.sh exits non-zero with [FAIL] naming the file.
+_t11_orig=$(mktemp -t t11.XXXXXX)
+cp "$REPO_ROOT/work-copilot/WORKFLOW.md" "$_t11_orig"
+echo "drift" >> "$REPO_ROOT/work-copilot/WORKFLOW.md"
+_t11_out=$(_run_validate)
+_t11_rc=$?
+cp "$_t11_orig" "$REPO_ROOT/work-copilot/WORKFLOW.md"
+rm -f "$_t11_orig"
+if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "work-copilot/WORKFLOW.md differs from"; then
+  ok "T000011 case 1 (single-file drift): validate.sh fails, names diverged file"
+else
+  fail_test "T000011 case 1: drift on WORKFLOW.md not detected. rc=$_t11_rc"
+fi
+
+# Smoke 2 (T000011 case 4, flat-glob shape, drift on a guide)
+_t11_orig=$(mktemp -t t11.XXXXXX)
+cp "$REPO_ROOT/work-copilot/reference/guide-task.md" "$_t11_orig"
+echo "drift" >> "$REPO_ROOT/work-copilot/reference/guide-task.md"
+_t11_out=$(_run_validate)
+_t11_rc=$?
+cp "$_t11_orig" "$REPO_ROOT/work-copilot/reference/guide-task.md"
+rm -f "$_t11_orig"
+if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "guide-task.md differs"; then
+  ok "T000011 case 4 (flat-glob drift): validate.sh fails on reference/ drift"
+else
+  fail_test "T000011 case 4: drift on reference/guide-task.md not detected. rc=$_t11_rc"
+fi
+
+# Smoke 3 (T000011 case 7, recursive-glob shape, drift on a nested fixture)
+_t11_orig=$(mktemp -t t11.XXXXXX)
+cp "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md" "$_t11_orig"
+echo "drift" >> "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
+_t11_out=$(_run_validate)
+_t11_rc=$?
+cp "$_t11_orig" "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
+rm -f "$_t11_orig"
+if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "valid-feature-dir/TRACKER.md differs"; then
+  ok "T000011 case 7 (recursive-glob drift): validate.sh fails on nested fixture drift"
+else
+  fail_test "T000011 case 7: drift on nested fixture not detected. rc=$_t11_rc"
+fi
+
+# Smoke 4 (T000011 case 6 + autoplan D3): orphan in templates/ → WARN only
+echo "stale" > "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
+_t11_out=$(_run_validate)
+_t11_rc=$?
+rm -f "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
+if [ "$_t11_rc" -eq 0 ] && echo "$_t11_out" | grep -qF "legacy-tracker.md has no counterpart"; then
+  ok "T000011 case 6 (autoplan D3): orphan in templates/ warns only (v1 backward compat)"
+else
+  fail_test "T000011 case 6: templates/ orphan policy regressed (should WARN, not FAIL)"
+fi
+
+# Smoke 5 (T000011 case 9 + autoplan D3): orphan in reference/ → FAIL
+echo "stale" > "$REPO_ROOT/work-copilot/reference/guide-stale.md"
+_t11_out=$(_run_validate)
+_t11_rc=$?
+rm -f "$REPO_ROOT/work-copilot/reference/guide-stale.md"
+if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "guide-stale.md has no counterpart"; then
+  ok "T000011 case 9 (autoplan D3): orphan in reference/ FAILS (new-mirror policy)"
+else
+  fail_test "T000011 case 9: orphan in reference/ should FAIL (autoplan D3 broken). rc=$_t11_rc"
+fi
+
+# Smoke 6 (autoplan D5): manifest schema parity — schema change FAILS
+if command -v jq >/dev/null 2>&1; then
+  _t11_orig=$(mktemp -t t11.XXXXXX)
+  cp "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json" "$_t11_orig"
+  python3 -c "
+import json, sys
+p = sys.argv[1]
+with open(p) as f: m = json.load(f)
+m['types']['feature']['required'].append({'artifact':'extra','template':'doc-extra.md','filename':'extra.md'})
+with open(p, 'w') as f: json.dump(m, f, indent=2)
+" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
+  _t11_out=$(_run_validate)
+  _t11_rc=$?
+  cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
+  rm -f "$_t11_orig"
+  if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "schema differs"; then
+    ok "autoplan D5: manifest schema-parity rejects schema change"
+  else
+    fail_test "autoplan D5: manifest schema change not detected. rc=$_t11_rc"
+  fi
+
+  # Smoke 7 (autoplan D5): description-only change passes
+  _t11_orig=$(mktemp -t t11.XXXXXX)
+  cp "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json" "$_t11_orig"
+  python3 -c "
+import json, sys
+p = sys.argv[1]
+with open(p) as f: m = json.load(f)
+m['description'] = 'Different prose, same schema'
+with open(p, 'w') as f: json.dump(m, f, indent=2)
+" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
+  _t11_out=$(_run_validate)
+  _t11_rc=$?
+  cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
+  rm -f "$_t11_orig"
+  if [ "$_t11_rc" -eq 0 ] && echo "$_t11_out" | grep -qF "schema-parity"; then
+    ok "autoplan D5: description-only divergence passes (field exempt from sync)"
+  else
+    fail_test "autoplan D5: description-only change incorrectly failed. rc=$_t11_rc"
+  fi
+else
+  echo "  SKIP: jq not available, skipping manifest schema-parity tests"
+fi
+
+# Restore errexit after the S000010 + T000011 test block.
+set -e
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

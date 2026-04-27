@@ -21,9 +21,31 @@ from pathlib import Path
 
 INSTALL_MANIFEST = "install-manifest.json"
 BUNDLE_DIR_NAME = "work-copilot"
+MIN_PYTHON = (3, 8)
 
 
 TEXT_SUFFIXES = (".md", ".json", ".yaml", ".yml", ".txt")
+
+
+def _safe_resolve(target, dest_rel):
+    """Resolve dest_rel under target, refusing path-traversal escapes.
+
+    Defense against malicious or corrupted install-manifest.json entries that
+    contain segments like '../../etc/passwd'. Uses try/except on
+    Path.relative_to() because Path.is_relative_to() is Python 3.9+ and we
+    support 3.8+.
+    """
+    dest_abs = (target / dest_rel).resolve()
+    target_abs = target.resolve()
+    try:
+        dest_abs.relative_to(target_abs)
+    except ValueError:
+        sys.stderr.write(
+            f"ERROR: install-manifest entry escapes target directory: {dest_rel}\n"
+            "This indicates a corrupted or malicious manifest. Refusing to proceed.\n"
+        )
+        sys.exit(2)
+    return dest_abs
 
 
 def sha256_file(path):
@@ -101,13 +123,17 @@ def cmd_install(args):
     installed = updated = skipped = overwritten = 0
     drifted = []
     new_entries = []
+    dry = bool(getattr(args, "dry_run", False))
 
-    print(f"copilot-deploy install -> {target}")
+    if dry:
+        print(f"copilot-deploy install (DRY RUN, no writes) -> {target}")
+    else:
+        print(f"copilot-deploy install -> {target}")
 
     for src, dest_rel, bundle_rel in file_map:
         src_sha = sha256_file(src)
         dest_key = dest_rel.as_posix()
-        dest_abs = target / dest_rel
+        dest_abs = _safe_resolve(target, dest_rel)
 
         if dest_abs.exists():
             dest_sha = sha256_file(dest_abs)
@@ -129,9 +155,13 @@ def cmd_install(args):
             print(f"  [SKIP]      {dest_key}")
             skipped += 1
         else:
-            dest_abs.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest_abs)
-            print(f"  [{action}]".ljust(14) + dest_key)
+            label = f"  [{action}]".ljust(14) + dest_key
+            if dry:
+                print(f"{label}  (would write)")
+            else:
+                dest_abs.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest_abs)
+                print(label)
             if action == "WRITE":
                 installed += 1
             elif action == "UPDATE":
@@ -157,11 +187,15 @@ def cmd_install(args):
         "installed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "files": new_entries,
     }
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"  [WRITE]     {manifest_path.relative_to(target).as_posix()}")
+    if dry:
+        print(f"  [WRITE]     {manifest_path.relative_to(target).as_posix()}  (would write)")
+    else:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        print(f"  [WRITE]     {manifest_path.relative_to(target).as_posix()}")
+    summary_label = "SUMMARY (DRY RUN)" if dry else "SUMMARY"
     print(
-        f"\nSUMMARY: installed={installed} updated={updated} skipped={skipped} "
+        f"\n{summary_label}: installed={installed} updated={updated} skipped={skipped} "
         f"overwritten={overwritten} total={len(new_entries)}"
     )
 
@@ -183,7 +217,7 @@ def cmd_doctor(args):
     for entry in manifest.get("files", []):
         dest = entry["dest"]
         expected_dests.add(dest)
-        dest_abs = target / dest
+        dest_abs = _safe_resolve(target, dest)
         if not dest_abs.exists():
             print(f"  [MISSING]   {dest}")
             missing += 1
@@ -221,40 +255,62 @@ def cmd_remove(args):
         sys.exit(2)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    print(f"copilot-deploy remove <- {target}")
+    dry = bool(getattr(args, "dry_run", False))
+    if dry:
+        print(f"copilot-deploy remove (DRY RUN, no deletes) <- {target}")
+    else:
+        print(f"copilot-deploy remove <- {target}")
 
     removed = 0
     for entry in manifest.get("files", []):
-        dest_abs = target / entry["dest"]
+        dest_abs = _safe_resolve(target, entry["dest"])
         if dest_abs.exists():
-            dest_abs.unlink()
-            print(f"  [REMOVE]    {entry['dest']}")
+            if dry:
+                print(f"  [REMOVE]    {entry['dest']}  (would delete)")
+            else:
+                dest_abs.unlink()
+                print(f"  [REMOVE]    {entry['dest']}")
             removed += 1
 
-    manifest_path.unlink()
-    print(f"  [REMOVE]    {manifest_path.relative_to(target).as_posix()}")
+    if dry:
+        print(f"  [REMOVE]    {manifest_path.relative_to(target).as_posix()}  (would delete)")
+    else:
+        manifest_path.unlink()
+        print(f"  [REMOVE]    {manifest_path.relative_to(target).as_posix()}")
 
     bundle_root = target / ".github" / BUNDLE_DIR_NAME
-    if bundle_root.exists():
+    if bundle_root.exists() and not dry:
         for p in sorted(bundle_root.rglob("*"), reverse=True):
             if p.is_dir() and not any(p.iterdir()):
                 p.rmdir()
         if bundle_root.exists() and not any(bundle_root.iterdir()):
             bundle_root.rmdir()
 
-    print(f"\nSUMMARY: removed={removed + 1}")
+    summary_label = "SUMMARY (DRY RUN)" if dry else "SUMMARY"
+    print(f"\n{summary_label}: removed={removed + 1}")
 
 
 def main():
+    if sys.version_info < MIN_PYTHON:
+        sys.stderr.write(
+            f"ERROR: copilot-deploy requires Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ "
+            f"(found {sys.version_info.major}.{sys.version_info.minor}).\n"
+            "Upgrade Python (corporate proxies often allow python.org installers) "
+            "or use a newer interpreter.\n"
+        )
+        sys.exit(2)
+
     p = argparse.ArgumentParser(
         prog="copilot-deploy",
-        description="Install the work-copilot bundle into a target repo's .github/.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pi = sub.add_parser("install", help="copy the bundle into the target's .github/")
     pi.add_argument("target", help="Path to the target repo root")
     pi.add_argument("--overwrite", action="store_true", help="Replace drifted files")
+    pi.add_argument("--dry-run", action="store_true", help="Preview without writing")
     pi.add_argument("--bundle-dir", help="Override source bundle location")
     pi.set_defaults(func=cmd_install)
 
@@ -264,6 +320,7 @@ def main():
 
     pr = sub.add_parser("remove", help="remove the installed bundle")
     pr.add_argument("target", help="Path to the target repo root")
+    pr.add_argument("--dry-run", action="store_true", help="Preview without deleting")
     pr.set_defaults(func=cmd_remove)
 
     args = p.parse_args()
