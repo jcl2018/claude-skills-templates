@@ -217,15 +217,19 @@ _mirror_check_single() {
   fi
 }
 
-# Flat shape: iterate *.md in src dir, check each in dst dir, then orphan-warn dst.
+# Flat shape: iterate *.md in src dir, check each in dst dir, then orphan-check dst.
 _mirror_check_flat() {
-  local src_dir="$1" dst_dir="$2" policy="$3"
+  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
   if [ ! -d "$src_dir" ]; then
     fail "$src_dir missing (mirror source absent — sync spec is broken)"
     return
   fi
   if [ ! -d "$dst_dir" ]; then
-    pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    if [ "$policy" = "fail" ]; then
+      fail "$dst_dir missing (must mirror $src_dir)"
+    else
+      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    fi
     return
   fi
   local src dst base count=0
@@ -246,6 +250,13 @@ _mirror_check_flat() {
   if [ "$count" -eq 0 ]; then
     warn "$src_dir contains no *.md files (mirror spec may be misconfigured or upstream emptied)"
   fi
+  # Flat-shape sanity: catch nested *.md the spec author forgot is there.
+  # Use find with -mindepth 2 to detect any *.md beneath the first level.
+  local nested
+  nested=$(find "$src_dir" -mindepth 2 -name '*.md' -print -quit 2>/dev/null)
+  if [ -n "$nested" ]; then
+    warn "$src_dir contains nested *.md files (e.g., $nested) — flat shape only checks the top level. If nesting is intentional, change MIRROR_SPECS shape to 'recursive'."
+  fi
   # Orphan check: bundle-side files with no upstream counterpart.
   for dst in "$dst_dir"/*.md; do
     [ -f "$dst" ] || continue
@@ -258,13 +269,17 @@ _mirror_check_flat() {
 
 # Recursive shape: find -name '*.md' -print0 (POSIX-portable, bash 3.2 safe).
 _mirror_check_recursive() {
-  local src_dir="$1" dst_dir="$2" policy="$3"
+  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
   if [ ! -d "$src_dir" ]; then
     fail "$src_dir missing (mirror source absent — sync spec is broken)"
     return
   fi
   if [ ! -d "$dst_dir" ]; then
-    pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    if [ "$policy" = "fail" ]; then
+      fail "$dst_dir missing (must mirror $src_dir tree)"
+    else
+      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    fi
     return
   fi
   local src rel dst count=0
