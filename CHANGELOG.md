@@ -64,6 +64,18 @@ mirrored from upstream and CI-enforced.
   drift detection across single/flat/recursive shapes, orphan FAIL/WARN policy split,
   and manifest schema parity (rejects schema changes, allows description-only divergence).
 
+### Fixed
+- **`templates/company-workflow/doc-milestones.md` frontmatter aligned with actual
+  feature-level milestone convention.** Dropped stale `parent: {USER_STORY_ID}`
+  comment + `feature: {FEATURE_ID}` key. Every real milestones file in the
+  workbench (F000001-F000004) uses `parent: {FEATURE_ID}` with no separate
+  `feature` key — matches the personal-workflow template convention. The
+  drift was harmless workbench-side (no real artifact had the `feature` key
+  for the validator to demand) but surfaced on Windows when Copilot's
+  validator self-test on `fixtures/valid-feature-dir/milestones.md` reported
+  [DRIFT] for missing `feature` field. Bundle mirror updated in lockstep
+  (sync check enforces it).
+
 ### Notes
 - v2 plan packet was reviewed via `/autoplan` (CEO + Eng + DX dual voices). 4 taste
   decisions (D2 find-print0, D3 orphan FAIL/WARN split, D4 path-traversal defense,
@@ -71,6 +83,11 @@ mirrored from upstream and CI-enforced.
   S000009 Windows E2E) all resolved. Eng-review test-plan addendum identified 13
   test-coverage gaps; G3-G10 absorbed into this release, G11-G13 deferred. See
   `work-items/features/F000004_work_copilot/F000004_DESIGN.md` v2.1 for full audit.
+- **UC1 citation spike PASSED** on Windows work box (2026-04-28): Copilot cited
+  `.github/work-copilot/{WORKFLOW.md, examples/, philosophy/, reference/}` for
+  all 4 procedural / how-to / rationale / example queries. The autoplan-mandated
+  premise held. The DX5 inline-quoted-anchor hedge is still the right defense
+  in depth, but path-following worked.
 - The S000009 Windows-box live E2E acceptance criterion remains outstanding —
   expanded bundle does not prove v1 worked. Tracked separately under S000009.
 - Knowledge integration (`$AI_KNOWLEDGE_DIR`, two-tier surfacing,
