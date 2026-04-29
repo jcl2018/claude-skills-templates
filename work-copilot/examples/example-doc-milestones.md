@@ -1,8 +1,7 @@
 ---
 type: milestones
 template-version: 1
-parent: S000099
-feature: F000099
+parent: F000099
 updated: 2026-03-15
 ---
 
