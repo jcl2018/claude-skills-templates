@@ -2,9 +2,9 @@
 name: "personal-workflow: feature type does not require a DESIGN.md artifact"
 type: defect
 id: "D000009"
-status: active
+status: closed
 created: "2026-04-22"
-updated: "2026-04-22"
+updated: "2026-04-25"
 repo: "jcl2018/claude-skills-templates"
 branch: "fix/feature-requires-design-doc"
 blocked_by: ""
@@ -54,10 +54,10 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] Test-plan verified — `jq '.types.feature.required' skills/personal-workflow/personal-artifact-manifests.json` now lists `design`/`DESIGN.md`; `templates/personal-workflow/doc-DESIGN.md` exists; F000001-F000004 have backfilled DESIGN.md
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed (v0.13.1, then v0.14.2 backfilled feature-summary.md across personal-workflow)
 
 ## Reproduction Steps
 
@@ -92,6 +92,7 @@ blocked_by: ""
 - 2026-04-22: Created. Personal-workflow (and company-workflow) feature scaffolding currently enforces only TRACKER + milestones (and feature-summary for company). No canonical home for cross-story design decisions — they scatter across TRACKER journal entries and per-user-story ARCHITECTURE.md files. Filing this defect to require `DESIGN.md` as a feature artifact. Scope deliberately narrow: manifest + template + catalog + backfill + regression test only; doc-drift items (WORKFLOW tables, fixtures, examples, philosophy) are out of scope and can be swept in a follow-up.
 - 2026-04-22: First attempt was stashed and reset after scope drift — the AI touched fixtures, examples, SKILL.md, philosophy, and WORKFLOW.md tables in addition to the core fix. Restarted with a tighter scope (see the Todos split above).
 - 2026-04-22: Fix implemented on fix/feature-requires-design-doc. Files: 2 new templates + 2 manifest edits + 1 catalog edit + 4 backfilled DESIGN.md + 1 aligned F000005_DESIGN.md + 1 regression block + 1 test count bump. `./scripts/validate.sh` PASS (0 errors); `./scripts/test.sh` PASS (0 failures; D000009 regression block green).
+- 2026-04-25: Closed. Fix shipped in v0.13.1 (PR #42), with v0.14.2 (PR #45) extending the same pattern to feature-summary.md across personal-workflow. Manifest verification: `jq '.types.feature.required'` returns the full 4-artifact set (tracker + feature-summary + design + milestones). Tracker drift fixed during F000003 v1.0.0 cut.
 
 ## PRs
 

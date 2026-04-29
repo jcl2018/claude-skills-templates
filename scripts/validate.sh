@@ -162,32 +162,197 @@ for dir in "$DOCS_DIR"/*/; do
   fi
 done
 
-# Error check 10: work-copilot bundle mirrors company-workflow templates
-echo ""
-echo "Checking work-copilot/templates sync with templates/company-workflow..."
-if [ -d "work-copilot/templates" ]; then
-  for src in templates/company-workflow/*.md; do
+# Error check 10: work-copilot bundle mirrors selected upstream content
+#
+# MIRROR_SPECS entries are pipe-delimited 4-tuples: src|dst|shape|orphan_policy
+#   shape          = single | flat | recursive | manifest
+#   orphan_policy  = fail | warn   (fail = stale bundle file fails CI; warn = log only)
+#
+# Shapes:
+#   single     — exact file pair (src + dst are file paths)
+#   flat       — directory of *.md files (one level)
+#   recursive  — directory tree of *.md files; uses find -print0 (POSIX-portable;
+#                bash 3.2 on macOS lacks shopt -s globstar)
+#   manifest   — JSON pair compared with `description` field stripped via jq
+#                (description is human prose, no programmatic consumer)
+#
+# Filenames filter to *.md only — keeps OS junk out (.DS_Store, Thumbs.db, .gitkeep,
+# .gitattributes, .editorconfig). Binary cmp -s preserves D000005 CRLF safety.
+#
+# To add a new mirror dir: append one line to MIRROR_SPECS.
+
+MIRROR_SPECS=(
+  "templates/company-workflow|work-copilot/templates|flat|warn"
+  "skills/company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
+  "skills/company-workflow/reference|work-copilot/reference|flat|fail"
+  "skills/company-workflow/philosophy|work-copilot/philosophy|flat|fail"
+  "skills/company-workflow/examples|work-copilot/examples|flat|fail"
+  "skills/company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
+  "skills/company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
+)
+
+# Orphan reporter — emits FAIL or WARN based on policy. Used by all shapes.
+_mirror_orphan() {
+  local path="$1" policy="$2" upstream="$3"
+  if [ "$policy" = "fail" ]; then
+    fail "$path has no counterpart in $upstream (stale bundle file — delete or restore upstream)"
+  else
+    warn "$path has no counterpart in $upstream"
+  fi
+}
+
+# Single-file shape: compare two exact file paths.
+_mirror_check_single() {
+  local src="$1" dst="$2" policy="$3"
+  if [ ! -f "$src" ]; then
+    fail "$src missing (mirror source absent — sync spec is broken)"
+    return
+  fi
+  if [ ! -f "$dst" ]; then
+    fail "$dst missing (must mirror $src)"
+  elif ! cmp -s "$src" "$dst"; then
+    fail "$dst differs from $src"
+  else
+    pass "$dst in sync"
+  fi
+}
+
+# Flat shape: iterate *.md in src dir, check each in dst dir, then orphan-check dst.
+_mirror_check_flat() {
+  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
+  if [ ! -d "$src_dir" ]; then
+    fail "$src_dir missing (mirror source absent — sync spec is broken)"
+    return
+  fi
+  if [ ! -d "$dst_dir" ]; then
+    if [ "$policy" = "fail" ]; then
+      fail "$dst_dir missing (must mirror $src_dir)"
+    else
+      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    fi
+    return
+  fi
+  local src dst base count=0
+  for src in "$src_dir"/*.md; do
     [ -f "$src" ] || continue
     base=$(basename "$src")
-    dst="work-copilot/templates/$base"
+    dst="$dst_dir/$base"
     if [ ! -f "$dst" ]; then
-      fail "work-copilot/templates/$base missing (must mirror templates/company-workflow/)"
+      fail "$dst missing (must mirror $src)"
     elif ! cmp -s "$src" "$dst"; then
-      fail "work-copilot/templates/$base differs from templates/company-workflow/$base"
+      fail "$dst differs from $src"
     else
-      pass "work-copilot/templates/$base in sync"
+      pass "$dst in sync"
     fi
+    count=$((count + 1))
   done
-  for dst in work-copilot/templates/*.md; do
+  # Min-count assertion (autoplan G7): empty src dir = silent false-pass otherwise.
+  if [ "$count" -eq 0 ]; then
+    warn "$src_dir contains no *.md files (mirror spec may be misconfigured or upstream emptied)"
+  fi
+  # Flat-shape sanity: catch nested *.md the spec author forgot is there.
+  # Use find with -mindepth 2 to detect any *.md beneath the first level.
+  local nested
+  nested=$(find "$src_dir" -mindepth 2 -name '*.md' -print -quit 2>/dev/null)
+  if [ -n "$nested" ]; then
+    warn "$src_dir contains nested *.md files (e.g., $nested) — flat shape only checks the top level. If nesting is intentional, change MIRROR_SPECS shape to 'recursive'."
+  fi
+  # Orphan check: bundle-side files with no upstream counterpart.
+  for dst in "$dst_dir"/*.md; do
     [ -f "$dst" ] || continue
     base=$(basename "$dst")
-    if [ ! -f "templates/company-workflow/$base" ]; then
-      warn "work-copilot/templates/$base has no counterpart in templates/company-workflow/"
+    if [ ! -f "$src_dir/$base" ]; then
+      _mirror_orphan "$dst" "$policy" "$src_dir/"
     fi
   done
-else
-  pass "no work-copilot/templates/ directory (sync check skipped)"
-fi
+}
+
+# Recursive shape: find -name '*.md' -print0 (POSIX-portable, bash 3.2 safe).
+_mirror_check_recursive() {
+  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
+  if [ ! -d "$src_dir" ]; then
+    fail "$src_dir missing (mirror source absent — sync spec is broken)"
+    return
+  fi
+  if [ ! -d "$dst_dir" ]; then
+    if [ "$policy" = "fail" ]; then
+      fail "$dst_dir missing (must mirror $src_dir tree)"
+    else
+      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
+    fi
+    return
+  fi
+  local src rel dst count=0
+  while IFS= read -r -d '' src; do
+    rel="${src#"$src_dir"/}"
+    dst="$dst_dir/$rel"
+    if [ ! -f "$dst" ]; then
+      fail "$dst missing (must mirror $src)"
+    elif ! cmp -s "$src" "$dst"; then
+      fail "$dst differs from $src"
+    else
+      pass "$dst in sync"
+    fi
+    count=$((count + 1))
+  done < <(find "$src_dir" -type f -name '*.md' -print0)
+  if [ "$count" -eq 0 ]; then
+    warn "$src_dir contains no *.md files recursively (mirror spec may be misconfigured)"
+  fi
+  # Orphan check: bundle-side files (recursive) with no upstream counterpart.
+  while IFS= read -r -d '' dst; do
+    rel="${dst#"$dst_dir"/}"
+    if [ ! -f "$src_dir/$rel" ]; then
+      _mirror_orphan "$dst" "$policy" "$src_dir/"
+    fi
+  done < <(find "$dst_dir" -type f -name '*.md' -print0)
+}
+
+# Manifest shape: schema parity (description field stripped) via jq.
+# Reason (autoplan D5): no code grep-consumes the description field; forcing
+# byte-identity is test-driven coupling, not product value. The runtime contract
+# is filenames + schema, not human prose.
+_mirror_check_manifest() {
+  local src="$1" dst="$2" policy="$3"
+  if [ ! -f "$src" ]; then
+    fail "$src missing (manifest source absent)"
+    return
+  fi
+  if [ ! -f "$dst" ]; then
+    fail "$dst missing (must mirror $src schema)"
+    return
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    warn "jq not installed — manifest schema-parity check skipped"
+    return
+  fi
+  local src_norm dst_norm
+  src_norm=$(jq -S 'del(.description)' "$src" 2>/dev/null) || {
+    fail "$src is not valid JSON"
+    return
+  }
+  dst_norm=$(jq -S 'del(.description)' "$dst" 2>/dev/null) || {
+    fail "$dst is not valid JSON"
+    return
+  }
+  if [ "$src_norm" = "$dst_norm" ]; then
+    pass "$dst schema-parity with $src (description field exempt)"
+  else
+    fail "$dst schema differs from $src (excluding description field)"
+  fi
+}
+
+echo ""
+echo "Checking work-copilot bundle mirror sync (MIRROR_SPECS, ${#MIRROR_SPECS[@]} entries)..."
+for spec in "${MIRROR_SPECS[@]}"; do
+  IFS='|' read -r _src _dst _shape _policy <<< "$spec"
+  case "$_shape" in
+    single)    _mirror_check_single    "$_src" "$_dst" "$_policy" ;;
+    flat)      _mirror_check_flat      "$_src" "$_dst" "$_policy" ;;
+    recursive) _mirror_check_recursive "$_src" "$_dst" "$_policy" ;;
+    manifest)  _mirror_check_manifest  "$_src" "$_dst" "$_policy" ;;
+    *)         fail "unknown MIRROR_SPECS shape '$_shape' for $_src" ;;
+  esac
+done
 
 # Error check 11: Manifest reconciliation — work-items + fixtures vs manifests
 # Catches the drift case where the manifest declares a required artifact but

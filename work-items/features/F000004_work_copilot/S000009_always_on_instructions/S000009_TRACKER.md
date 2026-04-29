@@ -4,7 +4,7 @@ type: user-story
 id: "S000009_always_on_instructions"
 status: active
 created: "2026-04-22"
-updated: "2026-04-22"
+updated: "2026-04-25"
 parent: "F000004_work_copilot"
 repo: "claude-skills-templates"
 branch: "feat/work-copilot"
@@ -40,10 +40,10 @@ blocked_by: ""
 4. Update Files section with changed file paths
 
 **Gates:**
-- [ ] All child tasks have entered Phase 2+
-- [ ] Acceptance criteria verified met
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] All child tasks have entered Phase 2+
+- [ ] Acceptance criteria verified met — 4/5; final AC blocked on Windows-box E2E verification
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -57,11 +57,11 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped — instructions file shipped in v0.14.0 (PR #43)
+- [x] `/ship` — PR created (#43)
+- [ ] `/land-and-deploy` — merged; live E2E in Copilot chat on Windows box still pending (milestone #5)
 
 ## Acceptance Criteria
 

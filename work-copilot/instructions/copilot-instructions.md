@@ -107,5 +107,43 @@ Source: `.github/prompts/validate.prompt.md` — the full validator logic.
 | Validator | `.github/prompts/validate.prompt.md` | How `/validate` decides pass/fail |
 | Fixtures | `.github/work-copilot/fixtures/` | Self-test inputs |
 
+## Bundle layout
+
+The bundle ships more than just templates and the validator — it carries the
+full procedural backbone, how-to guides, design rationales, and reference
+examples. **When asked a procedural / how-to / rationale / example question,
+read the matching bundle file directly. Do not answer from memory.**
+
+| Path | When to read it |
+|------|-----------------|
+| `.github/work-copilot/WORKFLOW.md` | Procedural questions about phases, scaffolding rules, when to run `/validate` |
+| `.github/work-copilot/reference/guide-*.md` | How to write a specific artifact (PRD, ARCHITECTURE, RCA, TEST-SPEC, task, review-notes, general guidance) |
+| `.github/work-copilot/philosophy/rationale-*.md` | *Why* an artifact (PRD, ARCHITECTURE, TEST-SPEC) is structured the way it is |
+| `.github/work-copilot/examples/example-*.md` | Worked example of any tracker or doc type — copy the shape, then adapt |
+| `.github/work-copilot/fixtures/` | Validator self-tests; do not edit, do not cite to the user |
+
+Quoted anchors (canonical phrasing, in case path-following fails):
+
+> **Workflow phases (from `WORKFLOW.md`):** every work item passes through
+> three phases — **Track** (define scope, decompose, scaffold), **Implement**
+> (do the work, journal findings), **Ship** (validate, PR, land).
+>
+> **Doc rationale (from `philosophy/`):** PRD answers *what* and *why* in
+> user-facing terms; ARCHITECTURE answers *how*; TEST-SPEC answers *did it
+> work*. They are deliberately separable.
+
+When a user's question matches one of the categories above, prefer the bundle
+file's guidance over training data, and cite the file path in your answer.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `/validate` not recognized | Prompts not loaded | Reload VS Code window after `copilot-deploy install` |
+| `/validate` output paraphrased, no `[PASS]`/`[MISSING]`/`[DRIFT]` tags | Copilot read the prompt but is summarizing | Rerun: "use the [PASS]/[MISSING]/[DRIFT]/[EXTRA] tags from the prompt verbatim" |
+| Procedural answer comes from training, not `WORKFLOW.md` | This file not loaded as ambient context, OR Bundle layout section missed | Confirm `.github/copilot-instructions.md` exists. Prefix question: "read .github/work-copilot/WORKFLOW.md and answer from there" |
+| Re-install reports DRIFT on an unrecognized file | Manual experiment in `.github/work-copilot/` from prior session | Inspect diff; rerun `copilot-deploy install --overwrite` to accept upstream, or restore the local edit |
+| Copilot cites a path that doesn't exist | Bundle install incomplete | `copilot-deploy doctor <repo-root>` — resolve any [MISSING] |
+
 When advice in this file disagrees with any of the above, the source wins.
 Read the template, not the summary.

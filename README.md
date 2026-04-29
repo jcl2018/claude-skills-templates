@@ -63,7 +63,7 @@ python3 scripts/copilot-deploy.py doctor  <target-repo>   # verify
 python3 scripts/copilot-deploy.py remove  <target-repo>   # uninstall
 ```
 
-This writes `.github/copilot-instructions.md` (always-on context), `.github/prompts/validate.prompt.md` (slash command), and `.github/work-copilot/` (templates, manifest, fixtures) into the target. `work-copilot/templates/*.md` are kept byte-for-byte identical to `templates/company-workflow/*.md` (enforced by `validate.sh` Error check 10).
+This writes `.github/copilot-instructions.md` (always-on context), `.github/prompts/validate.prompt.md` (slash command), and `.github/work-copilot/` (templates, WORKFLOW.md, reference/ how-to guides, philosophy/ rationale notes, examples/ artifacts, fixtures/, manifest) into the target. The bundle is byte-mirrored from upstream — `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces sync across all 7 mirror entries (templates, WORKFLOW.md, reference/, philosophy/, examples/, fixtures/, manifest pair). See `work-copilot/README.md` for the standalone quickstart and troubleshooting table.
 
 ## Creating a New Skill
 

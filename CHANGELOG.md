@@ -6,6 +6,133 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.1.0] - 2026-04-27
+
+F000004 work-copilot v2 realignment — closes the artifact-completeness gap
+between `work-copilot/` and `skills/company-workflow/`. Same templates and
+validator that shipped in v0.14.0, plus full procedural backbone, how-to guides,
+rationale notes, example artifacts, and complete fixtures — all byte-identically
+mirrored from upstream and CI-enforced.
+
+### Added
+- **Bundle artifact mirrors (S000010).** `work-copilot/` now ships `WORKFLOW.md`,
+  `reference/guide-*.md` (7 files), `philosophy/rationale-*.md` (3 files),
+  `examples/example-*.md` (14 files), and the previously-missing fixture entries
+  (`invalid-bad-frontmatter.md`, `invalid-missing-lifecycle.md`,
+  `invalid-wrong-order.md`, `valid-feature-dir/DESIGN.md`) plus a refreshed
+  `valid-feature-dir/TRACKER.md`. All byte-identical to upstream.
+- **`scripts/validate.sh` Error check 10 generalized to `MIRROR_SPECS` array (T000011).**
+  Single composite check enforcing byte-identity sync on 7 mirror entries
+  (templates, WORKFLOW.md, reference/, philosophy/, examples/, fixtures/, manifest pair).
+  Uses `find -name '*.md' -print0` for the recursive shape — POSIX-portable, works on
+  bash 3.2 (macOS default) without `shopt -s globstar`. Future mirror dirs add as one new line.
+- **Mirror orphan policy split (autoplan D3).** New authoritative mirrors
+  (`reference/`, `philosophy/`, `examples/`, `fixtures/`, `WORKFLOW.md`) FAIL on
+  orphan — stale bundle copies served to Copilot are exactly the failure mode v2
+  prevents. Templates retain v1 WARN-only behavior for backward compatibility.
+- **Manifest pair sync via schema parity (autoplan D5).** Sync check parses both
+  manifests and diffs with the `description` field stripped via `jq 'del(.description)'`.
+  No code grep-consumes the description field, so byte-identity unification was
+  test-driven coupling, not product value. Schema parity reflects the actual contract.
+- **`scripts/copilot-deploy.py` defense-in-depth path-traversal check (autoplan G3 / D4).**
+  `doctor` and `remove` resolve `install-manifest.json` `dest` entries and refuse
+  any path that escapes the target directory. Exits 2 with a clear error.
+  Closes a latent vulnerability that pre-dates v2 but was widened by the bundle expansion.
+- **`scripts/copilot-deploy.py --dry-run` (DX3).** `install --dry-run` and
+  `remove --dry-run` preview filesystem changes without writing or deleting.
+  Output prefixed `(would write)` / `(would delete)` so it's diff-greppable.
+- **`scripts/copilot-deploy.py` Python 3.8+ guard (DX1).** Pre-flight check at
+  `main()` exits with a friendly upgrade hint when run on Python <3.8 instead of
+  failing later with a confusing `argparse` traceback.
+- **`scripts/copilot-deploy.py --help` enriched (DX4).** `RawDescriptionHelpFormatter`
+  + `description=__doc__` surfaces the module docstring (subcommands, platform
+  notes) in `--help` for free.
+- **`work-copilot/README.md` quickstart (DX2).** Single human-facing entry point:
+  prerequisites, install / use / upgrade / health-check / uninstall, and a
+  troubleshooting table. New users / re-installers no longer have to navigate
+  PRD/DESIGN docs to find the install command.
+- **`work-copilot/instructions/copilot-instructions.md` Bundle layout + Troubleshooting
+  sections (DX5 + DX6).** Adds a per-mirror-dir pointer table ("when to read each file")
+  plus inline quoted anchors from `WORKFLOW.md` and `philosophy/` so canonical phrasing
+  lands even if Copilot's path-following is unreliable. Troubleshooting table covers
+  "/validate not recognized", "Copilot ignores the bundle", drift on prior-experiment
+  files, and bundle-cite paths that don't exist. Total file size: 7821 bytes (≤8192 budget).
+- **14 new test cases in `scripts/test.sh`** covering the v2 surface: 8 KB budget guard,
+  bundle-layout pointer presence, install spot-checks for each new bundle dir,
+  doctor DRIFT on nested fixture (the file that historically drifted),
+  path-traversal defense, --dry-run filesystem-untouched assertion, T000011
+  drift detection across single/flat/recursive shapes, orphan FAIL/WARN policy split,
+  and manifest schema parity (rejects schema changes, allows description-only divergence).
+
+### Fixed
+- **`templates/company-workflow/doc-milestones.md` frontmatter aligned with actual
+  feature-level milestone convention.** Dropped stale `parent: {USER_STORY_ID}`
+  comment + `feature: {FEATURE_ID}` key. Every real milestones file in the
+  workbench (F000001-F000004) uses `parent: {FEATURE_ID}` with no separate
+  `feature` key — matches the personal-workflow template convention. The
+  drift was harmless workbench-side (no real artifact had the `feature` key
+  for the validator to demand) but surfaced on Windows when Copilot's
+  validator self-test on `fixtures/valid-feature-dir/milestones.md` reported
+  [DRIFT] for missing `feature` field. Bundle mirror updated in lockstep
+  (sync check enforces it).
+
+### Notes
+- v2 plan packet was reviewed via `/autoplan` (CEO + Eng + DX dual voices). 4 taste
+  decisions (D2 find-print0, D3 orphan FAIL/WARN split, D4 path-traversal defense,
+  D5 manifest schema parity) and 1 user challenge (UC1: gate v2 on citation spike +
+  S000009 Windows E2E) all resolved. Eng-review test-plan addendum identified 13
+  test-coverage gaps; G3-G10 absorbed into this release, G11-G13 deferred. See
+  `work-items/features/F000004_work_copilot/F000004_DESIGN.md` v2.1 for full audit.
+- **UC1 citation spike PASSED** on Windows work box (2026-04-28): Copilot cited
+  `.github/work-copilot/{WORKFLOW.md, examples/, philosophy/, reference/}` for
+  all 4 procedural / how-to / rationale / example queries. The autoplan-mandated
+  premise held. The DX5 inline-quoted-anchor hedge is still the right defense
+  in depth, but path-following worked.
+- The S000009 Windows-box live E2E acceptance criterion remains outstanding —
+  expanded bundle does not prove v1 worked. Tracked separately under S000009.
+- Knowledge integration (`$AI_KNOWLEDGE_DIR`, two-tier surfacing,
+  `bin/knowledge-helpers.sh`) is **not** mirrored into the bundle. Copilot has no
+  shell at prompt time and no env-var resolution; the helpers go away when a
+  follow-up feature ships their Copilot-native redesign. `bin/` intentionally
+  absent from `work-copilot/` per design Decision #10.
+- Re-install on existing v0.14.0 targets picks up the new mirror artifacts
+  automatically (`scripts/copilot-deploy.py rglob("*")` already routes everything
+  not in `prompts/` or `instructions/` to `.github/work-copilot/<same>`). If a
+  target has a manual `WORKFLOW.md` (or any other newly-mirrored file) from prior
+  experiments, re-install reports `[DRIFT]` — use `--overwrite`.
+- `./scripts/validate.sh` PASS (0 errors, 0 warnings, 33 mirror entries verified).
+  `./scripts/test.sh` PASS (0 failures, 14 new v2 test cases green).
+  `/personal-workflow check work-items/features/F000004_work_copilot/` PASS.
+
+## [1.0.0] - 2026-04-25
+
+First major release. The skill bundle (`personal-workflow`, `company-workflow`,
+`system-health`, plus the `work-copilot/` Copilot port) is feature-complete for
+the 1.x line; future work in this stream is bug fixes and incremental
+enhancements rather than ground-up changes.
+
+### Changed (BREAKING)
+- **Knowledge integration: removed the per-repo `.claude/knowledge-enabled` opt-in marker.** Knowledge loading now activates whenever `$AI_KNOWLEDGE_DIR` resolves to a valid directory; the marker file is no longer consulted by `## Knowledge Loading`, `## On-Demand Matching`, or `## Diagnostic: knowledge-doctor` in `skills/company-workflow/SKILL.md`. **Cross-context isolation is now the user's responsibility** — scope `$AI_KNOWLEDGE_DIR` per shell (don't export globally if you work across multiple clients), or use `AI_KNOWLEDGE_DISABLE=1` for one-shot bypass. Rationale: F000003_DESIGN.md decision #4 and S000004_ARCHITECTURE.md already documented the marker as REJECTED ("redundant on top of two-tier surfacing + env-var control"); the v0.12.0 marker implementation never matched the v1.0 design intent. v0→1.0.0 is the right semver boundary for the breaking change.
+  - **Migration:** if you previously relied on `.claude/knowledge-enabled` as a security gate, the file is now a no-op. Replace it with per-shell scoping of `AI_KNOWLEDGE_DIR`. The marker file itself can be safely deleted; nothing reads it.
+- **`skills/company-workflow/SKILL.md` simplified:** preconditions list went from 5 → 4 entries, the helpful-diagnostic branch for "marker absent + has always-on" is gone, the `_marker_ok` variable is removed from `knowledge-doctor`, and the `marker:` line no longer appears in doctor output.
+- **`skills/company-workflow/WORKFLOW.md` Security section rewritten** to put cross-context isolation guidance front and center (per-shell `AI_KNOWLEDGE_DIR` scoping + `AI_KNOWLEDGE_DISABLE=1` + per-category on-demand triggers). The marker-as-security-control framing is gone.
+
+### Removed
+- **7 marker-specific test cases** from `scripts/test.sh`: G1 marker-absent gates (cases 18, 19), the symlink/directory/nested-marker hardening trio (cases 22, 23, 24), `knowledge-doctor` marker-missing (case 31), and on-demand G2 marker-absent (c3 case 21). Cases 4 + 8 inverted to assert the marker string does NOT appear in `SKILL.md` / `WORKFLOW.md`. Case 20 simplified. Case 30 inverted to require no `marker:` line in `knowledge-doctor` output.
+
+### Fixed
+- **Tracker reconciliation across the `work-items/` tree.** Drift accumulated as work shipped without trackers being closed:
+  - **F000003 (company-workflow):** journal entry added recording the v1.0.0 implementation realignment.
+  - **F000004 (work-copilot):** S000007 + S000008 closed (status: shipped) — bundle, validator prompt, installer, doctor, smoke test all shipped in v0.14.0 (PR #43). S000009 + parent F000004 stay `active` because their last AC requires live E2E in Copilot chat on a Windows box, which is a user-side acceptance test, not a build artifact. Phase 2 + most Phase 3 gates updated to match the v0.14.0 ship state.
+  - **D000007** (eliminate `contract.json`) and **D000009** (require DESIGN.md for personal-workflow features) closed. D000007's evidence: `find . -name contract.json` returns zero hits + F000003_DESIGN.md decision #2 codifies templates-as-SSoT. D000009's evidence: `jq '.types.feature.required'` on the personal manifest now includes `design`/`DESIGN.md` (shipped v0.13.1); v0.14.2 extended the same pattern to `feature-summary.md`.
+
+### Added
+- **`.context/` added to `.gitignore`.** Local retro / scratch directory was being shown as an untracked path on every `git status`; gitignored now.
+
+### Notes
+- Pure realignment + tracker hygiene + version semantics. No new features. The bundle that ships here is the same bundle that shipped in v0.14.3 minus the marker code path.
+- `./scripts/validate.sh` PASS (0 errors, 0 warnings); `./scripts/test.sh` PASS (0 failures, all knowledge-loading + on-demand + doctor + copilot-deploy regression blocks green after the marker removal and test-case revisions).
+
 ## [0.14.3] - 2026-04-24
 
 ### Changed

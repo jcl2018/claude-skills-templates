@@ -1,7 +1,7 @@
 ---
 name: company-workflow
 description: "Company work item specification with structural validation. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates are the single source of truth for structural rules."
-version: 3.2.0
+version: 4.0.0
 allowed-tools:
   - Bash
   - Read
@@ -162,20 +162,19 @@ established, this block enumerates always-on knowledge categories and emits
 absolute paths under `## Always-On Knowledge`. Claude is instructed to Read
 every listed path before answering.
 
-**Preconditions enforced in order** (all fail-closed except the marker-missing
-case, which emits a helpful diagnostic when the user has configured knowledge
-but forgotten to opt the repo in):
+**Preconditions enforced in order** (all fail-closed):
 
-1. Must be in a git repo (repo root used for the opt-in marker check).
+1. Must be in a git repo (used for `_REPO_ROOT` to resolve the canonical helpers).
 2. `$AI_KNOWLEDGE_DISABLE` must be unset (one-shot escape hatch — use when
-   debugging a bad knowledge file without `rm`-ing the committed marker).
+   debugging a bad knowledge file without unsetting the env var).
 3. `$_KNOWLEDGE_DIR` must be non-empty (S000004 owns the unset/invalid warnings).
-4. `.claude/knowledge-enabled` marker must be a regular file at the repo root.
-   Fails closed on symlinks and directories (prevents hostile-planted symlinks
-   from activating loading).
-5. Total emitted content must be ≤ 500 paths AND ≤ 100KB. Either cap tripped
+4. Total emitted content must be ≤ 500 paths AND ≤ 100KB. Either cap tripped
    → hard-fail warning, no loading (better loud failure than silent context
    blowup).
+
+Cross-context isolation is the user's responsibility: scope `$AI_KNOWLEDGE_DIR`
+per shell (don't export it globally if you have multiple clients), or use
+`AI_KNOWLEDGE_DISABLE=1` for one-shot bypass.
 
 When all preconditions pass, enumerate categories via `list_categories`. For
 each category with `surface: always`, emit every `*.md` file path (recursive,
@@ -215,29 +214,6 @@ categories are unaffected.
     . "$HOME/.claude/skills/company-workflow/bin/knowledge-helpers.sh"
   else
     echo "[knowledge] helpers not found at \$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh or ~/.claude/skills/company-workflow/bin/knowledge-helpers.sh — knowledge loading disabled" >&2
-    exit 0
-  fi
-
-  # Per-repo opt-in marker: regular file only, AND its parent .claude/ dir must
-  # not be a symlink (otherwise attacker can plant `repo/.claude -> /tmp/attacker`
-  # + `/tmp/attacker/knowledge-enabled` to bypass the regular-file check).
-  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
-  if [ -L "$_REPO_ROOT/.claude" ] || [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
-    # Helpful diagnostic: if user has at least one always-on category, nudge them
-    _has_always_on=0
-    while IFS= read -r _cat; do
-      [ -n "$_cat" ] || continue
-      if [ "$(parse_knowledge_yml "$_cat/.knowledge.yml")" = "always" ]; then
-        _has_always_on=1
-        break
-      fi
-    done < <(list_categories "$_KDIR")
-    if [ "$_has_always_on" = "1" ]; then
-      # Sanitize $_KDIR for safe display (strip control chars, truncate)
-      _KDIR_DISPLAY=$(printf '%s' "$_KDIR" | LC_ALL=C tr -d '[:cntrl:]')
-      [ ${#_KDIR_DISPLAY} -gt 200 ] && _KDIR_DISPLAY="${_KDIR_DISPLAY:0:200}..."
-      echo "[knowledge] $_KDIR_DISPLAY has always-on categories but $_REPO_ROOT/.claude/knowledge-enabled is absent — run: touch .claude/knowledge-enabled (or set AI_KNOWLEDGE_DISABLE=1 to suppress this notice)." >&2
-    fi
     exit 0
   fi
 
@@ -312,9 +288,9 @@ Bash handles what bash can: category discovery, trigger parsing, structured
 emission. Claude handles what bash can't: seeing the user's prompt and
 matching triggers against it.
 
-**Preconditions** (same as Knowledge Loading — repo root + opt-in marker +
-env var resolved + `$AI_KNOWLEDGE_DISABLE` not truthy). If any precondition
-fails, no candidates block is emitted.
+**Preconditions** (same as Knowledge Loading — repo root + env var resolved +
+`$AI_KNOWLEDGE_DISABLE` not truthy). If any precondition fails, no candidates
+block is emitted.
 
 **Matching rules** (enforced by Claude per the instruction block below):
 
@@ -391,10 +367,6 @@ After the `## On-Demand Knowledge Candidates` block:
     _KDIR="$AI_KNOWLEDGE_DIR"
   fi
   [ -z "$_KDIR" ] && exit 0
-  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
-  if [ -L "$_REPO_ROOT/.claude" ] || [ ! -f "$_KMARKER" ] || [ -L "$_KMARKER" ]; then
-    exit 0
-  fi
 
   # Source canonical helpers from bin/knowledge-helpers.sh (see ## Knowledge Helpers)
   if [ -f "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
@@ -460,7 +432,6 @@ writing an E2E canary.
 ```
 AI_KNOWLEDGE_DIR: /Users/chjiang/knowledge (exists)
 repo_root: /Users/chjiang/Documents/projects/claude-skills-templates
-marker: .claude/knowledge-enabled (present)
 disable env var: not set
 categories:
   coding      surface=always     files=3    bytes=8.2KB    loads=yes
@@ -510,21 +481,6 @@ result: loading enabled; 3 paths will be emitted to Claude
       ;;
   esac
 
-  _KMARKER="$_REPO_ROOT/.claude/knowledge-enabled"
-  if [ -L "$_REPO_ROOT/.claude" ]; then
-    echo "marker: .claude/ parent is a symlink — rejected, fails closed"
-    _marker_ok=0
-  elif [ -L "$_KMARKER" ]; then
-    echo "marker: $_KMARKER (SYMLINK — rejected, fails closed)"
-    _marker_ok=0
-  elif [ -f "$_KMARKER" ]; then
-    echo "marker: .claude/knowledge-enabled (present)"
-    _marker_ok=1
-  else
-    echo "marker: .claude/knowledge-enabled (absent)"
-    _marker_ok=0
-  fi
-
   # Source canonical helpers from bin/knowledge-helpers.sh (see ## Knowledge Helpers)
   if [ -n "$_REPO_ROOT" ] && [ "$_REPO_ROOT" != "(not in git)" ] && [ -f "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh" ]; then
     . "$_REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
@@ -563,10 +519,9 @@ result: loading enabled; 3 paths will be emitted to Claude
     _hk=$(awk "BEGIN { printf \"%.1f\", $_bcount / 1024 }")
     case "$_sfc" in
       always)
-        if [ "$_marker_ok" = "1" ]; then _loads="yes"; else _loads="no (marker absent)"; fi
         _total_paths=$((_total_paths + _fcount))
         _total_bytes=$((_total_bytes + _bcount))
-        printf "  %-12s surface=always     files=%-4d bytes=%sKB   loads=%s\n" "$_cname" "$_fcount" "$_hk" "$_loads"
+        printf "  %-12s surface=always     files=%-4d bytes=%sKB   loads=yes\n" "$_cname" "$_fcount" "$_hk"
         ;;
       on-demand)
         # c3: parse triggers to distinguish loadable (on-match) vs inert (empty triggers)
@@ -575,11 +530,7 @@ result: loading enabled; 3 paths will be emitted to Claude
           printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (empty triggers)\n" "$_cname" "$_fcount" "$_hk"
         else
           _trig_csv=$(printf '%s\n' "$_trigs" | LC_ALL=C awk 'BEGIN{ORS=""} NR>1{print ", "} /[[:space:]]/{printf "\"%s\"", $0; next} {print $0}')
-          if [ "$_marker_ok" = "1" ]; then
-            printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=on-match (triggers: %s)\n" "$_cname" "$_fcount" "$_hk" "$_trig_csv"
-          else
-            printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=no (marker absent; would match on: %s)\n" "$_cname" "$_fcount" "$_hk" "$_trig_csv"
-          fi
+          printf "  %-12s surface=on-demand  files=%-4d bytes=%sKB   loads=on-match (triggers: %s)\n" "$_cname" "$_fcount" "$_hk" "$_trig_csv"
         fi
         ;;
     esac
@@ -587,9 +538,7 @@ result: loading enabled; 3 paths will be emitted to Claude
 
   _hk_tot=$(awk "BEGIN { printf \"%.1f\", $_total_bytes / 1024 }")
   echo "cap status: $_total_paths/500 paths, ${_hk_tot}KB/100KB bytes"
-  if [ "$_marker_ok" = "0" ]; then
-    echo "result: loading disabled — marker missing at $_KMARKER. Fix: touch $_KMARKER"
-  elif [ "$_total_paths" -gt 500 ] || [ "$_total_bytes" -gt 102400 ]; then
+  if [ "$_total_paths" -gt 500 ] || [ "$_total_bytes" -gt 102400 ]; then
     echo "result: loading disabled — cap exceeded. Reduce always-on content."
   elif [ "$_total_paths" -eq 0 ]; then
     echo "result: loading enabled but no always-on categories to load"

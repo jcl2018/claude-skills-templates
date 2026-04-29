@@ -2,9 +2,9 @@
 name: "Copilot Prompt Packaging"
 type: user-story
 id: "S000007_copilot_prompt_packaging"
-status: active
+status: shipped
 created: "2026-04-22"
-updated: "2026-04-22"
+updated: "2026-04-25"
 parent: "F000004_work_copilot"
 repo: "claude-skills-templates"
 branch: "feat/work-copilot"
@@ -40,10 +40,10 @@ blocked_by: ""
 4. Update Files section with changed file paths
 
 **Gates:**
-- [ ] All child tasks have entered Phase 2+
-- [ ] Acceptance criteria verified met
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] All child tasks have entered Phase 2+
+- [x] Acceptance criteria verified met
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -58,34 +58,35 @@ blocked_by: ""
 ❌ If CI fails: fix, push, re-run `/ship`
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/personal-workflow check` — validation passed
+- [x] TEST-SPEC covers all P0 acceptance criteria
+- [x] All children shipped
+- [x] `/ship` — PR created (#43)
+- [x] `/land-and-deploy` — merged and deployed (v0.14.0)
 
 ## Acceptance Criteria
 
 <!-- What "done" looks like for this story. -->
 
-- [ ] `work-copilot/prompts/validate.prompt.md` exists and, when invoked in
+- [x] `work-copilot/prompts/validate.prompt.md` exists and, when invoked in
   GitHub Copilot chat, performs the equivalent of `/company-workflow check`
-- [ ] The prompt reads `copilot-artifact-manifests.json` (delivered alongside)
+- [x] The prompt reads `copilot-artifact-manifests.json` (delivered alongside)
   to decide which artifacts are required per work-item type
-- [ ] Output format matches company-workflow: `[PASS]`, `[MISSING]`, `[DRIFT]`
+- [x] Output format matches company-workflow: `[PASS]`, `[MISSING]`, `[DRIFT]`
   one line per artifact
-- [ ] Prompt works in both file mode (single tracker) and directory mode
+- [x] Prompt works in both file mode (single tracker) and directory mode
   (whole work item)
-- [ ] No external tool calls required — pure prompt-based validation using
+- [x] No external tool calls required — pure prompt-based validation using
   Copilot's native file-read capability
 
 ## Todos
 
-- [ ] [T000008_implement_prompt_and_validator](T000008_implement_prompt_and_validator/T000008_TRACKER.md) — author the `.prompt.md` file and manifest
+- [x] [T000008_implement_prompt_and_validator](T000008_implement_prompt_and_validator/T000008_TRACKER.md) — author the `.prompt.md` file and manifest
 
 ## Log
 
 - 2026-04-22: Created. Port the company-workflow validator UX into a Copilot `.prompt.md` file that runs without shell tools.
+- 2026-04-25: Status reconciled — implementation shipped in v0.14.0 (PR #43, commit 299346c). Tracker drift fixed during F000003 v1.0.0 cut.
 
 ## PRs
 
