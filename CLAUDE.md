@@ -72,7 +72,7 @@ Templates live in `templates/` organized by skill:
 - `templates/personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
 - `templates/company-workflow/` — company work item templates (tracker-*.md, doc-*.md)
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
-- `work-copilot/templates/` — GitHub Copilot bundle templates. Must stay byte-for-byte identical to `templates/company-workflow/*.md`; `validate.sh` Error check 10 enforces the sync.
+- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `templates/company-workflow/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `skills/company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array.
 
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
