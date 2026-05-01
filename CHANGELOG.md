@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.1.2] - 2026-05-01
+
+D000013 skills-deploy auto-sync hook — closes D000012's deferred Option C2.
+After re-running `./scripts/setup-hooks.sh`, every workbench `git pull` that
+touches `templates/`, `skills/`, `skills-catalog.json`, or `rules/` automatically
+re-runs `scripts/skills-deploy install --overwrite`. `~/.claude/templates/` is
+ready before the next skill invocation needs it. Drift detection (D000012
+regression block) stays in place as the safety net.
+
+### Added
+- `scripts/setup-hooks.sh` now installs a `post-merge` hook alongside the existing
+  pre-commit hook. Hook filters `git diff-tree ORIG_HEAD HEAD` for deploy-relevant
+  paths and silently no-ops on unrelated pulls. Per-machine, untracked, idempotent
+  (re-running `setup-hooks.sh` rewrites both hooks).
+- `scripts/test.sh` D000013 regression block (3 grep-level checks): `setup-hooks.sh`
+  emits a post-merge hook block, that hook calls `skills-deploy install --overwrite`,
+  and it filters on `templates/|skills/|skills-catalog.json|rules/`. Source-level
+  verification only — does not fire the hook itself, so CI on non-deployed hosts
+  passes cleanly.
+
+### Notes
+- **Bootstrap step on each clone:** run `./scripts/setup-hooks.sh` once after
+  cloning (or after upgrading past v1.1.2) to install both hooks. Existing pre-commit
+  installations are rewritten in place; no manual cleanup needed.
+- C1 (symlink the deployed templates dir into the workbench checkout) was the
+  alternative considered in D000012's RCA. Not implemented — revisit only if the
+  workbench-must-exist constraint becomes a real problem.
+
 ## [1.1.1] - 2026-05-01
 
 D000012 personal-workflow + company-workflow deploy drift — restores
