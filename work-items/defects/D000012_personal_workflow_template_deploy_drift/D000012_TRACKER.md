@@ -79,7 +79,7 @@ blocked_by: ""
 
 **Out of scope (follow-up defects if still needed):**
 
-- [ ] **Option C design call** (see RCA Fix Description) — decide between C1 (symlink the templates dir) vs C2 (post-merge hook). C1 matches the skills behavior exactly and eliminates drift; C2 preserves the standalone-templates contract. File a follow-up to make the call.
+- [x] **Option C design call** (see RCA Fix Description) — decided **C2** (post-merge hook). Shipped in D000013 / v1.1.2. C1 (symlink templates dir) remains unimplemented; revisit only if the workbench-must-exist trade-off becomes a real constraint.
 - [ ] **Portfolio backfill** — `discord-v1` now correctly reports `[MISSING] feature-summary` and `[MISSING] design`. `cold-start` is missing DESIGN.md. These were previously silently skipped due to template-not-found. The validator surfacing them now is the intended behavior change; backfill is a portfolio-side task.
 - [ ] **WORKFLOW.md type-to-artifact tables** — `skills/personal-workflow/WORKFLOW.md` lines 19-25 and 62-67 still say "Feature: tracker + milestones (2 artifacts)" (doc drift, not validator-breaking; same drift item D000009 deferred)
 - [ ] **Deployed-extra detection** — current drift check iterates over workbench templates only; an old template that was removed from workbench would linger in `~/.claude/templates/` undetected. Low priority because removed templates are rare, but worth a follow-up.
