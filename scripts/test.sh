@@ -530,6 +530,57 @@ else
 fi
 
 echo ""
+echo "Regression test (D000012): deployed workflow templates stay in sync with workbench..."
+
+# Background: D000009 added doc-DESIGN.md and v0.14.2 added doc-feature-summary.md
+# to the workbench manifests + templates dir, but ~/.claude/templates/ was never
+# refreshed via skills-deploy install --overwrite. Downstream repos (e.g. portfolio)
+# that resolve templates from ~/.claude/ saw the new manifest requirement without
+# the corresponding template files. This block:
+#   (a) verifies skills-catalog.json declares both new templates so skills-deploy
+#       install has the metadata to copy them
+#   (b) when ~/.claude/templates/{personal,company}-workflow/ exists on this host,
+#       asserts every workbench template is present and byte-identical in the
+#       deployed copy. Skipped on hosts where skills-deploy hasn't run (e.g. CI).
+
+for _wf in personal-workflow company-workflow; do
+  for _tmpl in doc-DESIGN.md doc-feature-summary.md; do
+    if jq -e --arg p "$_wf/$_tmpl" --arg n "$_wf" \
+         '.[] | select(.name == $n) | .templates | index($p)' \
+         "$CATALOG" > /dev/null 2>&1; then
+      ok "skills-catalog.json $_wf.templates includes $_tmpl"
+    else
+      fail_test "skills-catalog.json $_wf.templates missing $_tmpl (D000012 guard)"
+    fi
+  done
+done
+
+for _wf in personal-workflow company-workflow; do
+  _D12_DEPLOYED="${HOME}/.claude/templates/$_wf"
+  _D12_SRC="$REPO_ROOT/templates/$_wf"
+  if [ -d "$_D12_DEPLOYED" ]; then
+    _D12_DRIFT=0
+    for _src in "$_D12_SRC"/*.md; do
+      [ -f "$_src" ] || continue
+      _name=$(basename "$_src")
+      _dst="$_D12_DEPLOYED/$_name"
+      if [ ! -f "$_dst" ]; then
+        fail_test "deployed template missing: $_wf/$_name (run scripts/skills-deploy install --overwrite; D000012 guard)"
+        _D12_DRIFT=$((_D12_DRIFT + 1))
+      elif ! cmp -s "$_src" "$_dst"; then
+        fail_test "deployed template differs from workbench: $_wf/$_name (run scripts/skills-deploy install --overwrite; D000012 guard)"
+        _D12_DRIFT=$((_D12_DRIFT + 1))
+      fi
+    done
+    if [ "$_D12_DRIFT" -eq 0 ]; then
+      ok "deployed templates/$_wf/ matches workbench source"
+    fi
+  else
+    echo "  SKIP: ~/.claude/templates/$_wf/ not present — skills-deploy hasn't run on this host"
+  fi
+done
+
+echo ""
 echo "Regression test (T000004): AI_KNOWLEDGE_DIR resolution block (S000004)..."
 # Background: /company-workflow validate is an LLM-driven SKILL.md, not an
 # executable, so bash CI cannot invoke it end-to-end. These tests extract the
