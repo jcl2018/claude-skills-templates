@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.1.3] - 2026-05-01
+
+D000014 closes two co-located coverage gaps from prior manifest changes that
+D000012 + D000013 didn't address: WORKFLOW.md type-to-artifact tables drifted
+behind the manifest (4 entries across both workflows), and the D000012 drift
+block only iterated workbench → deployed (deployed-extras slipped through).
+The new regression checks force WORKFLOW.md and the deployed templates dir
+into bidirectional sync with the manifest source-of-truth.
+
+### Fixed
+- `skills/personal-workflow/WORKFLOW.md` — feature row + prose updated from
+  "TRACKER + milestones (2 artifacts)" to "TRACKER + feature-summary + DESIGN +
+  milestones (4 artifacts)" to match the manifest. AI scaffolding now reads the
+  correct count.
+- `skills/company-workflow/WORKFLOW.md` — feature row + prose 3 → 4 (added
+  DESIGN); defect 3 → 4 and task 2 → 3 (both added PR-DESCRIPTION). `work-copilot/WORKFLOW.md`
+  is byte-mirrored in lockstep per `MIRROR_SPECS`.
+
+### Added
+- `scripts/test.sh` D000012 block extended with a reverse-direction loop:
+  every file in `~/.claude/templates/{workflow}/` must also exist in the
+  workbench source. Catches stale templates left after a workbench removal.
+  Tagged with `D000014 guard` in failure messages.
+- `scripts/test.sh` new D000014 block: parses every type's required-array
+  length from each manifest and grep's the `| <type> |` row count column from
+  WORKFLOW.md. Mismatch fails CI with the workflow, type, and both counts.
+  Manifest is authoritative; future manifest changes will fail this check
+  until WORKFLOW.md is updated.
+
+### Notes
+- D000012 TRACKER's deferred items "WORKFLOW.md type-to-artifact tables" and
+  "Deployed-extra detection" are now closed and cross-link D000014.
+- Skipped: `skills-deploy install --prune` for auto-cleanup of deployed-extras.
+  Test.sh detection + manual `rm` is enough for now; revisit if extras become
+  common.
+
 ## [1.1.2] - 2026-05-01
 
 D000013 skills-deploy auto-sync hook — closes D000012's deferred Option C2.

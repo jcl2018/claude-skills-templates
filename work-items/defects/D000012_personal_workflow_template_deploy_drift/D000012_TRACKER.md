@@ -81,8 +81,8 @@ blocked_by: ""
 
 - [x] **Option C design call** (see RCA Fix Description) — decided **C2** (post-merge hook). Shipped in D000013 / v1.1.2. C1 (symlink templates dir) remains unimplemented; revisit only if the workbench-must-exist trade-off becomes a real constraint.
 - [ ] **Portfolio backfill** — `discord-v1` now correctly reports `[MISSING] feature-summary` and `[MISSING] design`. `cold-start` is missing DESIGN.md. These were previously silently skipped due to template-not-found. The validator surfacing them now is the intended behavior change; backfill is a portfolio-side task.
-- [ ] **WORKFLOW.md type-to-artifact tables** — `skills/personal-workflow/WORKFLOW.md` lines 19-25 and 62-67 still say "Feature: tracker + milestones (2 artifacts)" (doc drift, not validator-breaking; same drift item D000009 deferred)
-- [ ] **Deployed-extra detection** — current drift check iterates over workbench templates only; an old template that was removed from workbench would linger in `~/.claude/templates/` undetected. Low priority because removed templates are rare, but worth a follow-up.
+- [x] **WORKFLOW.md type-to-artifact tables** — fixed in D000014 / v1.1.3. Personal-workflow feature row updated 2 → 4; company-workflow feature 3 → 4, defect 3 → 4, task 2 → 3. New regression block in `scripts/test.sh` prevents recurrence.
+- [x] **Deployed-extra detection** — fixed in D000014 / v1.1.3. D000012's drift block now iterates both directions; deployed-extras (templates removed from workbench but lingering in `~/.claude/`) fail with `D000014 guard`.
 
 ## Log
 

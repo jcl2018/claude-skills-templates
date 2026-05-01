@@ -18,7 +18,7 @@ using templates from `templates/personal-workflow/`.
 
 For each work item type, the AI reads the template for structure:
 
-- Feature: tracker + milestones (2 artifacts)
+- Feature: tracker + feature-summary + DESIGN + milestones (4 artifacts)
 - User-story: tracker + PRD + ARCHITECTURE + TEST-SPEC (4 artifacts)
 - Task: tracker + test-plan (2 artifacts)
 - Defect: tracker + RCA + test-plan (3 artifacts)
@@ -61,7 +61,7 @@ for the canonical mapping. Summary:
 
 | Type | Artifacts | Count |
 |------|-----------|-------|
-| feature | TRACKER, milestones | 2 |
+| feature | TRACKER, feature-summary, DESIGN, milestones | 4 |
 | user-story | TRACKER, PRD, ARCHITECTURE, TEST-SPEC | 4 |
 | task | TRACKER, test-plan | 2 |
 | defect | TRACKER, RCA, test-plan | 3 |

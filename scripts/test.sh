@@ -560,6 +560,7 @@ for _wf in personal-workflow company-workflow; do
   _D12_SRC="$REPO_ROOT/templates/$_wf"
   if [ -d "$_D12_DEPLOYED" ]; then
     _D12_DRIFT=0
+    # Forward direction: every workbench template must exist + byte-match in deployed (D000012)
     for _src in "$_D12_SRC"/*.md; do
       [ -f "$_src" ] || continue
       _name=$(basename "$_src")
@@ -572,12 +573,55 @@ for _wf in personal-workflow company-workflow; do
         _D12_DRIFT=$((_D12_DRIFT + 1))
       fi
     done
+    # Reverse direction: every deployed template must exist in workbench (D000014)
+    # Catches stale templates left in ~/.claude/ after a workbench removal — skills-deploy
+    # install --overwrite adds files but does not remove them, so without this check
+    # extras accumulate undetected (made more relevant by D000013's auto-sync hook).
+    for _dst in "$_D12_DEPLOYED"/*.md; do
+      [ -f "$_dst" ] || continue
+      _name=$(basename "$_dst")
+      _src="$_D12_SRC/$_name"
+      if [ ! -f "$_src" ]; then
+        fail_test "deployed template not in workbench: $_wf/$_name (manually rm — workbench removed this template; D000014 guard)"
+        _D12_DRIFT=$((_D12_DRIFT + 1))
+      fi
+    done
     if [ "$_D12_DRIFT" -eq 0 ]; then
-      ok "deployed templates/$_wf/ matches workbench source"
+      ok "deployed templates/$_wf/ matches workbench source (both directions)"
     fi
   else
     echo "  SKIP: ~/.claude/templates/$_wf/ not present — skills-deploy hasn't run on this host"
   fi
+done
+
+echo ""
+echo "Regression test (D000014): WORKFLOW.md type-to-artifact counts match manifest..."
+
+# Background: D000009 (DESIGN), v0.14.2 (feature-summary), and earlier company-workflow
+# changes (PR-DESCRIPTION) added required artifacts to the manifest but didn't update
+# the type-to-artifact tables and prose in skills/{personal,company}-workflow/WORKFLOW.md.
+# Scaffolding AIs read WORKFLOW.md, see the wrong count, and produce incomplete work
+# items that fail downstream validation. This block forces the markdown table count
+# to match the manifest's required-array length — manifest is authoritative.
+
+for _wf in personal-workflow company-workflow; do
+  _PREFIX="${_wf%-workflow}"
+  _MANIFEST="$REPO_ROOT/skills/$_wf/${_PREFIX}-artifact-manifests.json"
+  _WORKFLOW_MD="$REPO_ROOT/skills/$_wf/WORKFLOW.md"
+  if [ ! -f "$_MANIFEST" ] || [ ! -f "$_WORKFLOW_MD" ]; then
+    fail_test "$_wf manifest or WORKFLOW.md missing (D000014 guard)"
+    continue
+  fi
+  while IFS=$'\t' read -r _type _expected; do
+    _md_count=$(grep -E "^\| $_type \|" "$_WORKFLOW_MD" | head -1 | awk -F'|' '{print $4}' | tr -d ' ')
+    if [ -z "$_md_count" ]; then
+      fail_test "$_wf WORKFLOW.md missing table row for type \"$_type\" (D000014 guard)"
+    elif [ "$_md_count" = "$_expected" ]; then
+      ok "$_wf WORKFLOW.md $_type count ($_expected) matches manifest"
+    else
+      fail_test "$_wf WORKFLOW.md $_type count drift: WORKFLOW.md=$_md_count, manifest=$_expected (D000014 guard)"
+    fi
+  done < <(jq -r '.types | to_entries[] | .key + "\t" + (.value.required | length | tostring)' "$_MANIFEST")
 done
 
 echo ""
