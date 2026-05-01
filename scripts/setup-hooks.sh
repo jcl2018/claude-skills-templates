@@ -15,32 +15,15 @@ fi
 cat > "$HOOK_DIR/pre-commit" << 'HOOK'
 #!/usr/bin/env bash
 # Auto-installed by scripts/setup-hooks.sh
-# Runs repo-wide validation + per-skill checks for changed skills.
+# Runs repo-wide validation. Per-skill skill-check.sh was retired (see TODOS.md);
+# validate.sh + scripts/test.sh now cover skill-level invariants.
 
-# 1. Repo-wide validation (orphans, catalog sync, dependencies)
 ./scripts/validate.sh || exit 1
-
-# 2. Per-skill lifecycle checks for changed skills
-CHANGED_SKILLS=$(git diff --cached --name-only | grep '^skills/' | sed 's|^skills/||' | cut -d/ -f1 | sort -u)
-if [ -n "$CHANGED_SKILLS" ]; then
-  SKILL_ERRORS=0
-  for skill in $CHANGED_SKILLS; do
-    if [ -f "skills/$skill/SKILL.md" ]; then
-      if ! ./scripts/skill-check.sh "$skill"; then
-        SKILL_ERRORS=$((SKILL_ERRORS + 1))
-      fi
-    fi
-  done
-  if [ "$SKILL_ERRORS" -gt 0 ]; then
-    echo "ERROR: $SKILL_ERRORS skill(s) failed lifecycle checks" >&2
-    exit 1
-  fi
-fi
 HOOK
 
 chmod +x "$HOOK_DIR/pre-commit"
 echo "Pre-commit hook installed at .git/hooks/pre-commit"
-echo "Commits will now run validate.sh + per-skill lifecycle checks."
+echo "Commits will now run validate.sh."
 
 cat > "$HOOK_DIR/post-merge" << 'HOOK'
 #!/usr/bin/env bash
