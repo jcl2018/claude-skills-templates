@@ -581,6 +581,34 @@ for _wf in personal-workflow company-workflow; do
 done
 
 echo ""
+echo "Regression test (D000013): setup-hooks.sh installs post-merge auto-sync hook..."
+
+# Background: D000012 added a regression check that catches deploy drift but doesn't
+# prevent it. D000013 closes Option C2 from D000012's RCA: setup-hooks.sh now writes
+# a post-merge hook so workbench pulls auto-run skills-deploy install --overwrite
+# whenever templates/skills/catalog/rules change. This block verifies the source
+# script still emits the right hook content; it does not fire the hook itself
+# (avoids touching .git/hooks/ in CI).
+
+if grep -q 'cat > "$HOOK_DIR/post-merge"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh writes a post-merge hook"
+else
+  fail_test "setup-hooks.sh missing post-merge hook block (D000013 guard)"
+fi
+
+if grep -qE 'skills-deploy.*install.*--overwrite' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "post-merge hook invokes skills-deploy install --overwrite"
+else
+  fail_test "post-merge hook missing skills-deploy install --overwrite call (D000013 guard)"
+fi
+
+if grep -qF 'templates/|skills/|skills-catalog\.json|rules/' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "post-merge hook filters on deploy-relevant paths (templates, skills, catalog, rules)"
+else
+  fail_test "post-merge hook missing path filter for templates/skills/catalog/rules (D000013 guard)"
+fi
+
+echo ""
 echo "Regression test (T000004): AI_KNOWLEDGE_DIR resolution block (S000004)..."
 # Background: /company-workflow validate is an LLM-driven SKILL.md, not an
 # executable, so bash CI cannot invoke it end-to-end. These tests extract the
