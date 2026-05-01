@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.1.1] - 2026-05-01
+
+D000012 personal-workflow + company-workflow deploy drift — restores
+`~/.claude/templates/{personal,company}-workflow/` to byte-match the workbench
+source and adds a generic `scripts/test.sh` regression block so future workbench
+template edits can't silently fall behind the deployed copy.
+
+### Fixed
+- `~/.claude/templates/personal-workflow/` and `~/.claude/templates/company-workflow/`
+  now match the workbench source after running `scripts/skills-deploy install --overwrite`.
+  Previously, `doc-DESIGN.md` (added in v0.13.1) and `doc-feature-summary.md` (added in
+  v0.14.2) were missing from the deployed copy, plus `tracker-feature.md`,
+  `tracker-user-story.md` (personal), `tracker-feature.md`, and `doc-milestones.md`
+  (company) had drifted from workbench edits. Repos using personal-workflow or
+  company-workflow from a non-workbench checkout now resolve every template the
+  manifest declares.
+
+### Added
+- `scripts/test.sh` D000012 regression block (~50 lines) covering both workflows.
+  Verifies (a) `skills-catalog.json` declares `doc-DESIGN.md` and `doc-feature-summary.md`
+  for both workflows and (b) when `~/.claude/templates/{workflow}/` exists, every
+  workbench template is byte-identical in the deployed copy. Skips with an INFO line
+  on hosts where `skills-deploy` hasn't run (e.g. CI). Future workbench template edits
+  without a re-deploy fail this check with a pointer to `scripts/skills-deploy install --overwrite`.
+
 ## [1.1.0] - 2026-04-27
 
 F000004 work-copilot v2 realignment — closes the artifact-completeness gap
