@@ -14,10 +14,25 @@ Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench
 
 HEADER
 
-# Generate skills table from catalog
+# Generate skills table from catalog (active + experimental — non-deprecated)
 echo "| Name | Description | Status | Portability | Version |"
 echo "|------|-------------|--------|-------------|---------|"
-jq -r '.[] | "| \(.name) | \(.description) | \(.status) | \(.portability) | \(.version) |"' "$CATALOG"
+jq -r '.[] | select((.status // "active") != "deprecated") | "| \(.name) | \(.description) | \(.status) | \(.portability) | \(.version) |"' "$CATALOG"
+
+# Append a "Deprecated" section iff at least one entry has status=deprecated.
+# Skills here stay in the repo (e.g. as upstream truth for byte-mirrored bundles)
+# but are skipped by `skills-deploy install` unless --include-deprecated is set.
+DEPRECATED_COUNT=$(jq -r '[.[] | select((.status // "active") == "deprecated")] | length' "$CATALOG")
+if [ "$DEPRECATED_COUNT" -gt 0 ]; then
+  echo ""
+  echo "### Deprecated"
+  echo ""
+  echo "Skills below remain in the repo for reference but are skipped by \`skills-deploy install\` by default. Use \`skills-deploy install --include-deprecated\` to install them anyway."
+  echo ""
+  echo "| Name | Description | Portability | Version |"
+  echo "|------|-------------|-------------|---------|"
+  jq -r '.[] | select((.status // "active") == "deprecated") | "| \(.name) | \(.description) | \(.portability) | \(.version) |"' "$CATALOG"
+fi
 
 cat << 'BODY'
 

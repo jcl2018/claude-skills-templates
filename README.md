@@ -1,91 +1,73 @@
 # claude-skills-templates
 
-Custom skills, templates, and development tooling for Claude Code. Doc-first development templates, doc intelligence, and system health monitoring.
-
-## Install
-
-```bash
-git clone https://github.com/jcl2018/claude-skills-templates.git ~/.claude/skills-templates
-~/.claude/skills-templates/scripts/setup.sh
-```
-
-This symlinks all skills into `~/.claude/skills/` so Claude Code discovers them automatically. Updates are just `cd ~/.claude/skills-templates && git pull`.
-
-```bash
-# Manage installed skills
-./scripts/skills-deploy install              # Install all skills + templates
-./scripts/skills-deploy remove system-health # Remove a skill
-./scripts/skills-deploy doctor               # Check health
-```
-
-## Templates
-
-Doc-first development templates for structured work tracking. Two workflow skills each own their own template set and artifact manifest. Invoke the relevant skill to scaffold work items per the mapping below.
-
-**Company-workflow** (formal 4-phase lifecycle, PR descriptions for TFS / external review):
-
-| Type | Artifacts |
-|------|-----------|
-| Feature | TRACKER + feature-summary + milestones |
-| User Story | TRACKER + PRD + ARCHITECTURE + TEST-SPEC + milestones |
-| Task | TRACKER + test-plan + PR-DESCRIPTION |
-| Defect | TRACKER + RCA + test-plan + PR-DESCRIPTION |
-| Review | TRACKER + review-notes |
-
-**Personal-workflow** (lighter 3-phase lifecycle, no PR-description artifacts):
-
-| Type | Artifacts |
-|------|-----------|
-| Feature | TRACKER + milestones |
-| User Story | TRACKER + PRD + ARCHITECTURE + TEST-SPEC |
-| Task | TRACKER + test-plan |
-| Defect | TRACKER + RCA + test-plan |
-
-Per-skill manifests are the canonical source of truth:
-- `skills/company-workflow/company-artifact-manifests.json`
-- `skills/personal-workflow/personal-artifact-manifests.json`
+Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench for Claude Code.
 
 ## Skills
 
-| Skill | What it does |
-|-------|-------------|
-| `/company-workflow` | Validates company work items against templates. Structural rules (required frontmatter, section order, lifecycle phases, minimum checkbox count) derived from the matching template at runtime — no separate contract file to drift. Optional `AI_KNOWLEDGE_DIR` env var points at an external knowledge folder for coding guidance and domain knowledge; categories marked `surface: always` inject their `*.md` files into Claude's context on every invocation, and categories marked `surface: on-demand` with a `triggers: [...]` list load only when Claude matches a trigger against the user's message. Both require the repo to opt in via `.claude/knowledge-enabled`. Ships with a `knowledge-doctor` diagnostic subcommand for troubleshooting. |
-| `/personal-workflow` | Validates personal-dev work items. Same template-derived rules, lighter 3-phase lifecycle (Track / Implement / Ship), simpler frontmatter (no `workflow_type`, no `url`). |
-| `/system-health` | Scans `~/.claude/` for broken symlinks, orphan skills, dependency graph issues. Composite 0-10 health score with trend tracking. |
+| Name | Description | Status | Portability | Version |
+|------|-------------|--------|-------------|---------|
+| system-health | ~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, invokes waza for config hygiene. | active | standalone | 1.0.0 |
+| templates | Skill authoring template for new skills. | active | standalone | 0.1.0 |
+| personal-workflow | Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | active | standalone | 2.0.0 |
 
-## GitHub Copilot bundle
+### Deprecated
 
-Non-Claude machines (e.g. a Windows work laptop with GitHub Copilot but no Claude) can still get the same "scaffold + validate" discipline via `work-copilot/` — a standalone Copilot bundle that mirrors `/company-workflow`. Install it into any target repo:
+Skills below remain in the repo for reference but are skipped by `skills-deploy install` by default. Use `skills-deploy install --include-deprecated` to install them anyway.
+
+| Name | Description | Portability | Version |
+|------|-------------|-------------|---------|
+| company-workflow | Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | standalone | 4.0.0 |
+
+## Quick Start
 
 ```bash
-python3 scripts/copilot-deploy.py install <target-repo>
-python3 scripts/copilot-deploy.py doctor  <target-repo>   # verify
-python3 scripts/copilot-deploy.py remove  <target-repo>   # uninstall
+# Clone the repo
+git clone https://github.com/jcl2018/claude-skills-templates.git
+cd claude-skills-templates
+
+# Validate the repo
+./scripts/validate.sh
+
+# Create a new skill
+./scripts/create-skill.sh my-new-skill
+
+# Run full test suite
+./scripts/test.sh
 ```
 
-This writes `.github/copilot-instructions.md` (always-on context), `.github/prompts/validate.prompt.md` (slash command), and `.github/work-copilot/` (templates, WORKFLOW.md, reference/ how-to guides, philosophy/ rationale notes, examples/ artifacts, fixtures/, manifest) into the target. The bundle is byte-mirrored from upstream — `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces sync across all 7 mirror entries (templates, WORKFLOW.md, reference/, philosophy/, examples/, fixtures/, manifest pair). See `work-copilot/README.md` for the standalone quickstart and troubleshooting table.
+## Installation
 
-## Creating a New Skill
+### As a Claude Code plugin
 
-Create the directory and files directly (see CLAUDE.md "Creating a new skill" section for the full guide):
+```bash
+claude plugin install claude-skills-templates@your-marketplace
+```
 
-1. Create `skills/{name}/SKILL.md` with YAML frontmatter (name, description, version, allowed-tools)
-2. Add a catalog entry to `skills-catalog.json`
-3. Run `./scripts/validate.sh` to verify
-4. Use `/ship` to commit and create a PR
+### Via git clone
+
+```bash
+git clone https://github.com/jcl2018/claude-skills-templates.git
+claude --plugin-dir ./claude-skills-templates
+```
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `setup.sh` | Bootstrap installer (clone + deploy symlinks) |
-| `skills-deploy` | Manage installed skills (install/remove/relink/doctor) |
-| `copilot-deploy.py` | Install/doctor/remove the GitHub Copilot bundle into a target repo |
-| `validate.sh` | Catalog-to-filesystem validation |
-| `test.sh` | Full test suite |
-| `test-deploy.sh` | Deploy pipeline tests |
-| `collection-version.sh` | Get/bump/manifest for collection version |
-| `doctor.sh` | Skill health diagnostics |
-| `lint-skill.sh` | Content-level linting |
-| `deps.sh` | Dependency graph |
-| `generate-readme.sh` | Auto-generate skills table |
+| Script | Purpose | Exit code |
+|--------|---------|-----------|
+| `validate.sh` | Catalog-to-filesystem validation | 1 on error |
+| `test.sh` | Smoke tests (superset of validate) | 1 on failure |
+| `skill-design.sh` | Scaffold DESIGN.md for a new skill | 1 on error |
+| `create-skill.sh` | Scaffold SKILL.md + CHANGELOG.md + catalog entry | 1 on error |
+| `skill-check.sh` | Per-skill lifecycle validation | 1 on error |
+| `skill-version.sh` | Bump skill version (major/minor/patch) | 1 on error |
+| `skill-ship.sh` | Commit, tag, and ship a skill release | 1 on error |
+| `doctor.sh` | Skill health diagnostics | 0 (advisory) |
+| `lint-skill.sh` | Content-level skill linting | 0 (advisory) |
+| `deps.sh` | Dependency graph visualization | 0 (advisory) |
+| `generate-readme.sh` | Auto-generate this README | 1 on write failure |
+| `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
+| `setup-hooks.sh` | Install pre-commit hook | 0 |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full authoring guide.
