@@ -25,7 +25,7 @@ blocked_by: ""
 
 **Gates:**
 - [x] Parent scope read (parent tracker reviewed)
-- [ ] Working branch created (`branch` field populated)
+- [x] Working branch created (`branch` field populated)
 - [x] Required docs scaffolded (test-plan)
 - [x] Files section populated
 
@@ -38,9 +38,9 @@ blocked_by: ""
 4. Update Files section with actual changed files
 
 **Gates:**
-- [ ] Core changes committed (>=1 commit SHA in Log)
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Core changes committed (>=1 commit SHA in Log)
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -54,7 +54,7 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Test-plan verified (all scenarios passing)
+- [x] Test-plan verified (all scenarios passing)
 - [ ] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed
 
@@ -63,12 +63,12 @@ blocked_by: ""
 <!-- Actionable items for this task. Not lifecycle duplicates — these are
      the actual things to build, fix, or investigate. -->
 
-- [ ] Run all 6 regression cases in `T000014_test-plan.md` end-to-end on a fresh `SKILLS_DEPLOY_TARGET`
-- [ ] Verify `validate.sh` Error check 10 reports PASS for all 7 mirror entries (byte-identity)
-- [ ] Verify `test.sh` exits 0 with no behavioral changes (only path-replacement diffs)
-- [ ] Confirm `scripts/skills-deploy doctor` reports `company-workflow` under INFO at the new path
-- [ ] Capture before/after manifest contents to confirm path field reflects `deprecated/company-workflow/SKILL.md`
-- [ ] Update test-plan Status column to Pass/Fail per case; record commit SHA in Log
+- [x] Run all 6 regression cases in `T000014_test-plan.md` end-to-end on a fresh `SKILLS_DEPLOY_TARGET`
+- [x] Verify `validate.sh` Error check 10 reports PASS for all 7 mirror entries (byte-identity)
+- [x] Verify `test.sh` exits 0 with no behavioral changes (only path-replacement diffs)
+- [x] Confirm `scripts/skills-deploy doctor` reports `company-workflow` under INFO at the new path
+- [x] Capture before/after manifest contents to confirm path field reflects `deprecated/company-workflow/SKILL.md`
+- [x] Update test-plan Status column to Pass/Fail per case; record commit SHA in Log
 
 ## Log
 

@@ -36,7 +36,7 @@ blocked_by: ""
 
 **Gates:**
 - [x] Acceptance criteria scoped
-- [ ] Working branch created (`branch` field populated)
+- [x] Working branch created (`branch` field populated)
 - [x] feature-summary + DESIGN + milestones scaffolded
 - [x] Broken down into child stories
 
@@ -48,8 +48,8 @@ blocked_by: ""
 4. Update Files section with top-level changed files
 
 **Gates:**
-- [ ] All child stories have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] All child stories have entered Phase 2+
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
@@ -69,35 +69,36 @@ blocked_by: ""
 <!-- What "done" looks like for this feature. Each criterion should be
      testable and specific. -->
 
-- [ ] `skills/` contains exactly: `personal-workflow/`, `system-health/` (no `company-workflow/`)
-- [ ] `templates/` contains exactly: `personal-workflow/`, `doc-SKILL-DESIGN.md` (no `company-workflow/`)
-- [ ] `deprecated/company-workflow/` contains the full skill source incl. `templates/` subdir
-- [ ] `deprecated/README.md` exists explaining the dir's purpose (5-line note)
-- [ ] `./scripts/validate.sh` passes — Error check 10 (MIRROR_SPECS) verifies byte-identity at the new source paths
-- [ ] `./scripts/test.sh` passes
-- [ ] `scripts/skills-deploy install` on a clean target skips `company-workflow` (deprecated, expected)
-- [ ] `scripts/skills-deploy install --include-deprecated` installs `company-workflow` from `deprecated/company-workflow/`
-- [ ] `scripts/skills-deploy doctor` reports `company-workflow` under INFO (not WARN), with a "deprecated — not installed by default" annotation
-- [ ] `skills-catalog.json` `files[]` and `templates[]` for `company-workflow` reference `deprecated/company-workflow/...`
-- [ ] `scripts/skills-deploy` line 260 + line 278 derive paths from catalog `files[]` (no hardcoded `skills/{name}/`)
-- [ ] `scripts/validate.sh` catalog walker (line 30) + orphan check (line 71) honor catalog paths instead of hardcoding `skills/`
-- [ ] `scripts/test.sh` introduces `COMPANY_PATH` / `COMPANY_TPL` constants; ~40 hardcoded refs replaced
-- [ ] `CLAUDE.md` references `deprecated/company-workflow/...` consistently; new `deprecated/` convention documented
-- [ ] `README.md` regenerated reflects the new paths
+- [x] `skills/` contains exactly: `personal-workflow/`, `system-health/` (no `company-workflow/`)
+- [x] `templates/` contains exactly: `personal-workflow/`, `doc-SKILL-DESIGN.md` (no `company-workflow/`)
+- [x] `deprecated/company-workflow/` contains the full skill source incl. `templates/` subdir
+- [x] `deprecated/README.md` exists explaining the dir's purpose (5-line note)
+- [x] `./scripts/validate.sh` passes — Error check 10 (MIRROR_SPECS) verifies byte-identity at the new source paths
+- [x] `./scripts/test.sh` passes
+- [x] `scripts/skills-deploy install` on a clean target skips `company-workflow` (deprecated, expected)
+- [x] `scripts/skills-deploy install --include-deprecated` installs `company-workflow` from `deprecated/company-workflow/`
+- [x] `scripts/skills-deploy doctor` reports `company-workflow` under INFO (not WARN), with a "deprecated — not installed by default" annotation
+- [x] `skills-catalog.json` `files[]` and `templates[]` for `company-workflow` reference `deprecated/company-workflow/...`
+- [x] `scripts/skills-deploy` derives paths from catalog `files[]` via `skill_md_path` / `skill_source_dir` helpers (no hardcoded `skills/{name}/`)
+- [x] `scripts/validate.sh` catalog walker + orphan check honor catalog paths; orphan check extended to walk `deprecated/` too
+- [x] `scripts/test.sh` introduces `COMPANY_PATH` / `COMPANY_TPL` constants; hardcoded `$REPO_ROOT/skills/company-workflow` and `$REPO_ROOT/templates/company-workflow` refs replaced (test fixture destination paths intentionally retained)
+- [x] `CLAUDE.md` references `deprecated/company-workflow/...` consistently; new `deprecated/` convention section documented
+- [x] `README.md` regenerated reflects the new paths
 
 ## Todos
 
 <!-- Actionable items for this feature. Break into child tasks for
      large features. -->
 
-- [ ] [S000013_relocate_with_catalog_driven_paths](S000013_relocate_with_catalog_driven_paths/S000013_TRACKER.md) — relocate skills/company-workflow/ + templates/company-workflow/ to deprecated/; refactor skills-deploy + validate.sh to derive paths from catalog
-- [ ] [T000014_migrate_company_workflow_paths](S000013_relocate_with_catalog_driven_paths/T000014_migrate_company_workflow_paths/T000014_TRACKER.md) — verification gate: clean install + mirror invariant + doctor INFO at new path
+- [x] [S000013_relocate_with_catalog_driven_paths](S000013_relocate_with_catalog_driven_paths/S000013_TRACKER.md) — relocate skills/company-workflow/ + templates/company-workflow/ to deprecated/; refactor skills-deploy + validate.sh to derive paths from catalog
+- [x] [T000014_migrate_company_workflow_paths](S000013_relocate_with_catalog_driven_paths/T000014_migrate_company_workflow_paths/T000014_TRACKER.md) — verification gate: clean install + mirror invariant + doctor INFO at new path
 
 ## Log
 
 <!-- Chronological entries with dates and commit SHAs. -->
 
 - 2026-05-02: Created. Follow-up to F000005 (v1.2.0). Move company-workflow source out of `skills/` into a new top-level `deprecated/company-workflow/` so `skills/` contains only deployable skills, and refactor consumer scripts to derive paths from the catalog instead of hardcoding `skills/{name}/`. Office-hours design doc: `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260502-015311.md` (Status: APPROVED).
+- 2026-05-02: Implemented. File moves via `git mv` (53 + 14 files). Catalog updated with `templates_source: "deprecated/company-workflow/templates"`. Catalog-driven helpers (`skill_md_path`, `skill_source_dir`, `skill_templates_source`) added to `scripts/skills-deploy`, `scripts/validate.sh`, and `scripts/test.sh`. `discover_skills()` migrated from filesystem walk to catalog iteration. `MIRROR_SPECS` retargeted; `validate.sh` orphan check extended to walk both `skills/` and `deprecated/`; `test.sh` introduces `COMPANY_PATH`/`COMPANY_TPL` constants. `CLAUDE.md` documents the `deprecated/` convention. `deprecated/README.md` added. README regenerated. Verified: `./scripts/validate.sh` PASS (0 errors / 0 warnings; Error check 10 byte-identity verified for all 7 mirror entries); `./scripts/test.sh` PASS (Failures: 0); T000014 6 regression cases all PASS on a fresh `SKILLS_DEPLOY_TARGET` (default install skips with 1 WARN; `--include-deprecated` installs from new path with manifest path field reflecting `deprecated/company-workflow/SKILL.md`; doctor reports INFO; idempotent re-install no-op).
 
 ## PRs
 

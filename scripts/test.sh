@@ -10,6 +10,30 @@ ERRORS=0
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
+# Path constants for the deprecated company-workflow skill source (F000006).
+# Centralizes the source location so the next relocation (if any) is a
+# one-line edit instead of ~40 hardcoded path replacements across this file.
+COMPANY_PATH="$REPO_ROOT/deprecated/company-workflow"
+COMPANY_TPL="$REPO_ROOT/deprecated/company-workflow/templates"
+
+# Catalog-driven SKILL.md path lookup (F000006). Mirrors the helper in
+# scripts/skills-deploy and scripts/validate.sh: skill source root is the
+# dirname of catalog files[0], so a skill can live anywhere the catalog
+# points (skills/, deprecated/, etc.).
+skill_md_path() {
+  jq -r --arg n "$1" '.[] | select(.name == $n) | (.files // []) | .[0] // ""' "$CATALOG" 2>/dev/null || true
+}
+skill_md_abs() {
+  local f0
+  f0=$(skill_md_path "$1")
+  [ -n "$f0" ] && echo "$REPO_ROOT/$f0" || true
+}
+skill_source_dir_abs() {
+  local f0
+  f0=$(skill_md_path "$1")
+  [ -n "$f0" ] && echo "$REPO_ROOT/$(dirname "$f0")" || true
+}
+
 # Ensure git user config exists (required for commit in CI environments)
 if ! git config user.name >/dev/null 2>&1; then
   git config user.name "test"
@@ -40,8 +64,8 @@ fi
 echo ""
 echo "Checking SKILL.md frontmatter parseability..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
-  skill_file="$SKILLS_DIR/$name/SKILL.md"
-  [ -f "$skill_file" ] || continue
+  skill_file=$(skill_md_abs "$name")
+  [ -n "$skill_file" ] && [ -f "$skill_file" ] || continue
   # Check frontmatter exists between --- markers
   fm=$(sed -n '/^---$/,/^---$/p' "$skill_file")
   if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -96,7 +120,7 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
 done
 
 # Smoke test for company-workflow's example-doc-feature-summary.md
-EX_FS="$REPO_ROOT/skills/company-workflow/examples/example-doc-feature-summary.md"
+EX_FS="$COMPANY_PATH/examples/example-doc-feature-summary.md"
 if [ -f "$EX_FS" ]; then
   fs_missing=""
   for sec in "## Scope" "## Success Criteria" "## Constituent User-Stories" "## Out-of-Scope"; do
@@ -110,7 +134,7 @@ if [ -f "$EX_FS" ]; then
 fi
 
 # Smoke test for fixtures/valid-feature-dir/feature-summary.md
-FX_FS="$REPO_ROOT/skills/company-workflow/fixtures/valid-feature-dir/feature-summary.md"
+FX_FS="$COMPANY_PATH/fixtures/valid-feature-dir/feature-summary.md"
 if [ -f "$FX_FS" ]; then
   fs_missing=""
   for sec in "## Scope" "## Success Criteria" "## Constituent User-Stories" "## Out-of-Scope"; do
@@ -303,14 +327,14 @@ fi
 echo ""
 echo "Portability test: company-workflow standalone..."
 
-if grep -q "gstack" "$REPO_ROOT/skills/company-workflow/SKILL.md" 2>/dev/null; then
+if grep -q "gstack" "$COMPANY_PATH/SKILL.md" 2>/dev/null; then
   fail_test "company-workflow SKILL.md contains gstack references (should be standalone)"
 else
   ok "company-workflow SKILL.md has zero gstack references"
 fi
 
 # shellcheck disable=SC2088
-if grep -q "~/.gstack" "$REPO_ROOT/skills/company-workflow/SKILL.md" 2>/dev/null; then
+if grep -q "~/.gstack" "$COMPANY_PATH/SKILL.md" 2>/dev/null; then
   fail_test "company-workflow SKILL.md references ~/.gstack/ (should be standalone)"
 else
   ok "company-workflow SKILL.md has no ~/.gstack/ paths"
@@ -383,56 +407,66 @@ echo "Regression test (D000006): company-workflow Phase 2 test-verification gate
 # Phase 2 test-verification gates in all 4 company-workflow trackers
 # Anchored on '^- [ ]' checkbox prefix + key tokens to survive minor reword but
 # fail loudly on full removal of the gate line.
-if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-defect.md"; then
+if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$COMPANY_TPL/tracker-defect.md"; then
   ok "tracker-defect Phase 2 references test-plan verification"
 else
   fail_test "tracker-defect.md is missing the test-plan.md Pass-verification Phase 2 gate"
 fi
 
-if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-task.md"; then
+if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$COMPANY_TPL/tracker-task.md"; then
   ok "tracker-task Phase 2 references test-plan verification"
 else
   fail_test "tracker-task.md is missing the test-plan.md Pass-verification Phase 2 gate"
 fi
 
-if grep -qE '^- \[ \].*TEST-SPEC\.md.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-user-story.md"; then
+if grep -qE '^- \[ \].*TEST-SPEC\.md.*Pass' "$COMPANY_TPL/tracker-user-story.md"; then
   ok "tracker-user-story Phase 2 references TEST-SPEC verification"
 else
   fail_test "tracker-user-story.md is missing the TEST-SPEC.md Pass-verification Phase 2 gate"
 fi
 
-if grep -qE '^- \[ \].*child user-story.*TEST-SPEC.*Pass' "$REPO_ROOT/templates/company-workflow/tracker-feature.md"; then
+if grep -qE '^- \[ \].*child user-story.*TEST-SPEC.*Pass' "$COMPANY_TPL/tracker-feature.md"; then
   ok "tracker-feature Phase 2 has TEST-SPEC roll-up gate"
 else
   fail_test "tracker-feature.md is missing the child user-story TEST-SPEC roll-up gate"
 fi
 
-# Scope comments in test-doc templates (both skills)
-for tmpl in templates/company-workflow/doc-test-plan.md templates/personal-workflow/doc-test-plan.md; do
-  if grep -q "ONE fix (defect) or ONE task" "$REPO_ROOT/$tmpl"; then
-    ok "$tmpl has the test-plan scope comment"
+# Scope comments in test-doc templates (both skills). Path-pair list because
+# company-workflow templates moved to deprecated/company-workflow/templates/
+# under F000006; personal-workflow templates stay at templates/personal-workflow/.
+for entry in \
+    "$COMPANY_TPL/doc-test-plan.md|company-workflow doc-test-plan.md" \
+    "$REPO_ROOT/templates/personal-workflow/doc-test-plan.md|personal-workflow doc-test-plan.md"; do
+  path="${entry%%|*}"
+  display="${entry#*|}"
+  if grep -q "ONE fix (defect) or ONE task" "$path"; then
+    ok "$display has the test-plan scope comment"
   else
-    fail_test "$tmpl is missing the test-plan scope comment"
+    fail_test "$display is missing the test-plan scope comment"
   fi
 done
 
-for tmpl in templates/company-workflow/doc-TEST-SPEC.md templates/personal-workflow/doc-TEST-SPEC.md; do
-  if grep -q "ENTIRE user story" "$REPO_ROOT/$tmpl"; then
-    ok "$tmpl has the TEST-SPEC scope comment"
+for entry in \
+    "$COMPANY_TPL/doc-TEST-SPEC.md|company-workflow doc-TEST-SPEC.md" \
+    "$REPO_ROOT/templates/personal-workflow/doc-TEST-SPEC.md|personal-workflow doc-TEST-SPEC.md"; do
+  path="${entry%%|*}"
+  display="${entry#*|}"
+  if grep -q "ENTIRE user story" "$path"; then
+    ok "$display has the TEST-SPEC scope comment"
   else
-    fail_test "$tmpl is missing the TEST-SPEC scope comment"
+    fail_test "$display is missing the TEST-SPEC scope comment"
   fi
 done
 
 # Title generalization in company doc-test-plan
-if grep -q "{Defect Name} — Regression Test Plan" "$REPO_ROOT/templates/company-workflow/doc-test-plan.md"; then
+if grep -q "{Defect Name} — Regression Test Plan" "$COMPANY_TPL/doc-test-plan.md"; then
   fail_test "company doc-test-plan.md still uses defect-only title placeholder; expected '{Item Name} — Test Plan'"
 else
   ok "company doc-test-plan.md title is generalized"
 fi
 
 # WORKFLOW.md has the new subsection
-if grep -q "### test-plan vs TEST-SPEC" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+if grep -q "### test-plan vs TEST-SPEC" "$COMPANY_PATH/WORKFLOW.md"; then
   ok "company-workflow WORKFLOW.md has the test-plan vs TEST-SPEC subsection"
 else
   fail_test "company-workflow WORKFLOW.md is missing the '### test-plan vs TEST-SPEC' subsection"
@@ -442,10 +476,10 @@ echo ""
 echo "Regression test (D000007): contract.json eliminated; templates are the single source of truth..."
 
 # contract.json must NOT exist for either skill (templates are now the source of truth)
-if [ -f "$REPO_ROOT/skills/company-workflow/contract.json" ]; then
-  fail_test "skills/company-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
+if [ -f "$COMPANY_PATH/contract.json" ]; then
+  fail_test "deprecated/company-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
 else
-  ok "skills/company-workflow/contract.json correctly absent"
+  ok "deprecated/company-workflow/contract.json correctly absent"
 fi
 
 if [ -f "$REPO_ROOT/skills/personal-workflow/contract.json" ]; then
@@ -457,11 +491,15 @@ fi
 # Validator files must not reference the deleted contract.json as a runtime dependency
 # (intentional documentation mentions like "there is no separate contract.json" are
 # fine — we grep for read/cat/load patterns that would indicate runtime use)
-for vf in skills/company-workflow/SKILL.md skills/personal-workflow/SKILL.md skills/personal-workflow/check.md; do
-  if grep -qE '(cat|jq|Read|read).*contract\.json' "$REPO_ROOT/$vf"; then
-    fail_test "$vf still has a runtime read of contract.json (line should be removed)"
+for vf in \
+    "$COMPANY_PATH/SKILL.md" \
+    "$REPO_ROOT/skills/personal-workflow/SKILL.md" \
+    "$REPO_ROOT/skills/personal-workflow/check.md"; do
+  vf_rel="${vf#"$REPO_ROOT"/}"
+  if grep -qE '(cat|jq|Read|read).*contract\.json' "$vf"; then
+    fail_test "$vf_rel still has a runtime read of contract.json (line should be removed)"
   else
-    ok "$vf does not load contract.json at runtime"
+    ok "$vf_rel does not load contract.json at runtime"
   fi
 done
 
@@ -511,7 +549,7 @@ else
 fi
 
 if jq -e '.types.feature.required[] | select(.filename == "DESIGN.md" and .template == "doc-DESIGN.md")' \
-     "$REPO_ROOT/skills/company-workflow/company-artifact-manifests.json" > /dev/null; then
+     "$COMPANY_PATH/company-artifact-manifests.json" > /dev/null; then
   ok "company-artifact-manifests.json feature.required includes DESIGN.md"
 else
   fail_test "company-artifact-manifests.json feature.required missing DESIGN.md entry (D000009 guard)"
@@ -523,10 +561,10 @@ else
   fail_test "templates/personal-workflow/doc-DESIGN.md missing (D000009 guard)"
 fi
 
-if [ -f "$REPO_ROOT/templates/company-workflow/doc-DESIGN.md" ]; then
-  ok "templates/company-workflow/doc-DESIGN.md present"
+if [ -f "$COMPANY_TPL/doc-DESIGN.md" ]; then
+  ok "deprecated/company-workflow/templates/doc-DESIGN.md present"
 else
-  fail_test "templates/company-workflow/doc-DESIGN.md missing (D000009 guard)"
+  fail_test "deprecated/company-workflow/templates/doc-DESIGN.md missing (D000009 guard)"
 fi
 
 echo ""
@@ -557,7 +595,15 @@ done
 
 for _wf in personal-workflow company-workflow; do
   _D12_DEPLOYED="${HOME}/.claude/templates/$_wf"
-  _D12_SRC="$REPO_ROOT/templates/$_wf"
+  # Catalog-driven workbench source dir (F000006). Honors the catalog
+  # templates_source override (e.g. deprecated/company-workflow/templates/);
+  # falls back to templates/{wf} for active skills.
+  _D12_SRC_REL=$(jq -r --arg n "$_wf" '.[] | select(.name == $n) | .templates_source // ""' "$CATALOG" 2>/dev/null || echo "")
+  if [ -n "$_D12_SRC_REL" ]; then
+    _D12_SRC="$REPO_ROOT/$_D12_SRC_REL"
+  else
+    _D12_SRC="$REPO_ROOT/templates/$_wf"
+  fi
   if [ -d "$_D12_DEPLOYED" ]; then
     _D12_DRIFT=0
     # Forward direction: every workbench template must exist + byte-match in deployed (D000012)
@@ -606,8 +652,11 @@ echo "Regression test (D000014): WORKFLOW.md type-to-artifact counts match manif
 
 for _wf in personal-workflow company-workflow; do
   _PREFIX="${_wf%-workflow}"
-  _MANIFEST="$REPO_ROOT/skills/$_wf/${_PREFIX}-artifact-manifests.json"
-  _WORKFLOW_MD="$REPO_ROOT/skills/$_wf/WORKFLOW.md"
+  # Catalog-driven source dir (F000006): manifest + WORKFLOW.md live in the
+  # same directory as the skill's SKILL.md, wherever the catalog points.
+  _SOURCE_DIR=$(skill_source_dir_abs "$_wf")
+  _MANIFEST="$_SOURCE_DIR/${_PREFIX}-artifact-manifests.json"
+  _WORKFLOW_MD="$_SOURCE_DIR/WORKFLOW.md"
   if [ ! -f "$_MANIFEST" ] || [ ! -f "$_WORKFLOW_MD" ]; then
     fail_test "$_wf manifest or WORKFLOW.md missing (D000014 guard)"
     continue
@@ -673,27 +722,27 @@ touch "$_T4_FILE"
 # extraction stays scoped to the Resolution block even as new Knowledge-* sections
 # get added between Resolution and Template Registry.
 awk '/^## Knowledge Resolution/,/^## Knowledge Helpers/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T4_KR"
 
 if [ ! -s "$_T4_KR" ]; then
   fail_test "T000004: could not extract Knowledge Resolution bash block from SKILL.md"
 else
   # --- Tier 1 structural greps ---
-  if grep -q "^## Knowledge Resolution" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  if grep -q "^## Knowledge Resolution" "$COMPANY_PATH/SKILL.md"; then
     ok "T000004 case 1: SKILL.md has ## Knowledge Resolution section"
   else
     fail_test "T000004 case 1: SKILL.md missing ## Knowledge Resolution section"
   fi
 
-  if grep -q "AI_KNOWLEDGE_DIR" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-     && grep -q "_KNOWLEDGE_DIR=" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+  if grep -q "AI_KNOWLEDGE_DIR" "$COMPANY_PATH/SKILL.md" \
+     && grep -q "_KNOWLEDGE_DIR=" "$COMPANY_PATH/SKILL.md"; then
     ok "T000004 case 2: SKILL.md references AI_KNOWLEDGE_DIR and exposes _KNOWLEDGE_DIR"
   else
     fail_test "T000004 case 2: SKILL.md missing AI_KNOWLEDGE_DIR or _KNOWLEDGE_DIR"
   fi
 
-  if grep -q "AI_KNOWLEDGE_DIR" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+  if grep -q "AI_KNOWLEDGE_DIR" "$COMPANY_PATH/WORKFLOW.md"; then
     ok "T000004 case 3: WORKFLOW.md documents AI_KNOWLEDGE_DIR"
   else
     fail_test "T000004 case 3: WORKFLOW.md missing AI_KNOWLEDGE_DIR documentation"
@@ -803,17 +852,17 @@ echo "Regression test (T000006 c1): Knowledge Helpers (S000005)..."
 # Background: c1 adds a ## Knowledge Helpers section that documents four bash
 # helpers (parse_knowledge_yml, parse_knowledge_triggers, list_categories,
 # list_md_files). Canonical implementations live in
-# skills/company-workflow/bin/knowledge-helpers.sh; SKILL.md blocks source
+# deprecated/company-workflow/bin/knowledge-helpers.sh; SKILL.md blocks source
 # that file rather than inlining definitions. Tests source the canonical
 # file directly and exercise each function against fixtures built by
 # scripts/test-helpers/knowledge.sh.
 
 _T6H_TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t 't000006h' 2>/dev/null)
-_T6H_CANONICAL="$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
+_T6H_CANONICAL="$COMPANY_PATH/bin/knowledge-helpers.sh"
 
 # --- Tier 1 structural greps ---
 
-if grep -q "^## Knowledge Helpers" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "^## Knowledge Helpers" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c1 case 1: SKILL.md has ## Knowledge Helpers section"
 else
   fail_test "T000006 c1 case 1: SKILL.md missing ## Knowledge Helpers section"
@@ -848,7 +897,7 @@ fi
 
 # Every Knowledge ... block in SKILL.md must source bin/knowledge-helpers.sh
 # (catches the case where someone copy-pastes a block and forgets the source).
-_T6H_SOURCE_COUNT=$(grep -c 'bin/knowledge-helpers\.sh' "$REPO_ROOT/skills/company-workflow/SKILL.md" || true)
+_T6H_SOURCE_COUNT=$(grep -c 'bin/knowledge-helpers\.sh' "$COMPANY_PATH/SKILL.md" || true)
 if [ "$_T6H_SOURCE_COUNT" -ge 4 ]; then
   ok "T000006 c1 case 5b: SKILL.md references bin/knowledge-helpers.sh from $_T6H_SOURCE_COUNT places (≥4 expected: Helpers + Loading + On-Demand + Diagnostic)"
 else
@@ -982,40 +1031,40 @@ _T6L_LOADING="$_T6L_TMPDIR/loading.sh"
 _T6L_DOCTOR="$_T6L_TMPDIR/doctor.sh"
 
 awk '/^## Knowledge Loading/,/^## On-Demand Matching/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6L_LOADING"
 
 awk '/^## Diagnostic: knowledge-doctor/,/^## Template Registry/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6L_DOCTOR"
 
 # --- Tier 1 structural greps ---
 
-if grep -q "^## Knowledge Loading" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "^## Knowledge Loading" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c2 case 1 (S1): SKILL.md has ## Knowledge Loading section"
 else
   fail_test "T000006 c2 case 1: SKILL.md missing ## Knowledge Loading section"
 fi
 
-if grep -q "## Always-On Knowledge" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "## Always-On Knowledge" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c2 case 2 (S2): SKILL.md emits ## Always-On Knowledge section name"
 else
   fail_test "T000006 c2 case 2: SKILL.md missing ## Always-On Knowledge emission"
 fi
 
-if grep -qi "read.*always-on knowledge\|read every path\|read each" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -qi "read.*always-on knowledge\|read every path\|read each" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c2 case 3 (S3): SKILL.md instructs Claude to Read the listed paths"
 else
   fail_test "T000006 c2 case 3: SKILL.md missing Claude-facing Read instruction"
 fi
 
-if ! grep -q "knowledge-enabled" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if ! grep -q "knowledge-enabled" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c2 case 4: SKILL.md does NOT reference legacy .claude/knowledge-enabled marker (removed in v1.0.0)"
 else
   fail_test "T000006 c2 case 4: SKILL.md still references the removed knowledge-enabled marker"
 fi
 
-if grep -q "^## Diagnostic: knowledge-doctor" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "^## Diagnostic: knowledge-doctor" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c2 case 5: SKILL.md has knowledge-doctor diagnostic section"
 else
   fail_test "T000006 c2 case 5: SKILL.md missing knowledge-doctor section"
@@ -1032,19 +1081,19 @@ else
 fi
 
 # WORKFLOW.md docs (S14, S16)
-if grep -qE "surface.*always" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+if grep -qE "surface.*always" "$COMPANY_PATH/WORKFLOW.md"; then
   ok "T000006 c2 case 7 (S14): WORKFLOW.md documents .knowledge.yml schema"
 else
   fail_test "T000006 c2 case 7: WORKFLOW.md missing .knowledge.yml schema"
 fi
 
-if ! grep -q "knowledge-enabled" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+if ! grep -q "knowledge-enabled" "$COMPANY_PATH/WORKFLOW.md"; then
   ok "T000006 c2 case 8: WORKFLOW.md does NOT reference legacy .claude/knowledge-enabled marker (removed in v1.0.0)"
 else
   fail_test "T000006 c2 case 8: WORKFLOW.md still references the removed knowledge-enabled marker"
 fi
 
-if grep -qi "trust boundary\|prompt injection\|Read into Claude" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+if grep -qi "trust boundary\|prompt injection\|Read into Claude" "$COMPANY_PATH/WORKFLOW.md"; then
   ok "T000006 c2 case 9 (S15): WORKFLOW.md includes security callout"
 else
   fail_test "T000006 c2 case 9: WORKFLOW.md missing security callout about Read trust boundary"
@@ -1082,7 +1131,7 @@ _t6l_make_repo() {
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6l-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
   mkdir -p "$repo/skills/company-workflow"
-  ln -snf "$REPO_ROOT/skills/company-workflow/bin" "$repo/skills/company-workflow/bin"
+  ln -snf "$COMPANY_PATH/bin" "$repo/skills/company-workflow/bin"
   printf '%s' "$repo"
 }
 
@@ -1288,54 +1337,54 @@ _T6M_OM="$_T6M_TMPDIR/on-demand.sh"
 _T6M_HELPERS="$_T6M_TMPDIR/helpers.sh"
 
 awk '/^## On-Demand Matching/,/^## Diagnostic: knowledge-doctor/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_OM"
 
 awk '/^## Knowledge Helpers/,/^## Knowledge Loading/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_HELPERS"
 
 # --- Tier 1 structural greps ---
 
-if grep -q "^## On-Demand Matching" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "^## On-Demand Matching" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 1 (S4): SKILL.md has ## On-Demand Matching section"
 else
   fail_test "T000006 c3 case 1: SKILL.md missing ## On-Demand Matching section"
 fi
 
-if grep -q "## On-Demand Knowledge Candidates" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "## On-Demand Knowledge Candidates" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 2 (S5): SKILL.md emits ## On-Demand Knowledge Candidates name"
 else
   fail_test "T000006 c3 case 2: SKILL.md missing ## On-Demand Knowledge Candidates emission"
 fi
 
-if grep -qi "tokenize" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-   && grep -qi "whole-word\|whole word" "$REPO_ROOT/skills/company-workflow/SKILL.md" \
-   && grep -qi "token boundaries" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -qi "tokenize" "$COMPANY_PATH/SKILL.md" \
+   && grep -qi "whole-word\|whole word" "$COMPANY_PATH/SKILL.md" \
+   && grep -qi "token boundaries" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 3 (S6/S7): SKILL.md specifies tokenization + whole-word + phrase at token boundaries"
 else
   fail_test "T000006 c3 case 3: SKILL.md missing matching semantics (tokenize / whole-word / phrase)"
 fi
 
-if grep -qi "case-insensitive" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -qi "case-insensitive" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 4 (S7): SKILL.md specifies case-insensitive matching"
 else
   fail_test "T000006 c3 case 4: SKILL.md missing case-insensitive spec"
 fi
 
-if grep -q "\[knowledge\] matched:" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -q "\[knowledge\] matched:" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 5 (S8): SKILL.md specifies match log format [knowledge] matched: ..."
 else
   fail_test "T000006 c3 case 5: SKILL.md missing match log format"
 fi
 
-if grep -qi "latest user message\|most recent message\|latest message" "$REPO_ROOT/skills/company-workflow/SKILL.md"; then
+if grep -qi "latest user message\|most recent message\|latest message" "$COMPANY_PATH/SKILL.md"; then
   ok "T000006 c3 case 6 (S9): SKILL.md pins matching scope to latest user message only"
 else
   fail_test "T000006 c3 case 6: SKILL.md missing 'latest message only' scope"
 fi
 
-if grep -q "^parse_knowledge_triggers" "$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"; then
+if grep -q "^parse_knowledge_triggers" "$COMPANY_PATH/bin/knowledge-helpers.sh"; then
   ok "T000006 c3 case 7: bin/knowledge-helpers.sh defines parse_knowledge_triggers"
 else
   fail_test "T000006 c3 case 7: bin/knowledge-helpers.sh missing parse_knowledge_triggers"
@@ -1350,8 +1399,8 @@ else
   fail_test "T000006 c3 case 8: On-Demand Matching block missing reference to bin/knowledge-helpers.sh"
 fi
 
-if grep -qi "triggers" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md" \
-   && grep -qi "pricing engine\|multi-word phrase" "$REPO_ROOT/skills/company-workflow/WORKFLOW.md"; then
+if grep -qi "triggers" "$COMPANY_PATH/WORKFLOW.md" \
+   && grep -qi "pricing engine\|multi-word phrase" "$COMPANY_PATH/WORKFLOW.md"; then
   ok "T000006 c3 case 9 (S13/S15): WORKFLOW.md documents triggers + multi-word phrase example"
 else
   fail_test "T000006 c3 case 9: WORKFLOW.md missing trigger-authoring guidance"
@@ -1362,7 +1411,7 @@ fi
 source "$REPO_ROOT/scripts/test-helpers/knowledge.sh"
 # Source canonical helpers directly — see ## Knowledge Helpers in SKILL.md
 # shellcheck disable=SC1090
-source "$REPO_ROOT/skills/company-workflow/bin/knowledge-helpers.sh"
+source "$COMPANY_PATH/bin/knowledge-helpers.sh"
 
 _t6m_run_om() {
   # $1 = AI_KNOWLEDGE_DIR, $2 = repo root
@@ -1377,7 +1426,7 @@ _t6m_make_repo() {
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6m-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
   mkdir -p "$repo/skills/company-workflow"
-  ln -snf "$REPO_ROOT/skills/company-workflow/bin" "$repo/skills/company-workflow/bin"
+  ln -snf "$COMPANY_PATH/bin" "$repo/skills/company-workflow/bin"
   printf '%s' "$repo"
 }
 
@@ -1550,7 +1599,7 @@ rm -rf "$_t6m_repo"
 # ---------- Doctor: on-demand with triggers shows 'on-match' ----------
 _T6M_DOCTOR="$_T6M_TMPDIR/doctor.sh"
 awk '/^## Diagnostic: knowledge-doctor/,/^## Template Registry/' \
-  "$REPO_ROOT/skills/company-workflow/SKILL.md" \
+  "$COMPANY_PATH/SKILL.md" \
   | awk '/^```bash/,/^```$/' | sed '/^```/d' > "$_T6M_DOCTOR"
 
 _t6m_repo=$(_t6m_make_repo)

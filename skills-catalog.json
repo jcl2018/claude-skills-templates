@@ -79,9 +79,9 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/company-workflow/SKILL.md",
-      "skills/company-workflow/WORKFLOW.md",
-      "skills/company-workflow/company-artifact-manifests.json"
+      "deprecated/company-workflow/SKILL.md",
+      "deprecated/company-workflow/WORKFLOW.md",
+      "deprecated/company-workflow/company-artifact-manifests.json"
     ],
     "templates": [
       "company-workflow/tracker-feature.md",
@@ -102,6 +102,7 @@
       "company-workflow/doc-pr-description-task.md",
       "company-workflow/doc-pr-description-defect.md"
     ],
-    "status": "deprecated"
+    "status": "deprecated",
+    "templates_source": "deprecated/company-workflow/templates"
   }
 ]

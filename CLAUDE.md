@@ -54,7 +54,7 @@ to gstack.
 
 Each workflow skill owns its own templates and artifact manifest:
 - **personal-workflow**: `templates/personal-workflow/` + `skills/personal-workflow/personal-artifact-manifests.json`
-- **company-workflow**: `templates/company-workflow/` + `skills/company-workflow/company-artifact-manifests.json`
+- **company-workflow** (deprecated, source-of-truth for `work-copilot/`): `deprecated/company-workflow/templates/` + `deprecated/company-workflow/company-artifact-manifests.json`
 
 Scaffolding conventions live in each skill's WORKFLOW.md. Invoke the skill to access them.
 
@@ -68,15 +68,18 @@ skills/{skill-name}/
 ```
 
 ### Template naming
-Templates live in `templates/` organized by skill:
+Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills):
 - `templates/personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
-- `templates/company-workflow/` — company work item templates (tracker-*.md, doc-*.md)
+- `deprecated/company-workflow/templates/` — company work item templates (tracker-*.md, doc-*.md). Deprecated skill; source-of-truth for the `work-copilot/` byte-mirror, kept in-tree but skipped by `skills-deploy install` unless `--include-deprecated` is passed.
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
-- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `templates/company-workflow/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `skills/company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array.
+- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `deprecated/company-workflow/templates/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `deprecated/company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array.
+
+### Deprecated skills convention
+Skills with `status: deprecated` in `skills-catalog.json` live under `deprecated/{name}/` instead of `skills/{name}/`. The catalog is the source of truth for paths — consumer scripts (`skills-deploy`, `validate.sh`, `test.sh`) derive `dirname(files[0])` for the source root and an optional `templates_source` field for the templates source. Future relocations are a one-line catalog change. See `deprecated/README.md` for what belongs there and what doesn't.
 
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
-Templates resolve via 2-level fallback: `$REPO_ROOT/templates/{skill-name}/` -> `~/.claude/templates/{skill-name}/`.
+Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for active skills, or `$REPO_ROOT/{templates_source}/` when the catalog entry sets `templates_source` (e.g., `deprecated/{name}/templates/`). Then fall back to `~/.claude/templates/{skill-name}/`.
 - Use `--overwrite` to force-replace templates with local modifications
 - `skills-deploy doctor` reports template health (missing, drifted, orphaned)
 - `skills-deploy remove` cleans up templates when no installed skill needs them
