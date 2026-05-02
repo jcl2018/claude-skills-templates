@@ -6,6 +6,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.2.0] - 2026-05-02
+
+F000005 introduces a `deprecated` skill status so retired skills can stay in the
+repo as upstream truth (e.g. for byte-mirrored bundles like `work-copilot/`)
+without being pushed onto fresh machines. `skills-deploy install` skips them with
+a single warning by default; `--include-deprecated` is the explicit opt-in. First
+migration: `company-workflow`, superseded by the GitHub Copilot bundle (F000004)
+on the Windows work machine.
+
+### Added
+- **`status: deprecated` semantics in `skills-catalog.json` (S000012).** The
+  `status` field is now a closed enum `{active, experimental, deprecated}`
+  enforced by `scripts/validate.sh` (Error check 9b). Typos like `depricated`
+  fail the build instead of silently behaving like a missing status.
+- **`scripts/skills-deploy install --include-deprecated` flag.** By default,
+  install skips deprecated skills with one warning per skipped skill
+  (`WARN: skipping deprecated skill: <name> (use --include-deprecated to
+  install)`); the flag is the explicit opt-in. Filter applies to both the skill
+  loop and the templates loop, so a deprecated skill's templates are also
+  skipped when the skill is.
+- **`scripts/skills-deploy doctor` deprecated-aware reporting.** Deprecated
+  skills are reported as `INFO`, never `WARN` — both
+  `INFO: <name> — deprecated, not installed by default` (the expected state)
+  and `INFO: <name> — deprecated, installed (--include-deprecated)` (when the
+  user opted in). Doctor exit code unchanged.
+- **`scripts/generate-readme.sh` separate "Deprecated" section.** Active and
+  experimental skills render in the main table; deprecated skills appear under
+  a labeled `### Deprecated` section with a one-line explanation, gated on
+  count > 0 so the section disappears when no deprecations exist.
+
+### Changed
+- **`company-workflow` flipped to `status: deprecated`** in
+  `skills-catalog.json` (T000013). Source files at `skills/company-workflow/`
+  remain in-repo (the `work-copilot/` byte-mirror invariant in `validate.sh`
+  Error check 10 requires them); only install/visibility is affected.
+
+### Notes
+- 100% backwards-compatible for active and experimental skills — install,
+  doctor, remove, and README rendering behave identically for non-deprecated
+  entries. Existing pre-deprecation installations of `company-workflow` are
+  preserved (install only skips, never removes).
+
+
 ## [1.1.3] - 2026-05-01
 
 D000014 closes two co-located coverage gaps from prior manifest changes that

@@ -102,6 +102,6 @@
       "company-workflow/doc-pr-description-task.md",
       "company-workflow/doc-pr-description-defect.md"
     ],
-    "status": "active"
+    "status": "deprecated"
   }
 ]

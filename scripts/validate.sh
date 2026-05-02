@@ -149,6 +149,26 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 done
 
+# Error check 9b: Catalog status field is one of {active, experimental, deprecated}
+# Closed enum so typos (e.g. "depricated") fail the build instead of silently
+# behaving like a missing status. Status is required on every entry.
+echo ""
+echo "Checking catalog status values..."
+for name in $(jq -r '.[].name' "$CATALOG"); do
+  status_val=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .status // ""' "$CATALOG")
+  case "$status_val" in
+    active|experimental|deprecated)
+      pass "$name has valid status: $status_val"
+      ;;
+    "")
+      fail "$name has no 'status' field (must be one of: active, experimental, deprecated)"
+      ;;
+    *)
+      fail "$name has invalid status: '$status_val' (must be one of: active, experimental, deprecated)"
+      ;;
+  esac
+done
+
 # Warning check: Orphan doc directories
 echo ""
 echo "Checking for orphan doc directories..."

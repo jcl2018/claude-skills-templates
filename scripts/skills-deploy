@@ -52,6 +52,16 @@ skill_deps() {
   jq -r --arg n "$name" '.[] | select(.name == $n) | .depends.skills // [] | .[]' "$CATALOG" 2>/dev/null || true
 }
 
+# Read skill status from catalog (active|experimental|deprecated). Missing = active.
+skill_status() {
+  local name="$1"
+  [ -f "$CATALOG" ] || { echo "active"; return 0; }
+  local s
+  s=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .status // "active"' "$CATALOG" 2>/dev/null || echo "active")
+  [ -n "$s" ] || s="active"
+  echo "$s"
+}
+
 # Check who owns a skill directory
 skill_owner() {
   local name="$1" target="$SKILLS_TARGET/$name/SKILL.md"
@@ -100,11 +110,12 @@ validate_template_name() {
 
 do_install() {
   require_jq
-  local skills=() overwrite=false
+  local skills=() overwrite=false include_deprecated=false
   local args=()
   for arg in "$@"; do
     case "$arg" in
       --overwrite) overwrite=true ;;
+      --include-deprecated) include_deprecated=true ;;
       *) args+=("$arg") ;;
     esac
   done
@@ -128,10 +139,21 @@ do_install() {
     while IFS= read -r s; do skills+=("$s"); done < <(discover_skills)
   fi
 
-  local manifest installed=0 skipped=0 migrated=0
+  local manifest installed=0 skipped=0 migrated=0 deprecated_skipped=0
   manifest=$(manifest_read)
 
   for name in "${skills[@]}"; do
+    # Deprecation gate: skip status=deprecated unless --include-deprecated.
+    # Runs before source-dir resolution so the warning text is the same whether
+    # or not the source files exist on disk.
+    local _status
+    _status=$(skill_status "$name")
+    if [ "$_status" = "deprecated" ] && [ "$include_deprecated" = false ]; then
+      echo "  WARN: skipping deprecated skill: $name (use --include-deprecated to install)"
+      deprecated_skipped=$((deprecated_skipped + 1))
+      continue
+    fi
+
     local src="$SKILLS_SRC/$name"
     # Templates-only catalog entries have no skill directory (empty files array)
     local files_count
@@ -245,6 +267,14 @@ do_install() {
   mkdir -p "$TEMPLATES_TARGET"
 
   for name in "${skills[@]}"; do
+    # Apply the same deprecation gate as the install loop. Templates are part
+    # of a skill's surface area; skipping the skill must also skip its templates.
+    local _tstatus
+    _tstatus=$(skill_status "$name")
+    if [ "$_tstatus" = "deprecated" ] && [ "$include_deprecated" = false ]; then
+      continue
+    fi
+
     local src="$SKILLS_SRC/$name"
     # Templates-only entries have no skill directory but still deploy templates
     local fc
@@ -352,7 +382,11 @@ do_install() {
     '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv}' | manifest_write
 
   echo ""
-  echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
+  if [ "$deprecated_skipped" -gt 0 ]; then
+    echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped  Deprecated-skipped: $deprecated_skipped"
+  else
+    echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
+  fi
   echo "Templates — Installed: $tpl_installed  Skipped: $tpl_skipped"
   [ "$rules_installed" -gt 0 ] && echo "Rules — Installed: $rules_installed" || true
 }
@@ -619,10 +653,21 @@ do_doctor() {
     local src="$source/skills/$name"
     local target_dir="$SKILLS_TARGET/$name"
     local skill_md="$target_dir/SKILL.md"
+    local _status _label
+    _status=$(skill_status "$name")
+    if [ "$_status" = "deprecated" ]; then
+      _label="INFO: $name — deprecated, installed (--include-deprecated)"
+    else
+      _label="OK: $name"
+    fi
 
     # Templates-only entries have no target directory
     if echo "$manifest" | jq -e --arg n "$name" '.skills[$n].templates_only' >/dev/null 2>&1; then
-      echo "  OK: $name (templates-only)"
+      if [ "$_status" = "deprecated" ]; then
+        echo "  INFO: $name (templates-only) — deprecated, installed (--include-deprecated)"
+      else
+        echo "  OK: $name (templates-only)"
+      fi
       continue
     fi
     if [ ! -d "$target_dir" ]; then
@@ -656,8 +701,17 @@ do_doctor() {
         fi
       done
       if [ "$subdir_ok" = true ]; then
-        echo "  OK: $name"
+        echo "  $_label"
       fi
+    fi
+  done
+
+  # Report catalog-level deprecated skills that are NOT installed.
+  # This is the expected state after install skipped them — emitted as INFO so
+  # users see why a skill they remember is missing, without alert fatigue.
+  for name in $(jq -r '.[] | select((.status // "active") == "deprecated") | .name' "$CATALOG" 2>/dev/null); do
+    if ! echo "$manifest" | jq -e --arg n "$name" '.skills[$n]' >/dev/null 2>&1; then
+      echo "  INFO: $name — deprecated, not installed by default"
     fi
   done
 
@@ -744,7 +798,10 @@ case "${1:-}" in
     echo "Usage: skills-deploy <install|remove|relink|doctor> [options]"
     echo ""
     echo "Commands:"
-    echo "  install [skill...] [--overwrite]  Install skills + templates (all if none specified)"
+    echo "  install [skill...] [--overwrite] [--include-deprecated]"
+    echo "                                    Install skills + templates (all if none specified)."
+    echo "                                    By default, skills with status=deprecated are skipped"
+    echo "                                    with a WARN line; pass --include-deprecated to install them."
     echo "  remove <skill...>                 Remove skills + templates (--all for all, --force to skip dep check)"
     echo "  relink                            Repair broken/missing symlinks + templates"
     echo "  doctor                            Check installation health (skills + templates)"

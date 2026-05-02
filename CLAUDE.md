@@ -87,6 +87,12 @@ Templates resolve via 2-level fallback: `$REPO_ROOT/templates/{skill-name}/` -> 
 name, version, description, source, depends, portability, files, templates, status.
 The catalog is for validation only. The plugin system auto-discovers `skills/`.
 
+`status` is a closed enum enforced by `validate.sh`: `active`, `experimental`, or `deprecated`.
+Entries with `status: deprecated` stay in the repo (e.g. as upstream truth for byte-mirrored
+bundles like `work-copilot/`) but are skipped by `scripts/skills-deploy install` with a
+WARN line. Pass `--include-deprecated` to install them anyway. `skills-deploy doctor`
+reports deprecated skills as INFO, not WARN.
+
 ### Frontmatter requirements
 Every SKILL.md must have YAML frontmatter with at least `name` and `description`.
 `allowed-tools` is recommended for security (restricts which tools the skill can use).
