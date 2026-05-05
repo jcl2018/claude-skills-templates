@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.3.1] - 2026-05-05
+
+F000007 finishes the deprecation lifecycle by relocating the work-item history for
+the deprecated `company-workflow` skill. F000005 made the catalog skip-on-install,
+F000006 moved the skill source out of `skills/`, and F000007 moves the four
+work-item directories whose primary subject is `company-workflow` to a new
+`deprecated/work-items/` parent. `work-items/` now contains only active feature
+and defect history; chronological IDs are preserved so cross-references in
+CHANGELOG and other historical artifacts remain readable.
+
+### Changed
+- **`work-items/features/F000003_company_workflow/`** → **`deprecated/work-items/features/F000003_company_workflow/`** (the company-workflow feature itself, with TRACKER + DESIGN + feature-summary + milestones + nested user-story).
+- **`work-items/defects/D000003_company_workflow_feature_artifact_duplication/`** → `deprecated/work-items/defects/`.
+- **`work-items/defects/D000004_company_workflow_contract_template_drift/`** → `deprecated/work-items/defects/`.
+- **`work-items/defects/D000006_company_workflow_test_verification_gates/`** → `deprecated/work-items/defects/`.
+- **`scripts/validate.sh` Error check 4 (orphan check):** `deprecated/` is now allowed to host non-skill subtrees. The check still flags any directory under `skills/` without a catalog entry (the zzz-test-orphan regression case still trips), but under `deprecated/` it only inspects dirs that contain a `SKILL.md` or are claimed by a catalog entry. `deprecated/work-items/` is a sibling concept to `deprecated/{name}/` skill sources, not an orphan.
+- **`deprecated/README.md`:** documents the `deprecated/work-items/` convention alongside the existing skill-source-of-truth note. Includes the rule-of-thumb: when deprecating another skill, move its primary work-item directories (the feature itself + any defects whose primary subject is this skill) here too.
+
+### Notes for contributors
+- D000007 (`workflow_template_single_source_of_truth`) was deliberately NOT moved — it was generic single-source-of-truth principle work that landed alongside the company-workflow refactor and ALSO refactored personal-workflow templates. Moving it would imply the principle is deprecated, which it isn't. Same logic for D000005, D000008, D000010-D000014: each is generic-tooling work that happened to surface on company-workflow but isn't *about* it.
+- F000004 (work-copilot) stays active. The Copilot bundle is the live consumer of `deprecated/company-workflow/` via byte-mirror; the feature itself is still in production.
+- Cross-references in completed work-item trackers (D000007, D000009) and historical CHANGELOG entries point at the OLD `work-items/...` paths. These are not updated — they're frozen historical prose describing past work, and revising them would be revisionist editing of the record. The chronological IDs (F000003, D000003, D000004, D000006) stay unique across both `work-items/` and `deprecated/work-items/`, so future cross-references can use either path or just the ID.
+
 ## [1.3.0] - 2026-05-05
 
 F000006 finishes the deprecation lifecycle that F000005 started. Where F000005
