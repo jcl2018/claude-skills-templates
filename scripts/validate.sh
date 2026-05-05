@@ -126,6 +126,13 @@ for parent in "$SKILLS_DIR" "$REPO_ROOT/deprecated"; do
     [ -d "$dir" ] || continue
     dir_abs="${dir%/}"
     rel="${dir_abs#"$REPO_ROOT"/}"
+    # Under deprecated/, only check dirs that look like skill sources (contain SKILL.md
+    # or are claimed by a catalog entry). deprecated/ is allowed to host non-skill
+    # subtrees like work-items/. Under skills/, every dir must be catalog-claimed
+    # — that's how the zzz-test-orphan regression test flags accidental dirs.
+    if [ "$parent" = "$REPO_ROOT/deprecated" ] && [ ! -f "$dir_abs/SKILL.md" ]; then
+      continue
+    fi
     matched=$(printf '%s\n' "$_claimed_skill_dirs" | awk -F'\t' -v d="$dir_abs" '$1==d {print $2; exit}')
     if [ -n "$matched" ]; then
       pass "$rel is claimed by catalog entry '$matched'"
