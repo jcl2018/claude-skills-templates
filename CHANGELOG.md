@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.3.2] - 2026-05-05
+
+Pure tree reorganization. Active features and defects in `work-items/` are now grouped into subject-component subfolders so the directory tree scales as more work items land. No content changes; `git mv` preserved blame for all files.
+
+### Changed
+- **`work-items/features/`** — 5 features grouped into 4 subfolders:
+  - `personal-workflow/F000001_personal_workflow`
+  - `system-health/F000002_system_health`
+  - `work-copilot/F000004_work_copilot`
+  - `deprecation/F000005_deprecated_skill_status` + `deprecation/F000006_relocate_deprecated_skills` (cross-cutting deprecation lifecycle arc)
+- **`work-items/defects/`** — 11 defects grouped into 5 subfolders:
+  - `personal-workflow/` — D000009, D000012
+  - `work-copilot/` — D000010, D000011
+  - `skills-deploy/` — D000005, D000013
+  - `ship/` — D000008
+  - `workflow/` — D000001, D000002, D000007, D000014 (generic workflow lifecycle/template defects that span multiple skills)
+
+### Notes for contributors
+- `deprecated/work-items/` is intentionally left flat — all contents are about the one deprecated skill (`company-workflow`), so sub-grouping there is redundant. If a second skill ever gets deprecated, the same per-component subfolder pattern will apply there too.
+- Cross-references in completed work-item trackers and historical CHANGELOG entries point at the OLD flat paths. Same rule as F000007: frozen historical prose isn't updated. Unique IDs (D-numbers, F-numbers) resolve cross-references via either path.
+- `validate.sh`'s manifest reconciliation walk uses `find -type f` recursively, so the new depth isn't a problem — no script changes needed.
+- The `ship/` subfolder is a singleton today (D000008 only) but will absorb future ship-related defects without re-organization, matching the F000006 principle: name the subject explicitly so future entries know where to land.
+
 ## [1.3.1] - 2026-05-05
 
 F000007 finishes the deprecation lifecycle by relocating the work-item history for
