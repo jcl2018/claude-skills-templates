@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.3.3] - 2026-05-05
+
+Refines v1.3.2's grouping into a two-axis split: **skills** (per-subfolder for actual deployable skills) vs **ops** (umbrella for everything else — deprecation lifecycle, deploy tooling, ship workflow, generic workflow defects). The directory now reads as a clean taxonomy: if it's a skill, find it under its own name; if it's not, find it under `ops/`.
+
+### Changed
+- **`work-items/features/deprecation/`** → **`work-items/features/ops/deprecation/`** (F000005 + F000006).
+- **`work-items/defects/skills-deploy/`** → **`work-items/defects/ops/skills-deploy/`** (D000005, D000013).
+- **`work-items/defects/ship/`** → **`work-items/defects/ops/ship/`** (D000008).
+- **`work-items/defects/workflow/`** → **`work-items/defects/ops/workflow/`** (D000001, D000002, D000007, D000014).
+
+Skill subfolders (`personal-workflow/`, `system-health/`, `work-copilot/`) are unchanged. Same `git mv` blame-preservation rule + same hands-off policy on cross-references in completed trackers.
+
+### Final shape
+
+```
+work-items/
+├── features/
+│   ├── personal-workflow/F000001
+│   ├── system-health/F000002
+│   ├── work-copilot/F000004
+│   └── ops/
+│       └── deprecation/{F000005, F000006}
+└── defects/
+    ├── personal-workflow/{D000009, D000012}
+    ├── work-copilot/{D000010, D000011}
+    └── ops/
+        ├── skills-deploy/{D000005, D000013}
+        ├── ship/{D000008}
+        └── workflow/{D000001, D000002, D000007, D000014}
+```
+
+### Notes for contributors
+- Future per-skill work (a new defect for personal-workflow, a feature for system-health) lands under the skill's existing subfolder.
+- Future ops work (a new tooling category, a new lifecycle arc beyond deprecation) lands under `ops/{new-category}/`.
+- `validate.sh`'s manifest reconciliation walk uses `find -type f` recursively, so the new depth (`work-items/{features,defects}/ops/{category}/{F-or-D}/`) is handled without script changes.
+
 ## [1.3.2] - 2026-05-05
 
 Pure tree reorganization. Active features and defects in `work-items/` are now grouped into subject-component subfolders so the directory tree scales as more work items land. No content changes; `git mv` preserved blame for all files.
