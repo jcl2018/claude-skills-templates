@@ -105,10 +105,14 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 
   if [ -f "$doc_dir/TEST-SPEC.md" ]; then
-    if grep -q '## Test Matrix' "$doc_dir/TEST-SPEC.md" 2>/dev/null; then
-      ok "$name TEST-SPEC.md has ## Test Matrix"
+    ts_missing=""
+    for sec in "## Smoke Tests" "## E2E Tests"; do
+      grep -q "$sec" "$doc_dir/TEST-SPEC.md" 2>/dev/null || ts_missing="$ts_missing $sec"
+    done
+    if [ -z "$ts_missing" ]; then
+      ok "$name TEST-SPEC.md has ## Smoke Tests and ## E2E Tests"
     else
-      fail_test "$name TEST-SPEC.md missing ## Test Matrix section"
+      fail_test "$name TEST-SPEC.md missing required section(s):$ts_missing"
     fi
   fi
 

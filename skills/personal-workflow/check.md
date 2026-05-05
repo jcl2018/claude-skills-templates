@@ -309,16 +309,48 @@ For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched 
 2. **Parse PRD.md** for P1/P2 story entries:
    - Find `### P1 (Important)` and `### P2 (Nice-to-Have)` sections
    - Extract story numbers from the `#` column
-3. **Parse TEST-SPEC.md** test matrix:
-   - Find the `## Test Matrix` table
-   - Extract all `AC-{n}` values from the AC column
+3. **Parse TEST-SPEC.md for AC values** (single `ac_set`, used by both P0 and P1/P2 loops):
+   - Find the `## Smoke Tests` table; extract all values from the `AC` column → `smoke_acs`
+   - Find the `## E2E Tests` table; extract all values from the `AC` column → `e2e_acs`
+   - `raw_acs = smoke_acs ∪ e2e_acs`
+   - **Filter out template placeholders.** Drop any value matching the regex
+     `^AC-\{[a-zA-Z_]+\}$` (e.g., literal `AC-{n}`, `AC-{name}`). This prevents
+     a freshly-scaffolded TEST-SPEC.md (with placeholder rows still in place)
+     from silently passing — without this filter, every P0 would falsely match
+     the placeholder string.
+   - `ac_set = raw_acs - placeholders`
+   - **No legacy fallback.** Files that still use `## Test Matrix` (the old shape)
+     will fail Step 16's section check and surface the wrong shape there;
+     Step 18 does not double-flag.
 4. **For each P0 story number:**
-   - If no TEST-SPEC row has `AC-{n}` matching this story number: flag `[UNTESTED] P0 story #{n} has no TEST-SPEC coverage`
+   - If `AC-{n}` (the literal string, with `{n}` replaced by the story number) is not in `ac_set`: flag `[UNTESTED] P0 story #{n} has no TEST-SPEC coverage`
 5. **For each P1/P2 story number:**
-   - If no TEST-SPEC row has a matching `AC-{n}`: flag `[INFO] P1/P2 story #{n} has no TEST-SPEC coverage (advisory)`
+   - If `AC-{n}` is not in `ac_set`: flag `[INFO] P1/P2 story #{n} has no TEST-SPEC coverage (advisory)`
 6. If all P0 stories have coverage: `[PASS] All P0 stories have TEST-SPEC coverage`
 
+**Edge cases:**
+- **Smoke section present, E2E section absent:** `ac_set` = `smoke_acs` only. Step 16 already flags `[DRIFT] missing section "E2E Tests"`; Step 18 does not double-flag.
+- **Both sections present but empty (only template placeholder rows):** `ac_set` = empty after the placeholder filter. All P0 stories flag `[UNTESTED]` (correct — file is unfilled).
+- **A row's AC cell is `-` or blank:** that row contributes nothing to `ac_set`; not an error per Step 18 (the row may be a smoke check that doesn't map to a single AC).
+
 For work items missing PRD or TEST-SPEC: skip traceability (no output for this subsection).
+
+## Step 18.5: Check 3.5 — Test Cap Advisory
+
+For each TEST-SPEC.md file in the Actual Model:
+
+1. Find the `## Smoke Tests` heading. Count lines that match the regex
+   `^\s*\|.*\|\s*$` between that heading and the next `^## ` heading or EOF.
+   Subtract 2 (the markdown table header row + the `|---|` separator). → `smoke_row_count`
+2. Same for `## E2E Tests` → `e2e_row_count`
+3. If `smoke_row_count > 5`:
+   flag `[INFO] {path} — Smoke Tests has {N} rows, soft cap is 5 (per template guidance)`
+4. If `e2e_row_count > 5`:
+   flag `[INFO] {path} — E2E Tests has {N} rows, soft cap is 5 (per template guidance)`
+
+Files without `## Smoke Tests` or `## E2E Tests` sections (already flagged by Step 16): skip silently for that tier.
+
+`[INFO]` is non-blocking: it appears in the Findings → Advisory subsection (Step 23) and does NOT affect exit code. Cap-advisory is structural compliance (about file shape, not PRD↔test traceability), so it surfaces under the **template** badge category in Step 20, not the traceability badge.
 
 ## Step 19: Check 4 — Stray Directory Detection
 
@@ -347,7 +379,7 @@ Map all check statuses to 3 badge categories with severity ordering.
 
 | Badge | Statuses (severity order) | Source checks |
 |-------|--------------------------|---------------|
-| template | PASS < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 16) |
+| template | PASS < INFO (cap-advisory) < WARN (EXTRA sections) < DRIFT (missing field/section) < MISSING (required artifact absent) | Check 1 (Step 16) + Check 3.5 (Step 18.5) |
 | lifecycle | PASS < WARN (child closed, parent open) < LIFECYCLE_INCONSISTENT (parent closed + child open) | Check 2 (Step 17) |
 | traceability | PASS < INFO (P1/P2 untested) < UNTESTED (P0 untested) | Check 3 (Step 18) |
 
