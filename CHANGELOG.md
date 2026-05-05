@@ -6,6 +6,90 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.3.0] - 2026-05-05
+
+F000006 finishes the deprecation lifecycle that F000005 started. Where F000005
+made `skills-deploy install` skip deprecated skills, this release moves the
+source files out of `skills/` entirely so the directory contains only deployable
+skills. `company-workflow` now lives at `deprecated/company-workflow/` (with its
+templates as a sub-directory) and consumer scripts derive paths from the catalog
+instead of hardcoding `skills/{name}/`. Future relocations are a one-line catalog
+change.
+
+### Added
+- **Top-level `deprecated/` directory.** Source-of-truth for skills marked
+  `status: deprecated` in the catalog. Contents are NOT deployable skills —
+  they stay in the repo because byte-mirrored bundles (e.g. `work-copilot/`)
+  reference them as upstream truth, enforced by `validate.sh` Error check 10's
+  `MIRROR_SPECS` array. `deprecated/README.md` explains the convention.
+- **Optional `templates_source` catalog field** for skills whose templates live
+  outside the default `templates/{name}/` shape. When set, `skills-deploy` and
+  `validate.sh` resolve template SRC paths via `$REPO_ROOT/$templates_source/
+  $(basename $tpl)`; DST paths under `~/.claude/templates/{skill}/` are
+  unchanged, so user-visible install locations stay the same.
+- **Catalog-driven path helpers** in three scripts. `scripts/skills-deploy`,
+  `scripts/validate.sh`, and `scripts/test.sh` each gained `skill_md_path`,
+  `skill_source_dir(_abs)`, and (where relevant) `skill_templates_source`
+  helpers that read paths from the catalog's `files[]` and `templates_source`
+  fields. The `SKILLS_SRC` constant is gone — skills can live anywhere the
+  catalog points.
+
+### Changed
+- **`skills/company-workflow/` → `deprecated/company-workflow/`** (53 files).
+  `git mv` preserved blame history. The skill is still installable via
+  `skills-deploy install --include-deprecated`; the destination path under
+  `~/.claude/skills/company-workflow/` is unchanged.
+- **`templates/company-workflow/` → `deprecated/company-workflow/templates/`**
+  (14 templates). Co-located with the skill; `templates/` top-level now contains
+  only `personal-workflow/` and `doc-SKILL-DESIGN.md`.
+- **`scripts/skills-deploy`:** `discover_skills()` iterates the catalog instead
+  of walking `skills/*/`; `do_install`, `do_relink`, and `do_doctor` derive the
+  source directory from `dirname(catalog files[0])` (relink + doctor read the
+  manifest's `path` field, with a fallback to the legacy shape for older
+  installs). The templates loop honors `templates_source` overrides.
+- **`scripts/validate.sh`:** MIRROR_SPECS source paths retargeted to
+  `deprecated/company-workflow/...`; orphan check (Error check 4) extended to
+  walk both `skills/` and `deprecated/`; catalog walker (Error check 1/2) reads
+  SKILL.md path from the catalog; orphan-template walker (Warning check 3)
+  walks both default and override template directories. `declare -A` avoided
+  for bash 3.2 portability on macOS.
+- **`scripts/test.sh`:** introduces `COMPANY_PATH` and `COMPANY_TPL` constants
+  near the top; ~40 hardcoded `skills/company-workflow` and `templates/
+  company-workflow` references replaced. The next relocation, if any, is a
+  one-line edit instead of a search-and-replace pass.
+- **`scripts/doctor.sh`:** version-staleness check reads the SKILL.md path from
+  catalog `files[0]` instead of hardcoding `skills/{name}/SKILL.md`. Was
+  silently skipping the check for any catalog entry whose source had moved.
+- **`template-registry.json`:** `company-workflow` paths point at
+  `deprecated/company-workflow/...`. Currently no script consumes these fields
+  at runtime, but the registry is documentation that should match reality.
+- **`CLAUDE.md`:** path references updated; new "Deprecated skills convention"
+  subsection documents the catalog-driven shape.
+- **`README.md`:** regenerated; rendered output unchanged from v1.2.0 (the
+  generator reads catalog metadata, not paths).
+
+### Verified
+- `./scripts/validate.sh` PASS (0 errors, 0 warnings); Error check 10 byte-
+  identity verified for all 7 `MIRROR_SPECS` entries at the new source paths.
+- `./scripts/test.sh` PASS (Failures: 0); the path-constants refactor surfaced
+  19 latent failures that `test.sh` had been silently masking — all fixed.
+- T000014's 6 regression cases on a fresh `SKILLS_DEPLOY_TARGET`: default
+  install skips with 1 WARN, `--include-deprecated` installs from the new path
+  (manifest path field reflects `deprecated/company-workflow/SKILL.md`),
+  doctor reports INFO, idempotent re-install no-op, relink + doctor walk the
+  new source dir cleanly with 16 OK lines for templates.
+
+### Notes for contributors
+- To deprecate another skill in the future: flip its catalog `status` to
+  `deprecated`, `git mv skills/{name}/` → `deprecated/{name}/`, set
+  `templates_source: "deprecated/{name}/templates"` if the skill has templates,
+  and update any `MIRROR_SPECS` source paths. The consumer scripts honor the
+  catalog automatically.
+- Pre-existing `WARN: templates source missing at .../skills/templates` from
+  `skills-deploy relink` is unchanged by this PR — `templates` is a templates-
+  only catalog entry that has no skill directory; the WARN was there before
+  F000006 and is out of scope.
+
 ## [1.2.0] - 2026-05-02
 
 F000005 introduces a `deprecated` skill status so retired skills can stay in the

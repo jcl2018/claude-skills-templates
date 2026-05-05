@@ -63,8 +63,12 @@ echo ""
 echo "Checking version staleness..."
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   for name in $(jq -r '.[].name' "$CATALOG"); do
-    skill_file="skills/$name/SKILL.md"
-    [ -f "$REPO_ROOT/$skill_file" ] || continue
+    # F000006: read SKILL.md path from catalog files[0] instead of hardcoding
+    # skills/{name}/. Skills can live anywhere the catalog points.
+    skill_file=$(jq -r --arg n "$name" '.[] | select(.name == $n) | (.files // []) | .[0] // ""' "$CATALOG")
+    if [ -z "$skill_file" ] || [ ! -f "$REPO_ROOT/$skill_file" ]; then
+      continue
+    fi
     version=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .version' "$CATALOG")
     if [ "$version" = "0.1.0" ]; then
       # Check if file has been modified (any commits touching it)

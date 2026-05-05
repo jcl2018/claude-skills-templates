@@ -12,6 +12,48 @@ pass() { echo "  PASS: $1"; }
 fail() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "  WARNING: $1"; WARNINGS=$((WARNINGS + 1)); }
 
+# Catalog-driven path helpers (F000006). Skills can live anywhere the catalog
+# points (skills/, deprecated/, etc.) — these helpers honor files[] and an
+# optional templates_source override instead of hardcoding skills/{name}/ or
+# templates/{name}/. Mirror the helpers in scripts/skills-deploy.
+
+# Repo-relative path of a skill's SKILL.md (from catalog files[0]).
+skill_md_path() {
+  jq -r --arg n "$1" '.[] | select(.name == $n) | (.files // []) | .[0] // ""' "$CATALOG" 2>/dev/null || true
+}
+# Absolute path of a skill's SKILL.md.
+skill_md_abs() {
+  local f0
+  f0=$(skill_md_path "$1")
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$f0"
+  fi
+}
+# Absolute source directory (dirname of files[0]).
+skill_source_dir_abs() {
+  local f0
+  f0=$(skill_md_path "$1")
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$(dirname "$f0")"
+  fi
+}
+# Absolute on-disk path for a (skill, templates[] entry) pair, honoring the
+# optional templates_source override. Default: $TEMPLATES_DIR/$tpl. Override:
+# $REPO_ROOT/$templates_source/$(basename $tpl) — the {skill}/ prefix in the
+# entry is the DST organizing subfolder (preserved by skills-deploy at install
+# time), not part of the SRC path under the override.
+template_src_path() {
+  local name="$1" tpl="$2"
+  local s
+  s=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .templates_source // "templates"' "$CATALOG" 2>/dev/null || echo "templates")
+  s="${s:-templates}"
+  if [ "$s" = "templates" ]; then
+    echo "$REPO_ROOT/templates/$tpl"
+  else
+    echo "$REPO_ROOT/$s/$(basename "$tpl")"
+  fi
+}
+
 echo "=== Validating skills-catalog.json ==="
 
 # Error check 1: Every catalog entry has a SKILL.md on disk
@@ -24,10 +66,11 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
     pass "$name is a templates-only entry (no SKILL.md expected)"
     continue
   fi
-  if [ -f "$SKILLS_DIR/$name/SKILL.md" ]; then
-    pass "$name has SKILL.md"
+  skill_md=$(skill_md_path "$name")
+  if [ -n "$skill_md" ] && [ -f "$REPO_ROOT/$skill_md" ]; then
+    pass "$name has SKILL.md at $skill_md"
   else
-    fail "$name is in catalog but skills/$name/SKILL.md does not exist"
+    fail "$name is in catalog but its SKILL.md ($skill_md) does not exist on disk"
   fi
 done
 
@@ -35,8 +78,10 @@ done
 echo ""
 echo "Checking SKILL.md frontmatter..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
-  skill_file="$SKILLS_DIR/$name/SKILL.md"
-  [ -f "$skill_file" ] || continue
+  skill_file=$(skill_md_abs "$name")
+  if [ -z "$skill_file" ] || [ ! -f "$skill_file" ]; then
+    continue
+  fi
   if sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'name:' &&
      sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'description:'; then
     pass "$name has name and description frontmatter"
@@ -45,31 +90,49 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 done
 
-# Error check 3: Every skill's templates list has those files in templates/
+# Error check 3: Every skill's templates list has those files on disk
+# (resolved via templates_source override when present, default templates/).
 echo ""
 echo "Checking template references..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
   templates=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .templates[]' "$CATALOG" 2>/dev/null)
   for tmpl in $templates; do
-    if [ -f "$TEMPLATES_DIR/$tmpl" ]; then
-      pass "$name template $tmpl exists"
+    tmpl_path=$(template_src_path "$name" "$tmpl")
+    if [ -f "$tmpl_path" ]; then
+      pass "$name template $tmpl exists at ${tmpl_path#"$REPO_ROOT"/}"
     else
-      fail "$name references template $tmpl but templates/$tmpl does not exist"
+      fail "$name references template $tmpl but ${tmpl_path#"$REPO_ROOT"/} does not exist"
     fi
   done
 done
 
-# Error check 4: No orphan skill directories
+# Error check 4: No orphan skill directories. Walk both skills/ (active) and
+# deprecated/ (lifecycle-relocated). For every directory containing a SKILL.md,
+# require a catalog entry whose files[0] resolves to that path. Avoids `declare
+# -A` (bash 4+) for portability with macOS bash 3.2.
 echo ""
 echo "Checking for orphan skill directories..."
-for dir in "$SKILLS_DIR"/*/; do
-  [ -d "$dir" ] || continue
-  dir_name=$(basename "$dir")
-  if jq -e --arg name "$dir_name" '.[] | select(.name == $name)' "$CATALOG" >/dev/null 2>&1; then
-    pass "$dir_name has catalog entry"
-  else
-    fail "skills/$dir_name exists but has no catalog entry (orphan)"
-  fi
+_claimed_skill_dirs=$(
+  for n in $(jq -r '.[].name' "$CATALOG"); do
+    d=$(skill_source_dir_abs "$n")
+    if [ -n "$d" ]; then
+      printf '%s\t%s\n' "$d" "$n"
+    fi
+  done
+)
+for parent in "$SKILLS_DIR" "$REPO_ROOT/deprecated"; do
+  [ -d "$parent" ] || continue
+  for dir in "$parent"/*/; do
+    [ -d "$dir" ] || continue
+    dir_abs="${dir%/}"
+    rel="${dir_abs#"$REPO_ROOT"/}"
+    matched=$(printf '%s\n' "$_claimed_skill_dirs" | awk -F'\t' -v d="$dir_abs" '$1==d {print $2; exit}')
+    if [ -n "$matched" ]; then
+      pass "$rel is claimed by catalog entry '$matched'"
+    else
+      fail "$rel exists but no catalog entry claims it (orphan)"
+    fi
+  done
 done
 
 # Error check 5: Doc triplets have all three files and type frontmatter
@@ -202,13 +265,13 @@ done
 # To add a new mirror dir: append one line to MIRROR_SPECS.
 
 MIRROR_SPECS=(
-  "templates/company-workflow|work-copilot/templates|flat|warn"
-  "skills/company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
-  "skills/company-workflow/reference|work-copilot/reference|flat|fail"
-  "skills/company-workflow/philosophy|work-copilot/philosophy|flat|fail"
-  "skills/company-workflow/examples|work-copilot/examples|flat|fail"
-  "skills/company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
-  "skills/company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
+  "deprecated/company-workflow/templates|work-copilot/templates|flat|warn"
+  "deprecated/company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
+  "deprecated/company-workflow/reference|work-copilot/reference|flat|fail"
+  "deprecated/company-workflow/philosophy|work-copilot/philosophy|flat|fail"
+  "deprecated/company-workflow/examples|work-copilot/examples|flat|fail"
+  "deprecated/company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
+  "deprecated/company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
 )
 
 # Orphan reporter — emits FAIL or WARN based on policy. Used by all shapes.
@@ -384,7 +447,7 @@ echo ""
 echo "Checking manifest reconciliation (work-items + fixtures)..."
 
 PERSONAL_MANIFEST="$REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json"
-COMPANY_MANIFEST="$REPO_ROOT/skills/company-workflow/company-artifact-manifests.json"
+COMPANY_MANIFEST="$REPO_ROOT/deprecated/company-workflow/company-artifact-manifests.json"
 
 # Strip ID prefix (^[A-Z][0-9]+_) — same rule used by the LLM-driven validator.
 strip_id_prefix() {
@@ -477,20 +540,43 @@ echo ""
 echo "  Reconciling company-workflow fixtures..."
 while IFS= read -r d; do
   check_work_item_dir "$d" "$COMPANY_MANIFEST" "company-fixture"
-done < <(find "$REPO_ROOT/skills/company-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
+done < <(find "$REPO_ROOT/deprecated/company-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
 
-# Warning check 3: Orphan template files (walks subdirectories)
+# Warning check 3: Orphan template files (walks subdirectories).
+# Walks the default templates/ dir AND any override base from a catalog
+# entry's templates_source field. The lookup key for a file shape
+# (override_base/foo.md) is "{skill}/foo.md" — the catalog key always carries
+# the {skill}/ DST organizing prefix even when the SRC is overridden.
 echo ""
 echo "Checking for orphan template files..."
-find "$TEMPLATES_DIR" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
-  # Get path relative to TEMPLATES_DIR (e.g., "personal-workflow/tracker-feature.md" or "doc-SKILL-DESIGN.md")
-  tmpl_rel="${tmpl_file#"$TEMPLATES_DIR"/}"
-  if jq -e --arg tmpl "$tmpl_rel" '[.[].templates[]] | index($tmpl)' "$CATALOG" >/dev/null 2>&1; then
-    pass "templates/$tmpl_rel is referenced by a catalog entry"
+
+_check_orphan_template() {
+  local file="$1" key="$2"
+  if jq -e --arg tmpl "$key" '[.[].templates[]] | index($tmpl)' "$CATALOG" >/dev/null 2>&1; then
+    pass "${file#"$REPO_ROOT"/} is referenced by a catalog entry (key=$key)"
   else
-    warn "templates/$tmpl_rel is not referenced by any catalog entry"
+    warn "${file#"$REPO_ROOT"/} is not referenced by any catalog entry (key=$key)"
   fi
+}
+
+# Default templates/ — key = path relative to templates/ (e.g. personal-workflow/foo.md).
+find "$TEMPLATES_DIR" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
+  tmpl_rel="${tmpl_file#"$TEMPLATES_DIR"/}"
+  _check_orphan_template "$tmpl_file" "$tmpl_rel"
 done
+
+# Each override base — key = "{skill}/{basename}".
+while IFS=$'\t' read -r ts_name ts_path; do
+  if [ -z "$ts_name" ] || [ -z "$ts_path" ]; then
+    continue
+  fi
+  ts_dir="$REPO_ROOT/$ts_path"
+  [ -d "$ts_dir" ] || continue
+  find "$ts_dir" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
+    base=$(basename "$tmpl_file")
+    _check_orphan_template "$tmpl_file" "$ts_name/$base"
+  done
+done < <(jq -r '.[] | select(.templates_source) | "\(.name)\t\(.templates_source)"' "$CATALOG")
 
 # Summary
 echo ""
