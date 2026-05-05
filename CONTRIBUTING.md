@@ -43,7 +43,7 @@
 |----------|------------|
 | `doc-PRD.md` | Product requirements for a feature |
 | `doc-ARCHITECTURE.md` | Technical architecture document |
-| `doc-TEST-SPEC.md` | Test specification with test matrix |
+| `doc-TEST-SPEC.md` | Test specification: `## Smoke Tests` (automated, CI) + `## E2E Tests` (manual, pre-`/ship`) + `## Coverage Gaps`. Soft cap of 5 rows per tier. |
 | `doc-RCA.md` | Root cause analysis for incidents |
 | `tracker-feature.md` | Feature work item |
 | `tracker-defect.md` | Bug/defect work item |

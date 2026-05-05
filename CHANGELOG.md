@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.4.0] - 2026-05-05
+
+Personal-workflow TEST-SPEC template restructure. Drops the redundant Test Matrix + Test Tiers shape and replaces it with two compact tables — Smoke Tests and E2E Tests — distinguished by who edits them and when they run. Smoke tests are automated regression that lives in CI; E2E tests are manual user-scenario verification done before /ship. Soft cap of 5 rows per tier acts as a forcing function to pick the tests that prove the story works rather than tests that demonstrate completeness. The validator (`/personal-workflow check`) gets stricter: Step 18 traceability scans the new tier tables for AC values with a placeholder-filter to prevent freshly-scaffolded files from silently passing, a new Step 18.5 emits an `[INFO]` cap-advisory when either tier exceeds 5 rows, and Step 20's template badge ladder picks up `INFO` between `PASS` and `WARN` so cap-advisory signals route to the right column.
+
+### Changed
+
+- **`templates/personal-workflow/doc-TEST-SPEC.md`** — three top-level sections only: `## Smoke Tests`, `## E2E Tests`, `## Coverage Gaps`. Both tier tables include an AC column for PRD↔test traceability. Soft 5-row cap stated in template comments.
+- **`skills/personal-workflow/check.md` Step 18** — replaces the `## Test Matrix` AC scan with a unified scan over `## Smoke Tests` + `## E2E Tests` AC columns, filters out the literal `AC-{n}` template placeholder so unfilled scaffolded files correctly flag as `[UNTESTED]`, and runs P0 + P1/P2 loops over a single shared `ac_set`. No legacy fallback — files that still use `## Test Matrix` fail Step 16's section check at the source.
+- **`skills/personal-workflow/check.md` Step 18.5** *(new)* — emits `[INFO]` cap-advisory when Smoke or E2E row count exceeds 5. Row counting uses regex `^\s*\|.*\|\s*$` between heading and next `## ` header, minus 2 for the markdown header + separator rows.
+- **`skills/personal-workflow/check.md` Step 20** — extends the **template** badge severity ladder to `PASS < INFO (cap-advisory) < WARN (EXTRA sections) < DRIFT < MISSING`. Traceability ladder unchanged.
+- **`scripts/test.sh:107-117`** — replaces the dormant `## Test Matrix` grep with a loop that requires both `## Smoke Tests` AND `## E2E Tests` for any `docs/<skill>/TEST-SPEC.md` file. Pattern matches the surrounding feature-summary.md check.
+- **`skills/personal-workflow/examples/example-doc-TEST-SPEC.md`** — re-synced to the new template shape using the reading-list-CLI domain. 5 smoke + 5 E2E rows, AC-mapped.
+- **`skills/personal-workflow/examples/example-doc-test-plan.md`** — re-synced to the (unchanged) existing test-plan template. Closes a long-standing example/template drift.
+- **8 historical TEST-SPEC.md files swept** to the new shape: `S000001` (workflow_implementation), `S000006` (personal_workflow_port), `S000007`–`S000010` (work-copilot subfeatures), `S000012` (deprecated_status_semantics), `S000013` (relocate_with_catalog_driven_paths). Each file consolidated to ≤5 rows per tier where natural; AC values converted from `Story #N` / `Story N` formats to `AC-N` for validator traceability. S000001's pre-existing `## Coverage Notes` heading was renamed to `## Coverage Gaps` to match the (unchanged-named) template section.
+
+### Why two tiers, distinguished by editor
+
+The old tier model (Test Matrix + Tier 1 Smoke + Tier 2 E2E as h3 children of `## Test Tiers`) framed the split around static-vs-dynamic execution. The new model frames it around the engineer's relationship to the tests: smoke = automated regression you write once and never touch, E2E = manual user-scenario verification you sit down and run before ship. That cognitive split shows up in the file as separate top-level sections so it's visible at a glance, not buried in a `Type` column.
+
+### Validator behavior on legacy files
+
+The 2 deprecated test-specs at `deprecated/work-items/features/F000003_company_workflow/{S000003,S000004}/` are not walked by the validator (Step 14 walks `./work-items/` only, not `deprecated/`). They retain the old Test Matrix shape and stay as frozen historical artifacts.
+
+### Open question deferred
+
+Mirroring this restructure to `templates/company-workflow/doc-TEST-SPEC.md` (and the byte-mirrored copies under `work-copilot/`) is intentionally deferred to a follow-up F-level work item per the design doc default. Touching company-workflow means coordinating template + reference + philosophy + example + 4 byte-mirror sources.
+
+
 ## [1.3.3] - 2026-05-05
 
 Refines v1.3.2's grouping into a two-axis split: **skills** (per-subfolder for actual deployable skills) vs **ops** (umbrella for everything else — deprecation lifecycle, deploy tooling, ship workflow, generic workflow defects). The directory now reads as a clean taxonomy: if it's a skill, find it under its own name; if it's not, find it under `ops/`.

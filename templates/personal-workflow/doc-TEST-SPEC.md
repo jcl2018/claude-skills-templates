@@ -12,46 +12,44 @@ architecture: ARCHITECTURE.md
 reviewers: []
 ---
 
-<!-- Scope: ENTIRE user story. Test Matrix must cover every PRD acceptance criterion
-     across happy/edge/error paths. For a single fix or task, use test-plan.md instead. -->
+<!-- Scope: ENTIRE user story. Smoke + E2E together must cover every PRD P0
+     acceptance criterion. For a single fix or task, use test-plan.md instead.
 
-## Test Matrix
+     Two tiers, distinguished by who edits them and when they run:
+     - Smoke = automated regression. Lives in CI. You write it once and
+       never touch it again.
+     - E2E   = manual user-scenario verification. You sit down and run it
+       after implementing and before /ship.
 
-<!-- Each row maps to a PRD acceptance criterion via the AC column.
-     Every P0 criterion needs at least one test case.
-     "Tag" = domain keyword matching the PRD story this test traces to
-       (core, resilience, observability, usability, security, integration). -->
+     Soft cap: 5 rows per tier. Validator emits [INFO] advisory if exceeded;
+     not a violation. Exceed only when justified — the cap is a forcing
+     function to pick the tests that prove the story works, not the tests
+     that demonstrate completeness. -->
 
-| # | Tag | Test Case | AC | Precondition | Steps | Expected Result | Priority | Type |
-|---|-----|-----------|-----|-------------|-------|-----------------|----------|------|
-| 1 | {tag} | {description} | AC-{n} | {setup} | {steps} | {expected} | P0/P1/P2 | Unit/Integration/E2E |
+## Smoke Tests
 
-## Test Tiers
+<!-- Automated regression. Fast, deterministic, runnable from a script or CI.
+     Once written, you should not need to edit these. Soft cap: 5 rows.
+     Pick the structural checks that catch real regressions, not all checks
+     that could exist. AC column maps each row to a PRD acceptance criterion. -->
 
-<!-- Every feature has two test tiers. Both are needed:
-     - Tier 1 (smoke): Fast, deterministic, catches structural regressions without invoking AI
-     - Tier 2 (E2E): Real execution, catches behavioral regressions in prompts and output
-     Tier 1 alone can't test AI behavior. Tier 2 alone is slow and non-deterministic.
-     Together they form a fast-then-thorough pipeline. -->
+| # | Tag | AC | Check | What It Validates | Script/Command |
+|---|-----|-----|-------|-------------------|----------------|
+| S1 | {tag} | AC-{n} | {description} | {what passes/fails} | `{command}` |
 
-### Tier 1: Smoke Tests (automated, no live execution)
+<!-- Tag vocabulary: core, resilience, observability, usability, security, integration -->
 
-<!-- Static/structural checks: file existence, schema validation, section headers,
-     frontmatter fields. Can run in CI or via a shell script. Fast, deterministic. -->
+## E2E Tests
 
-| # | Tag | Check | What It Validates | Script/Command |
-|---|-----|-------|-------------------|---------------|
-| S1 | {tag} | {description} | {what passes/fails} | `{command}` |
+<!-- Manual end-to-end verification, run after implementing and before /ship.
+     You drive the feature as a real user would and observe the outcome.
+     Soft cap: 5 rows. Each row should be one user-visible scenario,
+     not one branch in the code. AC column maps each row to a PRD
+     acceptance criterion. -->
 
-### Tier 2: E2E Tests (real end-to-end execution)
-
-<!-- Full end-to-end execution: invoke the actual feature, observe output, verify behavior
-     matches AC. Requires AI execution. Can be manual (rubric-scored by human) or automated
-     via an E2E test skill that creates fixtures and invokes the skill under test. -->
-
-| # | Tag | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
-|---|-----|----------|----------------------------|-----------------|--------|
-| E1 | {tag} | {description} | {step-by-step what user does} | {what user sees} | {pass/fail criteria} |
+| # | Tag | AC | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
+|---|-----|-----|----------|------------------------------|------------------|--------|
+| E1 | {tag} | AC-{n} | {description} | {step-by-step what user does} | {what user sees} | {pass/fail criteria} |
 
 <!-- If an E2E test skill exists for this feature, reference it here:
      E2E test skill: the test skill for the feature
@@ -62,5 +60,5 @@ reviewers: []
 <!-- What is explicitly NOT tested and why. Honesty beats false confidence. -->
 
 | Gap | Why Not Tested | Risk Accepted |
-|-----|---------------|---------------|
+|-----|----------------|---------------|
 | {untested scenario} | {reason} | {what could go wrong} |

@@ -3,72 +3,45 @@ type: test-spec
 parent: S000001_workflow_implementation
 feature: F000001_personal_workflow
 title: "Workflow Alpha Implementation — Test Specification"
-version: 3
+version: 4
 status: Done
 date: 2026-04-11
-updated: 2026-04-13
+updated: 2026-05-05
 author: chjiang
 prd: PRD.md
 architecture: ARCHITECTURE.md
 reviewers: []
 ---
 
-## Test Matrix
+<!-- Migrated from Test Matrix + Test Tiers shape to Smoke + E2E shape on 2026-05-05.
+     PRD has P0 stories 1-7. AC values updated to map every P0 story to at least
+     one Smoke or E2E row. Original AC-9..AC-23 references (which used per-AC
+     numbering rather than per-story) consolidated and replaced. -->
 
-### Template Consolidation
+## Smoke Tests
 
-| # | Tag | Test Case | AC | Expected Result | Priority | Type |
-|---|-----|-----------|-----|-----------------|----------|------|
-| 1 | core | No multi-person fields | AC-1 | No "reviewer noted", "Linux branch", JIRA, workflow_type | P0 | Unit |
-| 2 | core | Task lighter than or equal to feature | AC-3 | Task gate count <= feature gate count | P0 | Unit |
-| 3 | core | Review type removed | AC-6 | tracker-review.md does not exist | P0 | Unit |
-| 4 | core | Structured IDs in templates | AC-5 | F/S/D/T prefix with 6-digit number | P0 | Unit |
-| 5 | core | Valid frontmatter in all templates | — | All templates parseable | P0 | Unit |
+| # | Tag | AC | Check | What It Validates | Script/Command |
+|---|-----|-----|-------|-------------------|----------------|
+| S1 | core | AC-1, AC-6 | Templates are solo-dev clean + machine-readable graph emitted | No multi-person fields (reviewer noted, Linux branch, JIRA, workflow_type); tracker-review.md does not exist; `.docs/work-item-graph.json` produced after `/docs check` | `! grep -E 'reviewer noted\|Linux branch\|JIRA\|workflow_type' templates/personal-workflow/*.md && [ ! -f templates/personal-workflow/tracker-review.md ] && [ -f .docs/work-item-graph.json ]` |
+| S2 | core | AC-2, AC-3 | Per-type artifacts mapping + structured IDs | personal-artifact-manifests.json declares 4 types with required artifacts; F/S/D/T 6-digit ID prefix in all templates | `jq '.types \| keys' skills/personal-workflow/personal-artifact-manifests.json` and grep `{TYPE_ID}` placeholders |
+| S3 | core | AC-5, AC-7 | Tree-at-a-glance + configurable hierarchy from manifest | `/docs tree` subcommand spec present in SKILL.md; structural hierarchy rules read from `personal-artifact-manifests.json` (configurable); tree.md exists | `[ -f skills/personal-workflow/tree.md ] && grep -q 'tree' skills/personal-workflow/SKILL.md && jq '.types' skills/personal-workflow/personal-artifact-manifests.json` |
+| S4 | core | — | Frontmatter parseable across templates and SKILLs | All template/SKILL frontmatter is valid YAML | `./scripts/validate.sh` |
+| S5 | core | — | Catalog is valid JSON | `skills-catalog.json` parseable | `jq -e . skills-catalog.json >/dev/null` |
 
-### Structural Completeness
+## E2E Tests
 
-| # | Tag | Test Case | AC | Expected Result | Priority | Type |
-|---|-----|-----------|-----|-----------------|----------|------|
-| 6 | core | Feature with 0 stories flagged | AC-9 | F000002 flagged INCOMPLETE | P0 | Integration |
-| 7 | core | Feature with stories passes | AC-10 | F000001 shows PASS | P0 | Integration |
-| 8 | core | Story with 0 tasks flagged | AC-11 | INCOMPLETE flagged | P0 | Integration |
-| 9 | core | Tree renders depth-first sorted | AC-12 | F000001 before F000002 | P0 | Integration |
-| 10 | core | Tree shows 4 badges per node | AC-13 | template, lifecycle, traceability, structure | P0 | Integration |
-| 11 | core | Badge shows worst severity | AC-14 | DRIFT + PASS -> DRIFT | P0 | Integration |
-| 12 | core | Graph artifact emitted | AC-15 | .docs/work-item-graph.json created | P0 | Integration |
-| 13 | core | Graph node has all fields | AC-16 | id, slug, type, state, path, parent, children, badges, completeness | P0 | Integration |
-| 14 | core | Hierarchy from manifest | AC-17 | Rules read from artifact-manifests.json | P0 | Integration |
-| 15 | resilience | Missing hierarchy warns | AC-18 | Warning, structural checks skipped | P0 | Integration |
-| 16 | resilience | No claims.json still runs | AC-23 | Steps 1-5 skipped, Steps 6+ run | P0 | Integration |
-| 17 | usability | /docs tree renders | AC-19 | Structural badges shown, others show "-" | P1 | Integration |
-| 18 | core | Misplaced item detected | AC-20 | Task under feature flagged MISPLACED | P1 | Integration |
-| 19 | observability | Lifecycle cross-reference | AC-22 | "Broken down" + 0 children = LIFECYCLE_INCONSISTENT | P1 | Integration |
+| # | Tag | AC | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
+|---|-----|-----|----------|------------------------------|------------------|--------|
+| E1 | core | AC-4 | `/docs check` flags structural completeness gaps | Run `/docs check` on a tree where one feature has 0 stories and one story has 0 tasks | The 0-story feature flagged INCOMPLETE; the 0-task story flagged INCOMPLETE | Pass = both INCOMPLETE labels appear; Fail = silent or wrong target |
+| E2 | core | AC-5 | `/docs check` tree renders 4 badges with worst-severity fold | Run `/docs check`, inspect tree output | Tree depth-first sorted; each node line shows template/lifecycle/traceability/structure badges; DRIFT + PASS folds to DRIFT; `/docs tree` standalone works | Pass = ordering + badge count + worst-of fold all visible |
+| E3 | core | AC-6 | Graph artifact emitted with full schema | After `/docs check`, inspect `.docs/work-item-graph.json` | File created; each node has id, slug, type, state, path, parent, children, badges, completeness | Pass = schema validates; Fail = missing field or malformed JSON |
+| E4 | resilience | — | `/docs check` survives missing claims.json | Delete `.docs/claims.json`, run `/docs check` | Steps 1-5 (staleness) skipped with INFO; Steps 6+ run normally; exit 0 | Pass = run completes without error |
+| E5 | core | — | Misplaced + lifecycle-inconsistent items detected | Set up: task placed directly under feature (skipping user-story); set tracker "Broken down" check but item has 0 children | `[MISPLACED]` flag for the task; `[LIFECYCLE_INCONSISTENT]` flag for the broken-down-with-no-children case | Pass = both flags appear with correct work item IDs |
 
-## Test Tiers
+## Coverage Gaps
 
-### Tier 1: Smoke Tests (automated, in test.sh)
-
-| # | Check | What It Validates |
-|---|-------|-------------------|
-| S1 | Hierarchy field in manifest | Structural rules declared |
-| S2 | tree.md exists | /docs tree subcommand present |
-| S3 | SKILL.md routes tree | Subcommand routing includes tree |
-| S4 | No multi-person fields | Templates are solo-dev clean |
-| S5 | No review type | tracker-review.md removed |
-| S6 | Valid frontmatter | All SKILL.md files parseable |
-| S7 | Catalog valid JSON | skills-catalog.json parseable |
-
-### Tier 2: E2E Tests (require Claude execution)
-
-| # | Scenario | Steps | Expected Outcome |
-|---|----------|-------|-----------------|
-| E1 | Full /docs check with structural | Run /docs check on repo | F000002 INCOMPLETE, tree rendered, graph emitted |
-| E2 | /docs check without claims.json | Delete .docs/claims.json, run /docs check | Staleness skipped, work item checks run |
-| E3 | /docs tree standalone | Run /docs tree | Tree with structural badges only |
-| E4 | Full test suite | Run ./scripts/test.sh | 0 failures, RESULT: PASS |
-
-## Coverage Notes
-
-- Template consolidation tests (S4-S5, #1-5) are fully automated in test.sh
-- Structural completeness tests (#6-19) require /docs check execution
-- Creating F000001 itself served as the E2E test of the work item lifecycle
+| Gap | Why Not Tested | Risk Accepted |
+|-----|----------------|---------------|
+| Catalog valid-JSON regression beyond S5 | `validate.sh` already exits non-zero on parse failure; S5 just confirms the gate is wired | If `validate.sh` regresses, that's a different failure surface |
+| Tree depth-first sort tested implicitly via E2 ordering | E2 asserts ordering as part of badge rendering; not a separate test | If sort breaks, E2 catches it via wrong tree shape |
+| Live multi-template comparison across workflows | Out of scope — personal-workflow has its own template set | Cross-workflow diffs handled in deprecated F000003 |
