@@ -25,13 +25,17 @@ skill_md_path() {
 skill_md_abs() {
   local f0
   f0=$(skill_md_path "$1")
-  [ -n "$f0" ] && echo "$REPO_ROOT/$f0" || true
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$f0"
+  fi
 }
 # Absolute source directory (dirname of files[0]).
 skill_source_dir_abs() {
   local f0
   f0=$(skill_md_path "$1")
-  [ -n "$f0" ] && echo "$REPO_ROOT/$(dirname "$f0")" || true
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$(dirname "$f0")"
+  fi
 }
 # Absolute on-disk path for a (skill, templates[] entry) pair, honoring the
 # optional templates_source override. Default: $TEMPLATES_DIR/$tpl. Override:
@@ -75,7 +79,9 @@ echo ""
 echo "Checking SKILL.md frontmatter..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
   skill_file=$(skill_md_abs "$name")
-  [ -n "$skill_file" ] && [ -f "$skill_file" ] || continue
+  if [ -z "$skill_file" ] || [ ! -f "$skill_file" ]; then
+    continue
+  fi
   if sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'name:' &&
      sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'description:'; then
     pass "$name has name and description frontmatter"
@@ -109,7 +115,9 @@ echo "Checking for orphan skill directories..."
 _claimed_skill_dirs=$(
   for n in $(jq -r '.[].name' "$CATALOG"); do
     d=$(skill_source_dir_abs "$n")
-    [ -n "$d" ] && printf '%s\t%s\n' "$d" "$n"
+    if [ -n "$d" ]; then
+      printf '%s\t%s\n' "$d" "$n"
+    fi
   done
 )
 for parent in "$SKILLS_DIR" "$REPO_ROOT/deprecated"; do
@@ -559,7 +567,9 @@ done
 
 # Each override base — key = "{skill}/{basename}".
 while IFS=$'\t' read -r ts_name ts_path; do
-  [ -n "$ts_name" ] && [ -n "$ts_path" ] || continue
+  if [ -z "$ts_name" ] || [ -z "$ts_path" ]; then
+    continue
+  fi
   ts_dir="$REPO_ROOT/$ts_path"
   [ -d "$ts_dir" ] || continue
   find "$ts_dir" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do

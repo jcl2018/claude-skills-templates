@@ -26,12 +26,16 @@ skill_md_path() {
 skill_md_abs() {
   local f0
   f0=$(skill_md_path "$1")
-  [ -n "$f0" ] && echo "$REPO_ROOT/$f0" || true
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$f0"
+  fi
 }
 skill_source_dir_abs() {
   local f0
   f0=$(skill_md_path "$1")
-  [ -n "$f0" ] && echo "$REPO_ROOT/$(dirname "$f0")" || true
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$(dirname "$f0")"
+  fi
 }
 
 # Ensure git user config exists (required for commit in CI environments)
@@ -65,7 +69,9 @@ echo ""
 echo "Checking SKILL.md frontmatter parseability..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
   skill_file=$(skill_md_abs "$name")
-  [ -n "$skill_file" ] && [ -f "$skill_file" ] || continue
+  if [ -z "$skill_file" ] || [ ! -f "$skill_file" ]; then
+    continue
+  fi
   # Check frontmatter exists between --- markers
   fm=$(sed -n '/^---$/,/^---$/p' "$skill_file")
   if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -683,6 +689,7 @@ echo "Regression test (D000013): setup-hooks.sh installs post-merge auto-sync ho
 # script still emits the right hook content; it does not fire the hook itself
 # (avoids touching .git/hooks/ in CI).
 
+# shellcheck disable=SC2016 # literal $HOOK_DIR is intentional — we're grepping for the exact string in setup-hooks.sh
 if grep -q 'cat > "$HOOK_DIR/post-merge"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
   ok "setup-hooks.sh writes a post-merge hook"
 else

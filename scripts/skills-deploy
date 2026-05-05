@@ -112,7 +112,9 @@ skill_md_path() {
 skill_source_dir() {
   local name="$1" f0
   f0=$(skill_md_path "$name")
-  [ -n "$f0" ] && echo "$REPO_ROOT/$(dirname "$f0")" || true
+  if [ -n "$f0" ]; then
+    echo "$REPO_ROOT/$(dirname "$f0")"
+  fi
 }
 
 # Templates source directory base for a skill (repo-relative). Defaults to
