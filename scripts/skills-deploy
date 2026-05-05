@@ -589,7 +589,18 @@ do_relink() {
   source=$(echo "$manifest" | jq -r '.source // ""')
 
   for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
-    local src="$source/skills/$name"
+    # Source dir is catalog-driven (F000006): read manifest .skills[$n].path
+    # (e.g. deprecated/company-workflow/SKILL.md), then dirname it. Falls back
+    # to the legacy skills/{name}/ shape when the manifest has no path field
+    # (older installs from before F000006).
+    local manifest_path
+    manifest_path=$(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].path // ""')
+    local src
+    if [ -n "$manifest_path" ]; then
+      src="$source/$(dirname "$manifest_path")"
+    else
+      src="$source/skills/$name"
+    fi
     if [ ! -d "$src" ]; then
       echo "  WARN: $name source missing at $src"
       continue
@@ -708,7 +719,16 @@ do_doctor() {
 
   # Check each installed skill
   for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
-    local src="$source/skills/$name"
+    # Source dir is catalog-driven (F000006): read manifest .skills[$n].path,
+    # then dirname it. Falls back to skills/{name}/ for older installs.
+    local manifest_path
+    manifest_path=$(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].path // ""')
+    local src
+    if [ -n "$manifest_path" ]; then
+      src="$source/$(dirname "$manifest_path")"
+    else
+      src="$source/skills/$name"
+    fi
     local target_dir="$SKILLS_TARGET/$name"
     local skill_md="$target_dir/SKILL.md"
     local _status _label
