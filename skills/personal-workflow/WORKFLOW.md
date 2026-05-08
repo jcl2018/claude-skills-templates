@@ -18,8 +18,8 @@ using templates from `templates/personal-workflow/`.
 
 For each work item type, the AI reads the template for structure:
 
-- Feature: tracker + feature-summary + DESIGN + milestones (4 artifacts)
-- User-story: tracker + PRD + ARCHITECTURE + TEST-SPEC (4 artifacts)
+- Feature: tracker + DESIGN + ROADMAP (3 artifacts)
+- User-story: tracker + DESIGN + SPEC + TEST-SPEC (4 artifacts)
 - Task: tracker + test-plan (2 artifacts)
 - Defect: tracker + RCA + test-plan (3 artifacts)
 
@@ -35,10 +35,10 @@ count). Templates are the single source of truth.
 The engineer works on the docs to align the big picture with reality:
 
 - Refine acceptance criteria in trackers
-- Flesh out PRD user stories and acceptance criteria
-- Make architecture decisions and record tradeoffs
+- Flesh out SPEC requirements and acceptance criteria
+- Make architecture decisions and record tradeoffs in SPEC
 - Map test cases to requirements in TEST-SPEC
-- Adjust milestones and dependency graphs
+- Adjust ROADMAP delivery timeline and decomposition
 
 Run `/personal-workflow check` iteratively during this step.
 
@@ -46,7 +46,7 @@ Run `/personal-workflow check` iteratively during this step.
 
 Implementation follows the aligned docs. For each task:
 
-1. Read the parent user story's PRD and ARCHITECTURE for context
+1. Read the parent user story's SPEC for context
 2. Implement according to the architecture decisions
 3. Run `/personal-workflow check` on modified docs after updates
 4. Update tracker: move through lifecycle phases, add journal entries
@@ -61,8 +61,8 @@ for the canonical mapping. Summary:
 
 | Type | Artifacts | Count |
 |------|-----------|-------|
-| feature | TRACKER, feature-summary, DESIGN, milestones | 4 |
-| user-story | TRACKER, PRD, ARCHITECTURE, TEST-SPEC | 4 |
+| feature | TRACKER, DESIGN, ROADMAP | 3 |
+| user-story | TRACKER, DESIGN, SPEC, TEST-SPEC | 4 |
 | task | TRACKER, test-plan | 2 |
 | defect | TRACKER, RCA, test-plan | 3 |
 
@@ -117,7 +117,7 @@ truth; the AI reads them and follows them.
 **Required children (scaffold these alongside the parent):**
 
 - **feature** -> at least 1 user-story child
-- **user-story** -> at least 1 task child
+- **user-story** -> tasks are OPTIONAL; scaffold only when scope warrants further decomposition (e.g., parallel sub-units, multiple distinct file groups, or work spanning > ~5 components). A simple user-story whose work is one cohesive change can ship without any task children — record the choice with a checked Phase 1 gate `[x] Tasks broken down (N/A — atomic story)`.
 - **task, defect** -> no required children
 
 **Placement rules:**
@@ -187,7 +187,7 @@ Propose journal entries with commit SHAs. Ask before adding.
 When scaffolding or reviewing work items, validate:
 - Each doc has YAML frontmatter with required fields per its template
 - Required sections (`##` headers) from the template exist in the instance
-- For user-stories: PRD user stories have corresponding TEST-SPEC entries
+- For user-stories: SPEC requirements have corresponding TEST-SPEC entries
 
 Warn on missing sections. Never auto-fix without asking.
 

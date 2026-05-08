@@ -19,7 +19,7 @@ blocked_by: ""
 2. Create working branch: `git checkout -b feat/{slug}`
 3. Scaffold work item directory and TRACKER.md
 4. Extract from design doc into doc triplet: requirements → `PRD.md`, architecture decisions → `ARCHITECTURE.md`, test scenarios → `TEST-SPEC.md`
-   (use templates from `templates/doc-PRD.md`, `doc-ARCHITECTURE.md`, `doc-TEST-SPEC.md`)
+   (use templates from `templates/doc-DESIGN.md`, `doc-SPEC.md`, `doc-TEST-SPEC.md`)
 5. Decompose into child user-stories and/or tasks
 
 **Gates:**

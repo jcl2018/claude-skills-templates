@@ -11,24 +11,35 @@ branch: "feat/reading-list-cli"
 blocked_by: ""
 ---
 
+<!-- Prerequisite: Before scaffolding this work item, run /office-hours to
+     produce a design plan in ~/.gstack/projects/. Distill that plan into
+     DESIGN.md during Phase 1 below. (For atomic stories that derive directly
+     from the parent feature's /office-hours session, the parent's design is
+     sufficient context — DESIGN.md may be a brief stub linking to the parent.) -->
+
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Scope understood from parent work item (parent tracker read)
-- [x] Working branch created
-- [x] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC)
-- [x] Tasks broken down
+- [x] /office-hours design referenced (own or parent's, captured in DESIGN.md)
+- [x] Working branch created (`branch` field populated)
+- [x] DESIGN + SPEC + TEST-SPEC scaffolded
+- [x] Acceptance criteria defined
+- [x] Tasks broken down (or N/A — atomic story)
 
 ### Phase 2: Implement
 - [x] Implementation committed (3 commits in Log)
 - [ ] Acceptance criteria verified met
+- [ ] Smoke tests pass
 - [ ] Todos section reflects remaining work
 - [ ] Files section updated
 
 ### Phase 3: Ship
 - [ ] `/personal-workflow check` — validation passed
-- [ ] All children shipped
-- [ ] `/ship` — PR created
+- [ ] Smoke tests pass in CI
+- [ ] E2E walked manually
+- [ ] All children shipped (if any)
+- [ ] `/ship` — PR created (with pre-landing review)
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 

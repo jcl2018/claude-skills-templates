@@ -18,15 +18,15 @@ blocked_by: ""
    → produces design doc in `~/.gstack/projects/`
 2. Create working branch: `git checkout -b feat/work-copilot`
 3. Scaffold work item directory and TRACKER.md
-4. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
+4. Scaffold `ROADMAP.md` (scope, non-goals, decomposition, delivery timeline) — from `templates/doc-ROADMAP.md`
 5. Define acceptance criteria (what "done" looks like for the whole feature)
 6. Decompose into child user-stories
-   → detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
+   → detail (DESIGN, SPEC, TEST-SPEC) lives in child stories
 
 **Gates:**
 - [x] Acceptance criteria scoped
 - [x] Working branch created (`branch` field populated)
-- [x] Milestones scaffolded
+- [x] ROADMAP scaffolded
 - [x] Broken down into child stories
 
 ### Phase 2: Implement

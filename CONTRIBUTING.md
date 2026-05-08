@@ -41,8 +41,9 @@
 
 | Template | When to use |
 |----------|------------|
-| `doc-PRD.md` | Product requirements for a feature |
-| `doc-ARCHITECTURE.md` | Technical architecture document |
+| `doc-DESIGN.md` | Condensed feature/story design — distilled from /office-hours output |
+| `doc-SPEC.md` | User-story specification: requirements (`### P0/P1/P2`) + acceptance criteria + architecture + tradeoffs |
+| `doc-ROADMAP.md` | Feature roll-up: scope, non-goals, decomposition, delivery timeline (with `### Delivery History` sub-section) |
 | `doc-TEST-SPEC.md` | Test specification: `## Smoke Tests` (automated, CI) + `## E2E Tests` (manual, pre-`/ship`) + `## Coverage Gaps`. Soft cap of 5 rows per tier. |
 | `doc-RCA.md` | Root cause analysis for incidents |
 | `tracker-feature.md` | Feature work item |

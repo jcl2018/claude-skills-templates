@@ -8,8 +8,7 @@ status: Draft
 date: 2026-05-02
 updated: 2026-05-05
 author: chjiang
-prd: S000013_PRD.md
-architecture: S000013_ARCHITECTURE.md
+spec: S000013_SPEC.md
 reviewers: []
 ---
 

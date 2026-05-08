@@ -93,7 +93,7 @@ Same shape as F000005 (one user-story + one verification task). All edits land i
 ## Pointers
 
 - Parent tracker: [F000006_TRACKER.md](F000006_TRACKER.md)
-- Milestones: [F000006_milestones.md](F000006_milestones.md)
+- Roadmap: [F000006_ROADMAP.md](F000006_ROADMAP.md)
 - Source design (office-hours): `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260502-015311.md` (Status: APPROVED)
 - Predecessor feature: [F000005_deprecated_skill_status](../F000005_deprecated_skill_status/F000005_TRACKER.md) — shipped the deprecation lifecycle in v1.2.0; this feature is the directory-shape follow-up F000005 explicitly deferred via Out-of-Scope.
 - Sibling feature whose mirror invariant constrains this work: [F000004_work_copilot](../F000004_work_copilot/F000004_TRACKER.md) — `validate.sh` Error check 10's `MIRROR_SPECS` array enforces byte-identity sync; this feature retargets all 7 source paths.

@@ -1,7 +1,7 @@
 ---
 name: personal-workflow
 description: "Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules."
-version: 2.0.0
+version: 3.0.0
 allowed-tools:
   - Bash
   - Read

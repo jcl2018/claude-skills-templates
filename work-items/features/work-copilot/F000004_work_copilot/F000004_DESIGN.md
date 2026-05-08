@@ -87,7 +87,7 @@ Children of F000004:
   array enforcing byte-identity sync on every mirror entry
 
 They converge at milestone #11 (realignment v0.15.0 release). See
-[milestones](F000004_milestones.md) for the dependency graph.
+[roadmap](F000004_ROADMAP.md) for the delivery timeline + dependency graph.
 
 ## Big decisions
 
@@ -144,7 +144,7 @@ Open questions (track in F000004 Journal as they resolve):
 
 ## Sequencing
 
-Milestones (from [F000004_milestones.md](F000004_milestones.md)):
+Milestones (from [F000004_ROADMAP.md](F000004_ROADMAP.md)):
 
 ```
 #1 design approved (v1, validator-only scope)
@@ -220,8 +220,7 @@ v2 expands the bundle, it does not loosen v1 ACs.
 ## Pointers
 
 - Parent tracker: [F000004_TRACKER.md](F000004_TRACKER.md)
-- Milestones: [F000004_milestones.md](F000004_milestones.md)
-- Feature summary: [F000004_feature-summary.md](F000004_feature-summary.md)
+- Roadmap: [F000004_ROADMAP.md](F000004_ROADMAP.md)
 - Source of truth (parity target): [F000003_DESIGN.md](../F000003_company_workflow/F000003_DESIGN.md), [skills/company-workflow/](../../../skills/company-workflow/)
 - Bundle root: [work-copilot/](../../../work-copilot/)
 - Sync-check anchor: [scripts/validate.sh](../../../scripts/validate.sh) — Error check 10

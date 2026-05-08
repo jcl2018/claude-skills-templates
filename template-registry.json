@@ -3,10 +3,10 @@
   "sets": {
     "personal-workflow": {
       "description": "Personal development workflow templates with structural validation. Templates are the single source of truth for structural rules (no separate contract.json).",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "path": "templates/personal-workflow/",
       "tracker_types": ["feature", "defect", "task", "user-story"],
-      "doc_types": ["prd", "architecture", "test-spec", "milestones", "rca", "test-plan"]
+      "doc_types": ["design", "spec", "roadmap", "test-spec", "rca", "test-plan"]
     },
     "company-workflow": {
       "description": "Company work item specification with structural validation. Templates are the single source of truth for structural rules (no separate contract.json). Deprecated as of F000005 (v1.2.0); relocated to deprecated/ as of F000006.",

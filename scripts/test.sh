@@ -296,10 +296,10 @@ fi
 
 # Personal-workflow template directory exists with expected count
 pw_count=$(find "$REPO_ROOT/templates/personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-if [ "$pw_count" -eq 12 ]; then
-  ok "templates/personal-workflow/ contains $pw_count templates (expected 12)"
+if [ "$pw_count" -eq 10 ]; then
+  ok "templates/personal-workflow/ contains $pw_count templates (expected 10)"
 else
-  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 12)"
+  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 10)"
 fi
 
 # Personal-workflow catalog entry exists
@@ -592,7 +592,11 @@ echo "Regression test (D000012): deployed workflow templates stay in sync with w
 #       deployed copy. Skipped on hosts where skills-deploy hasn't run (e.g. CI).
 
 for _wf in personal-workflow company-workflow; do
-  for _tmpl in doc-DESIGN.md doc-feature-summary.md; do
+  case "$_wf" in
+    personal-workflow) _tmpls="doc-DESIGN.md doc-SPEC.md doc-ROADMAP.md" ;;
+    company-workflow)  _tmpls="doc-DESIGN.md doc-feature-summary.md" ;;
+  esac
+  for _tmpl in $_tmpls; do
     if jq -e --arg p "$_wf/$_tmpl" --arg n "$_wf" \
          '.[] | select(.name == $n) | .templates | index($p)' \
          "$CATALOG" > /dev/null 2>&1; then
