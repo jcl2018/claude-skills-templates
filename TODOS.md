@@ -17,6 +17,9 @@ Tests T2, T4, T5, T6, T7 in `scripts/test-deploy.sh` reference a flat `doc-RCA.m
 ### Origin remote URL pinning for the upgrade path (P4, S)
 The "Upgrade now" body block runs `git -C "$source" pull --ff-only origin main` based on `manifest.source` from `~/.claude/.skills-templates.json`. A user who can write that manifest can redirect upgrades to attacker-controlled code. Mitigation: at install time, store `manifest.upstream_url` (the expected `origin` URL) and have skills-update-check verify `git -C "$source" remote get-url origin` matches before recommending upgrade. Same trust boundary already applies to skills-deploy install, so this is hardening, not a new defense. **Depends on:** any real-world threat scenario where this matters.
 
+### `/personal-pipeline` orchestrator over the 3 pipeline skills (P3, M)
+After `/scaffold-work-item`, `/implement-from-spec`, and `/qa-work-item` ship and have been used on real work items for 2+ weeks, decide whether to wrap them in a single orchestrator (Approach B from the 2026-05-08 office-hours session). Orchestrator would: take a design doc, run the three phases as fresh-context subagents passing only file paths, gate at AskUserQuestion only for taste decisions and red QA results. Effort: ~2 weekends once the per-skill pattern is stable. **When:** after the 3 skills are real and you've used the pipeline manually enough to know which gates matter. **Depends on:** F000010 (the 3 pipeline skills) merged + 2-week soak. **Reference:** [chjiang-main-design-20260508-102829.md](~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260508-102829.md).
+
 ## Deferred work
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED
