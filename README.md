@@ -8,7 +8,7 @@ Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench
 |------|-------------|--------|-------------|---------|
 | system-health | ~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, invokes waza for config hygiene. | active | standalone | 1.0.0 |
 | templates | Skill authoring template for new skills. | active | standalone | 0.1.0 |
-| personal-workflow | Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | active | standalone | 2.0.0 |
+| personal-workflow | Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | active | standalone | 3.0.0 |
 
 ### Deprecated
 
