@@ -8,11 +8,11 @@ Regex extended to allow `subfolder/name.md` patterns. `mkdir -p` added for subfo
 ### Fork-aware update detection for skills-update-check (P3, S)
 `scripts/skills-update-check` hardcodes `origin/main` for fetch + show. Users on a fork that pulls from `upstream/main` (with `origin/main` either absent or stale) get no nudge — fetch fails silently, no banner. Add a fallback: if `origin/main` doesn't exist, try `upstream/main`. **When:** when a fork user actually reports it (until then, fork users can `git pull` manually). **Depends on:** v1.6.0 landing.
 
-### Pre-existing template-ownership test failures in test-deploy.sh (P2, S)
-Tests T2, T4, T5, T6, T7 in `scripts/test-deploy.sh` reference a flat `doc-RCA.md` template that no longer exists at the top level (the template was subfoldered to `company-workflow/doc-RCA.md` in v1.3.x). The tests fail when run end-to-end. CI doesn't catch this because `scripts/test.sh` doesn't invoke `scripts/test-deploy.sh` — just greps it for the `jq()` wrapper. Either re-point the tests at a still-flat template (`doc-SKILL-DESIGN.md` is one) or retire the tests. **When:** next quiet PR. **Depends on:** nothing.
+### ~~Pre-existing template-ownership test failures in test-deploy.sh (P2, S)~~ DONE
+Re-pointed 22 references to `doc-RCA.md` (subfoldered to `templates/personal-workflow/doc-RCA.md` in v1.3.x) onto `templates/doc-SKILL-DESIGN.md` (the only remaining flat-path template). Tests T2/T4-T7 now pass end-to-end. Closed by D000016 alongside the wire-into-CI fix below.
 
-### Wire test-deploy.sh into CI / test.sh (P3, S)
-`scripts/test-deploy.sh` is integration tests for `skills-deploy` but isn't invoked by `scripts/test.sh` (CI's entry point). The new U1–U28 update-check tests added in v1.6.0 won't run in CI until this is wired. Pre-existing template-ownership failures (T2/T4–T7) need to be resolved first or the wire-up will block CI. **Depends on:** "Pre-existing template-ownership test failures" above.
+### ~~Wire test-deploy.sh into CI / test.sh (P3, S)~~ DONE
+Added invocation of `scripts/test-deploy.sh` to `scripts/test.sh` between the T11 manifest schema-parity tests and the Summary block. The existing wrapper-grep pre-flight check stays as-is (structural assertion). Negative test confirmed wire-up catches future regressions: reintroducing one stale reference produces `RESULT: FAIL` with named failure, restored → PASS. Closed by D000016.
 
 ### Origin remote URL pinning for the upgrade path (P4, S)
 The "Upgrade now" body block runs `git -C "$source" pull --ff-only origin main` based on `manifest.source` from `~/.claude/.skills-templates.json`. A user who can write that manifest can redirect upgrades to attacker-controlled code. Mitigation: at install time, store `manifest.upstream_url` (the expected `origin` URL) and have skills-update-check verify `git -C "$source" remote get-url origin` matches before recommending upgrade. Same trust boundary already applies to skills-deploy install, so this is hardening, not a new defense. **Depends on:** any real-world threat scenario where this matters.
