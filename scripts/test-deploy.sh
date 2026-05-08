@@ -424,7 +424,7 @@ echo "Test U17: Cache is populated after first fetch"
 setup_update_env >/dev/null
 clone=$(make_fake_clone "1.0.0" "1.1.0")
 write_manifest "$clone" "1.0.0"
-"$UPDATE_CHECK" 2>&1 >/dev/null
+"$UPDATE_CHECK" >/dev/null 2>&1
 checked=$(jq -r '.checked_at // empty' "$SKILLS_TEMPLATES_CACHE")
 remote=$(jq -r '.remote_version // empty' "$SKILLS_TEMPLATES_CACHE")
 if [ -n "$checked" ] && [ "$remote" = "1.1.0" ]; then
@@ -438,7 +438,7 @@ echo "Test U18: skip_version suppresses banner for that version"
 setup_update_env >/dev/null
 clone=$(make_fake_clone "1.0.0" "1.1.0")
 write_manifest "$clone" "1.0.0"
-"$UPDATE_CHECK" 2>&1 >/dev/null
+"$UPDATE_CHECK" >/dev/null 2>&1
 "$UPDATE_CHECK" --skip 1.1.0 2>&1
 out=$("$UPDATE_CHECK" 2>&1)
 if [ -z "$out" ]; then
