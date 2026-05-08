@@ -117,7 +117,7 @@ truth; the AI reads them and follows them.
 **Required children (scaffold these alongside the parent):**
 
 - **feature** -> at least 1 user-story child
-- **user-story** -> at least 1 task child
+- **user-story** -> tasks are OPTIONAL; scaffold only when scope warrants further decomposition (e.g., parallel sub-units, multiple distinct file groups, or work spanning > ~5 components). A simple user-story whose work is one cohesive change can ship without any task children — record the choice with a checked Phase 1 gate `[x] Tasks broken down (N/A — atomic story)`.
 - **task, defect** -> no required children
 
 **Placement rules:**
