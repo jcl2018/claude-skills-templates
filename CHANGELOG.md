@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.6.1] - 2026-05-08
+
+Documentation hygiene: removed the dormant top-level `TODO.md` (last touched 2026-04-10 in v1.4.x era, 37 lines, all items already DONE-marked). The active list lives in `TODOS.md` — having both files alongside each other was confusing for anyone navigating the repo. The DONE history is preserved in git log.
+
+### Removed
+
+- **`TODO.md`** — legacy file consolidated. `TODOS.md` is the single source of truth for open and completed work. No content was lost; all items in `TODO.md` were already DONE-marked when retired.
+
+### Notes
+
+- No code, manifest, or skill changes. Pure repo cleanup.
+- No references to `TODO.md` anywhere in the repo (verified by grep) — removing it doesn't break any docs or scripts.
+
 ## [1.6.0] - 2026-05-08
 
 Update-nudge mechanism so consumers on other machines learn when a new collection version ships. Models gstack's pattern: each instrumented skill's preamble runs a check; if `origin/main` has a newer `VERSION` than what's installed, the user sees a `SKILLS_UPGRADE_AVAILABLE 1.5.3 → 1.6.0` banner and is prompted to Upgrade now / Snooze 24h / Skip this version. Upgrade runs `git pull --ff-only && skills-deploy install --from-upgrade <old>` from the user's clone, then the next skill invocation prints `SKILLS_JUST_UPGRADED 1.5.3 → 1.6.0` once. Closes the gap where users only learned about new versions by happening to `git pull`.
