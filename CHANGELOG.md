@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.7.0] - 2026-05-08
+
+New `/scaffold-work-item` skill — first of three pipeline skills automating the gap between `/office-hours` and `/ship` in the personal-workflow lifecycle. Takes a design-doc path, produces a compliant work-item directory tree per WORKFLOW.md scaffolding rules. Reads templates + manifest + WORKFLOW.md as runtime sources of truth; runs `/personal-workflow check` at boundaries; idempotent (re-run on same input is NO-OP). Bootstrap-validated by re-scaffolding F000010 itself via the new skill — proof revealed and fixed a real bug in the user-story DESIGN.md section instructions before shipping.
+
+### Added
+
+- **`/scaffold-work-item`** — new LLM-driven skill that scaffolds a personal-workflow work item from an `/office-hours` design doc. Status: `experimental`. Depends on `personal-workflow` (templates + manifest + WORKFLOW.md). Three files: `skills/scaffold-work-item/SKILL.md` (entry point: preamble, path resolution, usage, error handling) + `skills/scaffold-work-item/scaffold.md` (13-step logic: input validation, design-doc parsing, type detection from branch with AskUserQuestion fallback, ID generation, slug derivation, component grouping, multi-story decomposition with AskUserQuestion confirmation, idempotency check, write tree, boundary check at end, optional SCAFFOLDED footer append) + `skills/scaffold-work-item/fixtures/README.md` (F000010 as canonical fixture; manual snapshot-diff workflow).
+- **`work-items/features/personal-workflow/F000010_pipeline_skills/`** — feature work item for the three-skill pipeline (scaffold + implement + qa). Hand-scaffolded as the bootstrap, then validated by re-scaffolding via the new skill itself. Contains feature-level TRACKER + DESIGN + ROADMAP, plus 3 user-story children (S000017 scaffold-work-item, S000018 implement-from-spec, S000019 qa-work-item) each with TRACKER + DESIGN + SPEC + TEST-SPEC. S000017 is Phase 2 complete (this PR); S000018 + S000019 remain Phase 1 for follow-up.
+
+### Changed
+
+- **`TODOS.md`** — added P3/M deferred entry: `/personal-pipeline` orchestrator wrapping the three pipeline skills (Approach B from office-hours). Decision deferred until S000017+S000018+S000019 ship and have been used on real work items for 2+ weeks.
+
+### Notes
+
+- The Phase 1 design (`~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260508-102829.md`) was produced via `/office-hours` and refined via `/plan-eng-review`. Eng review surfaced 4 substantive issues, all addressed before scaffolding: idempotency premise (1.1A), work-item granularity (1.2A — scaffold full tree; implement/QA at user-story level only), boundary validation premise (1.3A — every skill calls `/personal-workflow check` at start AND end), and one golden fixture per skill (3.1A).
+- Bootstrap proof was non-trivial: a fresh-context Agent subagent acted as `/scaffold-work-item` against F000010's design doc; the diff against the hand-scaffolded baseline revealed 3 user-story DESIGN.md files producing 3 sections instead of the 7 required by `doc-DESIGN.md`. Root cause: `scaffold.md` Step 10 "brief stub" instruction was too permissive. Fixed in this PR: instruction now explicitly requires all 7 sections (content can be brief, structure cannot be omitted). Logged as the `brief-stub-ambiguity` pitfall learning (confidence 9/10).
+- v1 ships with manual fixture-based testing per Step 0A choice during eng review. Behavioral eval harness (TODOS.md P1) deferred until after the three skills ship and the per-skill pattern is stable.
+
 ## [1.6.1] - 2026-05-08
 
 Documentation hygiene: removed the dormant top-level `TODO.md` (last touched 2026-04-10 in v1.4.x era, 37 lines, all items already DONE-marked). The active list lives in `TODOS.md` — having both files alongside each other was confusing for anyone navigating the repo. The DONE history is preserved in git log.
