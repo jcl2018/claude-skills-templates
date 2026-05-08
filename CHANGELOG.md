@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.6.0] - 2026-05-08
+
+Update-nudge mechanism so consumers on other machines learn when a new collection version ships. Models gstack's pattern: each instrumented skill's preamble runs a check; if `origin/main` has a newer `VERSION` than what's installed, the user sees a `SKILLS_UPGRADE_AVAILABLE 1.5.3 → 1.6.0` banner and is prompted to Upgrade now / Snooze 24h / Skip this version. Upgrade runs `git pull --ff-only && skills-deploy install --from-upgrade <old>` from the user's clone, then the next skill invocation prints `SKILLS_JUST_UPGRADED 1.5.3 → 1.6.0` once. Closes the gap where users only learned about new versions by happening to `git pull`.
+
+### Added
+
+- **`scripts/skills-update-check`** — new ~280 LOC bash script. Default action emits banners; subcommands `--snooze [hours]`, `--skip <version>`, `--prompted <session>`, `--should-prompt <session>` let skill bodies update cache state without writing JSON themselves. Reads installed version from `manifest.collection_version` (catches "pulled but didn't reinstall"); reads remote from `git show origin/main:VERSION` after a 24h-cached `git fetch`. Reuses `version_gte` from `scripts/lib.sh` for semver compare; atomic cache writes via `mktemp` + `mv`; defensive numeric guards on every cache field consumed in arithmetic so a corrupted cache can't crash the silent preamble.
+- **`scripts/skills-deploy install --from-upgrade <version>`** flag — when set, writes `~/.claude/.skills-templates-just-upgraded` after a successful install. The next `skills-update-check` invocation reads, unlinks, and emits the `SKILLS_JUST_UPGRADED` line once.
+- **`skills-deploy doctor`** — surfaces `Update check:` section: last-check timestamp (portable BSD/GNU date), cached local/remote versions, snooze-until time, skipped versions. Also flags a missing `manifest.source` path (e.g., user deleted their clone) as FAIL with recovery hint.
+- **`skills/personal-workflow/SKILL.md`** — `AskUserQuestion` added to `allowed-tools`; preamble snippet runs the check; `## Update Nudge Handling` section instructs how to react to banners (parse, debounce via `--should-prompt`, branch-state precondition, three-option AskUserQuestion, call `--snooze`/`--skip`/`--prompted`).
+- **`skills/system-health/SKILL.md`** — same preamble snippet + `## Update Nudge Handling` block. `AskUserQuestion` was already in its allowed-tools.
+- **`scripts/test-deploy.sh`** — 28 new tests (U1–U28): subcommand semantics, atomic-write debris check, marker round-trip, E2E with a temp git fixture verifying banner emission / cache TTL / snooze / skip / source-deleted silent / marker emit-and-unlink. Plus the `--from-upgrade` flag's three branches (missing value rejected, non-semver rejected, marker written) and doctor's cache surface (populated + never-run).
+
+### Changed
+
+- **`.github/workflows/validate.yml`** — `shellcheck` step now covers `scripts/skills-deploy` and `scripts/skills-update-check` (the existing `scripts/*.sh` glob misses them — both lack the `.sh` extension). Closes a CI gap that pre-dated this PR.
+- **`scripts/test-deploy.sh`** — `SKILL_COUNT` now excludes `status: deprecated` catalog entries to mirror what `skills-deploy install` actually deploys (was over-counting, hid pre-existing test failures). Tests that intentionally install `company-workflow` now pass `--include-deprecated` explicitly. Pre-existing template-ownership tests (T2/T4–T7) are still failing — they reference a flat `doc-RCA.md` that no longer exists at the top level (subfoldered to `company-workflow/doc-RCA.md` in v1.3.x). Out of scope for this PR; tracked for follow-up.
+- **`CLAUDE.md`** — `## Scripts reference` table gains a row for `skills-update-check`; new `## Update-check mechanism (F000009)` section documents the state files (`.skills-templates.json`, `.skills-templates-update.json`, `.skills-templates-just-upgraded`), the manual-override path (`rm` the cache), and the in-snippet path-resolution shape.
+
+### Notes
+
+- **Not in scope:** Copilot-bundle (`work-copilot/`) consumers — they have no preamble surface; defer until there's a real signal anyone wants it. Fork-aware detection (fall back to `upstream/main` when `origin/main` is missing) — tracked as a follow-up.
+- **Acknowledged limitation:** preamble auto-runs `$source/scripts/skills-update-check` based on `manifest.source`. A user who can write to `~/.claude/.skills-templates.json` can redirect every skill invocation to attacker-controlled code. Same trust boundary already applies to all installed skills (deployed via skills-deploy from this manifest); the update check doesn't enlarge the attack surface beyond what's already there. Pinning the `origin` URL would tighten the upgrade path; deferred.
+- **Pre-existing template-ownership tests** in `scripts/test-deploy.sh` (T2/T4–T7) still fail. They were already broken on `main` (the SKILL_COUNT fix made them visible by un-masking the run path). Tracked as a follow-up.
+
 ## [1.5.3] - 2026-05-07
 
 Documentation hygiene: the Scripts table in `README.md` and the matching reference in `CLAUDE.md` had drifted from the actual contents of `scripts/`. Five entries described scripts that no longer exist (`skill-design.sh`, `create-skill.sh`, `skill-check.sh`, `skill-version.sh`, `skill-ship.sh`) and five real scripts were missing (`skills-deploy`, `setup.sh`, `test-deploy.sh`, `collection-version.sh`, `copilot-deploy.py` in README; `skills-deploy`, `setup.sh`, `test-deploy.sh` in CLAUDE.md). The README's Quick Start block also pointed at the phantom `create-skill.sh`. The drift had survived multiple ships because the stale content lived inside `scripts/generate-readme.sh`'s hardcoded heredoc, so re-running the generator just re-emitted the same wrong table.
