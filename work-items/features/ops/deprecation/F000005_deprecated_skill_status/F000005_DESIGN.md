@@ -85,7 +85,7 @@ The bundle stays whole: the same 3 files (`skills-catalog.json`, `scripts/skills
 ## Pointers
 
 - Parent tracker: [F000005_TRACKER.md](F000005_TRACKER.md)
-- Milestones: [F000005_milestones.md](F000005_milestones.md)
+- Roadmap: [F000005_ROADMAP.md](F000005_ROADMAP.md)
 - Sibling feature that motivates the deprecation: [F000004_work_copilot](../F000004_work_copilot/F000004_TRACKER.md) — the Copilot bundle that supersedes `company-workflow` on the Windows work machine
 - Relevant scripts: `scripts/skills-deploy`, `scripts/validate.sh`, `scripts/generate-readme.sh`
 - Relevant catalog: `skills-catalog.json`

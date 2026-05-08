@@ -75,6 +75,6 @@ New artifact set: feature 3, user-story 4, task 2, defect 3 (was 4/4/2/3). Each 
 ## Pointers
 
 - Parent tracker: [F000008_TRACKER.md](F000008_TRACKER.md)
-- Milestones: [F000008_milestones.md](F000008_milestones.md)
+- Roadmap: [F000008_ROADMAP.md](F000008_ROADMAP.md)
 - Approved /office-hours design (full): `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260505-140754.md`
 - Predecessor: v1.4.0 TEST-SPEC restructure (commit abe411c, PR #57)

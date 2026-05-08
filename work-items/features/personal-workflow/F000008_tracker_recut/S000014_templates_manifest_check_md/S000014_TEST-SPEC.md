@@ -7,8 +7,7 @@ version: 1
 status: Draft
 date: 2026-05-05
 author: chjiang
-prd: PRD.md
-architecture: ARCHITECTURE.md
+spec: SPEC.md
 reviewers: []
 ---
 

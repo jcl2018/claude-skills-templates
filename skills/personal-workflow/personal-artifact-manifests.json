@@ -1,13 +1,12 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Personal work item type-to-artifact mapping. Read by personal-workflow check (directory mode).",
   "types": {
     "feature": {
       "required": [
         {"artifact": "tracker", "template": "tracker-feature.md", "filename": "TRACKER.md"},
-        {"artifact": "feature-summary", "template": "doc-feature-summary.md", "filename": "feature-summary.md"},
         {"artifact": "design", "template": "doc-DESIGN.md", "filename": "DESIGN.md"},
-        {"artifact": "milestones", "template": "doc-milestones.md", "filename": "milestones.md"}
+        {"artifact": "roadmap", "template": "doc-ROADMAP.md", "filename": "ROADMAP.md"}
       ],
       "optional": [],
       "lifecycle_overrides": {}
@@ -32,8 +31,8 @@
     "user-story": {
       "required": [
         {"artifact": "tracker", "template": "tracker-user-story.md", "filename": "TRACKER.md"},
-        {"artifact": "prd", "template": "doc-PRD.md", "filename": "PRD.md"},
-        {"artifact": "architecture", "template": "doc-ARCHITECTURE.md", "filename": "ARCHITECTURE.md"},
+        {"artifact": "design", "template": "doc-DESIGN.md", "filename": "DESIGN.md"},
+        {"artifact": "spec", "template": "doc-SPEC.md", "filename": "SPEC.md"},
         {"artifact": "test-spec", "template": "doc-TEST-SPEC.md", "filename": "TEST-SPEC.md"}
       ],
       "optional": [],

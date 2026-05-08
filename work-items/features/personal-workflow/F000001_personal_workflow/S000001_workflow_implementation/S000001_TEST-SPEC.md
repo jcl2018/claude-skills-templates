@@ -8,8 +8,7 @@ status: Done
 date: 2026-04-11
 updated: 2026-05-05
 author: chjiang
-prd: PRD.md
-architecture: ARCHITECTURE.md
+spec: SPEC.md
 reviewers: []
 ---
 

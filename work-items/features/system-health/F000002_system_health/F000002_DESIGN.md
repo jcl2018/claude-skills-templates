@@ -59,5 +59,5 @@ See `F000002_TRACKER.md`.
 ## Pointers
 
 - Parent tracker: [F000002_TRACKER.md](F000002_TRACKER.md)
-- Milestones: [F000002_milestones.md](F000002_milestones.md)
+- Roadmap: [F000002_ROADMAP.md](F000002_ROADMAP.md)
 - Defect that required this file: [D000009](../../defects/D000009_personal_workflow_feature_missing_design_doc/D000009_TRACKER.md)

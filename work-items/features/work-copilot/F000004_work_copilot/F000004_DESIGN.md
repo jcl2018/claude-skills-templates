@@ -220,7 +220,7 @@ v2 expands the bundle, it does not loosen v1 ACs.
 ## Pointers
 
 - Parent tracker: [F000004_TRACKER.md](F000004_TRACKER.md)
-- Milestones: [F000004_milestones.md](F000004_milestones.md)
+- Roadmap: [F000004_ROADMAP.md](F000004_ROADMAP.md)
 - Feature summary: [F000004_feature-summary.md](F000004_feature-summary.md)
 - Source of truth (parity target): [F000003_DESIGN.md](../F000003_company_workflow/F000003_DESIGN.md), [skills/company-workflow/](../../../skills/company-workflow/)
 - Bundle root: [work-copilot/](../../../work-copilot/)
