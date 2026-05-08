@@ -10,13 +10,18 @@ branch: "feat/reading-list-cli"
 blocked_by: ""
 ---
 
+<!-- Prerequisite: Before scaffolding this work item, run /office-hours to
+     produce a design plan in ~/.gstack/projects/. Distill that plan into
+     DESIGN.md during Phase 1 below. -->
+
 ## Lifecycle
 
 ### Phase 1: Track
-- [x] Feature scoped (acceptance criteria defined)
-- [x] Working branch created
-- [x] Milestones defined
-- [x] Broken down into child user-stories
+- [x] /office-hours design produced (in `~/.gstack/projects/`)
+- [x] Working branch created (`branch` field populated)
+- [x] DESIGN + ROADMAP scaffolded
+- [x] Acceptance criteria scoped
+- [x] Broken down into child stories
 
 ### Phase 2: Implement
 - [ ] All child stories have entered Phase 2+
@@ -24,9 +29,10 @@ blocked_by: ""
 
 ### Phase 3: Ship
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] All children shipped
-- [ ] `/ship` — PR created
-- [ ] Merged and deployed
+- [ ] Smoke tests pass in CI
+- [ ] E2E walked manually
+- [ ] `/ship` — PR created (with pre-landing review)
+- [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 

@@ -592,7 +592,11 @@ echo "Regression test (D000012): deployed workflow templates stay in sync with w
 #       deployed copy. Skipped on hosts where skills-deploy hasn't run (e.g. CI).
 
 for _wf in personal-workflow company-workflow; do
-  for _tmpl in doc-DESIGN.md doc-feature-summary.md; do
+  case "$_wf" in
+    personal-workflow) _tmpls="doc-DESIGN.md doc-SPEC.md doc-ROADMAP.md" ;;
+    company-workflow)  _tmpls="doc-DESIGN.md doc-feature-summary.md" ;;
+  esac
+  for _tmpl in $_tmpls; do
     if jq -e --arg p "$_wf/$_tmpl" --arg n "$_wf" \
          '.[] | select(.name == $n) | .templates | index($p)' \
          "$CATALOG" > /dev/null 2>&1; then

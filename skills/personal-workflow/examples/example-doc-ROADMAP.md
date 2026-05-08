@@ -1,11 +1,18 @@
 ---
-type: feature-summary
-parent: F000099
-title: "API Rate Limiting System — Feature Summary"
+type: roadmap
+parent: F000001
+title: "Reading List CLI — Roadmap"
 date: 2026-03-01
 author: chjiang
-status: Active
+status: Draft
 ---
+
+<!-- Example ROADMAP: merged content from the prior example-doc-feature-summary.md
+     + example-doc-milestones.md. Demonstrates the v3 shape (Scope, Non-Goals,
+     Success Criteria, Decomposition, Delivery Timeline with Delivery History,
+     Dependency Graph, Open Questions). -->
+
+<!-- ===== From example-doc-feature-summary.md ===== -->
 
 ## Scope
 
@@ -33,3 +40,26 @@ Per-tenant API rate limiting that prevents abuse and enforces fair resource allo
 - Per-endpoint rate limits (vs. per-tenant) — Phase 2 work; tracked separately as F000118
 - Dynamic limit adjustment based on tenant behavior — out of scope; will be evaluated after baseline metrics from this feature accumulate
 - IP-based throttling for unauthenticated traffic — covered by the WAF, not this feature
+
+<!-- ===== From example-doc-milestones.md ===== -->
+
+<!-- This file is the SINGLE SOURCE OF TRUTH. Edit milestones here. -->
+
+## Milestones
+
+| # | Milestone | Target | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 1 | Core CRUD (add, list, update, remove) | 2026-03-15 | In Progress | S000001 covers this |
+| 2 | Search and filtering | 2026-03-22 | Planned | S000002, depends on M1 |
+| 3 | Distribution (go install + GitHub Release) | 2026-03-29 | Planned | CI/CD pipeline needed |
+| 4 | README + docs | 2026-03-31 | Planned | Installation, usage, examples |
+
+## Dependencies
+
+```
+M1 (Core CRUD) ──→ M2 (Search)
+                 ──→ M3 (Distribution)
+                 ──→ M4 (Docs)
+```
+
+M1 is the only blocker. M2, M3, M4 can run in parallel after M1 ships.

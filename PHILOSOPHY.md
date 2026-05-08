@@ -22,7 +22,7 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 - **Teams or collaboration.** Work items have no assignee field. No locking, no merge conflict resolution for trackers. This is a solo dev tool.
 - **Universal portability.** Templates assume CLAUDE.md conventions, gstack patterns, and the `work-items/` directory structure. They won't work in an arbitrary repo without adaptation.
-- **Runtime enforcement.** CLAUDE.md rules are passive instructions. Nothing prevents a developer from scaffolding a feature without a PRD. `/docs check` catches drift after the fact, not before.
+- **Runtime enforcement.** CLAUDE.md rules are passive instructions. Nothing prevents a developer from scaffolding a feature without a SPEC. `/personal-workflow check` catches drift after the fact, not before.
 - **Scalability beyond ~50 work items.** The directory-nesting model with max depth 3 works for solo projects. It would not work for a 200-person engineering org.
 
 ## Key patterns and conventions
@@ -39,8 +39,8 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 **Work item hierarchy** (`work-items/{slug}/`):
 - `TRACKER.md` at every level (feature > user-story > task, max depth 3)
-- Doc triplet artifacts (PRD, ARCHITECTURE, TEST-SPEC) for user-stories
-- ID-prefixed filenames (`F000001_PRD.md`) to avoid collisions
+- Doc artifacts (DESIGN, SPEC, TEST-SPEC) for user-stories
+- ID-prefixed filenames (`F000001_SPEC.md`) to avoid collisions
 - ID format: `{TYPE_PREFIX}{NNNNNN}` where prefix is F/S/T/D
 
 **Version management:**
