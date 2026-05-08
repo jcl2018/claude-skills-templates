@@ -20,4 +20,4 @@ jobs:
         run: ./scripts/test.sh
 
       - name: Lint shell scripts
-        run: shellcheck scripts/*.sh
+        run: shellcheck scripts/*.sh scripts/skills-deploy scripts/skills-update-check

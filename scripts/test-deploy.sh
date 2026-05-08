@@ -35,8 +35,10 @@ teardown_env() {
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
-# Count catalog entries that have skill files (exclude templates-only entries)
-SKILL_COUNT=$(jq '[.[] | select(.files | length > 0)] | length' "$CATALOG")
+# Count catalog entries that have skill files AND aren't deprecated.
+# Default `skills-deploy install` skips deprecated skills (use --include-deprecated
+# to install them); the test expectations must mirror that behavior.
+SKILL_COUNT=$(jq '[.[] | select(.files | length > 0) | select((.status // "active") != "deprecated")] | length' "$CATALOG")
 
 echo "=== Deploy script tests ==="
 echo ""
@@ -194,6 +196,385 @@ else
 fi
 teardown_env
 
+### ============================================================
+### skills-update-check tests (F000009)
+### ============================================================
+
+UPDATE_CHECK="$REPO_ROOT/scripts/skills-update-check"
+
+# Per-test setup: temp manifest + cache + marker paths.
+setup_update_env() {
+  local tmp
+  tmp=$(mktemp -d)
+  export SKILLS_TEMPLATES_MANIFEST="$tmp/manifest.json"
+  export SKILLS_TEMPLATES_CACHE="$tmp/cache.json"
+  export SKILLS_TEMPLATES_MARKER="$tmp/just-upgraded"
+  _CLEANUP_DIRS+=("$tmp")
+  echo "$tmp"
+}
+
+teardown_update_env() {
+  unset SKILLS_TEMPLATES_MANIFEST SKILLS_TEMPLATES_CACHE SKILLS_TEMPLATES_MARKER
+}
+
+# Build a fixture: a temp "clone" with VERSION + .git + a remote that has a newer VERSION.
+make_fake_clone() {
+  local local_ver="$1" remote_ver="$2"
+  local origin_dir local_dir
+  origin_dir=$(mktemp -d)
+  local_dir=$(mktemp -d)
+  _CLEANUP_DIRS+=("$origin_dir" "$local_dir")
+
+  git -c init.defaultBranch=main init --quiet "$origin_dir"
+  printf '%s' "$remote_ver" > "$origin_dir/VERSION"
+  git -C "$origin_dir" add VERSION
+  git -C "$origin_dir" -c user.name=test -c user.email=t@e.st commit --quiet -m "init $remote_ver"
+
+  git clone --quiet "$origin_dir" "$local_dir"
+  printf '%s' "$local_ver" > "$local_dir/VERSION"
+  git -C "$local_dir" -c user.name=test -c user.email=t@e.st commit --quiet -am "local $local_ver" || true
+  git -C "$local_dir" reset --hard origin/main --quiet
+  printf '%s' "$local_ver" > "$local_dir/VERSION"
+
+  echo "$local_dir"
+}
+
+write_manifest() {
+  local clone="$1" cv="$2"
+  printf '{"source":"%s","collection_version":"%s","skills":{},"templates":{}}\n' "$clone" "$cv" > "$SKILLS_TEMPLATES_MANIFEST"
+}
+
+# --- Subcommand tests ---
+
+echo "Test U1: Default exits silent when no manifest"
+setup_update_env >/dev/null
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ]; then
+  ok "Silent exit (no manifest)"
+else
+  fail_test "Expected silent, got: $out"
+fi
+teardown_update_env
+
+echo "Test U2: --help exits 0 with usage text"
+setup_update_env >/dev/null
+out=$("$UPDATE_CHECK" --help 2>&1)
+if echo "$out" | grep -q "skills-update-check"; then
+  ok "Help text emitted"
+else
+  fail_test "Help text missing"
+fi
+teardown_update_env
+
+echo "Test U3: --snooze writes snooze_until to cache"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --snooze 2 2>&1
+if [ -f "$SKILLS_TEMPLATES_CACHE" ] && jq -e '.snooze_until' "$SKILLS_TEMPLATES_CACHE" >/dev/null 2>&1; then
+  ok "Cache has snooze_until"
+else
+  fail_test "Cache missing snooze_until"
+fi
+teardown_update_env
+
+echo "Test U4: --snooze defaults to 24h when no arg"
+setup_update_env >/dev/null
+now=$(date +%s)
+"$UPDATE_CHECK" --snooze 2>&1
+until_ts=$(jq -r '.snooze_until' "$SKILLS_TEMPLATES_CACHE")
+diff_hours=$(( (until_ts - now) / 3600 ))
+if [ "$diff_hours" -ge 23 ] && [ "$diff_hours" -le 25 ]; then
+  ok "Default snooze ~24h"
+else
+  fail_test "Expected ~24h snooze, got ${diff_hours}h"
+fi
+teardown_update_env
+
+echo "Test U5: --skip writes skip_version"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --skip 1.6.0 2>&1
+if [ "$(jq -r '.skip_version' "$SKILLS_TEMPLATES_CACHE")" = "1.6.0" ]; then
+  ok "skip_version written"
+else
+  fail_test "skip_version missing or wrong"
+fi
+teardown_update_env
+
+echo "Test U6: --skip rejects non-semver"
+setup_update_env >/dev/null
+if "$UPDATE_CHECK" --skip "not-a-version" 2>/dev/null; then
+  fail_test "--skip should reject non-semver"
+else
+  ok "--skip rejects non-semver input"
+fi
+teardown_update_env
+
+echo "Test U7: --skip rejects missing value"
+setup_update_env >/dev/null
+if "$UPDATE_CHECK" --skip 2>/dev/null; then
+  fail_test "--skip should reject empty"
+else
+  ok "--skip rejects empty value"
+fi
+teardown_update_env
+
+echo "Test U8: --prompted writes prompted_session and prompted_at"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --prompted "session-abc" 2>&1
+ps=$(jq -r '.prompted_session' "$SKILLS_TEMPLATES_CACHE")
+pa=$(jq -r '.prompted_at' "$SKILLS_TEMPLATES_CACHE")
+if [ "$ps" = "session-abc" ] && [ -n "$pa" ] && [ "$pa" != "null" ]; then
+  ok "prompted_session + prompted_at written"
+else
+  fail_test "prompted state not written correctly (session=$ps, at=$pa)"
+fi
+teardown_update_env
+
+echo "Test U9: --should-prompt fresh exits 0"
+setup_update_env >/dev/null
+if "$UPDATE_CHECK" --should-prompt session-X 2>/dev/null; then
+  ok "Fresh session gets exit 0 (prompt)"
+else
+  fail_test "Fresh session should exit 0"
+fi
+teardown_update_env
+
+echo "Test U10: --should-prompt within 10 min for same session exits 1"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --prompted session-Y 2>&1
+if "$UPDATE_CHECK" --should-prompt session-Y 2>/dev/null; then
+  fail_test "Same-session within 10min should exit 1"
+else
+  ok "Same-session within 10min suppresses prompt"
+fi
+teardown_update_env
+
+echo "Test U11: --should-prompt for different session exits 0"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --prompted session-Y 2>&1
+if "$UPDATE_CHECK" --should-prompt session-Z 2>/dev/null; then
+  ok "Different session gets exit 0"
+else
+  fail_test "Different session should exit 0"
+fi
+teardown_update_env
+
+echo "Test U12: --should-prompt expired window (>10min ago) exits 0"
+setup_update_env >/dev/null
+old_ts=$(($(date +%s) - 11 * 60))
+printf '{"prompted_session":"session-old","prompted_at":%d}\n' "$old_ts" > "$SKILLS_TEMPLATES_CACHE"
+if "$UPDATE_CHECK" --should-prompt session-old 2>/dev/null; then
+  ok "Expired prompt window allows re-prompt"
+else
+  fail_test "Expired window should allow prompt"
+fi
+teardown_update_env
+
+echo "Test U13: Atomic cache writes leave no .tmp.* debris"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --snooze 12 2>&1
+"$UPDATE_CHECK" --skip 2.0.0 2>&1
+"$UPDATE_CHECK" --prompted session-Q 2>&1
+debris=$(find "$(dirname "$SKILLS_TEMPLATES_CACHE")" -name 'cache.json.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$debris" = "0" ]; then
+  ok "No .tmp.* debris"
+else
+  fail_test "Found $debris debris files"
+fi
+teardown_update_env
+
+echo "Test U14: Subsequent subcommand merges into existing cache"
+setup_update_env >/dev/null
+"$UPDATE_CHECK" --snooze 5 2>&1
+"$UPDATE_CHECK" --skip 1.7.0 2>&1
+both=$(jq -r '[.snooze_until, .skip_version] | @csv' "$SKILLS_TEMPLATES_CACHE")
+if echo "$both" | grep -q '"1.7.0"' && echo "$both" | grep -qE '[0-9]+'; then
+  ok "Snooze + skip both retained"
+else
+  fail_test "Cache merge failed: $both"
+fi
+teardown_update_env
+
+# --- E2E tests with fake git clone fixture ---
+
+echo "Test U15: Banner emits when origin advanced past installed"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"
+out=$("$UPDATE_CHECK" 2>&1 | head -1)
+if echo "$out" | grep -q '^SKILLS_UPGRADE_AVAILABLE 1\.0\.0 1\.1\.0$'; then
+  ok "Banner emitted with correct versions"
+else
+  fail_test "Expected SKILLS_UPGRADE_AVAILABLE, got: $out"
+fi
+teardown_update_env
+
+echo "Test U16: No banner when local == remote"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.0.0")
+write_manifest "$clone" "1.0.0"
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ]; then
+  ok "Silent when up to date"
+else
+  fail_test "Should be silent, got: $out"
+fi
+teardown_update_env
+
+echo "Test U17: Cache is populated after first fetch"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"
+"$UPDATE_CHECK" >/dev/null 2>&1
+checked=$(jq -r '.checked_at // empty' "$SKILLS_TEMPLATES_CACHE")
+remote=$(jq -r '.remote_version // empty' "$SKILLS_TEMPLATES_CACHE")
+if [ -n "$checked" ] && [ "$remote" = "1.1.0" ]; then
+  ok "Cache populated"
+else
+  fail_test "Cache missing fields (checked=$checked, remote=$remote)"
+fi
+teardown_update_env
+
+echo "Test U18: skip_version suppresses banner for that version"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"
+"$UPDATE_CHECK" >/dev/null 2>&1
+"$UPDATE_CHECK" --skip 1.1.0 2>&1
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ]; then
+  ok "skip_version suppresses banner"
+else
+  fail_test "Should be silent, got: $out"
+fi
+teardown_update_env
+
+echo "Test U19: snooze_until suppresses banner during window"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"
+"$UPDATE_CHECK" --snooze 1 2>&1
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ]; then
+  ok "snooze suppresses banner during window"
+else
+  fail_test "Should be silent during snooze, got: $out"
+fi
+teardown_update_env
+
+echo "Test U20: source path moved/deleted exits silent"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"
+rm -rf "$clone"
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ]; then
+  ok "Silent exit when source missing"
+else
+  fail_test "Expected silent, got: $out"
+fi
+teardown_update_env
+
+echo "Test U21: JUST_UPGRADED marker is read, unlinked, and emitted"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.1.0" "1.1.0")
+write_manifest "$clone" "1.1.0"
+printf '%s %s\n' "1.0.0" "1.1.0" > "$SKILLS_TEMPLATES_MARKER"
+out=$("$UPDATE_CHECK" 2>&1)
+if echo "$out" | grep -q '^SKILLS_JUST_UPGRADED 1\.0\.0 1\.1\.0$' && [ ! -f "$SKILLS_TEMPLATES_MARKER" ]; then
+  ok "Marker emitted and unlinked"
+else
+  fail_test "Marker handling failed (out='$out')"
+fi
+teardown_update_env
+
+echo "Test U22: Marker race tolerated (marker missing)"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.0.0")
+write_manifest "$clone" "1.0.0"
+out=$("$UPDATE_CHECK" 2>&1)
+if [ -z "$out" ] || ! echo "$out" | grep -q "JUST_UPGRADED"; then
+  ok "Missing marker tolerated"
+else
+  fail_test "Should not emit JUST_UPGRADED with no marker"
+fi
+teardown_update_env
+
+# --- skills-deploy --from-upgrade tests ---
+
+echo "Test U23: skills-deploy install --from-upgrade rejects missing value"
+setup_env
+if "$DEPLOY" install personal-workflow --from-upgrade 2>/dev/null; then
+  fail_test "--from-upgrade with no value should fail"
+else
+  ok "--from-upgrade rejects missing value"
+fi
+teardown_env
+
+echo "Test U24: skills-deploy install --from-upgrade rejects non-semver value"
+setup_env
+if "$DEPLOY" install personal-workflow --from-upgrade not-a-version 2>/dev/null; then
+  fail_test "--from-upgrade with bad version should fail"
+else
+  ok "--from-upgrade rejects non-semver"
+fi
+teardown_env
+
+echo "Test U25: skills-deploy install --from-upgrade writes JUST_UPGRADED marker"
+setup_env
+export SKILLS_TEMPLATES_MARKER="$SKILLS_DEPLOY_TARGET/just-upgraded-marker"
+"$DEPLOY" install personal-workflow --from-upgrade 1.4.0 >/dev/null 2>&1
+if [ -f "$SKILLS_TEMPLATES_MARKER" ]; then
+  payload=$(cat "$SKILLS_TEMPLATES_MARKER")
+  if echo "$payload" | grep -qE '^1\.4\.0 [0-9]+\.[0-9]+\.[0-9]+'; then
+    ok "Marker written: $payload"
+  else
+    fail_test "Marker malformed: $payload"
+  fi
+else
+  fail_test "Marker file not written"
+fi
+unset SKILLS_TEMPLATES_MARKER
+teardown_env
+
+echo "Test U26: skills-deploy install (no --from-upgrade) does NOT write marker"
+setup_env
+export SKILLS_TEMPLATES_MARKER="$SKILLS_DEPLOY_TARGET/should-not-exist"
+"$DEPLOY" install personal-workflow >/dev/null 2>&1
+if [ ! -f "$SKILLS_TEMPLATES_MARKER" ]; then
+  ok "No marker without --from-upgrade"
+else
+  fail_test "Marker written when not requested"
+fi
+unset SKILLS_TEMPLATES_MARKER
+teardown_env
+
+echo "Test U27: doctor surfaces update-check cache"
+setup_env
+export SKILLS_TEMPLATES_CACHE="$SKILLS_DEPLOY_TARGET/test-update-cache.json"
+"$DEPLOY" install personal-workflow >/dev/null 2>&1
+"$UPDATE_CHECK" --skip 9.9.9 2>&1
+out=$("$DEPLOY" doctor 2>&1)
+if echo "$out" | grep -q "Update check:" && echo "$out" | grep -q "Skipping version: 9.9.9"; then
+  ok "Doctor surfaces update-check cache state"
+else
+  fail_test "Doctor output missing cache info"
+fi
+unset SKILLS_TEMPLATES_CACHE
+teardown_env
+
+echo "Test U28: doctor handles missing cache file gracefully"
+setup_env
+export SKILLS_TEMPLATES_CACHE="$SKILLS_DEPLOY_TARGET/never-created.json"
+"$DEPLOY" install personal-workflow >/dev/null 2>&1
+out=$("$DEPLOY" doctor 2>&1)
+if echo "$out" | grep -q "Update check: (never run"; then
+  ok "Doctor reports never-run state cleanly"
+else
+  fail_test "Doctor missing 'never run' message"
+fi
+unset SKILLS_TEMPLATES_CACHE
+teardown_env
+
 # === Subdirectory tests ===
 echo ""
 echo "=== Subdirectory deployment tests ==="
@@ -202,7 +583,7 @@ echo ""
 # Test 13: Subdirectory symlinks created on install
 echo "Test 13: Subdirectory symlinks created on install"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 subdir_ok=true
 for dname in reference philosophy fixtures; do
   target="$SKILLS_DEPLOY_TARGET/company-workflow/$dname"
@@ -221,8 +602,8 @@ teardown_env
 # Test 14: Subdirectory idempotent install
 echo "Test 14: Subdirectory idempotent install"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 if [ -L "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ]; then
   ok "Subdirectory symlinks valid after double install"
 else
@@ -233,7 +614,7 @@ teardown_env
 # Test 15: Doctor detects broken subdirectory symlink
 echo "Test 15: Doctor detects broken subdirectory symlink"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
 ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
 output=$("$DEPLOY" doctor 2>&1)
@@ -259,7 +640,7 @@ teardown_env
 # Test 17: Remove cleans up subdirectory symlinks
 echo "Test 17: Remove cleans up subdirectory symlinks"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 "$DEPLOY" remove company-workflow --force >/dev/null 2>&1
 if [ ! -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ ! -e "$SKILLS_DEPLOY_TARGET/company-workflow/philosophy" ]; then
   ok "Subdirectory symlinks cleaned up on remove"
@@ -271,7 +652,7 @@ teardown_env
 # Test 18: Relink recreates subdirectory symlinks
 echo "Test 18: Relink recreates subdirectory symlinks"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
 "$DEPLOY" relink >/dev/null 2>&1
 if [ -L "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/company-workflow/reference" ]; then
@@ -284,12 +665,12 @@ teardown_env
 # Test 19: Migration skips modified subdir content
 echo "Test 19: Migration skips modified subdir content"
 setup_env
-"$DEPLOY" install company-workflow >/dev/null 2>&1
+"$DEPLOY" install company-workflow --include-deprecated >/dev/null 2>&1
 # Replace symlink with real dir containing modified file
 rm -f "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
 mkdir -p "$SKILLS_DEPLOY_TARGET/company-workflow/reference"
 echo "modified content" > "$SKILLS_DEPLOY_TARGET/company-workflow/reference/guide-general.md"
-output=$("$DEPLOY" install company-workflow 2>&1)
+output=$("$DEPLOY" install company-workflow --include-deprecated 2>&1)
 if echo "$output" | grep -q "WARN.*local modifications"; then
   ok "Migration warns about modified subdir content"
 else

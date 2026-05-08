@@ -8,15 +8,47 @@ allowed-tools:
   - Write
   - Glob
   - Grep
+  - AskUserQuestion
 ---
 
 ## Preamble
+
+Check for collection updates (silent if none, banner if a newer version is available):
+
+```bash
+_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+```
 
 Verify this is a git repository:
 
 ```bash
 git rev-parse --show-toplevel 2>/dev/null || echo "NOT_A_GIT_REPO"
 ```
+
+## Update Nudge Handling (skip silently if preamble printed nothing about updates)
+
+**If preamble output contains `SKILLS_UPGRADE_AVAILABLE <old> <new>`:**
+
+1. Parse the two version tokens from the banner line. The banner is whitespace-separated: `marker old new`.
+2. Resolve session: `SESSION="${CLAUDE_SESSION_ID:-$PPID}"` (Claude Code may not surface a session id; PPID is the stable fallback within one Claude Code window).
+3. Resolve script path: `_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)`. If empty, skip the prompt and continue.
+4. Debounce: run `"$_S/scripts/skills-update-check" --should-prompt "$SESSION"`. Exit code 1 means "already prompted in this session" — suppress the prompt and continue with the workflow. Exit code 0 means "ok to prompt".
+5. Branch-state precondition for upgrade: all of these must hold for `git pull --ff-only origin main` to succeed.
+   - Working tree clean: `git -C "$_S" diff --quiet && git -C "$_S" diff --cached --quiet`
+   - On `main`: `[ "$(git -C "$_S" rev-parse --abbrev-ref HEAD)" = "main" ]`
+   - No local commits ahead of origin: `[ "$(git -C "$_S" rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo 0)" = "0" ]`
+
+   If any check fails, print: `Skills upgrade requires clean main with no local commits. Run: cd "$_S" && git checkout main && git pull --ff-only && ./scripts/skills-deploy install` Then call `"$_S/scripts/skills-update-check" --snooze 1` (1-hour snooze) and continue with the workflow.
+
+6. Otherwise, AskUserQuestion with three options:
+   - A) Upgrade now (recommended) — runs `git -C "$_S" pull --ff-only origin main && "$_S/scripts/skills-deploy" install --from-upgrade <old>`
+   - B) Snooze 24h — runs `"$_S/scripts/skills-update-check" --snooze 24`
+   - C) Skip this version — runs `"$_S/scripts/skills-update-check" --skip <new>`
+
+7. Mark the session as prompted regardless of choice: `"$_S/scripts/skills-update-check" --prompted "$SESSION"`. Then continue with the workflow.
+
+**If preamble output contains `SKILLS_JUST_UPGRADED <from> <to>`:** print "claude-skills-templates upgraded to v\<to\> (was v\<from\>)" and continue. The marker file has already been removed by skills-update-check itself.
 
 If `NOT_A_GIT_REPO`: tell the user "Error: /personal-workflow requires a git repository." and stop.
 

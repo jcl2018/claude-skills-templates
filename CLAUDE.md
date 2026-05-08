@@ -158,3 +158,38 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `sync-upstream.sh` | Compares upstream gstack skills | When updating from gstack |
 | `setup-hooks.sh` | Installs pre-commit hook | Once per clone |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
+| `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
+
+## Update-check mechanism (F000009)
+
+Active skills (`personal-workflow`, `system-health`) emit a banner when a newer
+collection version is available on `origin/main`. The user is prompted with
+Upgrade now / Snooze 24h / Skip this version, then either auto-upgrades via
+`git pull --ff-only && skills-deploy install --from-upgrade <old>` or suppresses
+the banner via `--snooze` / `--skip` cache state.
+
+State files (`~/.claude/`):
+- `.skills-templates.json` — manifest. Field `source` (already populated by every
+  install) is read by the check script. No new field added.
+- `.skills-templates-update.json` — cache: `checked_at`, `local_version`,
+  `remote_version`, `snooze_until`, `skip_version`, `prompted_session`,
+  `prompted_at`. Atomic writes via `mktemp` + `mv`.
+- `.skills-templates-just-upgraded` — single-shot marker written by
+  `skills-deploy install --from-upgrade <old>`. Read once, then unlinked, then
+  emitted as `SKILLS_JUST_UPGRADED <old> <new>` by the next skill invocation.
+
+Manual override: `rm ~/.claude/.skills-templates-update.json` forces a re-check
+on the next skill invocation. `skills-deploy doctor` surfaces last-check time,
+local/remote versions, snooze/skip state.
+
+The script lives in the user's clone at `$source/scripts/skills-update-check` —
+no symlink, no copy, no `~/.claude/bin/`. `git pull` propagates updates
+automatically. The preamble snippet in each instrumented SKILL.md does:
+
+```bash
+_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+```
+
+Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
+fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
