@@ -1,0 +1,340 @@
+# /scaffold-work-item — Work Item Scaffolding
+
+Scaffold a personal-workflow work item from an `/office-hours` design doc. The
+templates in `templates/personal-workflow/` and `personal-artifact-manifests.json`
+are the **single source of truth** for required artifacts and structure.
+
+This file is the step-by-step logic invoked from [SKILL.md](SKILL.md). Read SKILL.md
+first for path resolution, error handling, and usage; then follow the steps below.
+
+---
+
+## Step 1: Validate Input
+
+Parse the user's argument:
+
+- The first positional argument is `<design-doc-path>`.
+- If `--type {feature|user-story|task|defect}` is also supplied, capture it as the explicit type override.
+
+Verify the design doc exists:
+
+```bash
+[ -f "$DESIGN_DOC_PATH" ] && echo "DESIGN_DOC_FOUND" || echo "DESIGN_DOC_MISSING"
+```
+
+If `DESIGN_DOC_MISSING`: print "Error: design doc not found at {path}" and stop.
+
+## Step 2: Read the Design Doc
+
+Read the design doc and extract these fields:
+
+- **Title:** the first `# Design: {title}` line. Strip the `Design: ` prefix to get the title.
+- **Mode:** the `Mode:` line in the frontmatter block (Builder or Startup or other).
+- **Branch:** the `Branch:` line.
+- **Status:** the `Status:` line.
+- **Problem Statement:** the `## Problem Statement` section content.
+- **Recommended Approach:** the `## Recommended Approach` section content.
+- **Open Questions:** the `## Open Questions` section content.
+- **Eng-Review Revisions:** if present, the `## Eng-Review Revisions` section content (overrides body where they conflict).
+
+Distill these into the variables `TITLE`, `MODE`, `SOURCE_BRANCH`, `SOURCE_STATUS`,
+`PROBLEM`, `APPROACH`, `OPEN_QUESTIONS`, `ENG_REVIEW_DELTAS`.
+
+If any required field is missing or unparseable, print:
+"Error: could not extract title/mode/recommended-approach from {path}. Verify the design doc was produced by /office-hours."
+And stop.
+
+## Step 3: Determine Work-Item Type
+
+Detection order:
+
+1. **Explicit `--type` argument:** if provided, use it and skip to Step 4.
+2. **Current git branch:** match the branch name against these patterns (case-insensitive):
+   - `^(feature|feat)[-/]` → `feature`
+   - `^story[-/]` → `user-story`
+   - `^(task|chore)[-/]` → `task`
+   - `^(defect|fix|bugfix)[-/]` → `defect`
+3. **AskUserQuestion fallback:** if no match, ask:
+
+   > Branch '{branch_name}' doesn't match a type pattern. Which work-item type should I scaffold?
+
+   Options (per the design doc's `Mode: Builder` and recommended-approach phrasing — pick the most likely default):
+   - feature (recommended if design doc has feature-shaped scope)
+   - user-story
+   - task
+   - defect
+
+   Use the user's answer.
+
+If the user cancels: print "Aborted: type required to proceed." and stop.
+
+## Step 4: Read Manifest and WORKFLOW.md
+
+```bash
+cat "$_PW_SKILL_DIR/personal-artifact-manifests.json"
+```
+
+Parse the JSON. Look up `types[$TYPE].required` to get the list of required artifacts:
+each entry has `artifact`, `template`, `filename`. Store as `REQUIRED_ARTIFACTS`.
+
+Read `$_PW_SKILL_DIR/WORKFLOW.md` for hierarchy + scaffolding rules. Pay attention to:
+
+- Branch naming conventions (already used in Step 3).
+- Required children (e.g., feature → at least 1 user-story child).
+- Placement rules (`work-items/features/{component}/{ID}_{slug}/` etc).
+- Slug rules: `[a-z0-9_-]+`, lowercase, no spaces or capitals.
+- ID format: `{TYPE_PREFIX}{NNNNNN}` (F/S/T/D + 6 digits).
+
+## Step 5: Generate ID
+
+Scan `work-items/` for the highest existing ID matching the type prefix:
+
+```bash
+find work-items -name "${PREFIX}*_TRACKER.md" 2>/dev/null \
+  | sed "s|.*/${PREFIX}\([0-9]*\)_.*|\1|" \
+  | sort -un | tail -1
+```
+
+Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect.
+
+Increment the highest existing ID by 1. Pad to 6 digits. Result: `NEW_ID` (e.g., `F000010`).
+
+## Step 6: Determine Slug
+
+The slug derives from the design doc's title:
+
+1. Lowercase the title.
+2. Replace spaces and `—` with `_`.
+3. Strip non-alphanumeric chars except `_-`.
+4. Collapse runs of `_` to a single `_`.
+5. Trim leading/trailing `_-`.
+
+Example: "Personal-workflow pipeline skills" → `personal-workflow_pipeline_skills`.
+
+If the slug is awkward or > 40 chars, AskUserQuestion to refine:
+
+> Slug derived from title: '{slug}'. Use as-is, edit, or override?
+
+Capture as `SLUG`.
+
+## Step 7: Determine Component (Grouping Folder)
+
+Existing convention: features and defects nest under a component subfolder
+(`features/personal-workflow/`, `features/system-health/`, etc).
+
+Scan existing components:
+
+```bash
+find work-items/${TYPE}s -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+  | sed 's|.*/||' | sort -u
+```
+
+If components exist, AskUserQuestion:
+
+> Which component does this work item belong to?
+>
+> Options:
+> - {existing-component-1} (recommended if slug is component-related)
+> - {existing-component-2}
+> - ...
+> - + new component (specify)
+
+If the user picks an existing component, use it. If "+ new", ask for the new component name (slug rules apply).
+
+Capture as `COMPONENT`.
+
+If no components exist yet (e.g., empty `work-items/features/`): default to the slug or AskUserQuestion to provide one explicitly.
+
+## Step 8: Plan Tree
+
+Compute the target path:
+
+- **Feature:** `work-items/features/{COMPONENT}/{NEW_ID}_{SLUG}/`
+- **User-story (standalone scaffold):** error — user-stories must nest under a feature. Tell the user: "user-stories must be scaffolded as children of a feature; pass the feature dir to scaffold child stories." (or, if the design doc explicitly references a parent feature, use that path).
+- **Task (standalone scaffold):** same constraint as user-story but under a feature/user-story.
+- **Defect:** `work-items/defects/{COMPONENT}/{NEW_ID}_{SLUG}/`
+
+For features, decide the user-story children:
+
+1. Parse the design doc's `## Recommended Approach` section.
+2. Extract listed alternatives or sub-components (e.g., "Skill 1: /scaffold-work-item", "Skill 2: ...").
+3. For each, derive a candidate slug (Step 6's logic).
+4. AskUserQuestion to confirm:
+
+   > Proposed user-story children for {NEW_ID}:
+   > - {S_ID_1}_{slug_1}
+   > - {S_ID_2}_{slug_2}
+   > - {S_ID_3}_{slug_3}
+   >
+   > Confirm or override?
+
+   Options:
+   - Confirm all (recommended)
+   - Edit slugs (interactive)
+   - Skip user-story children (scaffold feature only; user adds stories later)
+
+5. Capture user-story IDs by incrementing from the highest existing S-prefix.
+
+Store `TARGET_PATH`, `CHILDREN_LIST`.
+
+## Step 9: Boundary Check at Start (Premise 1.3) + Idempotency
+
+If `TARGET_PATH` already exists:
+
+1. Run `/personal-workflow check {TARGET_PATH}` and capture the result.
+2. **If check returns PASS:** the work item is already scaffolded compliantly.
+   Print: "INFO: {NEW_ID} already scaffolded at {TARGET_PATH}; nothing to do."
+   Exit 0 (idempotent NO-OP).
+3. **If check returns DRIFT/MISSING violations:** the existing dir is partially scaffolded or stale.
+   AskUserQuestion:
+
+   > {NEW_ID} exists at {TARGET_PATH} but has structural issues:
+   >   {summary of violations}
+   >
+   > Options:
+   > - Refuse and abort (recommended — manual repair is safer)
+   > - Refresh missing artifacts only (write only the missing files; don't overwrite existing)
+   > - Overwrite (rewrite all artifacts from scratch — DESTRUCTIVE, lose any manual edits)
+
+   Default: refuse and abort. Only proceed if user explicitly chooses refresh or overwrite.
+
+If `TARGET_PATH` does not exist: continue to Step 10.
+
+## Step 10: Write the Directory Tree
+
+For features:
+
+```bash
+mkdir -p "{TARGET_PATH}"
+```
+
+For each child user-story (if any):
+
+```bash
+mkdir -p "{TARGET_PATH}/{S_ID}_{child-slug}"
+```
+
+For each required artifact in `REQUIRED_ARTIFACTS` (from the manifest):
+
+1. Resolve the template via the 2-level fallback chain (`$_TMPL_DIR/{template}` then `~/.claude/templates/personal-workflow/{template}`).
+2. Read the template.
+3. Fill placeholders:
+
+   | Placeholder | Value |
+   |---|---|
+   | `{ITEM_NAME}` (or `{FEATURE_NAME}`, `{STORY_NAME}`) | From `TITLE` (feature) or child slug-as-title (user-story) |
+   | `{ITEM_ID}` (or `{FEATURE_ID}`, `{STORY_ID}`, etc.) | `NEW_ID` or child ID |
+   | `{PARENT_ID}` | For children: parent's `NEW_ID`. For features: leave blank (`""`). |
+   | `{FEATURE_ID}` | Top-level feature ID (for nested SPEC/TEST-SPEC frontmatter) |
+   | `{YYYY-MM-DD}` | Today's date in `YYYY-MM-DD` format |
+   | `{REPO_PATH}` | `$(git rev-parse --show-toplevel)` |
+   | `{BRANCH_NAME}` | `$(git branch --show-current)` |
+   | `{author}` | `$(whoami)` |
+   | `{slug}` | `SLUG` |
+
+4. Distill content from the design doc into the artifact:
+
+   - **TRACKER.md:** populate `## Acceptance Criteria` from the design's Success Criteria. Populate `## Todos` with implementation tasks. Populate `## Log` with one entry: "{date}: Created. {brief description from design title}". Populate `## Insights` with key insights from design's "What I noticed" or "What Makes This Cool" section. Populate `## Journal` with `[decision]` entries for each Eng-Review revision (if present).
+   - **DESIGN.md (feature):** populate `## Problem` from design's Problem Statement. Populate `## Shape of the solution` from design's Recommended Approach + decomposition table linking to children. Populate `## Big decisions` from design's Premises + Eng-Review Revisions. Populate `## Risks & open questions` from design's Open Questions. Populate `## Definition of done` from design's Success Criteria. Populate `## Not in scope` from eng-review's NOT-in-scope section if present.
+   - **DESIGN.md (user-story):** keep all 7 `##` sections from doc-DESIGN.md (Problem, Shape of the solution, Big decisions, Risks & open questions, Definition of done, Not in scope, Pointers). The tracker-user-story.md template comment says DESIGN.md "may be a brief stub" — that refers to CONTENT brevity (1-2 sentences per section is fine for atomic stories), NOT structural omission. **Do not omit sections.** Section completeness is enforced by `/personal-workflow check` Step 16; missing sections produce `[DRIFT]` findings and the boundary check at end (Step 11) fails. Each section gets at least a brief sentence, even if it's just "See parent F000010_DESIGN.md for context."
+   - **ROADMAP.md (feature only):** populate `## Scope`, `## Non-Goals`, `## Success Criteria` from the design. Populate `## Decomposition` with the user-story children table. Populate `## Delivery Timeline` with one row per child ("Ship S0000XX") + one row for "End-to-end pipeline run." Populate `## Dependency Graph` ASCII diagram.
+   - **SPEC.md (user-story only):** populate `## Problem Statement`, `## Mental Model`, `## Requirements` (P0 from design's specific user-story scope), `## Acceptance Criteria` (Given/When/Then format, one block per P0 requirement), `## Architecture` (ASCII diagram + components), `## Tradeoffs`, `## Open Questions`.
+   - **TEST-SPEC.md (user-story only):** populate `## Smoke Tests` (one row per testable smoke check), `## E2E Tests` (one row per user-visible scenario), `## Coverage Gaps`. AC column maps each row to a SPEC `#` story number.
+
+5. Write the file via the Write tool to `{TARGET_PATH}/{NEW_ID}_{filename}` (or for children, `{TARGET_PATH}/{S_ID}_{child-slug}/{S_ID}_{filename}`).
+
+**Slug-to-filename rule:** filename is `{ID}_{filename}` per the manifest's `filename` field. Strip directory parts.
+
+## Step 11: Boundary Check at End (Premise 1.3)
+
+Run `/personal-workflow check {TARGET_PATH}` (Directory Mode).
+
+Per check.md Steps 8-13: validates artifact completeness against the manifest, frontmatter against templates, sections against templates, lifecycle phases, and checkbox counts.
+
+For features with user-story children: run check on each child dir as well, OR run check on the parent's parent (work-items/) for full Tier 2 coverage.
+
+**If check returns PASS:** proceed to Step 12.
+
+**If check returns violations (DRIFT, MISSING, etc.):**
+
+```
+AskUserQuestion:
+> The scaffolded directory failed /personal-workflow check:
+>   {summary of violations}
+> 
+> Options:
+> - Surface violations and exit (recommended — review manually before proceeding)
+> - Auto-fix common drifts (e.g., missing Open Questions section: insert template stub)
+> - Ignore and proceed (NOT RECOMMENDED)
+```
+
+Default: surface and exit. Recovery is up to the user.
+
+## Step 12: Append SCAFFOLDED Footer to Source Design Doc (P1)
+
+Open the source design doc (`<design-doc-path>`) and append a small footer at the end:
+
+```markdown
+
+---
+
+**Status: SCAFFOLDED → `{TARGET_PATH}` on {YYYY-MM-DD-HH-MM-SS}**
+```
+
+If the design doc already has this footer (idempotency), update the timestamp and path
+in place rather than appending a duplicate.
+
+## Step 13: Print Path and Exit
+
+Print a summary in the chat:
+
+```
+SCAFFOLD COMPLETE: {NEW_ID} at {TARGET_PATH}
+
+Artifacts written:
+  - {TARGET_PATH}/{NEW_ID}_TRACKER.md
+  - {TARGET_PATH}/{NEW_ID}_DESIGN.md
+  - {TARGET_PATH}/{NEW_ID}_ROADMAP.md  (feature only)
+  - (children, if any: list each child dir)
+
+Boundary check: PASS
+
+Next:
+  /implement-from-spec {first-child-or-the-dir-itself}
+```
+
+The last line of output is the directory path (or first child dir for multi-story features), formatted for copy-paste into the next skill invocation.
+
+---
+
+## Error Handling
+
+See [SKILL.md](SKILL.md)'s Error Handling table. All errors are non-recoverable
+(skill exits cleanly); the user re-runs after fixing the underlying issue.
+
+## Idempotency Contract (Premise 1.1)
+
+This skill is idempotent. Three behaviors:
+
+1. **Already scaffolded compliantly** (Step 9 boundary check passes on existing target): NO-OP, exit clean.
+2. **Already scaffolded with drift** (Step 9 boundary check finds violations): refuse to proceed by default; AskUserQuestion to refresh/overwrite.
+3. **Partial-write recovery** (skill aborted mid-Step-10): re-run resumes from Step 9, sees partial state, AskUserQuestion to refresh missing artifacts.
+
+No automatic rollback on failure. Tracker journal records the abort if a tracker
+exists; otherwise filesystem state is the truth.
+
+## Boundary Validation Contract (Premise 1.3)
+
+`/personal-workflow check` runs at:
+
+- **Step 9 (start):** on existing `TARGET_PATH` if present — gates input drift, detects idempotency.
+- **Step 11 (end):** on the freshly written `TARGET_PATH` — gates output compliance.
+
+Both invocations use Directory Mode. For multi-story features, run check on each child after writing the child.
+
+## Subagent Use (Deferred to v2)
+
+The design's optional "validator subagent" is NOT used in v1. The Step 11 boundary
+check via `/personal-workflow check` covers the same need (detect structural drift)
+without spawning an Agent tool call. Reconsider in v2 if /personal-workflow check
+proves insufficient.
