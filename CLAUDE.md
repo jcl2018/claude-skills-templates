@@ -145,8 +145,11 @@ To create a new skill, create the directory and files manually (no scaffolding s
 
 | Script | What it does | When to run |
 |--------|-------------|-------------|
+| `setup.sh` | Bootstrap: clones-or-updates the repo and deploys all skills | First-time install on a new machine |
+| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` | After pulling the workbench, or to sync drift |
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
+| `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |
 | `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
