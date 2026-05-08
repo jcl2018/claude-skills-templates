@@ -46,9 +46,6 @@ cd claude-skills-templates
 # Validate the repo
 ./scripts/validate.sh
 
-# Create a new skill
-./scripts/create-skill.sh my-new-skill
-
 # Run full test suite
 ./scripts/test.sh
 ```
@@ -72,19 +69,19 @@ claude --plugin-dir ./claude-skills-templates
 
 | Script | Purpose | Exit code |
 |--------|---------|-----------|
+| `setup.sh` | Bootstrap: clone-or-update repo and deploy all skills | 1 on error |
+| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` | 1 on error |
 | `validate.sh` | Catalog-to-filesystem validation | 1 on error |
 | `test.sh` | Smoke tests (superset of validate) | 1 on failure |
-| `skill-design.sh` | Scaffold DESIGN.md for a new skill | 1 on error |
-| `create-skill.sh` | Scaffold SKILL.md + CHANGELOG.md + catalog entry | 1 on error |
-| `skill-check.sh` | Per-skill lifecycle validation | 1 on error |
-| `skill-version.sh` | Bump skill version (major/minor/patch) | 1 on error |
-| `skill-ship.sh` | Commit, tag, and ship a skill release | 1 on error |
+| `test-deploy.sh` | Automated tests for `skills-deploy` in isolated temp dirs | 1 on failure |
+| `collection-version.sh` | Get/bump/manifest for collection version | 1 on error |
 | `doctor.sh` | Skill health diagnostics | 0 (advisory) |
 | `lint-skill.sh` | Content-level skill linting | 0 (advisory) |
 | `deps.sh` | Dependency graph visualization | 0 (advisory) |
 | `generate-readme.sh` | Auto-generate this README | 1 on write failure |
 | `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
 | `setup-hooks.sh` | Install pre-commit hook | 0 |
+| `copilot-deploy.py` | Install/doctor/remove the Copilot bundle in a target repo | 1 on error |
 
 ## Contributing
 

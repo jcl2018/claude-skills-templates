@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.5.3] - 2026-05-07
+
+Documentation hygiene: the Scripts table in `README.md` and the matching reference in `CLAUDE.md` had drifted from the actual contents of `scripts/`. Five entries described scripts that no longer exist (`skill-design.sh`, `create-skill.sh`, `skill-check.sh`, `skill-version.sh`, `skill-ship.sh`) and five real scripts were missing (`skills-deploy`, `setup.sh`, `test-deploy.sh`, `collection-version.sh`, `copilot-deploy.py` in README; `skills-deploy`, `setup.sh`, `test-deploy.sh` in CLAUDE.md). The README's Quick Start block also pointed at the phantom `create-skill.sh`. The drift had survived multiple ships because the stale content lived inside `scripts/generate-readme.sh`'s hardcoded heredoc, so re-running the generator just re-emitted the same wrong table.
+
+### Changed
+
+- **`README.md`** and **`scripts/generate-readme.sh`** — Scripts table reflects actual repo contents (was: 5 phantom scripts, missing 5 real ones). Quick Start block drops the phantom `./scripts/create-skill.sh my-new-skill` line; new-skill creation is manual per CLAUDE.md.
+- **`CLAUDE.md`** — Scripts reference table adds `setup.sh`, `skills-deploy`, and `test-deploy.sh` (was missing the workhorse installer plus its bootstrap and test driver).
+
+### Notes
+
+- No skill, manifest, or behavioral changes — pure documentation sync. `skills-catalog.json`, all SKILL.md versions, and per-skill manifests are untouched.
+- No tracker work item filed; the change is a single-PR doc reconciliation that doesn't merit a TRACKER + RCA + test-plan triple.
+- The drift *mechanism* (hardcoded heredoc) remains. This PR fixes the current snapshot, not the structural cause — the next script add/rename/delete can re-introduce the same drift. A follow-up to derive the table from `ls scripts/` (or to add a `validate.sh` check that asserts the heredoc table covers every executable in `scripts/`) is the right next step; out of scope here.
+
 ## [1.5.2] - 2026-05-07
 
 `skills-deploy install` now overwrites drifted templates and rules by default — running it after a workbench pull just makes `~/.claude/` match source, no flag required. The previous safe-by-default behavior (skip on checksum mismatch, log a WARN) inverted the realistic mental model: every routine deploy hit the warning and had to be retried with `--overwrite`. The post-merge git hook from D000013 already passed `--overwrite` unconditionally, so the automation had quietly concluded the same thing. Closes D000015.
