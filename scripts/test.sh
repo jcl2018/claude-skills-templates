@@ -717,6 +717,58 @@ else
 fi
 
 echo ""
+echo "Regression test (D000015): skills-deploy install overwrites drifted templates by default..."
+
+# Background: pre-D000015, `skills-deploy install` defaulted to `overwrite=false`
+# and skipped drifted templates with a WARN line. Users had to remember
+# `--overwrite` for every routine deploy. D000015 flips the default: deploy
+# overwrites by default; `--no-overwrite` is the new opt-out. `--overwrite` is
+# kept as a tolerated no-op so D000013's post-merge hook (which still passes it)
+# continues to work without modification.
+
+# Check 1: default is overwrite=true
+if grep -qE 'local skills=\(\) overwrite=true' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy default is overwrite=true (D000015)"
+else
+  fail_test "scripts/skills-deploy default is not overwrite=true — D000015 regressed"
+fi
+
+# Check 2: --no-overwrite flag is wired
+if grep -qE -- '--no-overwrite\) overwrite=false' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy supports --no-overwrite opt-out (D000015)"
+else
+  fail_test "scripts/skills-deploy missing --no-overwrite flag handler (D000015 guard)"
+fi
+
+# Check 3: --overwrite is still tolerated (backwards compat with D000013's hook)
+if grep -qE -- '--overwrite\) overwrite=true' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy still tolerates --overwrite as a no-op (backwards compat with D000013)"
+else
+  fail_test "scripts/skills-deploy dropped --overwrite handler — D000013 post-merge hook will break (D000015 guard)"
+fi
+
+# Check 4: WARN-and-skip language is gone (PRESERVE replaces it under --no-overwrite)
+if ! grep -qF 'use --overwrite to replace' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy no longer emits 'use --overwrite to replace' (D000015)"
+else
+  fail_test "scripts/skills-deploy still references 'use --overwrite to replace' — D000015 regressed"
+fi
+
+# Check 5: help text documents --no-overwrite
+if grep -qE 'install \[skill\.\.\.\] \[--no-overwrite\]' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy help text documents --no-overwrite (D000015)"
+else
+  fail_test "scripts/skills-deploy help text not updated for D000015"
+fi
+
+# Check 6: CLAUDE.md reflects the new default
+if grep -qF 'overwritten by default' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md documents new default install behavior (D000015)"
+else
+  fail_test "CLAUDE.md still documents --overwrite as opt-in — D000015 docs not synced"
+fi
+
+echo ""
 echo "Regression test (T000004): AI_KNOWLEDGE_DIR resolution block (S000004)..."
 # Background: /company-workflow validate is an LLM-driven SKILL.md, not an
 # executable, so bash CI cannot invoke it end-to-end. These tests extract the

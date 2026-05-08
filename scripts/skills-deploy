@@ -146,11 +146,12 @@ validate_template_name() {
 
 do_install() {
   require_jq
-  local skills=() overwrite=false include_deprecated=false
+  local skills=() overwrite=true include_deprecated=false
   local args=()
   for arg in "$@"; do
     case "$arg" in
       --overwrite) overwrite=true ;;
+      --no-overwrite) overwrite=false ;;
       --include-deprecated) include_deprecated=true ;;
       *) args+=("$arg") ;;
     esac
@@ -378,12 +379,12 @@ do_install() {
             '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s]) | .templates[$t].source_checksum = $sum')
         elif [ "$overwrite" = true ]; then
           cp "$tpl_src" "$tpl_dst" || { echo "  WARN: failed to copy $tpl"; tpl_skipped=$((tpl_skipped + 1)); continue; }
-          echo "  OVERWRITE: $tpl (checksum differs, --overwrite used)"
+          echo "  UPDATE: $tpl (checksum differs)"
           manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s]) | .templates[$t].source_checksum = $sum')
           tpl_installed=$((tpl_installed + 1))
         else
-          echo "  WARN: $tpl — exists with different content (use --overwrite to replace)"
+          echo "  PRESERVE: $tpl — exists with different content (--no-overwrite, keeping deployed copy)"
           # Still update ownership even if we skip the copy
           manifest=$(echo "$manifest" | jq --arg t "$tpl" --arg s "$name" --arg sum "$dst_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '.templates[$t] = (.templates[$t] // {owners: [], source_checksum: $sum, installed_at: $ts}) | .templates[$t].owners = ([.templates[$t].owners // [] | .[] | select(. != $s)] + [$s])')
@@ -418,7 +419,7 @@ do_install() {
           echo "  RULE: updated $rule_name"
           rules_installed=$((rules_installed + 1))
         else
-          echo "  WARN: $rule_name — rule exists with different content (use --overwrite to replace)"
+          echo "  PRESERVE: $rule_name — rule exists with different content (--no-overwrite, keeping deployed copy)"
         fi
       else
         cp "$rule_file" "$rule_dst"
@@ -661,7 +662,7 @@ do_relink() {
       expected=$(echo "$manifest" | jq -r --arg t "$tpl" '.templates[$t].source_checksum // ""')
       actual=$(file_checksum "$tpl_file")
       if [ -n "$expected" ] && [ "$expected" != "$actual" ] && [ "$expected" != "unknown" ]; then
-        echo "  WARN: $tpl has local changes. Use 'skills-deploy install --overwrite' to reset."
+        echo "  WARN: $tpl has local changes. Run 'skills-deploy install' to reset (or pass --no-overwrite to keep them)."
       else
         tpl_ok=$((tpl_ok + 1))
       fi
@@ -878,8 +879,12 @@ case "${1:-}" in
     echo "Usage: skills-deploy <install|remove|relink|doctor> [options]"
     echo ""
     echo "Commands:"
-    echo "  install [skill...] [--overwrite] [--include-deprecated]"
+    echo "  install [skill...] [--no-overwrite] [--include-deprecated]"
     echo "                                    Install skills + templates (all if none specified)."
+    echo "                                    Drifted templates and rules are overwritten by default;"
+    echo "                                    pass --no-overwrite to preserve deployed copies that differ"
+    echo "                                    from source. (--overwrite is accepted as a no-op for"
+    echo "                                    backwards compatibility with pre-v1.6 callers.)"
     echo "                                    By default, skills with status=deprecated are skipped"
     echo "                                    with a WARN line; pass --include-deprecated to install them."
     echo "  remove <skill...>                 Remove skills + templates (--all for all, --force to skip dep check)"

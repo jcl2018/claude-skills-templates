@@ -397,24 +397,45 @@ else
 fi
 teardown_env
 
-# Test T6: --overwrite replaces drifted template
-echo "Test T6: --overwrite replaces drifted template"
+# Test T6: drifted-template handling (D000015 — default overwrites; --no-overwrite preserves)
+echo "Test T6: drifted-template handling"
 setup_env
 "$DEPLOY" install templates >/dev/null 2>&1
+
+# T6a: default install (no flag) overwrites drifted templates and logs UPDATE
 echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
-# Re-install without --overwrite — should skip
 output=$("$DEPLOY" install templates 2>&1)
-if echo "$output" | grep -q "exists with different content"; then
-  ok "Install warns about drifted template"
+if echo "$output" | grep -qF "UPDATE:"; then
+  ok "Default install overwrites drifted template (D000015)"
 else
-  fail_test "Install did not warn about drifted template"
+  fail_test "Default install did not log UPDATE for drifted template (D000015 regressed)"
 fi
-# Now with --overwrite
+if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
+  ok "Default install restored template to source content"
+else
+  fail_test "Default install did not restore drifted template"
+fi
+
+# T6b: --no-overwrite preserves drifted content and logs PRESERVE
+echo "modified content again" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
+output=$("$DEPLOY" install templates --no-overwrite 2>&1)
+if echo "$output" | grep -qF "PRESERVE:"; then
+  ok "--no-overwrite preserves drifted template (D000015)"
+else
+  fail_test "--no-overwrite did not log PRESERVE (D000015 regressed)"
+fi
+if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
+  fail_test "--no-overwrite incorrectly overwrote drifted template"
+else
+  ok "--no-overwrite kept drifted content intact"
+fi
+
+# T6c: legacy --overwrite still works (backwards compat with D000013 post-merge hook)
 "$DEPLOY" install templates --overwrite >/dev/null 2>&1
 if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
-  ok "--overwrite restored template to source content"
+  ok "Legacy --overwrite still restores template (backwards compat)"
 else
-  fail_test "--overwrite did not restore template"
+  fail_test "Legacy --overwrite did not restore template (broke D000013 hook compat)"
 fi
 teardown_env
 
