@@ -6,6 +6,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.5.0] - 2026-05-07
+
+Personal-workflow tracker re-cut. Replaces the old artifact set (feature-summary, PRD, ARCHITECTURE, milestones) with a workflow-mirrored set where every persistent doc maps 1:1 to a step the engineer actually runs: `DESIGN.md` from `/office-hours`, `SPEC.md` from the scaffolding step (was PRD + ARCHITECTURE merged), `ROADMAP.md` for feature-level scope and timeline (was feature-summary + milestones merged), `TEST-SPEC.md` for smoke + E2E. Tracker templates' Phase 3 surfaces smoke and E2E as separate gates instead of one collapsed "TEST-SPEC verified" check. WORKFLOW.md task-required rule relaxed: atomic user-stories may ship without task children. Single sweep PR migrates 13 historical work items + 1 fixture + all examples to the new shape.
+
+### Added
+
+- **`templates/personal-workflow/doc-SPEC.md`** *(new)* — user-story specification merging requirements (`### P0 (Must-Have)`, `### P1`, `### P2` sub-sections under `## Requirements`) with architecture decisions and tradeoffs. Replaces PRD + ARCHITECTURE.
+- **`templates/personal-workflow/doc-ROADMAP.md`** *(new)* — feature roll-up: scope, non-goals, decomposition, delivery timeline (with `### Delivery History` sub-section to absorb shipped milestone history), dependency graph. Replaces feature-summary + milestones.
+- **`work-items/features/personal-workflow/F000008_tracker_recut/`** — feature work item that drove the re-cut, decomposed into S000014 (templates + manifest + check.md), S000015 (historical migration), S000016 (examples + repo-level surfaces).
+
+### Changed
+
+- **`skills/personal-workflow/personal-artifact-manifests.json`** — bumped to `version: 3.0.0`. New artifact set: feature = TRACKER + DESIGN + ROADMAP (3); user-story = TRACKER + DESIGN + SPEC + TEST-SPEC (4); task and defect unchanged.
+- **`skills/personal-workflow/SKILL.md`** — version bumped to 3.0.0.
+- **`skills/personal-workflow/check.md`** — Step 18 cross-reference traceability rewritten: source filename `PRD.md` → `SPEC.md` (4 references at lines 303-329); 4 incidental `PRD`/`ARCHITECTURE` mentions updated for consistency (lines 84, 218, 220, 365); `## Test Matrix` legacy clause deleted (dead code post-v1.4.0 sweep). `### P0/P1/P2` sub-section parsing preserved — same logic, new source file.
+- **`skills/personal-workflow/WORKFLOW.md`** — 8 surfaces updated: artifact-count list (lines 21-22), Step 2 narrative (lines 38, 41), Step 3 narrative (line 49), Type-to-Artifact Mapping table (lines 64-65), validation rule (line 190). Plus line 120: user-story task-required rule relaxed from "at least 1 task child" to optional with explicit atomic-story escape hatch (`[x] Tasks broken down (N/A — atomic story)`).
+- **`templates/personal-workflow/tracker-feature.md`** + **`tracker-user-story.md`** — full rewrite. Adds `/office-hours` Prerequisite line above Phase 1; Phase 1 reordered to start from branch creation, then DESIGN distillation, then SPEC/ROADMAP scaffolding; Phase 3 expanded to 5 explicit gates (`/personal-workflow check`, smoke pass, E2E walked, `/ship`, `/land-and-deploy`).
+- **`templates/personal-workflow/tracker-task.md`** — adds optional `/office-hours` Prerequisite block; no gate or section changes.
+- **`templates/personal-workflow/doc-DESIGN.md`** — line 15 prose, line 71 cross-link comment, line 76 hard-coded `Milestones:` link rewritten to `Roadmap:`.
+- **`templates/personal-workflow/doc-TEST-SPEC.md`** — frontmatter cross-references (`prd: PRD.md` + `architecture: ARCHITECTURE.md`) collapsed to single `spec: SPEC.md`; instructional comments updated PRD → SPEC throughout.
+- **`skills-catalog.json`** — personal-workflow entry version 3.0.0; templates list drops 4 (doc-PRD, doc-ARCHITECTURE, doc-feature-summary, doc-milestones), adds 2 (doc-SPEC, doc-ROADMAP).
+- **`template-registry.json`** — personal-workflow `doc_types` array updated; version bumped to 3.0.0.
+- **`CONTRIBUTING.md`** lines 44-45 and **`PHILOSOPHY.md`** lines 25, 42, 43 — narrative references PRD/ARCHITECTURE/feature-summary/milestones swept to SPEC/ROADMAP/DESIGN where active.
+- **`scripts/test.sh:594-606`** — D000012 deployed-template guard loop split per-workflow: personal-workflow iterates `[doc-DESIGN, doc-SPEC, doc-ROADMAP]`; company-workflow keeps `[doc-DESIGN, doc-feature-summary]` (deprecated, byte-mirror source). Plus template-count assertion at line 299 updated 12 → 10.
+- **`scripts/test-deploy.sh`** — canary template name swapped from `doc-PRD.md` to `doc-RCA.md` (19 references); manual line-414 path correction adds `personal-workflow/` subdir.
+- **5 historical features migrated** (F000001, F000002, F000004, F000005, F000006): feature-summary + milestones consolidated into ROADMAP per item; existing DESIGN cross-links rewritten; old files deleted. Each ROADMAP includes the canonical 7 v3 sections + `### Delivery History`.
+- **8 historical user-stories migrated** (S000001, S000006, S000007–S000010, S000012, S000013): PRD + ARCHITECTURE consolidated into SPEC per item; new DESIGN.md stub written per item (predates the v3 convention); TEST-SPEC frontmatter migrated; old files deleted. SPEC files preserve PRD's `### P0/P1/P2` sub-sections inside `## Requirements`.
+- **F000008's three child user-stories** (S000014, S000015, S000016) self-migrated as part of the sweep with the same per-item recipe.
+- **Sibling tracker Phase 1 lifecycle text refreshed** (F000001/F000004/F000005/F000006/F000008) to reference v3 templates (DESIGN, SPEC, ROADMAP) instead of deleted v2 templates.
+- **Examples**: `example-doc-SPEC.md` and `example-doc-ROADMAP.md` (new, Reading List CLI consistent); `example-tracker-feature.md` and `example-tracker-user-story.md` rewritten to mirror the new tracker shapes.
+- **Fixtures**: `valid-feature-dir/` rewritten to match the v3 manifest (TRACKER + DESIGN + ROADMAP).
+
+### Removed
+
+- **`templates/personal-workflow/doc-PRD.md`**, **`doc-ARCHITECTURE.md`**, **`doc-feature-summary.md`**, **`doc-milestones.md`** — replaced by SPEC + ROADMAP.
+- **`example-doc-PRD.md`**, **`example-doc-ARCHITECTURE.md`**, **`example-doc-feature-summary.md`**, **`example-doc-milestones.md`** — corresponding examples.
+
+### Why workflow-mirrored
+
+The old artifact set framed itself around document types as nouns (PRD, ARCHITECTURE, feature-summary, milestones). The new set frames artifacts around the workflow step that produces them: `/office-hours` produces DESIGN, scaffolding produces SPEC + ROADMAP, the engineer running smoke + E2E produces TEST-SPEC content. Reading the artifact list now answers "where does this come from?" without a separate map.
+
+### Open questions deferred
+
+- Sibling-tracker drift in pre-existing migrated content (S000010_SPEC.md inline references to deleted PRD/ARCHITECTURE filenames, F000004_DESIGN.md links to repo paths deleted by F000006 in v1.3.x). Both are documentation-quality issues in sealed historical content; the validator passes (Step 16 only checks section headers + frontmatter, not body prose). Better suited to a separate content-polish pass.
+- Mirroring the v3 shape to `deprecated/company-workflow/templates/` and `work-copilot/` byte-mirror sources is intentionally deferred (deprecated, sealed).
+
+### Migration notes
+
+- The catalog version bump triggers a `skills-deploy install --overwrite` requirement on existing user installs. The /ship validator's D000012 guard catches drift but does not auto-fix.
+- Validator ran `/personal-workflow check` against the migrated `work-items/` tree; structural compliance (Step 16) PASS for all 14 migrated items.
+
 ## [1.4.0] - 2026-05-05
 
 Personal-workflow TEST-SPEC template restructure. Drops the redundant Test Matrix + Test Tiers shape and replaces it with two compact tables — Smoke Tests and E2E Tests — distinguished by who edits them and when they run. Smoke tests are automated regression that lives in CI; E2E tests are manual user-scenario verification done before /ship. Soft cap of 5 rows per tier acts as a forcing function to pick the tests that prove the story works rather than tests that demonstrate completeness. The validator (`/personal-workflow check`) gets stricter: Step 18 traceability scans the new tier tables for AC values with a placeholder-filter to prevent freshly-scaffolded files from silently passing, a new Step 18.5 emits an `[INFO]` cap-advisory when either tier exceeds 5 rows, and Step 20's template badge ladder picks up `INFO` between `PASS` and `WARN` so cap-advisory signals route to the right column.
