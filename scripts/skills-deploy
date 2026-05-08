@@ -140,7 +140,11 @@ file_checksum() {
 # Allows one subfolder level: "company-workflow/tracker-feature.md"
 # Blocks ".." segments to prevent path traversal
 validate_template_name() {
-  [[ "$1" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)?\.md$ ]] && [[ "$1" != *".."* ]] || { echo "  ERROR: unsafe template name: $1" >&2; return 1; }
+  if [[ "$1" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)?\.md$ ]] && [[ "$1" != *".."* ]]; then
+    return 0
+  fi
+  echo "  ERROR: unsafe template name: $1" >&2
+  return 1
 }
 
 # --- install ---
@@ -475,7 +479,9 @@ do_install() {
     echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped"
   fi
   echo "Templates — Installed: $tpl_installed  Skipped: $tpl_skipped"
-  [ "$rules_installed" -gt 0 ] && echo "Rules — Installed: $rules_installed" || true
+  if [ "$rules_installed" -gt 0 ]; then
+    echo "Rules — Installed: $rules_installed"
+  fi
 }
 
 # --- remove ---
