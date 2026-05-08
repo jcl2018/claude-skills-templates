@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.9.1] - 2026-05-08
+
+D000016 defect fix — wire `test-deploy.sh` into CI and re-point stale `doc-RCA.md` template references onto a still-flat template. Closes the two TODOs that were blocking CI from running the U1–U28 update-check tests added in v1.6.0. Also adds a P2/M follow-up to TODOS.md tracking the Phase 3 lifecycle-gate auto-update gap discovered during the v1.7.0 land-and-deploy.
+
+### Fixed
+
+- **`scripts/test-deploy.sh`** — re-pointed 22 references to `doc-RCA.md` (subfoldered to `templates/personal-workflow/doc-RCA.md` in v1.3.x) onto `templates/doc-SKILL-DESIGN.md` (the only remaining flat-path template). Tests T2/T4-T7 now pass end-to-end. Closes the deferred "Pre-existing template-ownership test failures" TODO.
+- **`scripts/test.sh`** — wired in `scripts/test-deploy.sh` between the T11 manifest schema-parity tests and the Summary block. The existing wrapper-grep pre-flight check stays as-is (structural assertion). Negative test confirmed wire-up catches future regressions: reintroducing one stale reference produces `RESULT: FAIL` with named failure, restored → PASS. Closes the deferred "Wire test-deploy.sh into CI / test.sh" TODO.
+
+### Changed
+
+- **`TODOS.md`** — Phase 3 lifecycle-gate auto-update gap captured as P2/M follow-up. Discovered during 2026-05-08 land-and-deploy of PR #65 (F000010 v1.7.0): `/ship` and `/land-and-deploy` are upstream gstack skills with no personal-workflow tracker awareness, so Phase 3 gates stay UNCHECKED after a successful workflow. Four resolution options listed in the entry (wrappers, hooks, smart `/personal-workflow check --update`, upstream gstack contributions); recommendation is option 3 as the cheapest first cut.
+- **`work-items/defects/personal-workflow/D000016_test_deploy_stale_templates/`** — work-item tracking for the defect, RCA, and test-plan added.
+
 ## [1.9.0] - 2026-05-08
 
 New `/implement-from-spec` skill — third and final pipeline skill, completing the personal-workflow lifecycle automation. Reads SPEC + DESIGN + TRACKER for a user-story and writes code per the SPEC's Components Affected and Data Flow. Sensitive-surface AUQ before catalog/manifest/validator/template changes (mandatory; cannot be bypassed by `--auto`). Propose-and-confirm by default; `--auto` for trivial changes (≤2 files AND no sensitive surface AND no Open Questions AND no live-alternative tradeoffs). Idempotent (NO-OP if already implemented). Boundary check refuses on incomplete Phase 1; verifies post-write compliance. Bootstrap-validated by dogfooding the `--auto` path on a synthetic single-file fixture: skill correctly classified TRIVIAL=true, wrote the asserted file with byte-exact content, transitioned implementer-owned Phase 2 gates while leaving QA-owned gates untouched, and passed the post-write boundary check.
