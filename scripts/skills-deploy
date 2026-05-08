@@ -146,16 +146,33 @@ validate_template_name() {
 
 do_install() {
   require_jq
-  local skills=() overwrite=true include_deprecated=false
+  local skills=() overwrite=true include_deprecated=false from_upgrade=""
   local args=()
+  local prev=""
   for arg in "$@"; do
+    if [ "$prev" = "--from-upgrade" ]; then
+      from_upgrade="$arg"
+      prev=""
+      continue
+    fi
     case "$arg" in
       --overwrite) overwrite=true ;;
       --no-overwrite) overwrite=false ;;
       --include-deprecated) include_deprecated=true ;;
+      --from-upgrade) prev="--from-upgrade" ;;
       *) args+=("$arg") ;;
     esac
   done
+  if [ "$prev" = "--from-upgrade" ]; then
+    echo "ERROR: --from-upgrade requires a version value" >&2
+    exit 2
+  fi
+  if [ -n "$from_upgrade" ]; then
+    if ! printf '%s' "$from_upgrade" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+      echo "ERROR: --from-upgrade value '$from_upgrade' is not a valid 3-digit semver" >&2
+      exit 2
+    fi
+  fi
   set -- "${args[@]+"${args[@]}"}"
 
   if [ $# -gt 0 ]; then
@@ -442,6 +459,14 @@ do_install() {
     --arg cv "$col_ver" \
     '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv}' | manifest_write
 
+  # Write JUST_UPGRADED marker if invoked from the update-check upgrade flow.
+  # Format: single line "<from_version> <to_version>" — consumed once by
+  # skills-update-check (read, unlink, emit) on the next skill invocation.
+  if [ -n "$from_upgrade" ]; then
+    local marker_path="${SKILLS_TEMPLATES_MARKER:-$HOME/.claude/.skills-templates-just-upgraded}"
+    printf '%s %s\n' "$from_upgrade" "$col_ver" > "$marker_path" 2>/dev/null || true
+  fi
+
   echo ""
   if [ "$deprecated_skipped" -gt 0 ]; then
     echo "Skills — Installed: $installed  Migrated: $migrated  Skipped: $skipped  Deprecated-skipped: $deprecated_skipped"
@@ -717,6 +742,43 @@ do_doctor() {
       echo "  Fix: run 'skills-deploy install' to update, or 'cd $source && git pull' first."
       warnings=$((warnings + 1))
     fi
+  elif [ -n "$source" ] && [ ! -d "$source" ]; then
+    echo "  FAIL: source path '$source' no longer exists. Re-run 'skills-deploy install' from a valid clone."
+    errors=$((errors + 1))
+  fi
+
+  # Update-check cache surface (skills-update-check state).
+  local cache_file="${SKILLS_TEMPLATES_CACHE:-$HOME/.claude/.skills-templates-update.json}"
+  if [ -f "$cache_file" ]; then
+    local cache_local cache_remote cache_checked cache_snooze cache_skip
+    cache_local=$(jq -r '.local_version // empty' "$cache_file" 2>/dev/null || echo "")
+    cache_remote=$(jq -r '.remote_version // empty' "$cache_file" 2>/dev/null || echo "")
+    cache_checked=$(jq -r '.checked_at // empty' "$cache_file" 2>/dev/null || echo "")
+    cache_snooze=$(jq -r '.snooze_until // empty' "$cache_file" 2>/dev/null || echo "")
+    cache_skip=$(jq -r '.skip_version // empty' "$cache_file" 2>/dev/null || echo "")
+    echo "Update check:"
+    if [ -n "$cache_checked" ]; then
+      # Portable date formatting: try BSD then GNU.
+      local checked_str
+      checked_str=$(date -r "$cache_checked" 2>/dev/null || date -d "@$cache_checked" 2>/dev/null || echo "$cache_checked")
+      echo "  Last check: $checked_str"
+    else
+      echo "  Last check: (never)"
+    fi
+    [ -n "$cache_local" ] && echo "  Cached local:  $cache_local"
+    [ -n "$cache_remote" ] && echo "  Cached remote: $cache_remote"
+    if [ -n "$cache_snooze" ]; then
+      local now_ts
+      now_ts=$(date +%s)
+      if [ "$now_ts" -lt "$cache_snooze" ] 2>/dev/null; then
+        local snooze_str
+        snooze_str=$(date -r "$cache_snooze" 2>/dev/null || date -d "@$cache_snooze" 2>/dev/null || echo "$cache_snooze")
+        echo "  Snoozed until: $snooze_str"
+      fi
+    fi
+    [ -n "$cache_skip" ] && echo "  Skipping version: $cache_skip"
+  else
+    echo "Update check: (never run — runs on next skill invocation)"
   fi
   echo ""
 
