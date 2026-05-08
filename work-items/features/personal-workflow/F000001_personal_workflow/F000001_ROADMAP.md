@@ -40,12 +40,12 @@ ceremony — solo-dev gates only.
 - [x] Tree report and graph artifact (`/personal-workflow tree`, `work-item-graph.json`)
 - [x] Final E2E validation: the work item that built the workflow was itself created using the workflow (S000001)
 
-## Constituent User-Stories
+## Decomposition
 
 - [S000001 — Workflow Implementation](S000001_workflow_implementation/S000001_TRACKER.md) — full implementation, shipped via PRs #22, #24
 - [S000006 — Personal-Workflow Knowledge Port](S000006_personal_workflow_port/S000006_TRACKER.md) — DEFERRED 2026-04-20 (evidence-gated unblock; absorbed from former F000004 on 2026-04-24)
 
-## Out-of-Scope
+## Non-Goals
 
 - Knowledge-loading parity with company-workflow — DEFERRED via S000006 after `/autoplan` dual-voice CEO review converged NO-GO. Reopen condition: a specific personal-repo task where missing knowledge-loading is an observed blocker.
 - Company/formal work-item tracking — owned by `company-workflow` (F000003), not this skill. Templates and lifecycle deliberately diverge.
@@ -53,7 +53,7 @@ ceremony — solo-dev gates only.
 
 <!-- ===== From F000001_milestones.md ===== -->
 
-## Milestones
+## Delivery Timeline
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|
@@ -85,3 +85,12 @@ ceremony — solo-dev gates only.
 #12 tracker template updates (independent)
 #13 doc triplet update (independent)
 ```
+
+## Open Questions
+
+<!-- Questions still being decided. Migrated content has no recorded open
+     questions; left empty intentionally. -->
+
+| Question | Next check |
+|----------|-----------|
+| _none recorded at migration time_ | _N/A_ |

@@ -45,7 +45,7 @@ structured output.
 - [x] Read-only (no Edit/Write in `allowed-tools`)
 - [x] Graceful degradation when `waza` or `jq` is unavailable
 
-## Constituent User-Stories
+## Decomposition
 
 <!-- F000002 was developed via raw version bumps (v0.1.0 → v1.0.0) before the
      user-story decomposition convention was introduced. No nested user-story
@@ -53,7 +53,7 @@ structured output.
 
 - (none — historical: feature delivered via direct version bumps prior to user-story decomposition)
 
-## Out-of-Scope
+## Non-Goals
 
 - Including `waza` output in the scored composite — its CWD-dependent output would corrupt trend tracking. Kept as unscored appendix.
 - Mutating any file under `~/.claude/` — `system-health` is strictly read-only. Cleanup actions are advisory output, not direct edits.
@@ -61,7 +61,7 @@ structured output.
 
 <!-- ===== From F000002_milestones.md ===== -->
 
-## Milestones
+## Delivery Timeline
 
 <!-- Backfill: F000002 was developed via raw version bumps before milestones.md
      was a required feature artifact. The milestones below reconstruct the
@@ -89,3 +89,12 @@ structured output.
                                                                                                  |
                                                                               #8 consolidation <-+
 ```
+
+## Open Questions
+
+<!-- Questions still being decided. Migrated content has no recorded open
+     questions; left empty intentionally. -->
+
+| Question | Next check |
+|----------|-----------|
+| _none recorded at migration time_ | _N/A_ |

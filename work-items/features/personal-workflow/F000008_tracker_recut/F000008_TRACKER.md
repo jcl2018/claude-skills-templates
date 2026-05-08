@@ -14,45 +14,53 @@ blocked_by: ""
 
 ### Phase 1: Track
 
+<!-- This work item was scaffolded under the v2 manifest (TRACKER + feature-summary +
+     DESIGN + milestones) and self-migrated to the v3 shape (TRACKER + DESIGN +
+     ROADMAP) as part of S000015's sweep. Lifecycle text below reflects the v3 shape
+     it now lives under. Original scaffolding history is captured in the Log
+     section. -->
+
 1. Run `/office-hours` to explore the problem space and generate a design doc
    → produces design doc in `~/.gstack/projects/`
 2. Create working branch: `git checkout -b feat/tracker-recut`
 3. Scaffold work item directory and TRACKER.md
-4. Scaffold `feature-summary.md` (roll-up identity: scope, success criteria, constituent stories, non-goals) — from `templates/doc-feature-summary.md`
-5. Scaffold `DESIGN.md` (problem shape, big decisions, risks) — from `templates/doc-DESIGN.md`
-6. Scaffold `milestones.md` (delivery timeline) — from `templates/doc-milestones.md`
-7. Define acceptance criteria (what "done" looks like for the whole feature)
-8. Decompose into child user-stories
-   → detail (PRD, ARCHITECTURE, TEST-SPEC) lives in child stories
+4. Distill `DESIGN.md` from the /office-hours output — from `templates/doc-DESIGN.md`
+5. Scaffold `ROADMAP.md` (scope, non-goals, decomposition, delivery timeline) — from `templates/doc-ROADMAP.md`
+6. Define acceptance criteria (what "done" looks like for the whole feature)
+7. Decompose into child user-stories
+   → detail (DESIGN, SPEC, TEST-SPEC) lives in child stories
 
 **Gates:**
-- [x] Acceptance criteria scoped
+- [x] /office-hours design produced (in `~/.gstack/projects/`)
 - [x] Working branch created (`branch` field populated)
-- [x] feature-summary + DESIGN + milestones scaffolded
+- [x] DESIGN + ROADMAP scaffolded
+- [x] Acceptance criteria scoped
 - [x] Broken down into child stories
 
 ### Phase 2: Implement
 
-1. Child user-stories/tasks drive implementation (feature tracker coordinates)
+1. Child user-stories drive implementation (feature tracker coordinates)
 2. Monitor child progress — update this tracker when children complete phases
 3. Update Todos section — check off completed children, add discoveries
 4. Update Files section with top-level changed files
 
 **Gates:**
-- [ ] All child stories have entered Phase 2+
-- [ ] Feature-level Todos reflect remaining coordination work
+- [x] All child stories have entered Phase 2+
+- [x] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
 1. Run `/personal-workflow check` — verify all children pass validation
-2. Ensure all child stories have shipped
-3. Run `/ship` — creates feature PR, includes pre-landing code review
-4. Run `/land-and-deploy` — merges and verifies
+2. Verify smoke tests pass in CI (automated regression)
+3. Walk E2E manually — run user-scenario verification before ship
+4. Run `/ship` — creates feature PR (includes pre-landing code review)
+5. Run `/land-and-deploy` — merges and verifies deployment
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] All children shipped
-- [ ] `/ship` — PR created
+- [ ] Smoke tests pass in CI
+- [ ] E2E walked manually
+- [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria

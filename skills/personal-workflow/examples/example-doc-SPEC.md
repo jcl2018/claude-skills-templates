@@ -1,122 +1,119 @@
 ---
 type: spec
-parent: S000001
-feature: F000001
-title: "Reading List Add Command — Specification"
+parent: S000001_core_crud
+feature: F000001_reading_list_cli
+title: "Core CRUD Operations — Specification"
 version: 1
 status: Draft
-date: 2026-03-01
+date: 2026-03-02
 author: chjiang
 reviewers: []
 ---
 
-<!-- Example SPEC: merged content from the prior example-doc-PRD.md +
-     example-doc-ARCHITECTURE.md. Demonstrates the v3 shape (Requirements
-     with P0/P1/P2 sub-sections, Acceptance Criteria, Architecture,
-     Tradeoffs, Open Questions). -->
-
-<!-- ===== From example-doc-PRD.md ===== -->
+<!-- Example SPEC for the Reading List CLI's "Core CRUD Operations" user-story.
+     Demonstrates the v3 shape: Requirements with P0/P1/P2 sub-sections, Acceptance
+     Criteria, Architecture, Tradeoffs, Open Questions. Story-scope detail (this doc)
+     pairs with the parent feature's DESIGN.md and ROADMAP.md. -->
 
 ## Problem Statement
 
-Readers track books across multiple apps (Goodreads, spreadsheets, Notes app) with
-no single source of truth. Existing CLI tools are abandoned. Need a fast, local-first
-tool that works from the terminal where developers already live.
+A solo developer wants to track what they've read, are reading, and plan to read — without booting up a notes app, signing into a SaaS, or syncing a database. They want a CLI they can `go install` once and call from anywhere on their machine. The pain today: existing tools (goodreads CLI, booklog) are abandoned, GUI alternatives have heavyweight UX, and a mental list in `notes.txt` doesn't filter well.
 
-## User Stories
+## Mental Model
+
+The CLI has one verb-form (`reading-list <subcommand> [args]`) and exactly four states a book can be in: `to-read`, `reading`, `finished`, and `deleted` (soft-delete). Each subcommand maps to one storage operation against a single JSON file at `~/.reading-list.json`. No daemons, no syncing, no remote API.
+
+## Requirements
 
 ### P0 (Must-Have)
 
-| # | As a... | I want to... | So that... | Acceptance Criteria |
-|---|---------|--------------|------------|---------------------|
-| 1 | reader | add a book with title and author | I can track what I want to read | Book appears in list with status "to-read" |
-| 2 | reader | list all my books | I can see my full reading list | Table shows title, author, status, date added |
-| 3 | reader | filter books by status | I can see only what I'm currently reading | `--status` flag filters correctly |
-| 4 | reader | update a book's status | I can mark progress | Status changes persist across sessions |
-| 5 | reader | remove a book | I can clean up my list | Book is gone after confirmation |
+| # | Tag | What it asks | As a... | I want to... | So that... |
+|---|-----|-------------|---------|-------------|------------|
+| 1 | core | Can a user add a book with a title, author, and initial status? | reader | run `reading-list add "Title" --author "Name"` | a book appears in the JSON store with status `to-read` |
+| 2 | core | Can a user list books, optionally filtered by status? | reader | run `reading-list list [--status reading]` | I see only books matching the filter (or all books with no filter) |
+| 3 | core | Can a user update a book's status by ID? | reader | run `reading-list update <id> --status finished` | the book's status changes and the JSON store reflects it |
 
 ### P1 (Important)
 
-| # | As a... | I want to... | So that... | Acceptance Criteria |
-|---|---------|--------------|------------|---------------------|
-| 6 | reader | see reading stats | I know how many books I've finished | `stats` subcommand shows counts by status |
-| 7 | reader | export to CSV | I can share or backup my list | `export --format csv` writes valid CSV |
+| # | Tag | What it asks | As a... | I want to... | So that... |
+|---|-----|-------------|---------|-------------|------------|
+| 4 | usability | Can a user remove a book by ID with a confirmation prompt? | reader | run `reading-list remove <id>` and confirm | I don't accidentally delete a book by typo |
 
-## Non-Goals
+### P2 (Nice-to-Have)
 
-- No cloud sync (local-first for v1)
-- No recommendation engine (v2)
-- No ISBN lookup or cover art
+| # | Tag | What it asks | As a... | I want to... | So that... |
+|---|-----|-------------|---------|-------------|------------|
+| 5 | usability | Can the `list` output show table-formatted columns? | reader | run `reading-list list` | output is readable on a 80-char terminal without horizontal scroll |
 
-## Technical Constraints
+## Acceptance Criteria
 
-- Single binary, no runtime dependencies
-- Data stored in ~/.reading-list.json
-- Must work on macOS and Linux
-
-<!-- ===== From example-doc-ARCHITECTURE.md ===== -->
-
-## Overview
-
-A Go CLI with three layers: command routing (cobra), business logic (internal/cmd/),
-and persistence (internal/store/). Single JSON file for storage. No external services.
-
-## Architecture Diagram
+### Story #1: Add command persists a book [core]
 
 ```
-  CLI Input
-     │
-     ▼
-  cobra router (cmd/reading-list/main.go)
-     │
-     ├── add    → internal/cmd/add.go
-     ├── list   → internal/cmd/list.go
-     ├── update → internal/cmd/update.go
-     └── remove → internal/cmd/remove.go
-                      │
-                      ▼
-              internal/store/store.go
-                      │
-                      ▼
-              ~/.reading-list.json
+GIVEN no ~/.reading-list.json file exists
+WHEN  I run `reading-list add "Designing Data-Intensive Applications" --author "Martin Kleppmann"`
+THEN  ~/.reading-list.json is created
+AND   it contains an entry with title, author, and status="to-read"
 ```
 
-## Key Decisions
+### Story #2: List command honors --status filter [core]
 
-### 1. Go over Python/Rust
-- **Chosen:** Go
-- **Why:** Single binary distribution (no runtime), fast compilation, cross-platform
-- **Tradeoff:** Larger binary than Rust, but faster to develop
-- **Revisit if:** Binary size exceeds 20MB
-
-### 2. JSON file over SQLite
-- **Chosen:** JSON file at ~/.reading-list.json
-- **Why:** Human-readable, portable, no C dependency (CGO_ENABLED=0)
-- **Tradeoff:** No concurrent access safety, O(n) reads
-- **Revisit if:** List exceeds 10,000 books (unlikely for personal use)
-
-### 3. cobra over stdlib flag
-- **Chosen:** cobra CLI framework
-- **Why:** Subcommand routing, auto-generated help, shell completions
-- **Tradeoff:** Adds ~5MB to binary
-- **Revisit if:** Binary size becomes a deployment concern
-
-## Data Model
-
-```go
-type Book struct {
-    ID        string    `json:"id"`
-    Title     string    `json:"title"`
-    Author    string    `json:"author"`
-    Status    string    `json:"status"`    // to-read, reading, finished
-    CreatedAt time.Time `json:"created_at"`
-    UpdatedAt time.Time `json:"updated_at"`
-}
+```
+GIVEN ~/.reading-list.json has 3 books: 1 to-read, 1 reading, 1 finished
+WHEN  I run `reading-list list --status reading`
+THEN  only the 1 "reading" book is printed
+AND   exit code is 0
 ```
 
-## Error Handling Strategy
+### Story #3: Update command changes status [core]
 
-- File not found → create empty list, continue
-- Corrupt JSON → backup to .bak, start fresh, warn user
-- Invalid status value → reject with allowed values list
-- Book ID not found → clear error with suggestion to run `list`
+```
+GIVEN ~/.reading-list.json has a book with id=1, status=to-read
+WHEN  I run `reading-list update 1 --status finished`
+THEN  the book's status field is "finished"
+AND   the file's last-modified timestamp updates
+```
+
+## Architecture
+
+```
++---------------+   +---------------+   +-----------------------+
+| cmd/main.go   |-->| internal/cmd/ |-->| internal/store/store  |
+| (cobra root)  |   | (subcommands) |   | (JSON read/write)     |
++---------------+   +---------------+   +-----------------------+
+                          |                       |
+                          v                       v
+                    internal/model/         ~/.reading-list.json
+                    (Book struct)
+```
+
+### Components Affected
+
+| Component | Repo | Change Type | Description |
+|-----------|------|------------|-------------|
+| `cmd/reading-list/main.go` | reading-list | New | Cobra root command, registers subcommands |
+| `internal/cmd/{add,list,update,remove}.go` | reading-list | New | One file per subcommand |
+| `internal/store/store.go` | reading-list | New | Read/write `~/.reading-list.json`; mutex for concurrent invocations (deferred to v2) |
+| `internal/model/book.go` | reading-list | New | `Book` struct with id, title, author, status |
+
+### Data Flow
+
+1. User runs `reading-list <verb> [args]`.
+2. Cobra dispatches to the matching subcommand handler in `internal/cmd/`.
+3. Handler calls `store.Load()` to read `~/.reading-list.json` (or initialize empty if missing).
+4. Handler mutates the in-memory slice, then calls `store.Save()` to write back atomically (via temp file + rename).
+
+## Tradeoffs
+
+| Decision | Chosen | Rejected Alternative | Why |
+|----------|--------|---------------------|-----|
+| Storage format | JSON file at `~/.reading-list.json` | SQLite, BoltDB | Portable; users can `cat` and `vim` the file; no driver dependency in the binary |
+| CLI framework | cobra | stdlib `flag` package | Subcommand routing + help generation are essentially free; binary-size cost (~5MB) acceptable for v1 |
+| Concurrency | Single-process assumption (no file locking) | flock-based locking | A reader running two CLI invocations simultaneously is rare; defer to v2 if it becomes real |
+
+## Open Questions
+
+| Question | Next check |
+|----------|-----------|
+| Should `remove` soft-delete (preserve history) or hard-delete? | Decide after first user reports an "I removed it by accident" issue |
+| Where should we store API keys for a future `--lookup-by-isbn` feature? | Out of scope for v1; revisit when user asks for it |

@@ -1,41 +1,51 @@
 ---
 type: roadmap
 parent: F999999
-title: "valid-feature-fixture — Roadmap"
-date: 2026-05-07
-author: fixture
+title: "Test Feature — Roadmap"
+date: 2026-01-01
+author: chjiang
 status: Draft
 ---
 
-<!-- Fixture: valid feature directory under the v3 personal-workflow
-     manifest. Section content preserved from the prior feature-summary
-     + milestones source files. -->
-
-<!-- ===== From F999999_feature-summary.md ===== -->
+<!-- Fixture ROADMAP for the validator's directory-mode happy-path case.
+     Demonstrates all required v3 sections in their canonical order. -->
 
 ## Scope
 
-Test feature for the personal-workflow validator's directory-mode fixture. Demonstrates the canonical 4-artifact set (tracker + feature-summary + DESIGN + milestones) that should pass `/personal-workflow check <dir>`.
+Test feature for the personal-workflow validator's directory-mode fixture. Demonstrates the canonical v3 3-artifact set (TRACKER + DESIGN + ROADMAP) that should pass `/personal-workflow check <dir>` cleanly.
+
+## Non-Goals
+
+- Real-world feature semantics — this is a fixture, not a deliverable.
 
 ## Success Criteria
 
-- [ ] Test criterion (validator returns no violations on this directory)
+- [ ] Validator returns no violations on this directory.
 
-## Constituent User-Stories
+## Decomposition
 
-- (none — this fixture is a single-feature happy-path case)
+| User-Story | Title | Status |
+|-----------|-------|--------|
+| _(none — fixture is a single-feature happy-path case)_ | — | — |
 
-## Out-of-Scope
+## Delivery Timeline
 
-- Real-world feature semantics — this is a fixture, not a deliverable
+| # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
+|---|-----------|-------------|--------|-------|-------|------------|
+| 1 | Initial implementation | 2026-02-01 | Planned | chjiang | Fixture is hand-crafted; no real timeline | — |
 
-<!-- ===== From F999999_milestones.md ===== -->
+### Delivery History
 
-<!-- GENERATION GUIDE (remove after filling in):
-     This file is the SINGLE SOURCE OF TRUTH. Edit milestones here. -->
+- _none — fixture is illustrative only_
 
-## Milestones
+## Dependency Graph
 
-| # | Milestone | Target | Status |
-|---|-----------|--------|--------|
-| 1 | Initial implementation | 2026-02-01 | Planned |
+```
+(single milestone — no graph)
+```
+
+## Open Questions
+
+| Question | Next check |
+|----------|-----------|
+| _none — fixture has no real open questions_ | _N/A_ |

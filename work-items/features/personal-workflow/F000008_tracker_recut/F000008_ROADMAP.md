@@ -29,13 +29,13 @@ Re-cut the personal-workflow skill's tracker templates and artifact set so that 
 - [ ] `./scripts/test.sh` and `./scripts/validate.sh` pass on the new shape.
 - [ ] VERSION bumped to v1.5.0; CHANGELOG entry written.
 
-## Constituent User-Stories
+## Decomposition
 
 - [S000014 — Templates + manifest + check.md](S000014_templates_manifest_check_md/S000014_TRACKER.md)
 - [S000015 — Historical migration](S000015_historical_migration/S000015_TRACKER.md)
 - [S000016 — Examples + fixtures + repo-level surfaces](S000016_examples_fixtures_repo/S000016_TRACKER.md)
 
-## Out-of-Scope
+## Non-Goals
 
 - company-workflow templates and `deprecated/work-items/F000003_*` — sealed by F000007; left as-is. The walk root for `/personal-workflow check` is `work-items/` not `deprecated/work-items/`, so they don't surface in reports either.
 - `work-copilot/` byte-mirror — mirrors company-workflow only; unaffected.
@@ -45,7 +45,7 @@ Re-cut the personal-workflow skill's tracker templates and artifact set so that 
 
 <!-- ===== From F000008_milestones.md ===== -->
 
-## Milestones
+## Delivery Timeline
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|
@@ -69,3 +69,12 @@ Re-cut the personal-workflow skill's tracker templates and artifact set so that 
                     ↓
                     #6 (ship + deploy)
 ```
+
+## Open Questions
+
+<!-- Questions still being decided. Migrated content has no recorded open
+     questions; left empty intentionally. -->
+
+| Question | Next check |
+|----------|-----------|
+| _none recorded at migration time_ | _N/A_ |

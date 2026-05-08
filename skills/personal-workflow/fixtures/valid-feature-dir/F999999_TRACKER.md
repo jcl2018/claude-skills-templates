@@ -10,28 +10,31 @@ branch: "feat/test"
 blocked_by: ""
 ---
 
+<!-- Prerequisite: Before scaffolding this work item, run /office-hours to
+     produce a design plan in ~/.gstack/projects/. Distill that plan into
+     DESIGN.md during Phase 1 below. -->
+
 ## Lifecycle
 
 ### Phase 1: Track
 
-**Gates:**
-- [x] Acceptance criteria scoped
+- [x] /office-hours design produced (in `~/.gstack/projects/`)
 - [x] Working branch created (`branch` field populated)
-- [x] feature-summary + DESIGN + milestones scaffolded
+- [x] DESIGN + ROADMAP scaffolded
+- [x] Acceptance criteria scoped
 - [x] Broken down into child stories
 
 ### Phase 2: Implement
 
-**Gates:**
 - [ ] All child stories have entered Phase 2+
 - [ ] Feature-level Todos reflect remaining coordination work
 
 ### Phase 3: Ship
 
-**Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] All children shipped
-- [ ] `/ship` — PR created
+- [ ] Smoke tests pass in CI
+- [ ] E2E walked manually
+- [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria

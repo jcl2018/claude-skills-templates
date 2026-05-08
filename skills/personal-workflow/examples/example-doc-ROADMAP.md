@@ -1,65 +1,66 @@
 ---
 type: roadmap
-parent: F000001
+parent: F000001_reading_list_cli
 title: "Reading List CLI — Roadmap"
 date: 2026-03-01
 author: chjiang
 status: Draft
 ---
 
-<!-- Example ROADMAP: merged content from the prior example-doc-feature-summary.md
-     + example-doc-milestones.md. Demonstrates the v3 shape (Scope, Non-Goals,
-     Success Criteria, Decomposition, Delivery Timeline with Delivery History,
-     Dependency Graph, Open Questions). -->
-
-<!-- ===== From example-doc-feature-summary.md ===== -->
+<!-- Example ROADMAP for a hypothetical Reading List CLI feature. Demonstrates
+     the v3 shape: Scope, Non-Goals, Success Criteria, Decomposition,
+     Delivery Timeline (with Delivery History sub-section), Dependency Graph,
+     Open Questions. -->
 
 ## Scope
 
-Per-tenant API rate limiting that prevents abuse and enforces fair resource allocation across pricing tiers (free, pro, enterprise). Implemented as middleware in the API gateway using a sliding-window algorithm backed by a Redis cluster. Adds `X-RateLimit-*` response headers on every API call and returns `429 Too Many Requests` with a `Retry-After` value when a tenant exceeds their limit. The feature spans gateway middleware, Redis state, response headers, admin observability, and per-tier configuration. The detailed PRD, architecture decisions, and test specification live at the user-story level — this doc is the feature's identity at the roll-up.
+A single-binary CLI for tracking books across three states (`to-read`, `reading`, `finished`). Persists a JSON file at `~/.reading-list.json`. Installable via `go install`. Solo-dev tool — no auth, no sync, no GUI.
+
+## Non-Goals
+
+- Multi-user sync — staying single-user simplifies the storage model.
+- ISBN lookup / external metadata fetch — adds API key management; out of scope for v1.
+- Reading-statistics dashboard — pure CLI output, no charts.
+- Mobile companion app — different scope entirely.
 
 ## Success Criteria
 
-- [x] Free tenants are throttled at 100 req/min sliding window; pro at 1000/min; enterprise at 10000/min — verifiable from production metrics
-- [x] All API responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` headers
-- [ ] 429 responses include a `Retry-After` header that matches the sliding-window expiry
-- [ ] Admin dashboard surfaces per-tenant rate-limit usage and throttled-request counts within 60 seconds of a throttle event
-- [ ] Middleware overhead stays under 5ms p99 at 5000 concurrent users (load-test gate)
-- [ ] No false-throttle incidents reported in the 30 days after launch
+- [ ] `go install github.com/jcl2018/reading-list@latest` produces a working binary on macOS and Linux.
+- [ ] All 5 acceptance criteria from S000001 verified with `bin/test-lane`.
+- [ ] Adding 1000 books and listing all of them takes < 100ms on a 2024 MacBook.
+- [ ] Binary size < 8MB.
+- [ ] Zero runtime errors on a fresh install with no existing `~/.reading-list.json`.
 
-## Constituent User-Stories
+## Decomposition
 
-- [S000412 — Sliding-window middleware](S000412-sliding-window-middleware/S000412_TRACKER.md)
-- [S000413 — Per-tier limit configuration](S000413-per-tier-limit-config/S000413_TRACKER.md)
-- [S000414 — Rate-limit response headers](S000414-rate-limit-headers/S000414_TRACKER.md)
-- [S000415 — Admin dashboard rate-limit widgets](S000415-admin-rate-limit-widgets/S000415_TRACKER.md)
+| User-Story | Title | Status |
+|-----------|-------|--------|
+| [S000001](S000001_core_crud/S000001_TRACKER.md) | Core CRUD Operations | In Progress |
+| [S000002](S000002_search_filtering/S000002_TRACKER.md) | Search and Filtering | Open |
 
-## Out-of-Scope
+## Delivery Timeline
 
-- Cross-region rate-limit synchronization — single-region Redis is sufficient for current traffic; multi-region revisited when EU launch lands
-- Per-endpoint rate limits (vs. per-tenant) — Phase 2 work; tracked separately as F000118
-- Dynamic limit adjustment based on tenant behavior — out of scope; will be evaluated after baseline metrics from this feature accumulate
-- IP-based throttling for unauthenticated traffic — covered by the WAF, not this feature
+| # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
+|---|-----------|-------------|--------|-------|-------|------------|
+| 1 | S000001 Core CRUD shipped (add/list/update/remove) | 2026-03-15 | In Progress | chjiang | First usable end-to-end flow | — |
+| 2 | S000002 Search + filtering shipped | 2026-03-22 | Not Started | chjiang | `--query`, `--tag`, fuzzy match | #1 |
+| 3 | v0.1.0 release on GitHub Releases + go install path verified | 2026-03-25 | Not Started | chjiang | First public version | #2 |
 
-<!-- ===== From example-doc-milestones.md ===== -->
+### Delivery History
 
-<!-- This file is the SINGLE SOURCE OF TRUTH. Edit milestones here. -->
+<!-- Backward-looking record. Append-only. -->
 
-## Milestones
+- _none yet — feature is pre-ship_
 
-| # | Milestone | Target | Status | Notes |
-|---|-----------|--------|--------|-------|
-| 1 | Core CRUD (add, list, update, remove) | 2026-03-15 | In Progress | S000001 covers this |
-| 2 | Search and filtering | 2026-03-22 | Planned | S000002, depends on M1 |
-| 3 | Distribution (go install + GitHub Release) | 2026-03-29 | Planned | CI/CD pipeline needed |
-| 4 | README + docs | 2026-03-31 | Planned | Installation, usage, examples |
-
-## Dependencies
+## Dependency Graph
 
 ```
-M1 (Core CRUD) ──→ M2 (Search)
-                 ──→ M3 (Distribution)
-                 ──→ M4 (Docs)
+#1 (S000001 Core CRUD) ──> #2 (S000002 Search) ──> #3 (v0.1.0 release)
 ```
 
-M1 is the only blocker. M2, M3, M4 can run in parallel after M1 ships.
+## Open Questions
+
+| Question | Next check |
+|----------|-----------|
+| Should we ship a Homebrew formula in v0.1.0 or wait for v0.2.0? | Decide after v0.1.0 install path is verified |
+| Any value in a `--reading-list-dir` env override for the storage path? | Defer until a user with multiple machines asks for it |

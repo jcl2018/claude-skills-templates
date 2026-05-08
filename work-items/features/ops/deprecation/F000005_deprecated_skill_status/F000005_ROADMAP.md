@@ -36,7 +36,7 @@ Give the `status` field in `skills-catalog.json` real meaning by introducing a `
 - [ ] `./scripts/validate.sh` and `./scripts/test.sh` pass on the feature branch with `company-workflow` deprecated
 - [ ] The `work-copilot/` byte-mirror invariant (`validate.sh` Error check 10) still holds — deprecating `company-workflow` does not break the mirror, because the source files stay in `skills/company-workflow/`
 
-## Constituent User-Stories
+## Decomposition
 
 <!-- Markdown links to the nested user-story TRACKER files that decompose
      this feature. The validator does not enforce this list, but it's the
@@ -45,7 +45,7 @@ Give the `status` field in `skills-catalog.json` real meaning by introducing a `
 - [S000012 — Deprecated Status Semantics](S000012_deprecated_status_semantics/S000012_TRACKER.md) — define the `deprecated` value, implement install filter + `--include-deprecated` flag, doctor INFO label, README rendering
 - [T000013 — Migrate company-workflow](S000012_deprecated_status_semantics/T000013_migrate_company_workflow/T000013_TRACKER.md) — flip `company-workflow` to `status: deprecated`; verify install skips it on a clean target
 
-## Out-of-Scope
+## Non-Goals
 
 <!-- Explicit non-goals. Things this feature deliberately does NOT do, and
      why. Prevents scope creep during Implement and gives reviewers an
@@ -60,7 +60,7 @@ Give the `status` field in `skills-catalog.json` real meaning by introducing a `
 
 <!-- ===== From F000005_milestones.md ===== -->
 
-## Milestones
+## Delivery Timeline
 <!-- Canonical milestone tracker for this feature. Scrum docs snapshot this table.
      Owner = primary person responsible. Status values: Done, In Progress, Not Started, At Risk, Deferred.
      Blocked By = milestone number(s) that must complete first, or "—" if none.
@@ -83,3 +83,12 @@ Give the `status` field in `skills-catalog.json` real meaning by introducing a `
 ```
 #1 scaffold --> #2 implement S000012 --> #3 migrate company-workflow (T000013) --> #4 validate clean --> #5 ship
 ```
+
+## Open Questions
+
+<!-- Questions still being decided. Migrated content has no recorded open
+     questions; left empty intentionally. -->
+
+| Question | Next check |
+|----------|-----------|
+| _none recorded at migration time_ | _N/A_ |

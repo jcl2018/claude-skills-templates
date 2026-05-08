@@ -60,7 +60,7 @@ design pass.
 - [ ] `work-copilot/instructions/copilot-instructions.md` references the new artifacts within the 8 KB budget
 - [ ] `bin/` is intentionally absent from `work-copilot/` (Decision #10)
 
-## Constituent User-Stories
+## Decomposition
 
 - [S000007 — Copilot Prompt Packaging](S000007_copilot_prompt_packaging/S000007_TRACKER.md) — port the validator as a Copilot prompt file (shipped v0.14.0)
 - [S000008 — Template Delivery & Install](S000008_template_delivery_and_install/S000008_TRACKER.md) — deliver templates + install into target repo's `.github/` (shipped v0.14.0)
@@ -68,7 +68,7 @@ design pass.
 - [S000010 — Bundle Artifact Completeness](S000010_bundle_artifact_completeness/S000010_TRACKER.md) — mirror `WORKFLOW.md` + `reference/` + `philosophy/` + `examples/` + missing fixtures (v2 realignment)
 - [T000011 — Validate Sync-Check Extension](S000010_bundle_artifact_completeness/T000011_validate_sync_check_extension/T000011_TRACKER.md) — extend `validate.sh` Error check 10 to a config-driven `MIRROR_SPECS` array
 
-## Out-of-Scope
+## Non-Goals
 
 - A `.chatmode.md`-only delivery — chat modes require manual mode-switching by the user. Always-on instructions plus prompt files keeps parity with Claude Code UX.
 - A bash-based installer — work-machine constraint is Windows. Installer is Python 3 stdlib (`scripts/copilot-deploy.py`) for cross-platform.
@@ -80,7 +80,7 @@ design pass.
 
 <!-- ===== From F000004_milestones.md ===== -->
 
-## Milestones
+## Delivery Timeline
 <!-- Canonical milestone tracker for this feature. Scrum docs snapshot this table.
      Owner = primary person responsible. Status values: Done, In Progress, Not Started, At Risk, Deferred.
      Blocked By = milestone number(s) that must complete first, or "—" if none.
@@ -119,3 +119,12 @@ design pass.
                                                                                                 |                                                |
                                                                                                 +--> #10 sync-check extension (T000011) --------+--> #11 realignment v0.15.0 release
 ```
+
+## Open Questions
+
+<!-- Questions still being decided. Migrated content has no recorded open
+     questions; left empty intentionally. -->
+
+| Question | Next check |
+|----------|-----------|
+| _none recorded at migration time_ | _N/A_ |
