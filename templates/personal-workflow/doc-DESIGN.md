@@ -12,7 +12,7 @@ reviewers: []
 <!-- A feature's cross-story design doc. Captures the PROBLEM, the SHAPE of
      the solution, the BIG DECISIONS with rationale, the RISKS, the
      DEFINITION OF DONE, and out-of-scope boundaries. Story-scope detail
-     (PRD/ARCHITECTURE/TEST-SPEC) lives on the nested user-stories — do
+     (SPEC/TEST-SPEC) lives on the nested user-stories — do
      not duplicate it here. For a filled-in example, see
      `work-items/features/F000004_work_copilot/F000004_DESIGN.md`. -->
 
@@ -68,9 +68,9 @@ reviewers: []
 
 ## Pointers
 
-<!-- Cross-links to related artifacts: parent tracker, milestones,
+<!-- Cross-links to related artifacts: parent tracker, roadmap,
      upstream sources, related features/defects. Use relative paths
      from the feature directory. -->
 
 - Parent tracker: [{FEATURE_ID}_TRACKER.md]({FEATURE_ID}_TRACKER.md)
-- Milestones: [{FEATURE_ID}_milestones.md]({FEATURE_ID}_milestones.md)
+- Roadmap: [{FEATURE_ID}_ROADMAP.md]({FEATURE_ID}_ROADMAP.md)

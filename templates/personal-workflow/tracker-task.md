@@ -11,6 +11,11 @@ branch: "{BRANCH_NAME}"
 blocked_by: ""
 ---
 
+<!-- Prerequisite (optional): If this task came from /office-hours, distill the
+     design context into the ## Insights section below. Otherwise (per the
+     skip-design-for-small-todos convention in WORKFLOW.md), proceed without
+     a separate DESIGN.md — the parent user-story's DESIGN already covers it. -->
+
 ## Lifecycle
 
 ### Phase 1: Track

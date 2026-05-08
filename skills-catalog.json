@@ -36,7 +36,7 @@
   },
   {
     "name": "personal-workflow",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {
@@ -57,12 +57,10 @@
       "personal-workflow/tracker-user-story.md",
       "personal-workflow/tracker-task.md",
       "personal-workflow/tracker-defect.md",
-      "personal-workflow/doc-feature-summary.md",
-      "personal-workflow/doc-PRD.md",
-      "personal-workflow/doc-ARCHITECTURE.md",
-      "personal-workflow/doc-TEST-SPEC.md",
       "personal-workflow/doc-DESIGN.md",
-      "personal-workflow/doc-milestones.md",
+      "personal-workflow/doc-SPEC.md",
+      "personal-workflow/doc-ROADMAP.md",
+      "personal-workflow/doc-TEST-SPEC.md",
       "personal-workflow/doc-RCA.md",
       "personal-workflow/doc-test-plan.md"
     ],

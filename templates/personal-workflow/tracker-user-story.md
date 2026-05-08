@@ -11,37 +11,43 @@ branch: "{BRANCH_NAME}"
 blocked_by: ""
 ---
 
+<!-- Prerequisite: Before scaffolding this work item, run /office-hours to
+     produce a design plan in ~/.gstack/projects/. Distill that plan into
+     DESIGN.md during Phase 1 below. (For atomic stories that derive directly
+     from the parent feature's /office-hours session, the parent's design is
+     sufficient context — DESIGN.md may be a brief stub linking to the parent.) -->
+
 ## Lifecycle
 
 ### Phase 1: Track
 
 1. Read parent tracker to understand scope
-2. Run `/office-hours` with your idea
-   → produces design doc in `~/.gstack/projects/`
-3. Create working branch: `git checkout -b feat/{slug}`
-4. Scaffold work item directory and TRACKER.md
-5. Scaffold required docs from design doc:
-   - `PRD.md` (requirements) — from `templates/doc-PRD.md`
-   - `ARCHITECTURE.md` (architecture decisions) — from `templates/doc-ARCHITECTURE.md`
-   - `TEST-SPEC.md` (test scenarios) — from `templates/doc-TEST-SPEC.md`
-6. Break into child tasks if scope warrants decomposition
+2. Create working branch: `git checkout -b feat/{slug}` (or use parent's branch if shipping in same PR)
+3. Scaffold work item directory and TRACKER.md
+4. Distill `DESIGN.md` from the /office-hours output (own session or parent's) — from `templates/doc-DESIGN.md`
+5. Scaffold `SPEC.md` (requirements, acceptance criteria, architecture, tradeoffs) — from `templates/doc-SPEC.md`
+6. Scaffold `TEST-SPEC.md` (smoke + E2E test scenarios) — from `templates/doc-TEST-SPEC.md`
+7. Break into child tasks if scope warrants decomposition (per WORKFLOW.md, tasks are optional for atomic stories)
 
 **Gates:**
-- [ ] Acceptance criteria defined
+- [ ] /office-hours design referenced (own or parent's, captured in DESIGN.md)
 - [ ] Working branch created (`branch` field populated)
-- [ ] Required docs scaffolded (PRD + ARCHITECTURE + TEST-SPEC)
-- [ ] Tasks broken down (if needed)
+- [ ] DESIGN + SPEC + TEST-SPEC scaffolded
+- [ ] Acceptance criteria defined
+- [ ] Tasks broken down (or N/A — atomic story)
 
 ### Phase 2: Implement
 
-1. Child tasks drive implementation (user-story tracker coordinates)
-2. Monitor child progress — update this tracker when children complete phases
-3. Update Todos section — check off completed children, add discoveries
-4. Update Files section with changed file paths
+1. Read DESIGN + SPEC for context
+2. Implement according to architecture decisions in SPEC
+3. Run smoke tests as you go (TEST-SPEC `## Smoke Tests` table)
+4. Run `/personal-workflow check` on modified docs after updates
+5. Update tracker: move through lifecycle phases, add journal entries
+6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] All child tasks have entered Phase 2+
 - [ ] Acceptance criteria verified met
+- [ ] Smoke tests pass
 - [ ] Todos section reflects remaining work (no stale items)
 - [ ] Files section updated with changed files
 
@@ -49,19 +55,21 @@ blocked_by: ""
 
 1. Run `/personal-workflow check` — verify all validation passes
    → should show PASS for template, lifecycle, traceability badges
-2. Verify TEST-SPEC alignment: do test cases cover all P0 acceptance criteria?
-3. Ensure all child tasks have shipped
-4. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
-5. Run `/land-and-deploy` — merges PR and verifies deployment
+2. Verify smoke tests pass in CI (automated regression)
+3. Walk E2E manually — drive the feature as a user would (TEST-SPEC `## E2E Tests` table)
+4. Ensure all child tasks (if any) have shipped
+5. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
+6. Run `/land-and-deploy` — merges PR and verifies deployment
 
 ❌ If `/personal-workflow check` finds issues: fix findings, re-run until clean
-❌ If CI fails: fix, push, re-run `/ship`
+❌ If smoke or E2E fails: fix, re-run
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] TEST-SPEC covers all P0 acceptance criteria
-- [ ] All children shipped
-- [ ] `/ship` — PR created
+- [ ] Smoke tests pass in CI
+- [ ] E2E walked manually
+- [ ] All children shipped (if any)
+- [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria

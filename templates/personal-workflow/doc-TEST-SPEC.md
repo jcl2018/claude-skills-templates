@@ -7,8 +7,7 @@ version: 1
 status: Draft
 date: {YYYY-MM-DD}
 author: {author}
-prd: PRD.md
-architecture: ARCHITECTURE.md
+spec: SPEC.md
 reviewers: []
 ---
 
