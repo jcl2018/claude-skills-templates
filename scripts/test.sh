@@ -296,10 +296,10 @@ fi
 
 # Personal-workflow template directory exists with expected count
 pw_count=$(find "$REPO_ROOT/templates/personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-if [ "$pw_count" -eq 12 ]; then
-  ok "templates/personal-workflow/ contains $pw_count templates (expected 12)"
+if [ "$pw_count" -eq 10 ]; then
+  ok "templates/personal-workflow/ contains $pw_count templates (expected 10)"
 else
-  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 12)"
+  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 10)"
 fi
 
 # Personal-workflow catalog entry exists
