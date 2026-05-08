@@ -124,5 +124,27 @@
     ],
     "status": "deprecated",
     "templates_source": "deprecated/company-workflow/templates"
+  },
+  {
+    "name": "qa-work-item",
+    "version": "0.1.0",
+    "description": "QA a personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "personal-workflow"
+      ],
+      "tools": [
+        "git",
+        "jq"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/qa-work-item/SKILL.md",
+      "skills/qa-work-item/qa.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]

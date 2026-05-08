@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.8.0] - 2026-05-08
+
+New `/qa-work-item` skill — second of three pipeline skills automating the personal-workflow lifecycle. Runs smoke tests from TEST-SPEC's Smoke Tests table first; on green, dispatches a QA engineer subagent (Agent tool, fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (NO-OP if already QA'd green). Boundary check refuses on incomplete Phase 2 implementation gates. Bootstrap-validated by dogfooding on a planted-bug fixture: the subagent correctly detected a content mismatch in a single ~30-token sentence — well under the 200-token Premise 1 cap — confirming the QA-engineer-subagent pattern works in practice on first run.
+
+### Added
+
+- **`/qa-work-item`** — new LLM-driven skill that QAs a personal-workflow user-story per its TEST-SPEC.md. Status: `experimental`. Depends on `personal-workflow` (boundary check via `/personal-workflow check`). Three files: `skills/qa-work-item/SKILL.md` (entry point: preamble, path resolution, usage, error handling) + `skills/qa-work-item/qa.md` (11-step orchestration: input validation, boundary check at start, idempotency check, read TEST-SPEC, run smoke, smoke-red short-circuit, spawn QA engineer subagent with cache-friendly stable-preamble-first prompt, process subagent verdict — green silent / red AUQ / ambiguous AUQ — transition Phase 2 gates if both green, boundary check at end, print summary) + `skills/qa-work-item/fixtures/example-user-story/` (planted-bug fixture: greeting file with content mismatch — subagent must detect and report red, plus 3 hand-toggle variations for smoke-red short-circuit, idempotency NO-OP, and boundary refusal).
+- **Phase 2 gate ownership** explicitly defined in `qa.md` Step 2: implementer-owned gates (`Todos section reflects remaining work`, `Files section updated with changed files`) must be CHECKED at start; QA-owned gates (`Acceptance criteria verified met`, `Smoke tests pass`) get marked on green smoke + green E2E. Resolves an ambiguity in S000019_SPEC Story #7 between "Acceptance criteria verified unchecked → refuse" and AC-5's "the skill marks that gate green."
+- **`work-items/features/personal-workflow/F000010_pipeline_skills/S000019_qa_work_item/`** — Phase 2 implementation gates marked green. 11 of 13 ACs verified directly via fixture dogfood + content inspection; AC-11 (prompt-cache hit on second run) deferred to a separate token-cost inspection. Mirrors the deferred-AC pattern from S000017.
+
+### Changed
+
+- **`TODOS.md`** — added two P3/S deferred entries surfaced during S000018/S000019 verification: (1) `/scaffold-work-item` Step 5 idempotency hole — always increments max tracker ID, never maps a source design doc back to an existing work item, so re-running on F000010's source design doc would write a duplicate F000011 instead of NO-OPing. Closes the deferred S000017 AC-5 once fixed. (2) `/personal-workflow check` Step 18 traceability parser may miss comma-separated AC cells like `AC-1, AC-2, AC-3` if the implementation uses field-by-field equality. Verify against real TEST-SPEC tables before fixing.
+
 ## [1.7.0] - 2026-05-08
 
 New `/scaffold-work-item` skill — first of three pipeline skills automating the gap between `/office-hours` and `/ship` in the personal-workflow lifecycle. Takes a design-doc path, produces a compliant work-item directory tree per WORKFLOW.md scaffolding rules. Reads templates + manifest + WORKFLOW.md as runtime sources of truth; runs `/personal-workflow check` at boundaries; idempotent (re-run on same input is NO-OP). Bootstrap-validated by re-scaffolding F000010 itself via the new skill — proof revealed and fixed a real bug in the user-story DESIGN.md section instructions before shipping.

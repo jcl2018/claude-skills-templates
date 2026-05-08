@@ -9,6 +9,8 @@ Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench
 | system-health | ~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, invokes waza for config hygiene. | active | standalone | 1.0.0 |
 | templates | Skill authoring template for new skills. | active | standalone | 0.1.0 |
 | personal-workflow | Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | active | standalone | 3.0.0 |
+| scaffold-work-item | Scaffold a personal-workflow work item from an /office-hours design doc. Reads design + templates + manifest + WORKFLOW.md, produces a compliant work-item directory tree with all required artifacts. Runs /personal-workflow check at boundaries; idempotent (re-run on same input is NO-OP). | experimental | standalone | 0.1.0 |
+| qa-work-item | QA a personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2. | experimental | standalone | 0.1.0 |
 
 ### Deprecated
 
