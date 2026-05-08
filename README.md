@@ -64,6 +64,7 @@ claude --plugin-dir ./claude-skills-templates
 | `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
 | `setup-hooks.sh` | Install pre-commit hook | 0 |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle in a target repo | 1 on error |
+| `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Auto-invoked from instrumented skill preambles. | 0 (advisory) |
 
 ## Contributing
 
