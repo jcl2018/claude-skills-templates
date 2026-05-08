@@ -31,7 +31,7 @@ These rules apply throughout all checks. Define them here once; reference from a
 - Always display the hyphenated form ("user-story") in output messages
 
 **Filename matching:** Strip `{ID}_` prefix when matching against manifest filenames.
-- "S000001_PRD.md" matches manifest filename "PRD.md"
+- "S000014_SPEC.md" matches manifest filename "SPEC.md"
 - Pattern: a file matches if its name equals `{expected}` or ends with `_{expected}`
 
 **Parent/child relationships:** Directory nesting is canonical.
@@ -81,7 +81,7 @@ Parse the user's input to determine the target path:
 Read the target file and parse its YAML frontmatter (between `---` markers).
 
 If the file does not contain a `## Lifecycle` section, warn:
-"Warning: {path} does not look like a tracker file. File-mode validation only validates trackers — for doc artifacts (PRD, RCA, test-plan, etc.), use Directory Mode on the parent directory."
+"Warning: {path} does not look like a tracker file. File-mode validation only validates trackers — for doc artifacts (SPEC, RCA, test-plan, etc.), use Directory Mode on the parent directory."
 Then stop (do not produce false positives by validating a doc against a tracker template).
 
 ## Step 3: Resolve Template
@@ -215,9 +215,9 @@ PERSONAL-WORKFLOW CHECK: {directory}
   Type: {type}
   ARTIFACTS:
     [PASS]    TRACKER.md — all required fields present
-    [PASS]    PRD.md — all required fields and sections present
+    [PASS]    SPEC.md — all required fields and sections present
     [MISSING] test-plan.md — required artifact not found
-    [DRIFT]   ARCHITECTURE.md — missing required field "repo"
+    [DRIFT]   SPEC.md — missing required field "repo"
   LIFECYCLE:
     [PASS]    3 phases present, {N} checkboxes
   SUMMARY: {N} artifacts checked, {N} missing, {N} drift
@@ -300,14 +300,14 @@ For work items with no children: `[PASS] No children`
 
 ## Step 18: Check 3 — Cross-Reference Traceability
 
-For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched via filename normalization):
+For features and user-stories that have BOTH a SPEC.md and TEST-SPEC.md (matched via filename normalization):
 
-1. **Parse PRD.md** for P0 user story entries:
-   - Find the `### P0 (Must-Have)` section
+1. **Parse SPEC.md** for P0 user story entries:
+   - Find the `### P0 (Must-Have)` section (inside `## Requirements`)
    - Extract story numbers from the `#` column in the table rows
    - These are the P0 story numbers requiring test coverage
-2. **Parse PRD.md** for P1/P2 story entries:
-   - Find `### P1 (Important)` and `### P2 (Nice-to-Have)` sections
+2. **Parse SPEC.md** for P1/P2 story entries:
+   - Find `### P1 (Important)` and `### P2 (Nice-to-Have)` sections (inside `## Requirements`)
    - Extract story numbers from the `#` column
 3. **Parse TEST-SPEC.md for AC values** (single `ac_set`, used by both P0 and P1/P2 loops):
    - Find the `## Smoke Tests` table; extract all values from the `AC` column → `smoke_acs`
@@ -319,9 +319,6 @@ For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched 
      from silently passing — without this filter, every P0 would falsely match
      the placeholder string.
    - `ac_set = raw_acs - placeholders`
-   - **No legacy fallback.** Files that still use `## Test Matrix` (the old shape)
-     will fail Step 16's section check and surface the wrong shape there;
-     Step 18 does not double-flag.
 4. **For each P0 story number:**
    - If `AC-{n}` (the literal string, with `{n}` replaced by the story number) is not in `ac_set`: flag `[UNTESTED] P0 story #{n} has no TEST-SPEC coverage`
 5. **For each P1/P2 story number:**
@@ -333,7 +330,7 @@ For features and user-stories that have BOTH a PRD.md and TEST-SPEC.md (matched 
 - **Both sections present but empty (only template placeholder rows):** `ac_set` = empty after the placeholder filter. All P0 stories flag `[UNTESTED]` (correct — file is unfilled).
 - **A row's AC cell is `-` or blank:** that row contributes nothing to `ac_set`; not an error per Step 18 (the row may be a smoke check that doesn't map to a single AC).
 
-For work items missing PRD or TEST-SPEC: skip traceability (no output for this subsection).
+For work items missing SPEC or TEST-SPEC: skip traceability (no output for this subsection).
 
 ## Step 18.5: Check 3.5 — Test Cap Advisory
 
@@ -350,7 +347,7 @@ For each TEST-SPEC.md file in the Actual Model:
 
 Files without `## Smoke Tests` or `## E2E Tests` sections (already flagged by Step 16): skip silently for that tier.
 
-`[INFO]` is non-blocking: it appears in the Findings → Advisory subsection (Step 23) and does NOT affect exit code. Cap-advisory is structural compliance (about file shape, not PRD↔test traceability), so it surfaces under the **template** badge category in Step 20, not the traceability badge.
+`[INFO]` is non-blocking: it appears in the Findings → Advisory subsection (Step 23) and does NOT affect exit code. Cap-advisory is structural compliance (about file shape, not SPEC↔test traceability), so it surfaces under the **template** badge category in Step 20, not the traceability badge.
 
 ## Step 19: Check 4 — Stray Directory Detection
 
@@ -385,7 +382,7 @@ Map all check statuses to 3 badge categories with severity ordering.
 
 Each badge for a node shows the **worst** (highest severity) status from its category.
 
-For work item types that don't participate in a check (e.g., tasks have no traceability check because they lack PRD/TEST-SPEC): show "—" for that badge.
+For work item types that don't participate in a check (e.g., tasks have no traceability check because they lack SPEC/TEST-SPEC): show "—" for that badge.
 
 The `[STRAY]` flag from Check 4 (Step 19) is not a per-node badge; it appears in the Findings list only.
 
