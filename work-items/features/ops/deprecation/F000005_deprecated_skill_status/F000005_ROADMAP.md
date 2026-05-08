@@ -74,6 +74,15 @@ Give the `status` field in `skills-catalog.json` real meaning by introducing a `
 | 4 | `/personal-workflow check` + `./scripts/test.sh` clean on feature branch | 2026-05-02 | Done | chjiang | validate.sh PASS (0 errors / 0 warnings); test.sh PASS (Failures: 0); work-copilot mirror intact | #3 |
 | 5 | PR shipped via `/ship`; merged + deployed via `/land-and-deploy` | 2026-05-05 | Not Started | chjiang | Squash-merge per repo CI/CD convention; remote branch deletion via `gh api -X DELETE` if worktree-blocked | #4 |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 <!-- Visual representation of milestone ordering and blocking relationships.
      Update when milestones or dependencies change.

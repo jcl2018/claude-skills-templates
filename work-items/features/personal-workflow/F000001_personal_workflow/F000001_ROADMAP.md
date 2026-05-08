@@ -71,6 +71,15 @@ ceremony — solo-dev gates only.
 | 12 | Update tracker template Phase 1 + Phase 2 | — | Done | chjiang | Required doc lists per type, /office-hours design doc reference | — |
 | 13 | Make doc triplet self-contained | — | Done | chjiang | PRD/ARCHITECTURE/TEST-SPEC expanded to cover all 3 consolidated areas | — |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 
 ```

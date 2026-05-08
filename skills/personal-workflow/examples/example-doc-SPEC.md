@@ -74,6 +74,26 @@ THEN  the book's status field is "finished"
 AND   the file's last-modified timestamp updates
 ```
 
+### Story #4: Remove command requires confirmation [usability]
+
+```
+GIVEN ~/.reading-list.json has a book with id=1
+WHEN  I run `reading-list remove 1` and answer "n" to the prompt
+THEN  the book is NOT deleted
+AND   the file is unchanged
+WHEN  I re-run `reading-list remove 1` and answer "y"
+THEN  the book is removed from the JSON store
+```
+
+### Story #5: List output is table-formatted [usability]
+
+```
+GIVEN ~/.reading-list.json has 3 books with titles up to 60 chars
+WHEN  I run `reading-list list` on an 80-column terminal
+THEN  the output renders as a table with aligned columns
+AND   no horizontal scrolling is needed for any row
+```
+
 ## Architecture
 
 ```

@@ -78,6 +78,15 @@ Move `skills/company-workflow/` and `templates/company-workflow/` to a new top-l
 | 5 | `/personal-workflow check` + `./scripts/validate.sh` + `./scripts/test.sh` clean on feature branch | 2026-05-02 | Done | chjiang | validate.sh PASS (0 errors / 0 warnings; Error check 10 byte-identical for all 7 mirror entries); test.sh PASS (Failures: 0) | #4 |
 | 6 | PR shipped via `/ship`; merged + deployed via `/land-and-deploy` | 2026-05-06 | Not Started | chjiang | Squash-merge per repo CI/CD convention; remote branch deletion via `gh api -X DELETE` if worktree-blocked | #5 |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 <!-- Visual representation of milestone ordering and blocking relationships.
      Update when milestones or dependencies change.

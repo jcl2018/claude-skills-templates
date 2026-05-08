@@ -56,6 +56,15 @@ Re-cut the personal-workflow skill's tracker templates and artifact set so that 
 | 5 | VERSION bump v1.5.0 + CHANGELOG entry | 2026-05-08 | Not Started | chjiang | Done as part of /ship workflow | #4 |
 | 6 | /ship + /land-and-deploy | 2026-05-08 | Not Started | chjiang | Single sweep PR; auto-merge after CI; remote branch cleanup per CLAUDE.md note | #5 |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 
 ```

@@ -78,6 +78,15 @@ structured output.
 | 7 | v1.0.0 — Work item formalization | 2026-04-11 | Done | chjiang | Cut v1.0.0; F000002 tracker scaffolded around the shipped skill | #5, #6 |
 | 8 | One-feature-per-skill consolidation | 2026-04-24 | Done | chjiang | Renamed `system_health_v1` → `system_health`; status flipped to `shipped` | #7 |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 
 ```

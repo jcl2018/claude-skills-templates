@@ -100,6 +100,15 @@ design pass.
 | 10 | Sync-check extension shipped (T000011) | 2026-05-13 | Not Started | chjiang | Extend `scripts/validate.sh` Error check 10 to a config-driven `MIRROR_SPECS` array enforcing byte-identity sync on every mirror entry. Adds 9 negative-path synthetic test cases plus 1 happy-path case in `scripts/test.sh` | #6 |
 | 11 | Realignment v0.15.0 release | 2026-05-15 | Not Started | chjiang | `/ship` + `/land-and-deploy` for the v2 realignment. Tag v0.15.0, update catalog | #9, #10 |
 
+### Delivery History
+
+<!-- Backward-looking record: PR links, merge dates, version bumps after ship.
+     Append-only. Don't edit historical entries — they're the durable record
+     of what shipped when. Migrated content has no recorded delivery history
+     entries; left empty. -->
+
+- _none recorded at migration time_
+
 ## Dependency Graph
 <!-- Visual representation of milestone ordering and blocking relationships.
      Update when milestones or dependencies change.
