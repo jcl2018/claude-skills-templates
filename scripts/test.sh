@@ -1979,6 +1979,20 @@ fi
 # Restore errexit after the S000010 + T000011 test block.
 set -e
 
+# Integration: test-deploy.sh end-to-end (D000016)
+# The wrapper-grep check at line ~388 confirms test-deploy.sh defines the jq()
+# CRLF-stripping wrapper structurally. This phase actually RUNS test-deploy.sh
+# end-to-end so template-ownership regressions in skills-deploy fail in CI loudly
+# instead of rotting silently — closes the meta-bug behind D000016.
+echo ""
+echo "Running scripts/test-deploy.sh end-to-end..."
+if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
+  ok "scripts/test-deploy.sh passed end-to-end (skills-deploy template-ownership tests)"
+else
+  _td_rc=$?
+  fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

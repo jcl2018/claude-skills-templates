@@ -714,22 +714,22 @@ setup_env
 # Install both templates and system-health
 "$DEPLOY" install templates >/dev/null 2>&1
 "$DEPLOY" install system-health >/dev/null 2>&1
-# Manually add system-health as co-owner of doc-RCA.md (simulating shared template)
-jq '.templates["doc-RCA.md"].owners += ["system-health"] | .templates["doc-RCA.md"].owners = (.templates["doc-RCA.md"].owners | unique)' \
+# Manually add system-health as co-owner of doc-SKILL-DESIGN.md (simulating shared template)
+jq '.templates["doc-SKILL-DESIGN.md"].owners += ["system-health"] | .templates["doc-SKILL-DESIGN.md"].owners = (.templates["doc-SKILL-DESIGN.md"].owners | unique)' \
   "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.tmp" && mv "$SKILLS_DEPLOY_MANIFEST.tmp" "$SKILLS_DEPLOY_MANIFEST"
-# Remove templates — doc-RCA.md should persist (system-health still owns it)
+# Remove templates — doc-SKILL-DESIGN.md should persist (system-health still owns it)
 "$DEPLOY" remove templates --force >/dev/null 2>&1
-if [ -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" ]; then
-  ok "doc-RCA.md persists (system-health still owns it)"
+if [ -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md" ]; then
+  ok "doc-SKILL-DESIGN.md persists (system-health still owns it)"
 else
-  fail_test "doc-RCA.md was deleted despite system-health ownership"
+  fail_test "doc-SKILL-DESIGN.md was deleted despite system-health ownership"
 fi
-# Remove system-health — now doc-RCA.md should be cleaned up
+# Remove system-health — now doc-SKILL-DESIGN.md should be cleaned up
 "$DEPLOY" remove system-health --force >/dev/null 2>&1
-if [ ! -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" ]; then
-  ok "doc-RCA.md removed when last owner removed"
+if [ ! -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md" ]; then
+  ok "doc-SKILL-DESIGN.md removed when last owner removed"
 else
-  fail_test "doc-RCA.md still exists after all owners removed"
+  fail_test "doc-SKILL-DESIGN.md still exists after all owners removed"
 fi
 teardown_env
 
@@ -756,9 +756,9 @@ teardown_env
 echo "Test T4: Doctor detects missing template"
 setup_env
 "$DEPLOY" install templates >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
+rm -f "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md"
 output=$("$DEPLOY" doctor 2>&1)
-if echo "$output" | grep -q "FAIL.*doc-RCA.md"; then
+if echo "$output" | grep -q "FAIL.*doc-SKILL-DESIGN.md"; then
   ok "Doctor detects missing template"
 else
   fail_test "Doctor missed missing template"
@@ -769,9 +769,9 @@ teardown_env
 echo "Test T5: Doctor detects drifted template"
 setup_env
 "$DEPLOY" install templates >/dev/null 2>&1
-echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
+echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md"
 output=$("$DEPLOY" doctor 2>&1)
-if echo "$output" | grep -q "WARN.*doc-RCA.md"; then
+if echo "$output" | grep -q "WARN.*doc-SKILL-DESIGN.md"; then
   ok "Doctor detects drifted template"
 else
   fail_test "Doctor missed drifted template"
@@ -784,28 +784,28 @@ setup_env
 "$DEPLOY" install templates >/dev/null 2>&1
 
 # T6a: default install (no flag) overwrites drifted templates and logs UPDATE
-echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
+echo "modified content" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md"
 output=$("$DEPLOY" install templates 2>&1)
 if echo "$output" | grep -qF "UPDATE:"; then
   ok "Default install overwrites drifted template (D000015)"
 else
   fail_test "Default install did not log UPDATE for drifted template (D000015 regressed)"
 fi
-if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
+if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md" "$REPO_ROOT/templates/doc-SKILL-DESIGN.md" >/dev/null 2>&1; then
   ok "Default install restored template to source content"
 else
   fail_test "Default install did not restore drifted template"
 fi
 
 # T6b: --no-overwrite preserves drifted content and logs PRESERVE
-echo "modified content again" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md"
+echo "modified content again" >> "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md"
 output=$("$DEPLOY" install templates --no-overwrite 2>&1)
 if echo "$output" | grep -qF "PRESERVE:"; then
   ok "--no-overwrite preserves drifted template (D000015)"
 else
   fail_test "--no-overwrite did not log PRESERVE (D000015 regressed)"
 fi
-if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
+if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md" "$REPO_ROOT/templates/doc-SKILL-DESIGN.md" >/dev/null 2>&1; then
   fail_test "--no-overwrite incorrectly overwrote drifted template"
 else
   ok "--no-overwrite kept drifted content intact"
@@ -813,7 +813,7 @@ fi
 
 # T6c: legacy --overwrite still works (backwards compat with D000013 post-merge hook)
 "$DEPLOY" install templates --overwrite >/dev/null 2>&1
-if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-RCA.md" "$REPO_ROOT/templates/personal-workflow/doc-RCA.md" >/dev/null 2>&1; then
+if diff -q "$SKILLS_DEPLOY_TEMPLATES_TARGET/doc-SKILL-DESIGN.md" "$REPO_ROOT/templates/doc-SKILL-DESIGN.md" >/dev/null 2>&1; then
   ok "Legacy --overwrite still restores template (backwards compat)"
 else
   fail_test "Legacy --overwrite did not restore template (broke D000013 hook compat)"
@@ -828,11 +828,11 @@ setup_env
 # shellcheck disable=SC2034  # dup_count used for debug inspection
 dup_count=$(jq '[.templates // {} | .[] | .owners | length] | map(select(. > 1)) | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
 # Each template should have exactly 1 owner (templates), not 2
-owner_count=$(jq '.templates["doc-RCA.md"].owners | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
+owner_count=$(jq '.templates["doc-SKILL-DESIGN.md"].owners | length' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo "0")
 if [ "$owner_count" -eq 1 ]; then
   ok "No duplicate owners after double install"
 else
-  fail_test "Expected 1 owner for doc-RCA.md, got $owner_count"
+  fail_test "Expected 1 owner for doc-SKILL-DESIGN.md, got $owner_count"
 fi
 teardown_env
 
@@ -847,7 +847,7 @@ else
   fail_test "Path traversal not caught by regex"
 fi
 # Also test a valid name passes
-output=$(bash -c '[[ "doc-RCA.md" =~ ^[a-zA-Z0-9_.-]+\.md$ ]] && echo "MATCH" || echo "BLOCKED"' 2>&1)
+output=$(bash -c '[[ "doc-SKILL-DESIGN.md" =~ ^[a-zA-Z0-9_.-]+\.md$ ]] && echo "MATCH" || echo "BLOCKED"' 2>&1)
 if [ "$output" = "MATCH" ]; then
   ok "Valid template name accepted by regex"
 else
