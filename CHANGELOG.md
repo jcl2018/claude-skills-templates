@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.5.2] - 2026-05-07
+
+`skills-deploy install` now overwrites drifted templates and rules by default — running it after a workbench pull just makes `~/.claude/` match source, no flag required. The previous safe-by-default behavior (skip on checksum mismatch, log a WARN) inverted the realistic mental model: every routine deploy hit the warning and had to be retried with `--overwrite`. The post-merge git hook from D000013 already passed `--overwrite` unconditionally, so the automation had quietly concluded the same thing. Closes D000015.
+
+### Changed
+
+- **`scripts/skills-deploy`** — default install now overwrites drifted templates and rules. Renamed log line `OVERWRITE: ... (--overwrite used)` → `UPDATE: ... (checksum differs)`. The old WARN-and-skip path is reachable via the new `--no-overwrite` flag, where it now logs `PRESERVE: ... (--no-overwrite, keeping deployed copy)`. The doctor reset hint and `install --help` text are updated to match.
+- **`CLAUDE.md`** — "Template deployment" bullet rewritten to document the new default and the `--no-overwrite` opt-out.
+- **`scripts/test-deploy.sh`** — Test T6 split into three sub-cases asserting the new default-overwrites behavior, the `--no-overwrite` opt-out, and the legacy `--overwrite` no-op compat.
+
+### Added
+
+- **`scripts/test.sh`** — D000015 regression block (6 grep checks): default value, `--no-overwrite` handler, legacy `--overwrite` tolerance, removal of stale WARN copy, help-text update, CLAUDE.md sync.
+- **`work-items/defects/ops/skills-deploy/D000015_skills_deploy_install_overwrite_default/`** — defect work item (TRACKER + RCA + test-plan).
+
+### Notes
+
+- `--overwrite` is retained as a tolerated no-op so D000013's post-merge git hook (which still passes the flag unconditionally) continues to work without modification. The flag can be retired in a future cleanup; no urgency.
+- Live smoke test: drift → default install → `UPDATE`; drift → `--no-overwrite` → `PRESERVE` (drift preserved); drift → legacy `--overwrite` → `UPDATE`. All three paths verified on `~/.claude/templates/personal-workflow/tracker-defect.md`.
+
 ## [1.5.1] - 2026-05-07
 
 Adds a Phase 3 gate for `/document-release` to the feature tracker template — closes the loop on post-ship doc drift. The recent v1.5.0 ship surfaced one such drift (README skill table left at v2.0.0 after the manifest moved to v3.0.0); the new gate makes the post-merge audit an explicit checkbox instead of freelance hygiene. Feature trackers only — user-stories and tasks unchanged so atomic work doesn't pick up gate overhead.
