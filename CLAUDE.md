@@ -80,7 +80,7 @@ Skills with `status: deprecated` in `skills-catalog.json` live under `deprecated
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
 Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for active skills, or `$REPO_ROOT/{templates_source}/` when the catalog entry sets `templates_source` (e.g., `deprecated/{name}/templates/`). Then fall back to `~/.claude/templates/{skill-name}/`.
-- Use `--overwrite` to force-replace templates with local modifications
+- Drifted templates and rules are overwritten by default (`skills-deploy install` is treated as a sync from workbench source → `~/.claude/`); pass `--no-overwrite` to preserve deployed copies that differ from source. `--overwrite` is accepted as a no-op for backwards compatibility with pre-v1.6 callers (D000013's post-merge hook, etc.).
 - `skills-deploy doctor` reports template health (missing, drifted, orphaned)
 - `skills-deploy remove` cleans up templates when no installed skill needs them
 - Templates are tracked in the manifest with SHA256 checksums and per-skill ownership
