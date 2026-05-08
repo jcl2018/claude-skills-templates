@@ -51,6 +51,7 @@ blocked_by: ""
 3. Walk E2E manually — run user-scenario verification before ship
 4. Run `/ship` — creates feature PR (includes pre-landing code review)
 5. Run `/land-and-deploy` — merges and verifies deployment
+6. Run `/document-release` — post-ship doc audit; fix drifts inline or spawn D-tickets
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
@@ -58,6 +59,7 @@ blocked_by: ""
 - [ ] E2E walked manually
 - [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
+- [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
 
