@@ -33,6 +33,7 @@ blocked_by: ""
 - [ ] E2E walked manually
 - [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
+- [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
 

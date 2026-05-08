@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.5.1] - 2026-05-07
+
+Adds a Phase 3 gate for `/document-release` to the feature tracker template — closes the loop on post-ship doc drift. The recent v1.5.0 ship surfaced one such drift (README skill table left at v2.0.0 after the manifest moved to v3.0.0); the new gate makes the post-merge audit an explicit checkbox instead of freelance hygiene. Feature trackers only — user-stories and tasks unchanged so atomic work doesn't pick up gate overhead.
+
+### Changed
+
+- **`templates/personal-workflow/tracker-feature.md`** — Phase 3 grows from 5 gates to 6: adds `[ ] /document-release — post-ship doc audit done; drifts fixed inline or spawned as D-tickets` and the matching numbered step.
+- **`skills/personal-workflow/examples/example-tracker-feature.md`** — mirrors the new gate.
+- **`skills/personal-workflow/fixtures/valid-feature-dir/F999999_TRACKER.md`** — mirrors the new gate so the fixture stays byte-aligned with the template.
+
+### Notes
+
+- No artifact set or manifest changes — purely additive content inside an existing tracker section. `personal-artifact-manifests.json`, `skills-catalog.json`, `template-registry.json`, and `SKILL.md` versions all stay at 3.0.0.
+- Historical feature work items (F000001, F000002, F000004, F000005, F000006, F000008) are not retroactively migrated; they shipped under the 5-gate Phase 3 contract and remain valid as-is.
+
 ## [1.5.0] - 2026-05-07
 
 Personal-workflow tracker re-cut. Replaces the old artifact set (feature-summary, PRD, ARCHITECTURE, milestones) with a workflow-mirrored set where every persistent doc maps 1:1 to a step the engineer actually runs: `DESIGN.md` from `/office-hours`, `SPEC.md` from the scaffolding step (was PRD + ARCHITECTURE merged), `ROADMAP.md` for feature-level scope and timeline (was feature-summary + milestones merged), `TEST-SPEC.md` for smoke + E2E. Tracker templates' Phase 3 surfaces smoke and E2E as separate gates instead of one collapsed "TEST-SPEC verified" check. WORKFLOW.md task-required rule relaxed: atomic user-stories may ship without task children. Single sweep PR migrates 13 historical work items + 1 fixture + all examples to the new shape.
