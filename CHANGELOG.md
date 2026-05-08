@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.9.0] - 2026-05-08
+
+New `/implement-from-spec` skill — third and final pipeline skill, completing the personal-workflow lifecycle automation. Reads SPEC + DESIGN + TRACKER for a user-story and writes code per the SPEC's Components Affected and Data Flow. Sensitive-surface AUQ before catalog/manifest/validator/template changes (mandatory; cannot be bypassed by `--auto`). Propose-and-confirm by default; `--auto` for trivial changes (≤2 files AND no sensitive surface AND no Open Questions AND no live-alternative tradeoffs). Idempotent (NO-OP if already implemented). Boundary check refuses on incomplete Phase 1; verifies post-write compliance. Bootstrap-validated by dogfooding the `--auto` path on a synthetic single-file fixture: skill correctly classified TRIVIAL=true, wrote the asserted file with byte-exact content, transitioned implementer-owned Phase 2 gates while leaving QA-owned gates untouched, and passed the post-write boundary check.
+
+### Added
+
+- **`/implement-from-spec`** — new LLM-driven skill that implements a personal-workflow user-story from its SPEC. Status: `experimental`. Depends on `personal-workflow` (boundary check via `/personal-workflow check`). Three files: `skills/implement-from-spec/SKILL.md` (entry point: preamble, path resolution, usage, error handling) + `skills/implement-from-spec/implement.md` (12-step orchestration: input validation, boundary check at start, idempotency, read context, SPEC gap check, plan with sensitive-surface and triviality detection + mode resolution, sensitive-surface AUQ if needed, propose-and-confirm preview if not auto, write code, update tracker with `[impl-*]` journal entries + Phase 2 implementer-owned gate transitions, boundary check at end, print summary) + `skills/implement-from-spec/fixtures/example-user-story/` (synthetic single-file fixture for `--auto` path; hand-toggle variations documented for sensitive-surface AUQ, Phase-1-incomplete refusal, idempotency NO-OP, and SPEC-gap halt).
+- **Phase 2 gate ownership pairing complete.** `/implement-from-spec` (Step 10) marks `Todos section reflects remaining work` + `Files section updated with changed files`; `/qa-work-item` (v1.8.0, Step 9) marks `Acceptance criteria verified met` + `Smoke tests pass`. Together the two skills move a user-story Phase 1 → Phase 2 → Phase 3 ready, with the implementer pair untouched by QA and the QA pair untouched by implementation.
+- **Sensitive-surface paths enumerated** in `implement.md` Step 6.4: `skills-catalog.json`, `personal-artifact-manifests.json`, `company-artifact-manifests.json`, `templates/personal-workflow/*`, `templates/company-workflow/*`, `scripts/validate.sh`, `scripts/test.sh`, `scripts/test-deploy.sh`, `.git/hooks/*`. The list captures every load-bearing structural file in v1; expanding it is a v2 concern.
+- **`work-items/features/personal-workflow/F000010_pipeline_skills/S000018_implement_from_spec/`** — Phase 2 fully green. 9 of 10 ACs verified directly by content inspection; AC-1 (full code-write loop) verified empirically via fixture dogfood. F000010's three pipeline skills (S000017 scaffold, S000019 qa, S000018 implement) are now all Phase 2 ready; the F000010 feature itself can move to Phase 3 once /qa-work-item runs on the implementations end-to-end.
+
+### Changed
+
+- **`README.md`** — regenerated skills table to include `/implement-from-spec` alongside `/scaffold-work-item` and `/qa-work-item`.
+
 ## [1.8.0] - 2026-05-08
 
 New `/qa-work-item` skill — second of three pipeline skills automating the personal-workflow lifecycle. Runs smoke tests from TEST-SPEC's Smoke Tests table first; on green, dispatches a QA engineer subagent (Agent tool, fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (NO-OP if already QA'd green). Boundary check refuses on incomplete Phase 2 implementation gates. Bootstrap-validated by dogfooding on a planted-bug fixture: the subagent correctly detected a content mismatch in a single ~30-token sentence — well under the 200-token Premise 1 cap — confirming the QA-engineer-subagent pattern works in practice on first run.
