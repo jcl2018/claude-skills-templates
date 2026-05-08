@@ -146,5 +146,27 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "implement-from-spec",
+    "version": "0.1.0",
+    "description": "Implement a personal-workflow user-story from its SPEC. Reads SPEC + DESIGN + TRACKER, plans the change against the SPEC architecture, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes. Idempotent (re-run on completed story is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "personal-workflow"
+      ],
+      "tools": [
+        "git",
+        "jq"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/implement-from-spec/SKILL.md",
+      "skills/implement-from-spec/implement.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]
