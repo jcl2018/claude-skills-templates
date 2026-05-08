@@ -65,7 +65,8 @@ skill_status() {
 
 # Check who owns a skill directory
 skill_owner() {
-  local name="$1" target="$SKILLS_TARGET/$name/SKILL.md"
+  local name="$1"
+  local target="$SKILLS_TARGET/$name/SKILL.md"
   if [ ! -e "$SKILLS_TARGET/$name" ]; then
     echo "none"
   elif [ -L "$target" ]; then
