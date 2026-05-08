@@ -553,7 +553,12 @@ do_remove() {
       owner_count=$(echo "$manifest" | jq --arg t "$tpl" '.templates[$t].owners // [] | length')
       if [ "$owner_count" -eq 0 ]; then
         if [ -f "$TEMPLATES_TARGET/$tpl" ]; then
-          rm -f "$TEMPLATES_TARGET/$tpl" && echo "  TEMPLATE: removed $tpl" || { echo "  WARN: failed to remove $tpl"; template_errors=$((template_errors + 1)); }
+          if rm -f "$TEMPLATES_TARGET/$tpl"; then
+            echo "  TEMPLATE: removed $tpl"
+          else
+            echo "  WARN: failed to remove $tpl"
+            template_errors=$((template_errors + 1))
+          fi
         fi
         manifest=$(echo "$manifest" | jq --arg t "$tpl" 'del(.templates[$t])')
       fi
