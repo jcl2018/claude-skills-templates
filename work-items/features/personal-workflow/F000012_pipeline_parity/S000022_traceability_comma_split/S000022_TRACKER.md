@@ -94,6 +94,8 @@ blocked_by: "S000021"
 
 - [PR #70: v1.11.0 feat: F000012 S000021 — per-type implement/qa pipeline branching](https://github.com/jcl2018/claude-skills-templates/pull/70) — MERGED
 
+- [PR #71: v1.11.1 fix: S000022 — Step 18 traceability comma-split (closes #5)](https://github.com/jcl2018/claude-skills-templates/pull/71) — MERGED
+
 ## Files
 
 <!-- Affected file paths (all MODIFIED). -->
@@ -127,3 +129,4 @@ blocked_by: "S000021"
 - 2026-05-09 [qa-e2e] E2 (AC-2): user-adjudicated green — Step 18 sub-step 3 now contains the explicit rule + two worked examples + a contract paragraph closing the ordering. A reader scanning the section can answer "what does the parser do with `AC-1, AC-2, AC-3`?" by pointing at the worked example. No hedge words ("may", "consider"); the instruction is imperative ("split the cell on comma and trim").
 - 2026-05-09 [qa-e2e-summary] green (user-adjudicated, structural-only): 2/2 E2E criteria green by inspection. Subagent dispatch skipped — same rationale as S000021: the verification is prose-structural, and the subagent has no Skill tool to actually run `/personal-workflow check` end-to-end anyway.
 - 2026-05-09 [qa-pass] S000022 (user-story): green smoke (2 automated, 3 manual deferred with structural verification done inline) + green E2E (user-adjudicated). Phase 2 gates transitioned.
+- 2026-05-08 [gates-update] Phase 3: PRs section: linked PR #71 (MERGED).
