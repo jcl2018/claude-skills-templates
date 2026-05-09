@@ -55,10 +55,10 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 - [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
@@ -83,6 +83,8 @@ blocked_by: ""
 - 2026-05-08: Created. Closes F000010 polish gaps (#5 and #6 from TODOS.md) under one feature.
 
 ## PRs
+
+- [PR #70: v1.11.0 feat: F000012 S000021 — per-type implement/qa pipeline branching](https://github.com/jcl2018/claude-skills-templates/pull/70) — MERGED
 
 ## Files
 
@@ -109,3 +111,4 @@ blocked_by: ""
 
 - 2026-05-08 [decision] Bundled #5 and #6 into one feature (per user direction in scoping). Story 2 acts as integration test for Story 1's new defect path.
 - 2026-05-08 [decision] Approach A (generalize per-type) over B (sibling skills) / C (dispatcher) / D (accept). Existing type-detection in `/scaffold-work-item` provides the model; pipeline uniformity is the long-term win.
+- 2026-05-08 [gates-update] Phase 3: /ship — PR #70,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #70,PRs section: linked PR #70 (MERGED).

@@ -63,11 +63,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -92,6 +92,8 @@ blocked_by: ""
 - 2026-05-08: Created. Generalize `/implement-from-spec` and `/qa-work-item` per work-item type per F000012 DESIGN big decision #1.
 
 ## PRs
+
+- [PR #70: v1.11.0 feat: F000012 S000021 — per-type implement/qa pipeline branching](https://github.com/jcl2018/claude-skills-templates/pull/70) — MERGED
 
 ## Files
 
@@ -136,3 +138,4 @@ blocked_by: ""
 - 2026-05-08 [qa-e2e] E1 (AC-1, AC-2, AC-3): ambiguous — cannot run the F000010 pipeline end-to-end from a leaf subagent (no /skill invocation tools). Structural verification PASS: defect dispatch is wired through `case "$TYPE" in ... defect)` in skills/implement-from-spec/implement.md:73-78 and skills/qa-work-item/qa.md:72-75; defect fixture is structurally complete at skills/implement-from-spec/fixtures/example-defect/ (D888000_TRACKER.md with type: defect frontmatter, D888000_RCA.md with Affected Components + Fix Description, D888000_test-plan.md with 3 Regression Test Cases, output/.gitkeep present); SKILL.md error tables list per-type Frontmatter/Unknown type rows (skills/implement-from-spec/SKILL.md:151-152 and skills/qa-work-item/SKILL.md:147-148) and contain no "Wrong type" rows. Natural integration test deferred to S000022 dogfood.
 - 2026-05-08 [qa-e2e] E2 (AC-4): ambiguous — cannot run the pipeline live to compare v1.10.0-vs-current journal output. Structural verification PASS: the user-story dispatch arm `user-story|userstory)` is preserved in both skills/implement-from-spec/implement.md:67 and skills/qa-work-item/qa.md:68; user-story branches still resolve `*_SPEC.md` + `*_DESIGN.md` (implement) and `*_TEST-SPEC.md` (qa); Phase 2 gate-transition rules for user-story are unchanged (skills/implement-from-spec/implement.md:460-465; skills/qa-work-item/qa.md:421-435); E2E subagent dispatch path remains user-story-only (qa.md Step 7 guard at line 281-282). No code-path regression visible. Live diff with v1.10.0 deferred to S000022.
 - 2026-05-08 [qa-e2e-summary] ambiguous: 2 ambiguous (E1, E2) — both blocked on inability to invoke /skill commands from a leaf-node subagent; structural code+fixture inspection PASS for both rows. Detailed verdicts above.
+- 2026-05-08 [gates-update] Phase 3: /ship — PR #70,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #70,PRs section: linked PR #70 (MERGED).

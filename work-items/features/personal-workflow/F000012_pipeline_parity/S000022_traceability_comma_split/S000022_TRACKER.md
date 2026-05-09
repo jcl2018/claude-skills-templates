@@ -64,11 +64,11 @@ blocked_by: "S000021"
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -92,6 +92,8 @@ blocked_by: "S000021"
 
 ## PRs
 
+- [PR #70: v1.11.0 feat: F000012 S000021 — per-type implement/qa pipeline branching](https://github.com/jcl2018/claude-skills-templates/pull/70) — MERGED
+
 ## Files
 
 <!-- Affected file paths. -->
@@ -108,3 +110,4 @@ blocked_by: "S000021"
 
 - 2026-05-08 [decision] Implementation = prose tightening + worked example in `check.md`. No script/code change. (F000012_DESIGN big decision #6.)
 - 2026-05-08 [decision] Sequenced after S000021 to dogfood the new defect path. Could ship as a defect (D000017) standalone but bundling under F000012 keeps PR scope coherent. (F000012_DESIGN big decision #2.)
+- 2026-05-08 [gates-update] Phase 3: /ship — PR #70,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #70,PRs section: linked PR #70 (MERGED).
