@@ -78,11 +78,19 @@ pre-commit, not just when someone runs `/docs check`.
 **When:** After graph artifact schema (v1.0.0) is proven stable.
 **Depends on:** `.docs/work-item-graph.json` emitted by `/docs check` Steps 15-17.
 
-### Behavioral eval harness (P1, M) — PRIORITY
+### Behavioral eval harness (P1, M) — PARTIAL — V1 first slice shipped in v1.12.0 (S000023 of F000013)
 Golden tasks, expected outputs, regression fixtures, safety checks per skill.
 Measures whether a skill actually works, not just whether metadata exists.
-**When:** Next priority.
-**Depends on:** validate.sh
+
+**Shipped in v1.12.0 (S000023):** `scripts/eval.sh` runner + `tests/eval/lib/{run-case,seed-fixture}.sh` + first passing case (`check-flags-missing-lifecycle` for personal-workflow, $0.10/15s end-to-end). Spike 0 resolved (direct `--plugin-dir` works; schema enforcement is exit-fail). Security hardening (env scrub, symlink rejection, schema $ref lint, aggregate budget cap) baked in.
+
+**Pending in F000013 follow-ups:**
+- **S000024** — V1 case coverage (5 personal-workflow cases incl. S000022 regression + 2 system-health cases; xargs concurrency exercised once ≥2 cases exist).
+- **S000025** — Nightly CI workflow (`.github/workflows/eval-nightly.yml`), first real CI run validation, this entry marked DONE-V1 then.
+
+**V2 trajectory:** scaffold/implement/qa skill cases (need structural-assertion helpers), per-PR cadence with `paths` filter, LLM-judge for prose-quality outputs, sandboxed execution (drop `Bash` from --allowedTools, `env -i`-level scrub), parser-logic unit tests for `check.md` (closes the S000022 spec-vs-execution gap).
+
+**Reference:** [F000013_eval_harness_v1/](work-items/features/ops/testing/F000013_eval_harness_v1/), source design at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-110013.md`.
 
 ### ~~Batch version mode for multi-skill commits (P3, S)~~ SIMPLIFIED
 Simplified by collection versioning. Use `collection-version.sh bump patch`.

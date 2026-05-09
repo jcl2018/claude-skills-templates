@@ -150,6 +150,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
 | `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |
+| `eval.sh` | Behavioral eval harness (F000013 V1) — spawns `claude --print` against scratch worktrees per case in `tests/eval/<skill>/<case>/`, validates structured JSON output via `--json-schema`. Per-case `--max-budget-usd 0.50`, aggregate `EVAL_TOTAL_BUDGET_USD` (default $10). | Nightly CI (planned in S000025) or local manual run |
 | `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |

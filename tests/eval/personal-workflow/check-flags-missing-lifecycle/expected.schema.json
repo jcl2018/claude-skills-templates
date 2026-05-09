@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "check-flags-missing-lifecycle expected output",
+  "description": "Asserts that the model correctly identifies a deliberately-malformed task tracker missing Phase 3 (Ship). The actual values must match the fixture: overall=FAIL, lifecycle.status=FAIL, missing_phases includes 'Ship', below_minimum=true.",
+  "type": "object",
+  "required": ["overall", "checks"],
+  "additionalProperties": true,
+  "properties": {
+    "overall": {
+      "type": "string",
+      "enum": ["FAIL"],
+      "description": "Must be FAIL because lifecycle is missing Phase 3"
+    },
+    "checks": {
+      "type": "object",
+      "required": ["frontmatter", "sections", "lifecycle"],
+      "additionalProperties": true,
+      "properties": {
+        "frontmatter": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["PASS", "FAIL"]
+            }
+          }
+        },
+        "sections": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["PASS", "FAIL"]
+            }
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "required": ["status", "missing_phases", "checkbox_count", "below_minimum"],
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["FAIL"],
+              "description": "Must be FAIL — Phase 3 is missing"
+            },
+            "missing_phases": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["Track", "Implement", "Ship"]
+              },
+              "minItems": 1,
+              "contains": {
+                "const": "Ship"
+              },
+              "description": "Must include 'Ship' (Phase 3 is the missing phase in the fixture)"
+            },
+            "checkbox_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "Must be < 11 (the template minimum). Fixture has 7 lifecycle checkboxes."
+            },
+            "below_minimum": {
+              "type": "boolean",
+              "const": true,
+              "description": "Must be true — fixture has 7 < template minimum of 11"
+            }
+          }
+        }
+      }
+    }
+  }
+}

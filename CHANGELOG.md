@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.12.0] - 2026-05-09
+
+F000013 behavioral eval harness V1 — first slice (S000023): a bash + jq runner that spawns the real `claude` CLI headless against scratch worktrees, validates structured JSON output via `--json-schema` enforcement, and runs cases under `xargs -P 4`. Spike 0 resolved live against the workbench: direct `--plugin-dir` skill loading works, inline `--json-schema` syntax works, schema mismatch exit-fails (no need for ajv-cli post-validation). First passing case `check-flags-missing-lifecycle` lands at $0.10/15s with the model output matching fixture truth exactly. Security hardening from /ship review baked in. Remaining V1 stories (S000024 case coverage + S000025 nightly CI) scaffolded as follow-up PRs.
+
+### Added
+
+- **`scripts/eval.sh`** — top-level eval runner. Discovers cases under `tests/eval/<skill>/<case>/`, accepts positional `<skill> <case>` filter args, dispatches via `xargs -P 4`, sums per-case cost from PASS/FAIL output, warns on aggregate `EVAL_TOTAL_BUDGET_USD` overrun (default $10). Whitespace-guards skill + case path names so the xargs -L 1 splitting can't silently mis-route cases under TMPDIR-with-spaces. shellcheck-clean.
+- **`tests/eval/lib/run-case.sh`** — per-case execution. Seeds fixture into a fresh tmpdir via seed-fixture.sh, spawns `claude -p` with `--plugin-dir <repo>/skills` (direct, post-Spike-0 — no fake-`$HOME` needed), parses model output via `jq -r '.result | fromjson'`, lints schemas for external `$ref` (only internal `#/...` refs allowed), unsets common CI/dev secrets (GITHUB_TOKEN, NPM_TOKEN, AWS_*, OPENAI_API_KEY, etc.) before invoking the subprocess so the model can't exfiltrate them via the `Bash` tool. Per-case `--max-budget-usd 0.50` cap. Trap on EXIT/INT/TERM cleans tmpdir on Ctrl-C.
+- **`tests/eval/lib/seed-fixture.sh`** — fixture seeder. Rejects fixtures containing symlinks (would otherwise let a malicious fixture symlink to `~/.ssh/` and have the model `cat` it). Uses `cp -RP` to preserve symlinks as symlinks (belt-and-braces). Surfaces git init/add/commit failures loudly instead of silently corrupting the eval state.
+- **`tests/eval/README.md`** — case-authoring guide, local invocation, debug tips. Includes the empirical Spike 0 findings (S0.0 `--bare` requires ANTHROPIC_API_KEY, S0.1 direct `--plugin-dir` works, S0.2 inline JSON schema syntax works, S0.3 schema mismatch exit-fails after retry storm, observed cost ~$0.10–$0.15 per case, projected V1 cost ≤$1.50/run for 6–10 cases).
+- **`tests/eval/personal-workflow/check-flags-missing-lifecycle/`** — first eval case. `prompt.md` (explicit `/personal-workflow check` invocation + JSON-only output contract), `fixture/work-items/tasks/T000099_broken/T000099_TRACKER.md` (deliberately missing Phase 3 lifecycle gates), `expected.schema.json` (asserts overall=FAIL, missing_phases includes "Ship", checkbox_count=7, below_minimum=true). Verified end-to-end PASS at $0.10/15s.
+- **`work-items/features/ops/testing/F000013_eval_harness_v1/`** — work-item scaffold for the feature + 3 user stories: S000023 (this PR — spike + skeleton + first case, all gates green), S000024 (V1 case coverage — personal-workflow + system-health cases, blocked on S000023), S000025 (nightly CI workflow + first run validation + TODOS.md update, blocked on S000024). Sub-grouping under `ops/testing/` matches the existing `ops/deprecation/` precedent.
+
+### Changed
+
+- **`VERSION`** — 1.11.1 → 1.12.0 (MINOR bump for new feature + new module + new top-level script).
+
 ## [1.11.1] - 2026-05-09
 
 S000022 (F000012 pipeline parity, second of two children) — closes TODOS.md #5: `/personal-workflow check` Step 18 traceability parser missed multi-AC cells like `AC-1, AC-2, AC-3`. The bug existed in prose ambiguity, not in code (`check.md` is LLM-interpreted spec); the fix is tightening the prose with explicit comma-split + trim + filter ordering, plus two worked examples illustrating the rule. F000012 now fully shipped.
