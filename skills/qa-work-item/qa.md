@@ -1,8 +1,10 @@
 # /qa-work-item — QA Orchestration
 
-QA a user-story per its TEST-SPEC.md: smoke first, then E2E via a QA engineer
-subagent, with findings written to the tracker and Phase 2 gates transitioned
-on green.
+QA a personal-workflow work-item per its type-appropriate test rows. For
+user-stories: smoke first, then E2E via a QA engineer subagent; transitions
+qa-owned Phase 2 gates on green. For defects/tasks: runs test-plan rows as
+smoke-equivalent; records `[qa-pass]` journal entry on green (no qa-owned
+Phase 2 gates per template; verification lands at Phase 3 `Test-plan verified`).
 
 This file is the step-by-step logic invoked from [SKILL.md](SKILL.md). Read
 SKILL.md first for path resolution, error handling, and usage; then follow
@@ -10,77 +12,109 @@ the steps below.
 
 ---
 
-## Step 1: Validate Input
+## Step 1: Validate Input + Type Dispatch
 
 Parse the user's argument:
 
-- The first positional argument is `<user-story-dir>`.
+- The first positional argument is `<work-item-dir>` (any type accepted; type-dispatch resolves test-row source).
 
 Verify the directory exists and is a work-item directory:
 
 ```bash
-[ -d "$USER_STORY_DIR" ] || { echo "Error: user-story dir not found at $USER_STORY_DIR"; exit 1; }
-TRACKER=$(find "$USER_STORY_DIR" -maxdepth 1 -name "*_TRACKER.md" -o -name "TRACKER.md" 2>/dev/null | head -1)
-[ -z "$TRACKER" ] && { echo "Error: $USER_STORY_DIR is not a work-item directory (no TRACKER.md)"; exit 1; }
+[ -d "$WORK_ITEM_DIR" ] || { echo "Error: work-item dir not found at $WORK_ITEM_DIR"; exit 1; }
+TRACKER=$(find "$WORK_ITEM_DIR" -maxdepth 1 -name "*_TRACKER.md" -o -name "TRACKER.md" 2>/dev/null | head -1)
+[ -z "$TRACKER" ] && { echo "Error: $WORK_ITEM_DIR is not a work-item directory (no TRACKER.md)"; exit 1; }
 ```
 
 Read the tracker's frontmatter `type` field. Apply Type Spelling normalization
 (per `personal-workflow/check.md` Normalization Rules: hyphens removed for
 comparison; "user-story" and "userstory" both normalize to "userstory").
+Display the hyphenated form ("user-story") in messages.
 
-**If type is `feature`:** the user passed a feature dir by mistake. List child
-user-story directories (subdirectories containing `*_TRACKER.md`), then
-AskUserQuestion:
+If `type:` is missing or empty: print
+`Error: TRACKER.md frontmatter missing or malformed `type:` field; cannot dispatch.` and stop.
 
-> {feature_id} is a feature, not a user-story. Which child should I QA?
+**Type dispatch table** — per-type test-row source:
+
+| Type | Test rows source | E2E subagent (v1) |
+|---|---|---|
+| `user-story` | `*_TEST-SPEC.md` (`## Smoke Tests` + `## E2E Tests`) | YES |
+| `defect` | `*_test-plan.md` (`## Regression Test Cases` table — all rows treated as smoke-equivalent) | NO |
+| `task` | `*_test-plan.md` (`## Regression Test Cases` table — all rows treated as smoke-equivalent) | NO |
+| `feature` | (delegates to a child work-item via AUQ) | (per chosen child's type) |
+
+**Feature dispatch:** if type is `feature`, list child user-story / defect / task
+directories (subdirectories containing `*_TRACKER.md`), then AskUserQuestion:
+
+> {feature_id} is a feature. Which child work-item should I QA?
 >
 > Options:
-> - {S_ID_1}_{slug_1}
-> - {S_ID_2}_{slug_2}
+> - {child_id_1}_{slug_1} ({child_type_1})
+> - {child_id_2}_{slug_2} ({child_type_2})
 > - ...
 > - Cancel
 
-If the user picks a child, set `USER_STORY_DIR` to that child path and
-re-resolve `TRACKER`. If cancel: print "Aborted." and stop.
+If the user picks a child, set `WORK_ITEM_DIR` to that child path, re-resolve
+`TRACKER`, re-read the tracker's `type:` field, and continue with the chosen
+child's type. If cancel: print "Aborted." and stop.
 
-**If type is anything other than `user-story`:** print
-`Error: /qa-work-item operates on user-story dirs only; got "{type}"` and
-stop.
+If type is none of `user-story` / `defect` / `task` / `feature` (after normalization):
+`Error: TRACKER.md \`type: {value}\` is not recognized; expected feature/user-story/task/defect.` and stop.
 
-Locate TEST-SPEC.md in the dir:
+Locate the per-type test-row source:
 
 ```bash
-TEST_SPEC=$(find "$USER_STORY_DIR" -maxdepth 1 -name "*_TEST-SPEC.md" -o -name "TEST-SPEC.md" 2>/dev/null | head -1)
-[ -z "$TEST_SPEC" ] && { echo "Error: TEST-SPEC.md not found in $USER_STORY_DIR"; exit 1; }
+case "$TYPE" in
+  user-story|userstory)
+    TEST_SPEC=$(find "$WORK_ITEM_DIR" -maxdepth 1 -name "*_TEST-SPEC.md" -o -name "TEST-SPEC.md" 2>/dev/null | head -1)
+    [ -z "$TEST_SPEC" ] && { echo "Error: TEST-SPEC.md not found in $WORK_ITEM_DIR (required for type user-story QA)"; exit 1; }
+    ;;
+  defect|task)
+    TEST_PLAN=$(find "$WORK_ITEM_DIR" -maxdepth 1 -name "*_test-plan.md" -o -name "test-plan.md" 2>/dev/null | head -1)
+    [ -z "$TEST_PLAN" ] && { echo "Error: test-plan.md not found in $WORK_ITEM_DIR (required for type $TYPE QA)"; exit 1; }
+    ;;
+esac
 ```
+
+For backwards compatibility with the v1.10.0 user-story-only path, this skill
+historically used the variable name `USER_STORY_DIR`. Treat it as an alias for
+`WORK_ITEM_DIR` in any code path that still references it.
 
 Capture the work-item ID from the tracker filename (e.g., `S000019` from
 `S000019_TRACKER.md`) → `WORK_ITEM_ID`.
 
 ## Step 2: Boundary Check at Start (Premise 1.3)
 
-Run `/personal-workflow check` on the user-story directory. The skill's job
+Run `/personal-workflow check` on the work-item directory. The skill's job
 is to QA completed implementation work; running on a half-implemented
-user-story is a category error.
+work-item is a category error.
 
-**Definition of "Phase 2 implementation gates"** — the gates that
-`/implement-from-spec` (or manual implementation) is responsible for. Per
-`tracker-user-story.md`, Phase 2 has four gates:
+**Phase 2 implementer-owned gates are per-type** (must be CHECKED at start):
 
-| Gate label | Owner | Boundary-check role |
-|---|---|---|
-| `Acceptance criteria verified met` | /qa-work-item (this skill, Step 9) | Must be UNCHECKED at start; checked at end on green |
-| `Smoke tests pass` | /qa-work-item (this skill, Step 9) | Must be UNCHECKED at start; checked at end on green |
-| `Todos section reflects remaining work` | /implement-from-spec | Must be CHECKED at start |
-| `Files section updated with changed files` | /implement-from-spec | Must be CHECKED at start |
+### user-story (`tracker-user-story.md`)
+- `Todos section reflects remaining work (no stale items)` — implementer-owned
+- `Files section updated with changed files` — implementer-owned
+- `Acceptance criteria verified met` — qa-owned (must be UNCHECKED at start)
+- `Smoke tests pass` — qa-owned (must be UNCHECKED at start)
+
+### defect (`tracker-defect.md`)
+- `Fix committed` — user/`/ship`-owned commit gate (must be CHECKED at start; if not, the fix isn't committed yet)
+- `RCA doc updated` — implementer-owned (must be CHECKED at start)
+- `Todos section reflects remaining work` — implementer-owned (must be CHECKED at start)
+- (no qa-owned Phase 2 gates per template)
+
+### task (`tracker-task.md`)
+- `Core changes committed (>=1 commit SHA in Log)` — user/`/ship`-owned commit gate (must be CHECKED at start)
+- `Todos section reflects remaining work` — implementer-owned (must be CHECKED at start)
+- `Files section updated with changed files` — implementer-owned (must be CHECKED at start)
+- (no qa-owned Phase 2 gates per template)
 
 Read the TRACKER's `## Lifecycle` → `### Phase 2: Implement` → `**Gates:**`
-block. Match each `- [x]` / `- [ ]` line by gate label substring. If either
-of the implementer-owned gates (`Todos section reflects remaining work` OR
-`Files section updated with changed files`) is unchecked:
+block. Match each `- [x]` / `- [ ]` line by gate label substring. If any
+**implementer-owned** gate for this type is unchecked:
 
 ```
-Error: Phase 2 incomplete; run /implement-from-spec first.
+Error: Phase 2 incomplete; run /implement-from-spec first (or commit + update tracker manually for commit gates).
 Unchecked implementer gates:
   - {gate_label_1}
   - {gate_label_2}
@@ -88,12 +122,18 @@ Unchecked implementer gates:
 
 Stop. Do not proceed to smoke.
 
-Also run `/personal-workflow check "$USER_STORY_DIR"` (Tier 1 Directory Mode)
+Note: for defect/task, the commit gates (`Fix committed`, `Core changes committed`)
+are user-owned and may be unchecked even after `/implement-from-spec` runs (since
+this skill writes files but doesn't commit). If the commit gate is unchecked,
+QA refuses — the user must commit (or wait for `/ship`'s commit step) before
+running QA.
+
+Also run `/personal-workflow check "$WORK_ITEM_DIR"` (Tier 1 Directory Mode)
 and capture the result. If the output contains `[MISSING]` or `[DRIFT]`
 findings:
 
 ```
-Error: user-story dir has structural issues; refusing to QA.
+Error: work-item dir has structural issues; refusing to QA.
 {summary of violations}
 ```
 
@@ -120,7 +160,9 @@ If only one of the two gates is checked: treat as **partial state from a
 prior interrupted run** — re-run QA. The smoke or subagent output will
 re-establish ground truth.
 
-## Step 4: Read TEST-SPEC
+## Step 4: Read Test Rows (per type)
+
+### Step 4.user-story (existing path)
 
 Read `$TEST_SPEC`. Parse the two relevant sections:
 
@@ -134,17 +176,45 @@ Filter out template-placeholder rows. A row is a placeholder if its `#`
 column is literally `S{n}` or `E{n}` (curly-brace style), or if the
 `Script/Command` column matches the regex `^(TBD|—|N/A)$`.
 
-Edge cases:
+### Step 4.defect / Step 4.task
 
-- **Both tables empty (only placeholder rows):** log `INFO: TEST-SPEC has no
+Read `$TEST_PLAN`. Parse the relevant section:
+
+- `## Regression Test Cases` table — extract rows. Columns: `#`, `Test Case`,
+  `Steps`, `Expected Result`, `Status`. Store as `SMOKE_ROWS` (treated as
+  smoke-equivalent in v1; no separate E2E).
+
+Set `E2E_ROWS = []` (empty) — defects and tasks do not dispatch the E2E
+subagent in v1.
+
+Filter out template-placeholder rows. A row is a placeholder if its `#`
+column is literally `1` AND its `Steps` column is `{steps}` (template
+placeholder).
+
+For test-plan rows, the `Steps` column may be free-form prose rather than a
+runnable command. Two sub-cases:
+- **Steps starts with `manual:`** (or `Manual:` etc.) — record as
+  `manual_pending` (same shape as user-story `manual:` rows).
+- **Steps is free-form prose** without a runnable command — record as
+  `manual_pending`. Test-plan rows describing user actions belong in manual
+  verification; the QA skill cannot execute prose.
+- **Steps is a single shell command** (or chained with `&&` / `||`) — execute
+  as a runnable; record as automated.
+
+Default to `manual_pending` if uncertain — manual verification is safer than
+attempting to execute ambiguous prose.
+
+### Edge cases (all types)
+
+- **Test rows empty (only placeholder rows):** log `INFO: {test_rows_source} has no
   populated test rows; treating as vacuous PASS.` Skip to Step 9 (gate
-  transition). This matches the SPEC Open Question resolution: "skip smoke
-  phase, log INFO entry, proceed to E2E" — when both are empty we proceed
-  directly to the green path, since there's nothing to verify.
-- **Smoke empty, E2E populated:** log `INFO: no smoke rows; proceeding to
+  transition / [qa-pass]).
+- **Smoke empty, E2E populated** (user-story only): log `INFO: no smoke rows; proceeding to
   E2E directly.` Skip to Step 7.
 - **Smoke populated, E2E empty:** run smoke (Steps 5-6); skip Step 7;
   proceed to gate transition only if smoke green.
+- **For defect/task: E2E always empty** (skipped per type dispatch); proceed
+  to gate transition / [qa-pass] after Step 6 if smoke green.
 
 ## Step 5: Run Smoke
 
@@ -207,7 +277,10 @@ implementation, then re-invoke `/qa-work-item`. On `Skip smoke`: continue
 to Step 7 with `SMOKE_VERDICT = red` recorded in the tracker; the parent
 skill caller bears responsibility. On `Abort`: print "Aborted." and exit.
 
-## Step 7: Spawn QA Engineer Subagent (E2E)
+## Step 7: Spawn QA Engineer Subagent (E2E — user-story only)
+
+For type = defect or type = task: skip to Step 9 (the type dispatch in Step 4
+already set `E2E_ROWS = []`; this guard re-confirms for clarity).
 
 If `E2E_ROWS` is empty: skip to Step 9.
 
@@ -340,10 +413,12 @@ AskUserQuestion:
 
 No default — the user must adjudicate. Process the choice accordingly.
 
-## Step 9: Transition Phase 2 Gates (if green)
+## Step 9: Transition Phase 2 Gates / Record [qa-pass] (per type, if green)
 
 Only if `SMOKE_VERDICT = green` AND `E2E_VERDICT = green` (or `E2E_ROWS`
 empty AND smoke green):
+
+### Step 9.user-story
 
 Edit the TRACKER's `## Lifecycle` → `### Phase 2: Implement` → `**Gates:**`
 block. Find the lines:
@@ -358,33 +433,56 @@ two gates (`Todos section reflects remaining work`,
 `Files section updated with changed files`) — those are owned by
 `/implement-from-spec` and were already green per Step 2's boundary check.
 
-Append a journal entry:
+### Step 9.defect / Step 9.task
 
+Defect and task templates have no qa-owned Phase 2 gates. Do NOT modify
+the Phase 2 Gates block.
+
+The Phase 3 `Test-plan verified` gate (defect) / `Test-plan verified (all
+scenarios passing)` gate (task) is the verification-state recipient, but
+this skill does not transition Phase 3 gates in v1 — those are marked at
+`/ship` time or by `/personal-workflow check --update`'s post-merge
+inference. The `[qa-pass]` journal entry below provides the audit trail
+that links the green-QA event to the eventual Phase 3 transition.
+
+### Append journal entry (all types)
+
+Append a journal entry. The entry text records the test-row source and the
+type-dispatch path:
+
+For user-story:
 ```
-- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID}: green smoke + green E2E. Phase 2 gates transitioned.
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): green smoke + green E2E. Phase 2 gates transitioned.
 ```
 
-If E2E was empty (vacuous green path), use:
-
+If E2E was empty (vacuous green path):
 ```
-- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID}: green smoke + no E2E rows. Phase 2 gates transitioned.
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): green smoke + no E2E rows. Phase 2 gates transitioned.
 ```
 
-If smoke was empty (E2E only, green), use:
-
+If smoke was empty (E2E only, green):
 ```
-- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID}: no smoke rows + green E2E. Phase 2 gates transitioned.
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): no smoke rows + green E2E. Phase 2 gates transitioned.
 ```
 
 If both empty (vacuous PASS from Step 4):
-
 ```
-- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID}: vacuous PASS (no smoke or E2E rows in TEST-SPEC). Phase 2 gates transitioned.
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): vacuous PASS (no smoke or E2E rows in TEST-SPEC). Phase 2 gates transitioned.
+```
+
+For defect:
+```
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (defect): green smoke from test-plan rows ({N} rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+```
+
+For task:
+```
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (task): green smoke from test-plan rows ({N} rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
 ```
 
 ## Step 10: Boundary Check at End (Premise 1.3)
 
-Run `/personal-workflow check "$USER_STORY_DIR"` (Tier 1 Directory Mode).
+Run `/personal-workflow check "$WORK_ITEM_DIR"` (Tier 1 Directory Mode).
 
 **If the result contains no `[MISSING]` or `[DRIFT]` findings:** continue to
 Step 11.
@@ -420,8 +518,8 @@ Phase 2:  {gates transitioned | unchanged}
 
 Tracker:  {TRACKER}
 Next:
-  /personal-workflow check {USER_STORY_DIR}    # verify
-  /ship                                         # if all Phase 2 green
+  /personal-workflow check {WORK_ITEM_DIR}    # verify
+  /ship                                        # if all Phase 2 green (user-story) or commit gate satisfied (defect/task)
 ```
 
 Last line in the chat is the tracker path, formatted for copy-paste.
@@ -455,9 +553,9 @@ complete green.
 
 `/personal-workflow check` runs at:
 
-- **Step 2 (start):** on `USER_STORY_DIR` — gates input drift, refuses on
+- **Step 2 (start):** on `WORK_ITEM_DIR` — gates input drift, refuses on
   Phase 2 implementer-gate gaps or structural drift.
-- **Step 10 (end):** on `USER_STORY_DIR` after writes — catches
+- **Step 10 (end):** on `WORK_ITEM_DIR` after writes — catches
   self-inflicted compliance breaks.
 
 Both invocations use Tier 1 Directory Mode. The boundary check uses

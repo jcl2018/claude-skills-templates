@@ -1,6 +1,6 @@
 ---
 name: qa-work-item
-description: "QA a personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2."
+description: "QA a personal-workflow work-item (user-story, defect, or task) per its test rows. For user-stories: runs Smoke Tests then dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per TEST-SPEC. For defects/tasks: runs test-plan rows as smoke-equivalent (no E2E subagent in v1). Writes findings to tracker journal; transitions Phase 2 qa-owned gates for user-stories; records [qa-pass] for defects/tasks. Idempotent (re-run on green work-item is NO-OP). Boundary check refuses on incomplete Phase 2."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -76,15 +76,27 @@ If `NOT_FOUND`: tell the user "Error: qa-work-item or personal-workflow skill as
 
 ## Overview
 
-This skill takes a single argument — the path to a user-story work-item
-directory — and runs QA per the user-story's TEST-SPEC.md:
+This skill takes a single argument — the path to a work-item directory of any
+type (user-story, defect, task, feature) — and runs QA per the type-appropriate
+test rows:
 
-- **Smoke phase:** executes each row's Script/Command in `## Smoke Tests`, captures exit codes + stdout/stderr.
-- **E2E phase (only on green smoke):** dispatches a QA engineer subagent via the Agent tool. Subagent reads TEST-SPEC, verifies each E2E row's Expected Outcome, writes detailed findings to the TRACKER journal, and returns a 1-2 sentence summary.
-- **Phase 2 gate transition:** on green smoke + green E2E, marks the user-story tracker's `Smoke tests pass` and `Acceptance criteria verified met` Phase 2 gates.
-- **Boundary check at start (Premise 1.3):** runs `/personal-workflow check` on the user-story dir; refuses if Phase 2 implementation gates (`Todos section reflects remaining work`, `Files section updated with changed files`) aren't met. The skill's job is to validate completed implementation work, not to QA a half-built user-story.
+- **Per-type test-row source** (resolved from `_TRACKER.md` frontmatter `type:` field):
+
+  | Type | Test rows source | E2E subagent dispatch (v1) |
+  |---|---|---|
+  | user-story | `TEST-SPEC.md` (`## Smoke Tests` + `## E2E Tests`) | YES (existing path) |
+  | defect | `test-plan.md` (`## Regression Test Cases` table) — all rows treated as smoke-equivalent | NO (defer to v2) |
+  | task | `test-plan.md` (`## Regression Test Cases` table) — all rows treated as smoke-equivalent | NO (defer to v2) |
+  | feature | (delegates to a child work-item via AUQ) | (per chosen child's type) |
+
+- **Smoke phase:** executes each row's Script/Command (or test-plan row's Steps), captures exit codes + stdout/stderr. For test-plan rows, run the steps as a sequence; for TEST-SPEC Smoke rows, the Script/Command column is the runnable.
+- **E2E phase (user-story only, on green smoke):** dispatches a QA engineer subagent via the Agent tool. Subagent reads TEST-SPEC, verifies each E2E row's Expected Outcome, writes detailed findings to the TRACKER journal, returns a 1-2 sentence summary. For defect/task: skipped in v1 (test-plan rows are the verification layer).
+- **Phase 2 gate transition (per type):**
+  - user-story (on green smoke + green E2E): marks `Smoke tests pass` + `Acceptance criteria verified met`.
+  - defect / task: no qa-owned Phase 2 gates per template. Records `[qa-pass]` journal entry on green; the Phase 3 `Test-plan verified` gate is marked at `/ship` time or by `/personal-workflow check --update` post-merge.
+- **Boundary check at start (Premise 1.3):** runs `/personal-workflow check` on the work-item dir; refuses if the type's Phase 2 implementer-owned gates aren't met. The skill validates completed implementation, not a half-built work-item.
 - **Boundary check at end (Premise 1.3):** runs `/personal-workflow check` after writes; surfaces violations via AskUserQuestion.
-- **Idempotency (Premise 1.1):** re-running on a user-story whose Phase 2 gates are already marked by a prior `/qa-work-item` green run is a NO-OP.
+- **Idempotency (Premise 1.1):** re-running on a work-item whose qa state already converged (gates marked / `[qa-pass]` journal entry exists for current commit) is a NO-OP.
 
 The subagent's response is bounded: 1-2 sentences + file pointers (≤ 200 tokens). Detailed findings are written to the tracker by the subagent itself, not returned through the Agent tool result. This keeps the parent skill's context small (Premise 1).
 
@@ -93,17 +105,28 @@ For the full step-by-step logic, see [qa.md](qa.md).
 ## Usage
 
 ```
-/qa-work-item <user-story-dir>
+/qa-work-item <work-item-dir>
 ```
 
-The skill operates on user-story directories only. If a feature directory is
-provided, the skill lists its child user-stories and AskUserQuestion which one
-to QA.
+The skill accepts any work-item type. The `type:` field in the work-item's
+`_TRACKER.md` frontmatter dispatches to the per-type test-row source. If a
+feature directory is provided, the skill lists its child work-items and
+AskUserQuestion which one to QA.
 
-Example:
+Examples (per type):
 
 ```
+# user-story (today's path; unchanged — TEST-SPEC, smoke + E2E subagent)
 /qa-work-item work-items/features/personal-workflow/F000010_pipeline_skills/S000019_qa_work_item
+
+# defect (new path; runs test-plan rows as smoke-equivalent)
+/qa-work-item work-items/defects/personal-workflow/D000016_test_deploy_stale_templates
+
+# task (new path; same shape as defect)
+/qa-work-item work-items/tasks/personal-workflow/T000005_some_task
+
+# feature (delegates to a child work-item via AUQ)
+/qa-work-item work-items/features/personal-workflow/F000012_pipeline_parity
 ```
 
 ## Routing
@@ -119,10 +142,11 @@ processing, gate transitions, boundary check at end.
 |---|---|---|
 | Not a git repo | "Error: /qa-work-item requires a git repository." | Run inside a repo |
 | Skill assets not found | "Error: qa-work-item or personal-workflow skill assets not found." | Run `skills-deploy install` or check repo structure |
-| User-story dir not found | "Error: user-story dir not found at {path}" | Verify path |
-| Not a work-item dir (no TRACKER) | "Error: {path} is not a work-item directory (no TRACKER.md)" | Provide a path to a scaffolded user-story |
-| Wrong type (not user-story) | "Error: /qa-work-item operates on user-story dirs only; got {type}" | Pass a user-story dir, or pass a feature dir to get a child-selection AUQ |
-| TEST-SPEC missing | "Error: TEST-SPEC.md not found in {dir}" | Run `/scaffold-work-item` first |
+| Work-item dir not found | "Error: work-item dir not found at {path}" | Verify path |
+| Not a work-item dir (no TRACKER) | "Error: {path} is not a work-item directory (no TRACKER.md)" | Provide a path to a scaffolded work-item |
+| Frontmatter type missing or malformed | "Error: TRACKER.md frontmatter missing or malformed `type:` field; cannot dispatch." | Edit TRACKER.md to set `type: {feature\|user-story\|task\|defect}`; re-run |
+| Unknown type | "Error: TRACKER.md `type: {value}` is not recognized; expected feature/user-story/task/defect" | Fix the type field or extend the per-type dispatch table in qa.md |
+| Required test-row source missing | "Error: {artifact}.md not found in {dir} (required for type {type} QA)" | Run `/scaffold-work-item` first; or fill the missing artifact manually |
 | Boundary check at start fails | "Error: Phase 2 incomplete; run /implement-from-spec first." | Complete Phase 2 implementation gates, then re-run |
 | Smoke red | "Smoke red: {N} failures. Fix smoke before E2E." | Fix the failing smoke tests, re-run |
 | Subagent timeout (5-min cap) | "Subagent timed out after 5 minutes." | AskUserQuestion: re-run / skip E2E / abort |
