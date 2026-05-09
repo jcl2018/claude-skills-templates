@@ -348,15 +348,44 @@ For features and user-stories that have BOTH a SPEC.md and TEST-SPEC.md (matched
    - Find `### P1 (Important)` and `### P2 (Nice-to-Have)` sections (inside `## Requirements`)
    - Extract story numbers from the `#` column
 3. **Parse TEST-SPEC.md for AC values** (single `ac_set`, used by both P0 and P1/P2 loops):
-   - Find the `## Smoke Tests` table; extract all values from the `AC` column → `smoke_acs`
-   - Find the `## E2E Tests` table; extract all values from the `AC` column → `e2e_acs`
+   - Find the `## Smoke Tests` table.
+   - For each row's `AC` column cell, **split the cell on comma and trim whitespace from each token.** Each resulting token contributes one value to `smoke_acs`. Multi-AC cells like `AC-1, AC-2, AC-3` produce three separate values, not one.
+   - Find the `## E2E Tests` table; apply the same comma-split + trim logic to its `AC` column → `e2e_acs`.
    - `raw_acs = smoke_acs ∪ e2e_acs`
    - **Filter out template placeholders.** Drop any value matching the regex
-     `^AC-\{[a-zA-Z_]+\}$` (e.g., literal `AC-{n}`, `AC-{name}`). This prevents
+     `^AC-\{[a-zA-Z_]+\}$` (e.g., literal `AC-{n}`, `AC-{name}`). The placeholder
+     filter runs **after** the comma-split, so a mixed cell like `AC-{n}, AC-1`
+     correctly yields `{AC-1}` (placeholder dropped, real AC kept). This prevents
      a freshly-scaffolded TEST-SPEC.md (with placeholder rows still in place)
      from silently passing — without this filter, every P0 would falsely match
      the placeholder string.
    - `ac_set = raw_acs - placeholders`
+
+   **Worked example — multi-AC cell:**
+
+   ```
+   Input row in ## Smoke Tests:
+     | S2 | core | AC-1, AC-2, AC-3 | description | ... | command |
+
+   Step a: split AC cell on comma     → ["AC-1", " AC-2", " AC-3"]
+   Step b: trim whitespace             → ["AC-1", "AC-2", "AC-3"]
+   Step c: apply placeholder filter    → ["AC-1", "AC-2", "AC-3"]  (none match ^AC-\{...\}$)
+   Step d: add to smoke_acs            → smoke_acs ∪= {AC-1, AC-2, AC-3}
+   ```
+
+   **Worked example — mixed cell with placeholder:**
+
+   ```
+   AC cell value: "AC-{n}, AC-1"
+   Step a: split  → ["AC-{n}", " AC-1"]
+   Step b: trim   → ["AC-{n}", "AC-1"]
+   Step c: filter → ["AC-1"]                (placeholder AC-{n} dropped — matches ^AC-\{[a-zA-Z_]+\}$)
+   Step d: add    → smoke_acs ∪= {AC-1}
+   ```
+
+   The split-before-filter ordering is the contract: a cell can mix real ACs with
+   leftover placeholders during partial scaffolding, and the parser must extract
+   the real ACs without being poisoned by the placeholder.
 4. **For each P0 story number:**
    - If `AC-{n}` (the literal string, with `{n}` replaced by the story number) is not in `ac_set`: flag `[UNTESTED] P0 story #{n} has no TEST-SPEC coverage`
 5. **For each P1/P2 story number:**
