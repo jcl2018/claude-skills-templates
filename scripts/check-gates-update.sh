@@ -30,7 +30,7 @@ if [ ! -d "$WORK_ITEM_DIR" ]; then
   exit 2
 fi
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+git rev-parse --show-toplevel >/dev/null 2>&1 || {
   echo "ERROR: not in a git repository" >&2
   exit 2
 }
