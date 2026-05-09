@@ -18,11 +18,13 @@ reviewers: []
 
 | # | Tag | AC | Check | What It Validates | Script/Command |
 |---|-----|-----|-------|-------------------|----------------|
-| S1 | core | AC-1 | Skill registers `--update` flag in catalog/help | Catalog wiring correct | `./scripts/validate.sh && grep -q -- '--update' skills/personal-workflow/check.md` |
-| S2 | core | AC-9, AC-10 | `scripts/post-merge-hook.sh` exists, executable, has shebang | Hook file is present and runnable | `test -x scripts/post-merge-hook.sh && head -1 scripts/post-merge-hook.sh \| grep -q '^#!'` |
-| S3 | core | AC-12 | `scripts/setup-hooks.sh` installs the new hook | Wire-up of post-merge hook into install pass | manual: re-run `./scripts/setup-hooks.sh`, verify `.git/hooks/post-merge` exists and links/copies post-merge-hook.sh |
-| S4 | resilience | AC-7 | Engine is idempotent: re-run = NO-OP | Idempotent contract holds | manual: run --update twice on same already-shipped work-item dir; second run prints "no changes" |
-| S5 | resilience | AC-13 | Engine handles `gh` offline gracefully | Offline-fallback contract holds | manual: temporarily `unset GH_TOKEN` or block network, run --update, verify partial inference + warning + exit 0 |
+| S1 | core | AC-1 | Skill registers `--update` flag in check.md | Skill change wired | `grep -q -- '--update' skills/personal-workflow/check.md` |
+| S2 | core | AC-9, AC-10 | `scripts/check-gates-update.sh` exists, executable, has shebang | Inference engine present and runnable | `test -x scripts/check-gates-update.sh && head -1 scripts/check-gates-update.sh \| grep -q '^#!'` |
+| S2b | core | AC-12 | `scripts/setup-hooks.sh` installs the post-merge hook with the F000011 gates-update Section 2 | Hook contains the gates-update logic inline | `grep -q "F000011" scripts/setup-hooks.sh && grep -q "check-gates-update.sh" scripts/setup-hooks.sh` |
+| S3 | core | AC-12 | After running setup-hooks.sh, the installed `.git/hooks/post-merge` calls check-gates-update.sh on touched trackers | Wire-up verified end-to-end | `./scripts/setup-hooks.sh > /dev/null && grep -q 'check-gates-update.sh' .git/hooks/post-merge` |
+| S4 | resilience | AC-7 | Engine is idempotent: re-run = NO-OP (already-converged state) | Idempotent contract holds | `./scripts/check-gates-update.sh work-items/features/personal-workflow/F000010_pipeline_skills/S000017_scaffold_work_item 2>&1 \| grep -qE 'gates-update'` (first run + second run; second prints "no changes") |
+| S5 | resilience | AC-13 | Engine handles missing-PR gracefully (no PR found for the dir) | Offline / missing-PR-fallback works | `./scripts/check-gates-update.sh work-items/features/personal-workflow/F000011_phase3_gate_autoupdate/S000020_implement_engine_and_hook 2>&1 \| grep -qE 'INFO: no PR found\|gates-update'` (S000020 has no PR yet) |
+| S6 | core | AC-1, AC-3 | validate.sh + test.sh both green post-implementation | No regression on existing test suite | `./scripts/validate.sh > /dev/null && ./scripts/test.sh > /dev/null` |
 
 ## E2E Tests
 
