@@ -18,11 +18,11 @@ reviewers: []
 
 | # | Tag | AC | Check | What It Validates | Script/Command |
 |---|-----|-----|-------|-------------------|----------------|
-| S1 | core | AC-1, AC-2 | Step 18 prose contains explicit comma-split instruction + worked example | Prose tightening landed | grep: `grep -A 2 "split on comma" skills/personal-workflow/check.md` returns the new instruction |
+| S1 | core | AC-1, AC-2 | Step 18 prose contains explicit comma-split instruction | Prose tightening landed | `grep -q "split the cell on comma" skills/personal-workflow/check.md` |
 | S2 | core | AC-4 | Running `/personal-workflow check` on F000010 produces zero false `[UNTESTED]` findings on multi-AC P0 stories | The bug is gone end-to-end | manual: `/personal-workflow check work-items/features/personal-workflow/F000010_pipeline_skills/`; inspect output for S000018 P0 #2/#3/#5/#6 and S000019 P0 #2/#4 |
 | S3 | resilience | AC-3 | Mixed cell `AC-{n}, AC-1` correctly drops placeholder, keeps real AC | Comma-split runs before placeholder filter | manual: scaffold a fixture TEST-SPEC with `AC-{n}, AC-1` cell; run check; observe AC-1 in ac_set, no spurious UNTESTED |
 | S4 | resilience | AC-5 | Existing edge cases (`-` / blank cells, placeholder rows) still produce expected output | No regression on edge-case behavior | manual: run check on a TEST-SPEC with blank AC cell + placeholder row; confirm same output as v1.10.0 |
-| S5 | usability | AC-6 | Step 18's existing 3-edge-case list at `check.md:366-369` is preserved | Prose readability not bloated | grep: `grep -E "Smoke section present|empty|blank" skills/personal-workflow/check.md` returns the existing 3 lines |
+| S5 | usability | AC-6 | Step 18's existing edge-case list (smoke-only / both-empty / blank cells) is preserved | Prose readability not bloated | `grep -qE "Smoke section present|both sections present but empty|cell is .-." skills/personal-workflow/check.md` |
 
 ## E2E Tests
 

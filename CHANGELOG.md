@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.11.1] - 2026-05-09
+
+S000022 (F000012 pipeline parity, second of two children) — closes TODOS.md #5: `/personal-workflow check` Step 18 traceability parser missed multi-AC cells like `AC-1, AC-2, AC-3`. The bug existed in prose ambiguity, not in code (`check.md` is LLM-interpreted spec); the fix is tightening the prose with explicit comma-split + trim + filter ordering, plus two worked examples illustrating the rule. F000012 now fully shipped.
+
+### Fixed
+
+- **`skills/personal-workflow/check.md` Step 18 sub-step 3** — replaced the ambiguous "extract all values from the AC column" instruction with explicit "split the cell on comma and trim whitespace from each token; each resulting token contributes one value." Multi-AC cells in real TEST-SPECs (S000018:24 `AC-1, AC-2, AC-3`, S000018:26 `AC-5, AC-6`, S000019:32 `AC-2, AC-4`) now correctly contribute each AC individually to `ac_set` instead of being treated as one literal string. Eliminates spurious `[UNTESTED] P0 story #N` findings on multi-AC P0 stories.
+
+### Added
+
+- **Worked examples in Step 18** — two inline blocks showing the parser's data flow. The first walks through a multi-AC cell (`AC-1, AC-2, AC-3`) → split → trim → filter → set add. The second shows the rare-but-real mixed case (`AC-{n}, AC-1`) where comma-split + placeholder filter together drop the placeholder while keeping the real AC. The second example pins the split-before-filter ordering visually so future readers / LLMs don't accidentally invert it.
+- **Contract paragraph at the end of Step 18 sub-step 3** — names the durable load-bearing rule: "a cell can mix real ACs with leftover placeholders during partial scaffolding, and the parser must extract the real ACs without being poisoned by the placeholder." Future modifications to Step 18 should preserve this contract.
+
+### Changed
+
+- **TODOS.md** — closed #5 (Step 18 comma-split fix, P3/S). #6 (F000010 pipeline gap) was marked PARTIAL in v1.11.0 and remains PARTIAL — the per-type generalization shipped, the live defect-path E2E walkthrough is still deferred to first real defect post-merge.
+
 ## [1.11.0] - 2026-05-08
 
 F000012 pipeline parity — generalize `/implement-from-spec` and `/qa-work-item` to accept all 4 work-item types (user-story, defect, task, feature) instead of hard-failing on non-user-story input. Closes the partial pipeline gap surfaced during F000011's dogfood (TODOS.md #6 partial: option 1 implemented). Existing user-story flows preserved identically — verified via structural inspection and S000021's QA pass. **What's NOT in this PR:** S000022 (TODOS.md #5 Step 18 traceability comma-split parser fix) is scaffolded but not yet implemented; will ship as a separate PR. **Defect-path live integration test** (manual smoke S1 in S000021's TEST-SPEC) deferred to first real defect work-item flowing through the pipeline post-merge.
