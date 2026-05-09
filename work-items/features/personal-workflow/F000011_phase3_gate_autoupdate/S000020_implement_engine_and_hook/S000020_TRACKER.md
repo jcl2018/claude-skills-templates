@@ -44,8 +44,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met (12 of 13 ACs verified directly via SKILL.md/script content + smoke tests; AC-9 partially deferred — post-merge-hook.sh refactored to inline-in-setup-hooks.sh per [impl-finding]; E1 (ship + pull + auto-mark) deferred to post-ship verification per QA engineer subagent)
+- [x] Smoke tests pass (7/7 smoke green: S1, S2, S2b, S3, S4, S5, S6 — see Journal [qa-smoke] entries)
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -130,3 +130,19 @@ blocked_by: ""
 - 2026-05-08 [impl-pass] S000020: implementation complete. Phase 2 implementer-owned gates transitioned (Todos section reflects remaining work, Files section updated with changed files). QA-owned gates remain UNCHECKED — that's `/qa-work-item`'s job, next in the pipeline.
 - 2026-05-08 [impl-finding] Post-implementation TEST-SPEC update needed: original S2 smoke test checked for `scripts/post-merge-hook.sh` (per original SPEC), but the [impl-finding] refactor moved hook logic into the existing inline post-merge HOOK heredoc in setup-hooks.sh + extracted inference into `scripts/check-gates-update.sh`. Updated S2 to check `scripts/check-gates-update.sh` instead, added S2b to verify setup-hooks.sh contains the F000011 Section 2 gates-update logic, refined S4/S5 to use real commands against real fixtures, added S6 for full-suite regression check. TEST-SPEC now matches implemented reality.
 - 2026-05-08 [self-test] Engine self-test on S000017 (shipped today as PR #65): correctly marked `/ship — PR created`, `/land-and-deploy — merged and deployed`, `Smoke tests pass in CI` based on real `gh pr view` + `gh pr checks` data. Correctly LEFT UNCHECKED `E2E walked manually` (no signal), `/personal-workflow check — validation passed` (deferred), `/document-release` (no docs: commit found between merge and origin/main), `All children shipped (if any)` (no children). PR #65 link appended to ## PRs section. `[gates-update]` journal entry written. Then S000017_TRACKER restored to pre-test state — the self-test was verification, not a real ship update; the hook will mark S000017's gates organically when the user explicitly runs the engine (or via a future ship that touches its tracker).
+- 2026-05-08 [qa-smoke] S1 (AC-1): green — `--update` flag present in skills/personal-workflow/check.md
+- 2026-05-08 [qa-smoke] S2 (AC-9, AC-10): green — `scripts/check-gates-update.sh` exists, executable, has shebang
+- 2026-05-08 [qa-smoke] S2b (AC-12): green — `scripts/setup-hooks.sh` contains both `F000011` reference and `check-gates-update.sh` invocation
+- 2026-05-08 [qa-smoke] S3 (AC-12): green — installed `.git/hooks/post-merge` calls `check-gates-update.sh` after `setup-hooks.sh` re-runs (verified end-to-end)
+- 2026-05-08 [qa-smoke] S4 (AC-7): green — engine ran on S000017 (real merged PR fixture); produced `[gates-update]` output line. NOTE: S4 mutated S000017's tracker as a side-effect; restored to pre-test state immediately after. Idempotency-NO-OP verification deferred to v2 (would need a fixture with already-converged Phase 3 state).
+- 2026-05-08 [qa-smoke] S5 (AC-13): green — engine ran on S000020 (no PR yet — pre-ship state); produced `INFO: no PR found` message and gracefully skipped PR-state-dependent gates (no crash, exit 0)
+- 2026-05-08 [qa-smoke] S6 (AC-1, AC-3): green — full validate.sh + test.sh suite pass post-implementation; no regression
+- 2026-05-08 [qa-smoke-summary] green: 7/7 smoke rows green
+- 2026-05-08 [qa-e2e] E1 (AC-1, AC-3): ambiguous — requires-post-ship verification; F000011 PR not merged yet so no incoming pull can trigger the hook end-to-end
+- 2026-05-08 [qa-e2e] E2 (AC-4): green — `scripts/check-gates-update.sh:192` documents `# E2E walked manually: NEVER auto-mark.` and no `mark_gate "E2E"` call exists anywhere in the engine
+- 2026-05-08 [qa-e2e] E3 (AC-7): green — `mark_gate()` at scripts/check-gates-update.sh:95-124 is additive-only; awk only does `sub(/\[ \]/, "[x]")` (line 117) and lines 102-104 short-circuit with return 1 if already `[xX]`
+- 2026-05-08 [qa-e2e] E4 (AC-9, AC-10): green — `scripts/setup-hooks.sh:51-52` extracts BRANCH and gates Section 2 with `if [ "$BRANCH" = "main" ]; then`; on feature branches the gates-update block is silently skipped
+- 2026-05-08 [qa-e2e] E5 (AC-11): green — `scripts/setup-hooks.sh:60` pipes engine through `|| echo "[WARN] ..."` and the hook ends with explicit `exit 0` at line 68 (comment line 67: "Best-effort: always exit 0 to avoid blocking git operations")
+- 2026-05-08 [qa-e2e-summary] 4 verified green via static checks (E2/E3/E4/E5); E1 ambiguous (requires post-ship)
+- 2026-05-08 [qa-decision] E1 ambiguous treated as DEFERRED (not red): post-ship verification is the success criterion from the design ("ship a small change, git pull main, observe Phase 3 gates auto-update") — it can't be exercised pre-ship by definition. F000011's own ship cycle will be the natural verification. Marking Phase 2 QA-owned gates green based on smoke 7/7 + E2E 4-green-1-deferred; documented in journal so reviewers see the deferral.
+- 2026-05-08 [qa-pass] S000020: green smoke (7/7) + green E2E (4 verified green via static check, 1 deferred to post-ship verification by design). Phase 2 gates transitioned. Ready for Phase 3.
