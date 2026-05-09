@@ -60,11 +60,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -101,6 +101,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #69: v1.10.0 feat: F000011 Phase 3 lifecycle-gate auto-update — engine + post-merge hook](https://github.com/jcl2018/claude-skills-templates/pull/69) — MERGED
 
 ## Files
 
@@ -146,3 +148,5 @@ blocked_by: ""
 - 2026-05-08 [qa-e2e-summary] 4 verified green via static checks (E2/E3/E4/E5); E1 ambiguous (requires post-ship)
 - 2026-05-08 [qa-decision] E1 ambiguous treated as DEFERRED (not red): post-ship verification is the success criterion from the design ("ship a small change, git pull main, observe Phase 3 gates auto-update") — it can't be exercised pre-ship by definition. F000011's own ship cycle will be the natural verification. Marking Phase 2 QA-owned gates green based on smoke 7/7 + E2E 4-green-1-deferred; documented in journal so reviewers see the deferral.
 - 2026-05-08 [qa-pass] S000020: green smoke (7/7) + green E2E (4 verified green via static check, 1 deferred to post-ship verification by design). Phase 2 gates transitioned. Ready for Phase 3.
+- 2026-05-08 [gates-update] Phase 3: /ship — PR #69,/land-and-deploy — PR merged,PRs section: linked PR #69 (MERGED).
+- 2026-05-08 [gates-update] Phase 3: Smoke tests pass — all checks green on PR #69.

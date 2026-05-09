@@ -54,10 +54,10 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 - [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
@@ -88,6 +88,8 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #69: v1.10.0 feat: F000011 Phase 3 lifecycle-gate auto-update — engine + post-merge hook](https://github.com/jcl2018/claude-skills-templates/pull/69) — MERGED
+
 ## Files
 
 - `skills/personal-workflow/check.md` (modified — adds Step 13.5 Phase 3 gate inference + Step 13.6 PR linking + Step 13.7 journal entry; adds `--update` flag handling)
@@ -107,3 +109,5 @@ blocked_by: ""
 - 2026-05-08 [decision] Approach B (engine + post-merge hook) chosen over A (engine only, manual habit) and C (engine + /personal-workflow ship wrapper). B satisfies P5 (auto-trigger required) without requiring the user to change /ship habit (C's cost). The "hook only fires on local merge" gap (B's cost) is acceptable for solo workflow.
 - 2026-05-08 [decision] `E2E walked manually` is explicit-exclusion from auto-marking. The contract is "engine reflects verifiable reality" — human acknowledgment isn't verifiable from external state. User can hand-edit the gate or invoke a separate `--mark-e2e` flag in v2 if needed.
 - 2026-05-08 [decision] Web UI / cross-machine merge gap is accepted. Hook only fires for local `git pull` after merge. If user merges via GitHub web UI from another machine, they can run `/personal-workflow check --update <dir>` manually from their main machine after pulling. Documented in CLAUDE.md.
+- 2026-05-08 [gates-update] Phase 3: /ship — PR #69,/land-and-deploy — PR merged,PRs section: linked PR #69 (MERGED).
+- 2026-05-08 [gates-update] Phase 3: Smoke tests pass — all checks green on PR #69.
