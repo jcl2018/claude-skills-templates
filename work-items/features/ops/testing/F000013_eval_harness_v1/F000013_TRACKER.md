@@ -55,10 +55,10 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 - [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
@@ -93,6 +93,8 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #72: v1.12.0 feat: F000013 V1 eval harness — S000023 runner + first case](https://github.com/jcl2018/claude-skills-templates/pull/72) — MERGED
+
 ## Files
 
 <!-- Affected file paths. Populated during Track phase, updated during Implement. -->
@@ -126,3 +128,4 @@ blocked_by: ""
 - 2026-05-09 [decision] **V1 runner = bash + jq, V2 considered** — Summary: D8 chose bash over Bun/TypeScript runner. Reasoning: matches existing `scripts/` conventions; ships faster; eval cases are runner-agnostic so migration to Bun later only swaps `eval.sh` and `run-case.sh`. Tradeoff: bash debugging UX is rough.
 - 2026-05-09 [decision] **V1 scope = personal-workflow + system-health only** — Summary: P2 of premise check restricted V1 to skills whose primary user-facing output is a structured report. Filesystem-mutating skills (`scaffold-work-item`, `implement-from-spec`, `qa-work-item`) defer to V2 with structural-assertion helpers. `deprecated/company-workflow` is permanently out of scope.
 - 2026-05-09 [decision] **Cadence = nightly on main, not per-PR** — Summary: P3 of premise check picked nightly cron over per-PR. Reasoning: per-PR adds 30–90s + token cost to every CI run, dominated by lint-only/docs-only PRs. `paths: ['skills/**', 'templates/**']` filter can be added later if signal/cost ratio justifies.
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #72,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #72,PRs section: linked PR #72 (MERGED).

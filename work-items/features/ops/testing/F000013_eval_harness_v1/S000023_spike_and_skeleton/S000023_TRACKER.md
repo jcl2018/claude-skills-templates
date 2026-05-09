@@ -66,11 +66,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -117,6 +117,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #72: v1.12.0 feat: F000013 V1 eval harness — S000023 runner + first case](https://github.com/jcl2018/claude-skills-templates/pull/72) — MERGED
 
 ## Files
 
@@ -173,3 +175,4 @@ blocked_by: ""
 - 2026-05-09 [qa-e2e] E3 (AC-8 P1): green — `bash scripts/eval.sh` summary line reads `PASS: 1  FAIL: 0` clearly; cost + wall-clock visible per case (`$0.13209194999999999, 28s`). Maintainer scanability validated.
 - 2026-05-09 [qa-e2e-summary] green: 2/3 E2E scenarios verified (E1, E3); E2 deferred to S000024 contributor-authors-case-2 path.
 - 2026-05-09 [qa-pass] S000023 (user-story): green smoke + green E2E. Phase 2 QA-owned gates transitioned. Net: V1 wedge proven — eval harness works end-to-end against a real fixture, $0.13/28s per case, schema enforcement live, runner simplified per Spike 0 findings.
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #72,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #72,PRs section: linked PR #72 (MERGED).

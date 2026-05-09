@@ -63,11 +63,11 @@ blocked_by: "S000024"
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -106,6 +106,8 @@ blocked_by: "S000024"
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #72: v1.12.0 feat: F000013 V1 eval harness — S000023 runner + first case](https://github.com/jcl2018/claude-skills-templates/pull/72) — MERGED
+
 ## Files
 
 <!-- Affected file paths. -->
@@ -122,3 +124,4 @@ blocked_by: "S000024"
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #72,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #72,PRs section: linked PR #72 (MERGED).
