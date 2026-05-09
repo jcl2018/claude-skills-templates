@@ -76,6 +76,11 @@ Parse the user's input to determine the target path:
 - If no path is given: set target to `$REPO_ROOT/work-items` and run **Directory Mode** + **Tier 2**
 - If the path does not exist: "Error: path not found: {path}" and stop
 
+**`--update` flag (Phase 3 lifecycle-gate auto-update; F000011):**
+- If `--update` appears anywhere in the arguments, set `UPDATE_MODE=true`. Otherwise `UPDATE_MODE=false`.
+- `--update` is only meaningful in Directory Mode on a single work-item directory. If passed with no path / on the work-items root / in File Mode, print a warning and ignore the flag.
+- When `UPDATE_MODE=true` AND target is a single work-item directory: after Step 13 (Directory Mode Report), run **Step 13.5** (Phase 3 gate inference) before optionally continuing to Tier 2.
+
 ## Step 2: Read Target File
 
 Read the target file and parse its YAML frontmatter (between `---` markers).
@@ -223,8 +228,41 @@ PERSONAL-WORKFLOW CHECK: {directory}
   SUMMARY: {N} artifacts checked, {N} missing, {N} drift
 ```
 
-**If invoked on a single directory (not the full work-items/ tree):** stop here.
+**If invoked on a single directory (not the full work-items/ tree):** stop here unless `UPDATE_MODE=true` (then run Step 13.5).
 **If invoked with no path or on the work-items/ root:** continue to Tier 2.
+
+## Step 13.5: Phase 3 Lifecycle-Gate Auto-Update (UPDATE_MODE only; F000011)
+
+Skipped if `UPDATE_MODE=false` or target is not a single work-item directory.
+
+When active, this step delegates to the shell script `scripts/check-gates-update.sh`,
+which is the single source of truth for gate inference logic. Both this skill's
+`--update` path AND the post-merge git hook (installed by `scripts/setup-hooks.sh`)
+call the same script. This avoids duplicating the inference logic in two places.
+
+```bash
+"$_REPO_ROOT/scripts/check-gates-update.sh" "$TARGET_PATH"
+```
+
+The script:
+
+1. **Resolves the work-item PR** via `gh pr list --search "$WORK_ITEM_ID"`, falling back to `--head $BRANCH` if the search misses.
+2. **Infers Phase 3 gate state** for the inferable gates:
+   - `/ship — PR created` → PR exists in any state
+   - `/land-and-deploy — merged and deployed` → PR state is `MERGED`
+   - `Smoke tests pass in CI` → `gh pr checks` shows no `fail` or `pending`
+   - `All children shipped` → recursive scan: every direct child's `/land-and-deploy` gate is `[x]`
+   - `/document-release` → heuristic: a `docs:` commit on main exists between the PR's merge commit and `origin/main` HEAD
+3. **Never auto-marks `E2E walked manually`** — purely human-driven; explicit exclusion.
+4. **Never auto-marks `/personal-workflow check — validation passed`** in v1 — would risk recursion when called from this same skill. Documented gap; user can verify by running `/personal-workflow check` (no `--update`) separately.
+5. **Idempotent + additive only:** writes `[ ]` → `[x]` on positive signal; never downgrades `[x]` → `[ ]`. Re-running on already-converged state is a NO-OP.
+6. **Appends a merged PR link** to the tracker's `## PRs` section if not already present.
+7. **Appends a `[gates-update]` journal entry** to `## Journal` summarizing what changed (or "no changes" if nothing converged).
+8. **Best-effort:** prints warnings on partial failure (e.g., `gh` offline), but exits 0 unless the input is fundamentally invalid (missing TRACKER, not a directory, not in a git repo).
+
+After Step 13.5, **Tier 2 (Step 14+) re-validates** the post-update tracker for compliance. If the script's writes broke template compliance somehow (shouldn't happen given idempotent + additive contract, but Tier 2 is the safety net), the violation surfaces in the Tier 2 report.
+
+If invoked on a single dir with `UPDATE_MODE=true`: after Step 13.5, stop (skip Tier 2 unless explicitly running on `work-items/` root).
 
 ---
 

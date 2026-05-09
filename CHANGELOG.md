@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.10.0] - 2026-05-08
+
+F000011 Phase 3 lifecycle-gate auto-update — closes the P2/M TODO observed across every PR shipped today (S000017/S000019/S000018/D000016 all left Phase 3 gates blank). Adds `/personal-workflow check --update` flag plus a git post-merge hook trigger. After every successful ship + merge + `git pull main`, the touched work-item's Phase 3 gates auto-mark from external state (`gh pr view`, `gh pr checks`, child tracker recursion). `E2E walked manually` is explicit-excluded — never auto-marked, since human verification has no external signal. **First end-to-end pipeline dogfood:** F000011 is the first work-item to flow through the full F000010 chain (`/office-hours` → `/scaffold-work-item` → `/implement-from-spec` → `/qa-work-item` → `/ship`). Process bugs surfaced and were fixed inline (TEST-SPEC drift after refactor, post-merge hook composition with existing D000013 hook).
+
+### Added
+
+- **`/personal-workflow check --update <work-item-dir>`** — new flag on the existing `/personal-workflow check` skill. Runs structural validation (existing behavior), then infers Phase 3 lifecycle-gate state from external sources and writes `[x]` to the inferable gates. Idempotent + additive only (never downgrades `[x]` → `[ ]`). Skips `E2E walked manually` entirely (human-driven, no signal). Appends merged PR link to `## PRs` section + `[gates-update]` journal entry summarizing changes. Implementation in `skills/personal-workflow/check.md` Step 13.5; delegates to `scripts/check-gates-update.sh` so the same logic powers both the skill and the post-merge hook.
+- **`scripts/check-gates-update.sh`** (NEW, ~250 lines) — Phase 3 lifecycle-gate inference engine in plain bash. Resolves the work-item PR via `gh pr list --search "<work-item-id>"` (falling back to `--head <branch>`). For each Phase 3 gate label, reads the corresponding external signal: `/ship — PR created` (PR exists), `/land-and-deploy — merged + deployed` (PR state == MERGED), `Smoke tests pass in CI` (`gh pr checks` no fail/pending), `All children shipped` (recursive: every direct child's `/land-and-deploy` is `[x]`), `/document-release` (heuristic: `docs:` commit on main between PR's merge commit and `origin/main` HEAD). Operates ONLY inside the Phase 3 block of the tracker (avoids accidentally marking Phase 1 / Phase 2 gates that share label substrings like "Smoke tests pass"). Best-effort contract: prints warnings on partial failure (e.g., `gh` offline) but exits 0 unless the input is fundamentally invalid.
+- **Post-merge hook gates-update integration** — `scripts/setup-hooks.sh` extends the existing inline post-merge HOOK heredoc (originally D000013 — re-deploys skills/templates on relevant pulls) to also call `scripts/check-gates-update.sh` on every work-item dir touched by the incoming pull. Fires only on `main`; silently no-ops on feature branches. Best-effort: failures print warnings but exit 0 to never block git operations. Composes cleanly with the existing D000013 re-deploy logic; both run on the same hook fire.
+- **`work-items/features/personal-workflow/F000011_phase3_gate_autoupdate/`** — feature work item bundling the engine + hook in one user-story child (S000020). Phase 2 fully green: 7/7 smoke + 4 E2E green via QA engineer subagent static checks + 1 E2E deferred (E1: ship + pull + verify auto-mark — requires post-ship verification, which F000011's own ship cycle naturally provides).
+
+### Changed
+
+- **TODOS.md** — removed two closed entries (`Phase 3 lifecycle-gate auto-update gap` — closed by this PR; `F000010 pipeline gap: implement+qa skills are user-story-only` — captured early in this branch as a follow-up). Net change: 1 closure, 1 new follow-up entry from /implement-from-spec dogfood.
+
 ## [1.9.1] - 2026-05-08
 
 D000016 defect fix — wire `test-deploy.sh` into CI and re-point stale `doc-RCA.md` template references onto a still-flat template. Closes the two TODOs that were blocking CI from running the U1–U28 update-check tests added in v1.6.0. Also adds a P2/M follow-up to TODOS.md tracking the Phase 3 lifecycle-gate auto-update gap discovered during the v1.7.0 land-and-deploy.
