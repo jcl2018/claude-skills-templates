@@ -212,7 +212,8 @@
     },
     "portability": "local-only",
     "files": [
-      "skills/CJ_suggest/SKILL.md"
+      "skills/CJ_suggest/SKILL.md",
+      "skills/CJ_suggest/scripts/suggest.sh"
     ],
     "templates": [],
     "status": "experimental"
