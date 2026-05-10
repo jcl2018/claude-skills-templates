@@ -1,0 +1,1 @@
+{"skill":"review","timestamp":"2026-05-10T04:01:18Z","status":"clean","issues_found":0,"critical":0,"informational":0,"quality_score":10.0,"specialists":{"reason":"markdown-skill-diff-no-runtime"},"findings":[],"commit":"7eec14e","via":"ship"}
