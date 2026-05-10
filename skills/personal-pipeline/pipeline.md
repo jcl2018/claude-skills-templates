@@ -45,12 +45,119 @@ Per-phase RESULT keys:
 
 ---
 
+## Auto Mode Overlay
+
+Active when `$AUTO_MODE=true` (set by `--auto` flag at Step 1). When inactive,
+this entire section is a no-op and the orchestrator behaves identically to
+v1.13.0.
+
+### The 6 principles
+
+Direct port of `/autoplan`'s 6 principles with one substitution: P6 becomes
+halt-on-doubt instead of bias-toward-action, reflecting the higher blast
+radius of code-mutating pipeline vs plan-review.
+
+1. **Choose completeness** — pick the option that covers more edge cases / acceptance criteria.
+2. **Boil lakes (in-blast-radius)** — auto-approve in-radius expansions < 5 files, no new infra.
+3. **Pragmatic** — between two approaches that fix the same thing, pick the cleaner one.
+4. **DRY** — duplicates existing functionality? Pick reuse.
+5. **Explicit over clever** — 10-line obvious > 200-line abstraction.
+6. **Bias toward halt-on-doubt** *(REPLACED P6)* — when uncertain, halt and surface at final gate, do not auto-approve.
+
+### Decision classification
+
+- **Mechanical** — auto-decide silently, log to `$DECISION_LOG` with class `mechanical`, count only at Step 8.5.
+- **Taste** — auto-decide with recommendation, log with class `taste`, surface at Step 8.5 with reasoning.
+- **User Challenge — Approve-with-surfacing** — auto-pick "approve" forward (so the implement subagent can proceed), log with class `user_challenge_approved`, surface at Step 8.5 with full context. If user rejects at 8.5, `end_state=user_aborted`; user reverts manually (`git restore`).
+- **User Challenge — Halt-at-Gate** — log with class `user_challenge_halt` for audit, then halt at the originating step. Step 8.5 never fires for these runs.
+
+### Per-gate classification table
+
+| Gate | Dominating principles | Auto-mode classification | Halts pipeline? |
+|---|---|---|---|
+| Step 2 branch (b) — footer present, path missing | P6 | User Challenge — Halt-at-Gate (recommend "Re-scaffold") | yes — never reaches 8.5 |
+| Step 2 branch (c) — footer absent, path present | P6 | User Challenge — Halt-at-Gate (recommend "Halt for manual cleanup") | yes — never reaches 8.5 |
+| Step 4 scaffold-shape (single-story, check green) | P5 + P3 | Mechanical (Approve, silent) | no |
+| Step 4 scaffold-shape (feature with children) | (existing pipeline halts before AUQ at sub-step 3 with `end_state=green`) | n/a — multi-story branch already handles | yes (manual mode parity) |
+| Step 5.2 sensitive-surface | P6 + safety contract | User Challenge — Approve-with-surfacing (auto-pick approve, log, surface at 8.5) | no |
+| Step 5.2 taste-fork | P5 + P1 | Taste (auto-pick per P3, surface at 8.5) | no |
+| Step 5.3 ESCALATION_NEEDED — first occurrence | (existing one-retry per Step 5.3 below fires first) | retry once silently | no (yet) |
+| Step 5.3 ESCALATION_NEEDED — retry also failed | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
+| Step 6 post-implement validate.sh red | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
+| Step 8 post-QA red | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
+| Step 9 sunset checkpoint | (always-AUQ in both modes by design) | Always interactive (per-invocation visible regardless of mode) | no |
+
+### Two halt categories — distinct logging contracts
+
+1. **Halt-regardless** (do NOT log to `$DECISION_LOG`; not a "decision" the orchestrator made):
+   - Boundary check red — `/personal-workflow check` at Steps 2(a)/4/6/8 red is a hard halt. Tracker journal + telemetry only; `end_state=halted_at_gate`.
+   - Subagent crash — empty/no RESULT line. Tracker journal + telemetry only; `[subagent-crash]` entry; `end_state=subagent_crashed`.
+
+2. **Halt-at-Gate User Challenge** (DO log to `$DECISION_LOG` with class `user_challenge_halt` for audit, then halt):
+   - Step 2 b/c partial-write recovery
+   - Step 5.3 ESCALATION_NEEDED retry-also-failed
+   - Step 6 post-implement validate.sh red
+   - Step 8 post-QA red
+
+The distinction: halt-regardless is a structural/integrity failure (not a decision the orchestrator made). Halt-at-Gate is a decision (recommend abort) the user could override but won't, so the run halts. Logged so 8.5 reviewers of *prior* runs can audit what halted them.
+
+### `$DECISION_LOG` schema
+
+Single shared file (consistent with `~/.gstack/analytics/personal-pipeline.jsonl` telemetry):
+
+```
+~/.gstack/analytics/personal-pipeline-auto-decisions.jsonl
+```
+
+Path is computed once at Step 1 and stored as `$DECISION_LOG`; any later
+Bash block re-derives it from the constant string (no shell-variable
+persistence assumed across Bash calls — model carries the literal path).
+
+One line per decision (jq-emitted, JSON-safe):
+
+```json
+{"run_id":"20260510-093015-12345","step":"5.2","gate_id":"sensitive-surface-catalog","classification":"user_challenge_approved","decision":"approve","recommendation":"approve","reasoning":"in-blast-radius catalog wiring; SPEC matches existing pattern","context_missing":"none flagged","files_affected":["skills-catalog.json","README.md"],"ts":"2026-05-10T09:32:11Z"}
+```
+
+Classification values: `mechanical`, `taste`, `user_challenge_approved`,
+`user_challenge_halt`.
+
+Append via jq for JSON-safe escaping:
+
+```bash
+jq -nc \
+  --arg run_id "$RUN_ID" \
+  --arg step "5.2" \
+  --arg gate_id "sensitive-surface-catalog" \
+  --arg classification "user_challenge_approved" \
+  --arg decision "approve" \
+  --arg recommendation "approve" \
+  --arg reasoning "in-blast-radius catalog wiring" \
+  --arg context_missing "none flagged" \
+  --argjson files_affected '["skills-catalog.json","README.md"]' \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{run_id:$run_id,step:$step,gate_id:$gate_id,classification:$classification,decision:$decision,recommendation:$recommendation,reasoning:$reasoning,context_missing:$context_missing,files_affected:$files_affected,ts:$ts}' \
+  >> "$DECISION_LOG"
+```
+
+---
+
 ## Step 1: Validate Input
 
 Parse the user's argument:
 
 ```bash
-DESIGN_DOC="$1"
+# Parse --auto flag (may appear before or after the design-doc path)
+AUTO_MODE=false
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --auto) AUTO_MODE=true ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+DESIGN_DOC="${ARGS[0]:-}"
+
 [ -n "$DESIGN_DOC" ] || { echo "Error: design-doc path required"; exit 1; }
 [ -f "$DESIGN_DOC" ] || { echo "Error: design doc not found at $DESIGN_DOC"; exit 1; }
 
@@ -59,13 +166,24 @@ case "$DESIGN_DOC" in
   "$HOME/.gstack/projects/"*) ;;
   *) echo "Error: design doc must be under ~/.gstack/projects/ (got: $DESIGN_DOC)"; exit 1 ;;
 esac
-```
 
-Refuse on multiple positional args (one design doc per run).
+# Refuse on multiple positional args (one design doc per run)
+[ "${#ARGS[@]}" -le 1 ] || { echo "Error: only one design-doc path accepted"; exit 1; }
+```
 
 Capture an absolute path: `DESIGN_DOC=$(realpath "$DESIGN_DOC")`.
 
 Generate a run ID: `RUN_ID=$(date +%Y%m%d-%H%M%S)-$$`.
+
+If `$AUTO_MODE=true`, initialize the auto-mode decision log path (constant path; no `$SLUG` indirection — analytics is workbench-flat):
+
+```bash
+DECISION_LOG="$HOME/.gstack/analytics/personal-pipeline-auto-decisions.jsonl"
+mkdir -p "$HOME/.gstack/analytics"
+```
+
+Decisions are appended (run_id-tagged); no per-run init / truncation. Step 8.5
+filters by `run_id` to scope to this run.
 
 ## Step 2: Pre-Scaffold Idempotency Check
 
@@ -103,6 +221,8 @@ If the captured `<path>` does NOT exist on disk:
 - On Restore: print "Restore the dir at <path>, then re-run /personal-pipeline."; exit non-zero.
 - On Abort: end_state = `user_aborted`; write telemetry; exit.
 
+**Auto mode (Step 2 branch b):** classify as **User Challenge — Halt-at-Gate** (recommend Re-scaffold per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2b"`, `gate_id:"partial-write-footer-no-path"`, `recommendation:"re-scaffold"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-decide partial-write recovery — these states require manual cleanup.
+
 ### Branch (c): footer absent, but a tracker references the design doc
 
 If no footer AND grep finds a tracker referencing this design doc:
@@ -131,6 +251,8 @@ If `DUP` is non-empty:
   > - Abort
 
 - This branch is the orchestrator-level catch for the TODOS.md:26 idempotency hole in `/scaffold-work-item`. If we proceeded to Phase 1, scaffold would write a duplicate dir.
+
+**Auto mode (Step 2 branch c):** classify as **User Challenge — Halt-at-Gate** (recommend "Halt for manual cleanup" per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2c"`, `gate_id:"partial-write-no-footer"`, `recommendation:"halt-for-manual-cleanup"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Same rationale as branch (b): partial-write recovery requires manual cleanup.
 
 ### Branch (d): footer absent, no tracker references
 
@@ -184,6 +306,11 @@ The orchestrator runs these checks (NOT the subagent):
 4. **AskUserQuestion: confirm shape.** Show the scaffolded dir + artifact list. Options: Approve / Reject (re-scaffold) / Abort.
 
 On Approve: continue to Step 5.
+
+**Auto mode (Step 4 sub-step 4):**
+- If `/personal-workflow check` was green at sub-step 2 AND the work-item is single-story shape: classify as **Mechanical** (Approve). Log `mechanical` line to `$DECISION_LOG` with `step:"4"`, `gate_id:"scaffold-shape-confirm"`, `decision:"approve"`. Continue silently to Step 5.
+- If multi-story feature: sub-step 3 already halts with `end_state=green` before reaching the AUQ — no auto-mode action needed.
+- Reject path is unreachable in auto mode (boundary check at sub-step 2 would have already halted on drift, which is `halt-regardless`, not auto-decided).
 
 ## Step 5: Phase 2 — Implement Subagent (with PRE-COLLECTED AUQs)
 
@@ -242,6 +369,14 @@ Collect all answers into `PRE_COLLECTED_AUQS` (a structured map: path/decision �
 
 If user cancels any AUQ: end_state = `user_aborted`; write telemetry; exit.
 
+**Auto mode (Step 5.2):**
+
+For each sensitive-surface path: classify as **User Challenge — Approve-with-surfacing**. Auto-pick "approve" forward (so the implement subagent can proceed in 5.3); thread "approve" into `PRE_COLLECTED_AUQS`; log a `user_challenge_approved` line to `$DECISION_LOG` with `step:"5.2"`, `gate_id:"sensitive-surface-<surface-family>"` (catalog/manifest/validator/template/git-hook), `decision:"approve"`, `recommendation:"approve"`, `reasoning` summarizing the SPEC's Components Affected entry, `files_affected` array from the SPEC. Step 8.5 surfaces this for confirmation. v1 ships the simple rule (always approve, always surface); validate.sh-without-TODOS-entry carve-out is deferred (Open Q4 of source design).
+
+For each taste fork: classify as **Taste**. Auto-pick per P3 (cleaner option from the row's Chosen column; fall back to first listed value if Chosen is `TBD`/`{...}`); thread the chosen answer into `PRE_COLLECTED_AUQS`; log a `taste` line to `$DECISION_LOG` with `step:"5.2"`, `gate_id:"taste-fork-<row-name>"`, `decision:"<chosen>"`, `reasoning` from the row's Why column. Surface at 8.5.
+
+Auto mode does NOT cancel on its own at Step 5.2 — it auto-decides and continues. The user reviews the decisions at Step 8.5 and may Abort there.
+
 ### 5.3 Dispatch implement subagent (with answers threaded)
 
 Spawn an Agent subagent:
@@ -271,6 +406,8 @@ Capture output, parse with `parse_result`, branch:
 - `STATUS=halted; ESCALATION_NEEDED=<reason>`: orchestrator AskUserQuestions the human; threads answer; re-dispatches Phase 2 once. If the second dispatch also escalates, halt with `[gate-red]`.
 - empty / no RESULT: halt with `[subagent-crash]`.
 
+**Auto mode (Step 5.3 ESCALATION_NEEDED branch):** the existing one-retry fires silently first (orchestrator re-dispatches once with the escalation reason as context). If the retry succeeds → continue. If the retry also escalates → classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"5.3"`, `gate_id:"escalation-needed-retry-failed"`, `recommendation:"abort"`, `reasoning` from the escalation reason, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-decide a sensitive surface the pre-scan missed — bias toward halt-on-doubt.
+
 ## Step 6: Post-Implement Gate
 
 Orchestrator runs (NOT the subagent):
@@ -293,6 +430,8 @@ Orchestrator runs (NOT the subagent):
    Default: abort.
 
 `scripts/test.sh` is intentionally NOT run in v1 (slow; revisit in v2).
+
+**Auto mode (Step 6 post-implement red branch):** classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"6"`, `gate_id:"post-implement-validate-red"`, `recommendation:"abort"`, `reasoning` summarizing the validate.sh first-20-lines failure, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-override a structural validation failure.
 
 ## Step 7: Phase 3 — QA Subagent
 
@@ -343,6 +482,99 @@ AskUserQuestion:
 
 Default: abort.
 
+**Auto mode (Step 8 post-QA red branch):** classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"8"`, `gate_id:"post-qa-red"`, `recommendation:"abort"`, `reasoning` summarizing the relevant tracker findings, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-override QA red — surface QA failures for human judgment.
+
+## Step 8.5: Final Approval Gate (auto mode only)
+
+Skip if `$AUTO_MODE=false`. The orchestrator has AUQ available (SKILL.md `allowed-tools` includes AskUserQuestion); this step runs at the orchestrator level, not in a subagent.
+
+### 8.5.1 Filter `$DECISION_LOG` to this run
+
+```bash
+DECISIONS_THIS_RUN=$(jq -c "select(.run_id == \"$RUN_ID\")" "$DECISION_LOG" 2>/dev/null || true)
+COUNT_MECHANICAL=$(echo "$DECISIONS_THIS_RUN" | jq -s 'map(select(.classification == "mechanical")) | length' 2>/dev/null || echo 0)
+COUNT_TASTE=$(echo "$DECISIONS_THIS_RUN" | jq -s 'map(select(.classification == "taste")) | length' 2>/dev/null || echo 0)
+COUNT_UC_APPROVED=$(echo "$DECISIONS_THIS_RUN" | jq -s 'map(select(.classification == "user_challenge_approved")) | length' 2>/dev/null || echo 0)
+```
+
+### 8.5.2 Empty-state short-circuit
+
+If `COUNT_TASTE == 0` AND `COUNT_UC_APPROVED == 0` (only Mechanical decisions accumulated): write `[auto-pipeline-clean]` to the work-item tracker journal and short-circuit to Step 9 without surfacing an AUQ. The auto run was genuinely uneventful; nothing for the user to confirm.
+
+### 8.5.3 Render gstack-format AUQ
+
+Otherwise, render the summary AUQ. Render Taste decisions inline; render User-Challenge-Approved with the full context block. Pros/Cons must be ≥40 chars per bullet. Net line closes the decision.
+
+```
+D-AUTO-FINAL — Confirm auto-mode decisions
+Project/branch: <repo>/<$_BRANCH> | Run: $RUN_ID
+ELI10: I made $((COUNT_TASTE + COUNT_UC_APPROVED)) close-call decisions while
+running your pipeline. The $COUNT_MECHANICAL Mechanical ones were obvious and
+silent. The $COUNT_TASTE Taste and $COUNT_UC_APPROVED User-Challenge-Approved
+decisions below are the close calls I'd like you to confirm before you /ship.
+Each User Challenge auto-picked "approve" and threaded that answer to the
+implement subagent — files were already written. If any of these picks was
+wrong, you Abort here and I print the exact file list for you to revert by
+hand.
+Stakes if we pick wrong: Approve = you live with the auto-picks (revert later
+via /ship review or normal git workflow). Abort = you revert now and re-run
+manually; ~3-5 min lost.
+
+Recommendation: Approve (recommended) — all $COUNT_UC_APPROVED User Challenges
+were auto-picked "approve" with reasoning; reversible by `git restore` on the
+affected files if you disagree.
+Note: options differ in kind, not coverage — no completeness score.
+
+Decision summary:
+- $COUNT_MECHANICAL mechanical (silent, logged; expand on request)
+- $COUNT_TASTE taste:
+    [for each row from $DECISIONS_THIS_RUN where classification=="taste":
+     Gate <step.gate_id> | Pick: <decision> | Reasoning: <reasoning>]
+- $COUNT_UC_APPROVED user_challenge_approved:
+    [for each row from $DECISIONS_THIS_RUN where classification=="user_challenge_approved":
+     Gate <step.gate_id>
+     Pick: approve
+     Files: <files_affected joined>
+     What we approved: <one-liner from reasoning>
+     Why approve looked right: <reasoning>
+     Context we could be missing: <context_missing>
+     If we're wrong, cost is: revert listed files via `git restore`]
+
+Log: $DECISION_LOG (filter run_id=$RUN_ID)
+
+A) Approve all auto-decisions (recommended)
+  ✅ Pipeline ends green, ready for /ship review with full audit trail
+  ✅ Every User Challenge has a logged file list — easy to spot-revert later
+  ❌ You commit to $COUNT_UC_APPROVED sensitive-surface picks at once instead of one-by-one
+
+B) Abort + show what to revert
+  ✅ Prints per-decision files_affected list grouped by gate for easy revert
+  ✅ Pipeline state preserved — no programmatic rollback gone wrong
+  ❌ Manual revert + re-run loses ~3-5 minutes vs surgical "reject this one"
+
+Net: Approve when you trust the reasoning summaries; Abort when any one User
+Challenge surfaces a context the orchestrator clearly didn't have.
+```
+
+### 8.5.4 Branch on user response
+
+- **On Approve:** write `[auto-final-gate-approved]` to the work-item tracker journal; set `$END_STATE=green`; continue to Step 9.
+- **On Abort:** group `$DECISIONS_THIS_RUN` by `gate_id` and print files_affected per group:
+  ```
+  Files to revert (grouped by decision):
+    Decision: sensitive-surface-catalog (Step 5.2)
+      - skills-catalog.json
+      - README.md
+    Decision: taste-fork-<row-name> (Step 5.2)
+      - <files>
+    ...
+  Run `git status` to see all modified files; `git restore <file>` per decision
+  to revert. Pipeline state (work-item tracker) preserved.
+  ```
+  Set `$END_STATE=user_aborted`; write telemetry; exit. The orchestrator does NOT auto-revert — the user runs `git restore` themselves.
+
+v1 deliberately drops "Reject specific decisions" — programmatic rollback across mid-pipeline subagent edits is fragile.
+
 ## Step 9: Final Summary + Telemetry Write + Sunset Check
 
 ### 9.1 Write telemetry
@@ -354,20 +586,25 @@ TELEMETRY=~/.gstack/analytics/personal-pipeline.jsonl
 # bust raw shell-interpolated JSON; jq -nc + --arg is the contract-preserving
 # form. Falls back to a sanitized echo if jq is missing (shouldn't happen
 # in this workbench — jq is a declared dependency).
+_MODE=$([ "$AUTO_MODE" = "true" ] && echo "auto" || echo "manual")
 if command -v jq >/dev/null 2>&1; then
-  jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,ts:$ts}' >> "$TELEMETRY"
+  jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg mode "$_MODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,mode:$mode,ts:$ts}' >> "$TELEMETRY"
 else
   # Fallback: strip backslashes + double-quotes from the design-doc path.
   # Lossy but never produces invalid JSON.
   _SAFE_DOC=$(printf '%s' "$DESIGN_DOC" | tr -d '\\"')
-  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"end_state\":\"$END_STATE\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> "$TELEMETRY"
+  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"end_state\":\"$END_STATE\",\"mode\":\"$_MODE\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> "$TELEMETRY"
 fi
 ```
 
 `$END_STATE` is one of `green`, `halted_at_gate`, `user_aborted`,
 `subagent_crashed`. Set throughout the orchestration; default `green` if all
 phases passed and gate(s) didn't halt.
+
+The `mode` field is `auto` or `manual` per `$AUTO_MODE`. Sunset trip-wire
+(Step 9.2) counts both modes pooled — same trip-wire contract regardless of
+mode.
 
 ### 9.2 Sunset check (on 6th invocation)
 
@@ -405,7 +642,7 @@ NOT auto-delete — destructive actions require explicit user execution.
 ### 9.3 Print summary
 
 ```
-PIPELINE COMPLETE: end_state=$END_STATE
+PIPELINE COMPLETE: end_state=$END_STATE  mode=$_MODE
 
 Run ID:    $RUN_ID
 Design:    $DESIGN_DOC
@@ -416,6 +653,7 @@ E2E:       <E2E from Phase 3>
 
 Tracker:   $WORK_ITEM_DIR/$TRACKER_FILENAME
 Telemetry: $TELEMETRY (line $INVOCATION_COUNT)
+Decisions: $DECISION_LOG (auto mode only; filter run_id=$RUN_ID)
 
 Next:
   /ship                                # if end_state=green and Phase 2 gates green
@@ -440,7 +678,15 @@ The orchestrator AUQs at:
 - Step 5.3 escalation — Phase 2 subagent flagged ESCALATION_NEEDED
 - Step 6 — post-implement gate red
 - Step 8 — post-QA gate red/ambiguous
-- Step 9 — sunset checkpoint on 6th invocation
+- **Step 8.5 — auto mode final approval gate (auto mode only; skipped if empty-state)**
+- Step 9 — sunset checkpoint on 6th invocation (always-AUQ in both modes)
+
+Auto mode (`$AUTO_MODE=true`) auto-decides Steps 2/4/5.2/5.3/6/8 per the
+classification table in `## Auto Mode Overlay`. Mechanical decisions are
+silent; Taste and User-Challenge-Approved decisions surface at Step 8.5.
+Halt-at-Gate User Challenges halt the pipeline at the originating step
+(Step 8.5 never fires for those runs). Step 9 sunset stays interactive in
+both modes — by design, not auto-decided.
 
 Subagents NEVER call AUQ (the tool is unreachable in their context per S000026
 spike). Any decision a subagent might want to make is either pre-collected at
