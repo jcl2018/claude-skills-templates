@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.5] - 2026-05-10
+
+Workbench-side mitigations for the queue-collision + auto-merge silent-fail pattern that bit 3 of 3 PRs (#79, #82, #83) in the v2.0.0 → v2.0.4 ship sequence. Each collision cost ~5-10 min recovery (re-fetch, resolve CHANGELOG conflict, rebump VERSION, update PR title, retest, re-merge). One operator mistake on PR #83's `/land-and-deploy` (premature `gh api DELETE` after `gh pr merge --auto` silently failed → GitHub auto-closed the PR) is now structurally prevented. Two changes:
+
+- **`CLAUDE.md` `## CI/CD merge convention` rewrite.** Removed `--auto` from the prescribed `gh pr merge` invocation. Auto-merge is disabled in this repo's settings, so `gh pr merge --auto` exits 0 even when the actual merge fails (error goes to stderr), making it easy to miss the failure. New invocation: `gh pr merge <PR#> --squash --delete-branch`. Added a new "Verify before cleanup" paragraph requiring agents to confirm `state=MERGED` via `gh pr view --json state` before any cleanup step (especially the `gh api -X DELETE` worktree-workaround, which auto-closes PRs whose branch is deleted while still OPEN). Added a "Queue-collision preflight" pointer to the new script below. The v2.0.5 D000008 regression guard in `scripts/test.sh` enforces all four pieces (the new invocation, the "do NOT use --auto" warning, the verify-MERGED guidance, and the preflight pointer).
+
+- **`scripts/check-version-queue.sh`** (new). 70-line preflight script that scans open PRs targeting main via `gh pr list --state open --base main --limit 5 --json number,title`, extracts `v<X.Y.Z>` from title prefixes (anchored regex `^v[0-9]+\.[0-9]+\.[0-9]+` to avoid false-matching embedded versions in PR descriptions), and prints next-free VERSION slot. Run before `/ship` when multiple worktrees may be active to catch collisions earlier than `/land-and-deploy` Step 3.4 post-push drift detection. Workbench-side fallback for when gstack's `bin/gstack-next-version` queue util is offline in this repo (the typical state). Distinguishes active claims (`>= BASE_VERSION`) from stale claims (`< BASE_VERSION`, surfaced as a separate warning so the agent can investigate). Detects and surfaces duplicate-claim collisions (two open PRs claiming the same version). Skips with a one-line note on `gh` offline/unauthenticated; read-only, no mutations. Both human-readable and `--json` modes; exits 0 in all degraded scenarios so it never blocks `/ship`. Built with several bash gotchas in mind: `MODE="${1-}"` default-expansion prevents `set -u` crash on no-args invocation; `|| true` on the version-extract pipeline so `grep -oE` returning 1 (no matches — common when no open PRs claim versions) doesn't trip `set -o pipefail`; `to_array()` jq wrapper emits clean `[]` instead of `[""]` when the source variable is empty.
+
+### Added
+
+- **`scripts/check-version-queue.sh`** — workbench-side queue-collision preflight. Catches version-slot collisions before `/ship` runs the local-only bump.
+
+### Changed
+
+- **`CLAUDE.md` `## CI/CD merge convention`** — removed `--auto` from prescribed `gh pr merge` invocation; added "Verify before cleanup" + "Queue-collision preflight" paragraphs.
+- **`scripts/test.sh` D000008 regression guard** — extended to cover the v2.0.5 convention: prescribed invocation without `--auto`, "do NOT add --auto" warning, verify-MERGED guidance, preflight pointer. Plus a new smoke-test block that runs `./scripts/check-version-queue.sh` in both default and `--json` modes and asserts exit 0 + valid JSON output.
+- **`VERSION`** — 2.0.4 → 2.0.5 (PATCH; workbench tooling improvement, no skill behavior change).
+
 ## [2.0.4] - 2026-05-10
 
 Documentation sync. The `CJ_qa-work-item` and `CJ_implement-from-spec` skills have actually handled all four work-item types (user-story, defect, task, feature-via-child-AUQ) since v1.11.0 (F000012 / S000021), but their `skills-catalog.json` entries still described scope as "a CJ_personal-workflow user-story" — and `README.md` is auto-generated from the catalog, so the staleness propagated to the public Skills table. v2.0.4 syncs both catalog entries to match the (correct) SKILL.md frontmatter descriptions and regenerates `README.md`. Closes the open `qa-work-item + implement-from-spec catalog descriptions` P3 TODO that's been on the books since v1.13.0's post-ship audit. Pure doc churn — no skill behavior change, no script changes, no test changes. Caught in this session while running /document-release after the v1.16.0 + v2.0.0 + v2.0.1 + v2.0.2 chain landed; the CJ_ rename + auto-only refactor + eval cases + scaffold queue-collision fix had each touched their own surface but none touched these two skills' catalog entries to close the staleness gap. Rebumped from v2.0.3 after queue collision with PR #84's v2.0.3 (D000017 /CJ_suggest zsh crash fix) which landed first.
