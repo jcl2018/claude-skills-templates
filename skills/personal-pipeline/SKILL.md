@@ -81,7 +81,7 @@ phase 2-4 loop end-to-end:
 1. **Pre-scaffold idempotency check** (orchestrator) — read design-doc footer; route to one of 4 branches (footer+path / footer-no-path / no-footer-but-tracker-references / clean-slate).
 2. **Phase 1 — scaffold subagent** dispatched via `Agent` tool with `subagent_type: general-purpose`. Subagent invokes `/scaffold-work-item`. Returns `RESULT: WORK_ITEM_DIR=<path>`.
 3. **Post-scaffold gate** (orchestrator) — `/personal-workflow check` + footer-write-back confirm + multi-story-feature halt branch + AskUserQuestion to confirm shape.
-4. **Phase 2 — implement subagent** with PRE-COLLECTED AUQs. Orchestrator scans the work-item's SPEC for sensitive-surface paths AND Tradeoffs taste-fork rows, AUQs the human up front, threads answers into the subagent prompt. Subagent invokes `/implement-from-spec` in `--auto`-equivalent mode (no AUQ attempts; AUQ tool is unreachable inside Agent subagents per S000026 spike). Subagent returns `RESULT: STATUS=...; FILES_CHANGED=<n>`.
+4. **Phase 2 — implement subagent** with PRE-COLLECTED AUQs. Orchestrator scans the work-item's SPEC for sensitive-surface paths AND Tradeoffs taste-fork rows, AUQs the human up front, threads answers into the subagent prompt. Subagent invokes `/implement-from-spec` in auto-equivalent mode (no AUQ attempts; AUQ tool is unreachable inside Agent subagents per S000026 spike). Subagent returns `RESULT: STATUS=...; FILES_CHANGED=<n>`.
 5. **Post-implement gate** — `/personal-workflow check` + `scripts/validate.sh` (drops `scripts/test.sh` in v1).
 6. **Phase 3 — qa subagent** invokes `/qa-work-item`. Returns `RESULT: SMOKE=...; E2E=...; PHASE2_GATES=...`.
 7. **Post-QA gate** — parse tracker journal entries for `[smoke-pass]`/`[qa-pass]`; halt on red.
@@ -104,74 +104,20 @@ For the full step-by-step logic, see [pipeline.md](pipeline.md).
 ## Usage
 
 ```
-/personal-pipeline [--auto] <design-doc-path>
+/personal-pipeline <design-doc-path>
 ```
 
-Examples:
+Example:
 
 ```
-# Manual mode (default, byte-identical to v1.13.1): asks at every gate.
 /personal-pipeline ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-135305.md
-
-# Auto mode: auto-decides intermediate AUQs using 6 principles, surfaces
-# taste decisions and User Challenges at one final approval gate (Step 8.5).
-/personal-pipeline --auto ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-135305.md
 ```
 
-Positional arg: `<design-doc-path>`. Optional `--auto` flag opts into
-auto-decision mode (see Auto Mode below). Sunset behavior is automatic on the
-6th invocation regardless of mode. To force re-running through the full
-pipeline on a re-scaffolded work-item, delete the design-doc's
-`Status: SCAFFOLDED → ...` footer before re-invoking.
-
-## Auto Mode
-
-`--auto` mirrors `/autoplan`'s contract for the personal-workflow pipeline:
-auto-decides every intermediate AUQ using 6 principles, classifies each
-decision as Mechanical / Taste / User Challenge, and surfaces only close
-calls at one final approval gate (Step 8.5). Manual path is byte-identical
-to v1.13.0 when `--auto` is absent.
-
-**6 principles** (P1-P5 from `/autoplan`; P6 substituted with halt-on-doubt
-for higher-blast-radius code-mutating pipeline):
-
-1. Choose completeness
-2. Boil lakes (in-blast-radius)
-3. Pragmatic
-4. DRY
-5. Explicit over clever
-6. **Bias toward halt-on-doubt** (replaces `/autoplan`'s P6 "Bias toward action")
-
-**Decision classification:**
-
-- **Mechanical** — auto-decide silently, count at Step 8.5.
-- **Taste** — auto-decide with reasoning, surface at Step 8.5.
-- **User Challenge — Approve-with-surfacing** — auto-pick "approve" forward,
-  surface at Step 8.5 with full context (used for sensitive-surface AUQs).
-- **User Challenge — Halt-at-Gate** — log, halt at the originating step;
-  Step 8.5 never fires (used for gate-red, ESCALATION_NEEDED-retry-failed).
-
-**Decision log:** single shared file at
-`~/.gstack/analytics/personal-pipeline-auto-decisions.jsonl`, run_id-tagged
-per line.
-
-**Halt-regardless exceptions** (do NOT log to decision log; tracker journal
-+ telemetry only):
-- `/personal-workflow check` red
-- Subagent crash (empty/no RESULT line)
-
-**Final approval gate (Step 8.5):** fires only on the
-green-or-recoverable path. Single AUQ in gstack format with two options:
-Approve (commit decisions) or Abort + show what to revert (prints per-decision
-files-affected list; user reverts manually with `git restore`). Empty-state
-(no Taste, no User-Challenge-Approved decisions) short-circuits silently.
-
-**Auto mode does NOT chain into `/ship`.** Stops at green pipeline + final
-gate approved. `/ship` is a separate user invocation with its own
-adversarial review.
-
-For the full step-by-step logic see [pipeline.md](pipeline.md)'s
-`## Auto Mode Overlay` section.
+Positional arg: `<design-doc-path>`. Sunset behavior is automatic on the
+6th invocation. To force re-running through the full pipeline on a re-scaffolded
+work-item, delete the design-doc's `Status: SCAFFOLDED → ...` footer before
+re-invoking. The flags `--auto` and `--manual` are accepted and silently
+discarded for backwards compatibility with pre-v1.16.0 invocations.
 
 ## Routing
 

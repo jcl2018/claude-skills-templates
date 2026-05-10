@@ -47,9 +47,9 @@ Per-phase RESULT keys:
 
 ## Auto Mode Overlay
 
-Active when `$AUTO_MODE=true` (set by `--auto` flag at Step 1). When inactive,
-this entire section is a no-op and the orchestrator behaves identically to
-v1.13.0.
+The orchestrator runs in auto-decision mode unconditionally. This section
+defines the 6 principles, the per-gate classification table, the two halt
+categories, and the `$DECISION_LOG` schema that govern every run.
 
 ### The 6 principles
 
@@ -78,14 +78,14 @@ radius of code-mutating pipeline vs plan-review.
 | Step 2 branch (b) — footer present, path missing | P6 | User Challenge — Halt-at-Gate (recommend "Re-scaffold") | yes — never reaches 8.5 |
 | Step 2 branch (c) — footer absent, path present | P6 | User Challenge — Halt-at-Gate (recommend "Halt for manual cleanup") | yes — never reaches 8.5 |
 | Step 4 scaffold-shape (single-story, check green) | P5 + P3 | Mechanical (Approve, silent) | no |
-| Step 4 scaffold-shape (feature with children) | (existing pipeline halts before AUQ at sub-step 3 with `end_state=green`) | n/a — multi-story branch already handles | yes (manual mode parity) |
+| Step 4 scaffold-shape (feature with children) | (existing pipeline halts before AUQ at sub-step 3 with `end_state=green`) | n/a — multi-story branch already handles | yes |
 | Step 5.2 sensitive-surface | P6 + safety contract | User Challenge — Approve-with-surfacing (auto-pick approve, log, surface at 8.5) | no |
 | Step 5.2 taste-fork | P5 + P1 | Taste (auto-pick per P3, surface at 8.5) | no |
 | Step 5.3 ESCALATION_NEEDED — first occurrence | (existing one-retry per Step 5.3 below fires first) | retry once silently | no (yet) |
 | Step 5.3 ESCALATION_NEEDED — retry also failed | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
 | Step 6 post-implement validate.sh red | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
 | Step 8 post-QA red | P6 | User Challenge — Halt-at-Gate (recommend abort) | yes — never reaches 8.5 |
-| Step 9 sunset checkpoint | (always-AUQ in both modes by design) | Always interactive (per-invocation visible regardless of mode) | no |
+| Step 9 sunset checkpoint | (always-AUQ by design) | Always interactive (per-invocation visible) | no |
 
 ### Two halt categories — distinct logging contracts
 
@@ -147,12 +147,13 @@ jq -nc \
 Parse the user's argument:
 
 ```bash
-# Parse --auto flag (may appear before or after the design-doc path)
-AUTO_MODE=false
+# --auto and --manual are accepted and silently discarded for backwards
+# compatibility with pre-v1.16.0 invocations. The orchestrator runs in
+# auto-decision mode unconditionally; there is no manual code path.
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
-    --auto) AUTO_MODE=true ;;
+    --auto|--manual) ;;  # accept and discard for backwards compat
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -175,7 +176,7 @@ Capture an absolute path: `DESIGN_DOC=$(realpath "$DESIGN_DOC")`.
 
 Generate a run ID: `RUN_ID=$(date +%Y%m%d-%H%M%S)-$$`.
 
-If `$AUTO_MODE=true`, initialize the auto-mode decision log path (constant path; no `$SLUG` indirection — analytics is workbench-flat):
+Initialize the decision log path (constant path; no `$SLUG` indirection — analytics is workbench-flat):
 
 ```bash
 DECISION_LOG="$HOME/.gstack/analytics/personal-pipeline-auto-decisions.jsonl"
@@ -221,7 +222,7 @@ If the captured `<path>` does NOT exist on disk:
 - On Restore: print "Restore the dir at <path>, then re-run /personal-pipeline."; exit non-zero.
 - On Abort: end_state = `user_aborted`; write telemetry; exit.
 
-**Auto mode (Step 2 branch b):** classify as **User Challenge — Halt-at-Gate** (recommend Re-scaffold per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2b"`, `gate_id:"partial-write-footer-no-path"`, `recommendation:"re-scaffold"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-decide partial-write recovery — these states require manual cleanup.
+Classify as **User Challenge — Halt-at-Gate** (recommend Re-scaffold per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2b"`, `gate_id:"partial-write-footer-no-path"`, `recommendation:"re-scaffold"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Partial-write recovery is never auto-decided — these states require manual cleanup.
 
 ### Branch (c): footer absent, but a tracker references the design doc
 
@@ -252,7 +253,7 @@ If `DUP` is non-empty:
 
 - This branch is the orchestrator-level catch for the TODOS.md:26 idempotency hole in `/scaffold-work-item`. If we proceeded to Phase 1, scaffold would write a duplicate dir.
 
-**Auto mode (Step 2 branch c):** classify as **User Challenge — Halt-at-Gate** (recommend "Halt for manual cleanup" per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2c"`, `gate_id:"partial-write-no-footer"`, `recommendation:"halt-for-manual-cleanup"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Same rationale as branch (b): partial-write recovery requires manual cleanup.
+Classify as **User Challenge — Halt-at-Gate** (recommend "Halt for manual cleanup" per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"2c"`, `gate_id:"partial-write-no-footer"`, `recommendation:"halt-for-manual-cleanup"`, then halt with `[gate-red]` and `end_state=halted_at_gate`. Same rationale as branch (b): partial-write recovery requires manual cleanup.
 
 ### Branch (d): footer absent, no tracker references
 
@@ -303,14 +304,14 @@ The orchestrator runs these checks (NOT the subagent):
      ...
    ```
    end_state = `green` (the orchestrator did its job up to scaffold; multi-story v2 is deferred).
-4. **AskUserQuestion: confirm shape.** Show the scaffolded dir + artifact list. Options: Approve / Reject (re-scaffold) / Abort.
+4. **Confirm scaffold shape.** Show the scaffolded dir + artifact list. The AUQ prompt block (Approve / Reject (re-scaffold) / Abort) is preserved unconditionally for use only when the auto-classification rules below cannot resolve — but in v1 the rules cover every reachable case.
 
-On Approve: continue to Step 5.
-
-**Auto mode (Step 4 sub-step 4):**
+Auto-classification rules (always applied):
 - If `/personal-workflow check` was green at sub-step 2 AND the work-item is single-story shape: classify as **Mechanical** (Approve). Log `mechanical` line to `$DECISION_LOG` with `step:"4"`, `gate_id:"scaffold-shape-confirm"`, `decision:"approve"`. Continue silently to Step 5.
-- If multi-story feature: sub-step 3 already halts with `end_state=green` before reaching the AUQ — no auto-mode action needed.
-- Reject path is unreachable in auto mode (boundary check at sub-step 2 would have already halted on drift, which is `halt-regardless`, not auto-decided).
+- If multi-story feature: sub-step 3 already halts with `end_state=green` before reaching this gate — no action needed.
+- Reject path is unreachable: boundary check at sub-step 2 would have already halted on drift, which is `halt-regardless`, not auto-decided.
+
+On Approve (whether classified mechanical or human-resolved fallback): continue to Step 5.
 
 ## Step 5: Phase 2 — Implement Subagent (with PRE-COLLECTED AUQs)
 
@@ -350,9 +351,11 @@ TASTE_FORKS=$(awk '/^## Tradeoffs/,/^## /' "$SPEC" \
   | awk -F'|' 'NR>2 && (/TBD|\{|^\| *\| */) {print}')
 ```
 
-### 5.2 Pre-collect AUQs (orchestrator → human)
+### 5.2 Pre-collect AUQs (orchestrator → auto-classification)
 
-For each sensitive-surface path found, AskUserQuestion:
+The AUQ prompt blocks below are preserved unconditionally for use only when the auto-classification rules cannot resolve a fork — but in v1 the rules cover every reachable case. The orchestrator never actually surfaces these AUQs at Step 5.2; it auto-decides and continues, then surfaces the picks at Step 8.5.
+
+For each sensitive-surface path, the preserved AUQ shape is:
 
 > SPEC names sensitive surface(s):
 >   <path>
@@ -363,19 +366,15 @@ For each sensitive-surface path found, AskUserQuestion:
 > - Cancel — revise SPEC first
 > - Cancel — handle by hand outside /personal-pipeline
 
-For each taste fork, AskUserQuestion presenting the row's alternatives.
+For each taste fork, the preserved AUQ shape presents the row's alternatives.
 
-Collect all answers into `PRE_COLLECTED_AUQS` (a structured map: path/decision → user-answer).
-
-If user cancels any AUQ: end_state = `user_aborted`; write telemetry; exit.
-
-**Auto mode (Step 5.2):**
+Auto-classification rules (always applied):
 
 For each sensitive-surface path: classify as **User Challenge — Approve-with-surfacing**. Auto-pick "approve" forward (so the implement subagent can proceed in 5.3); thread "approve" into `PRE_COLLECTED_AUQS`; log a `user_challenge_approved` line to `$DECISION_LOG` with `step:"5.2"`, `gate_id:"sensitive-surface-<surface-family>"` (catalog/manifest/validator/template/git-hook), `decision:"approve"`, `recommendation:"approve"`, `reasoning` summarizing the SPEC's Components Affected entry, `files_affected` array from the SPEC. Step 8.5 surfaces this for confirmation. v1 ships the simple rule (always approve, always surface); validate.sh-without-TODOS-entry carve-out is deferred (Open Q4 of source design).
 
 For each taste fork: classify as **Taste**. Auto-pick per P3 (cleaner option from the row's Chosen column; fall back to first listed value if Chosen is `TBD`/`{...}`); thread the chosen answer into `PRE_COLLECTED_AUQS`; log a `taste` line to `$DECISION_LOG` with `step:"5.2"`, `gate_id:"taste-fork-<row-name>"`, `decision:"<chosen>"`, `reasoning` from the row's Why column. Surface at 8.5.
 
-Auto mode does NOT cancel on its own at Step 5.2 — it auto-decides and continues. The user reviews the decisions at Step 8.5 and may Abort there.
+The orchestrator does NOT cancel on its own at Step 5.2 — it auto-decides and continues. The user reviews the decisions at Step 8.5 and may Abort there.
 
 ### 5.3 Dispatch implement subagent (with answers threaded)
 
@@ -403,10 +402,8 @@ WORK_ITEM_DIR: <absolute path>
 Capture output, parse with `parse_result`, branch:
 
 - `STATUS=green; FILES_CHANGED=<n>`: continue to Step 6.
-- `STATUS=halted; ESCALATION_NEEDED=<reason>`: orchestrator AskUserQuestions the human; threads answer; re-dispatches Phase 2 once. If the second dispatch also escalates, halt with `[gate-red]`.
+- `STATUS=halted; ESCALATION_NEEDED=<reason>`: the orchestrator one-retry fires silently first (re-dispatch Phase 2 once with the escalation reason as context). If the retry succeeds → continue. If the retry also escalates → classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"5.3"`, `gate_id:"escalation-needed-retry-failed"`, `recommendation:"abort"`, `reasoning` from the escalation reason, then halt with `[gate-red]` and `end_state=halted_at_gate`. The orchestrator does NOT auto-decide a sensitive surface the pre-scan missed — bias toward halt-on-doubt.
 - empty / no RESULT: halt with `[subagent-crash]`.
-
-**Auto mode (Step 5.3 ESCALATION_NEEDED branch):** the existing one-retry fires silently first (orchestrator re-dispatches once with the escalation reason as context). If the retry succeeds → continue. If the retry also escalates → classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"5.3"`, `gate_id:"escalation-needed-retry-failed"`, `recommendation:"abort"`, `reasoning` from the escalation reason, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-decide a sensitive surface the pre-scan missed — bias toward halt-on-doubt.
 
 ## Step 6: Post-Implement Gate
 
@@ -418,7 +415,7 @@ Orchestrator runs (NOT the subagent):
    [gate-red] post-implement validate.sh failed (exit $E):
    <first 20 lines of output>
    ```
-   AskUserQuestion:
+   The preserved AUQ shape (kept for reference; never surfaced unconditionally — auto-classification handles it):
 
    > Post-implement gate red. validate.sh failed.
    >
@@ -427,11 +424,9 @@ Orchestrator runs (NOT the subagent):
    > - Re-dispatch Phase 2 with a "fix this" prompt prepended (one retry)
    > - Override and continue (NOT recommended; the catalog or template structure may be broken)
 
-   Default: abort.
+   Auto-classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"6"`, `gate_id:"post-implement-validate-red"`, `recommendation:"abort"`, `reasoning` summarizing the validate.sh first-20-lines failure, then halt with `[gate-red]` and `end_state=halted_at_gate`. The orchestrator does NOT auto-override a structural validation failure.
 
 `scripts/test.sh` is intentionally NOT run in v1 (slow; revisit in v2).
-
-**Auto mode (Step 6 post-implement red branch):** classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"6"`, `gate_id:"post-implement-validate-red"`, `recommendation:"abort"`, `reasoning` summarizing the validate.sh first-20-lines failure, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-override a structural validation failure.
 
 ## Step 7: Phase 3 — QA Subagent
 
@@ -456,8 +451,8 @@ subagent up to ~10 min wall-clock to complete (smoke + E2E together).
 Parse with `parse_result`. Branch:
 
 - `SMOKE=green; E2E=green; PHASE2_GATES=green`: continue to Step 8 (gate green path).
-- Any red/ambiguous: halt with detailed message; orchestrator AUQs the human with the specific findings.
-- empty / no RESULT: halt with `[subagent-crash]`.
+- Any red/ambiguous: classify as **User Challenge — Halt-at-Gate** (see Step 8 for the full classification + log line); halt with `[gate-red]` and `end_state=halted_at_gate`. Step 8.5 never fires for these runs.
+- empty / no RESULT: halt with `[subagent-crash]`; halt-regardless category (do NOT log to `$DECISION_LOG`); `end_state=subagent_crashed`.
 
 ## Step 8: Post-QA Gate
 
@@ -470,8 +465,7 @@ QA_PASS_LINE=$(grep '\[qa-pass\]' "$TRACKER" | tail -1)
 
 If both lines exist and indicate green: gate passes silently. Continue to Step 9.
 
-If smoke summary is red OR no `[qa-pass]` entry exists today: gate red.
-AskUserQuestion:
+If smoke summary is red OR no `[qa-pass]` entry exists today: gate red. The preserved AUQ shape (kept for reference; auto-classification handles it):
 
 > Post-QA gate found:
 >   <relevant findings from tracker>
@@ -480,13 +474,11 @@ AskUserQuestion:
 > - Abort (default — review tracker, fix, re-invoke)
 > - Mark as known issue and proceed (writes [qa-known-issue] entry; gates do NOT transition; end_state = halted_at_gate)
 
-Default: abort.
+Auto-classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"8"`, `gate_id:"post-qa-red"`, `recommendation:"abort"`, `reasoning` summarizing the relevant tracker findings, then halt with `[gate-red]` and `end_state=halted_at_gate`. The orchestrator does NOT auto-override QA red — surface QA failures for human judgment.
 
-**Auto mode (Step 8 post-QA red branch):** classify as **User Challenge — Halt-at-Gate** (recommend abort per P6). Log a `user_challenge_halt` line to `$DECISION_LOG` with `step:"8"`, `gate_id:"post-qa-red"`, `recommendation:"abort"`, `reasoning` summarizing the relevant tracker findings, then halt with `[gate-red]` and `end_state=halted_at_gate`. Auto mode does NOT auto-override QA red — surface QA failures for human judgment.
+## Step 8.5: Final Approval Gate
 
-## Step 8.5: Final Approval Gate (auto mode only)
-
-Skip if `$AUTO_MODE=false`. The orchestrator has AUQ available (SKILL.md `allowed-tools` includes AskUserQuestion); this step runs at the orchestrator level, not in a subagent.
+Step 8.5 always fires subject to (a) the empty-state short-circuit at 8.5.2 (no Taste, no User-Challenge-Approved decisions → silent pass) and (b) the two halt-categories carve-out (this step is unreachable when `end_state ∈ {halted_at_gate, subagent_crashed}` — earlier halt routing skips here entirely). The orchestrator has AUQ available (SKILL.md `allowed-tools` includes AskUserQuestion); this step runs at the orchestrator level, not in a subagent.
 
 ### 8.5.1 Filter `$DECISION_LOG` to this run
 
@@ -586,7 +578,7 @@ TELEMETRY=~/.gstack/analytics/personal-pipeline.jsonl
 # bust raw shell-interpolated JSON; jq -nc + --arg is the contract-preserving
 # form. Falls back to a sanitized echo if jq is missing (shouldn't happen
 # in this workbench — jq is a declared dependency).
-_MODE=$([ "$AUTO_MODE" = "true" ] && echo "auto" || echo "manual")
+_MODE="auto"
 if command -v jq >/dev/null 2>&1; then
   jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg mode "$_MODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,mode:$mode,ts:$ts}' >> "$TELEMETRY"
@@ -602,9 +594,9 @@ fi
 `subagent_crashed`. Set throughout the orchestration; default `green` if all
 phases passed and gate(s) didn't halt.
 
-The `mode` field is `auto` or `manual` per `$AUTO_MODE`. Sunset trip-wire
-(Step 9.2) counts both modes pooled — same trip-wire contract regardless of
-mode.
+The `mode` field emits the literal `"auto"` (the orchestrator runs in
+auto-decision mode unconditionally; field deletion deferred to v1.17.0 per
+TODOS.md follow-up). Sunset trip-wire (Step 9.2) counts all runs pooled.
 
 ### 9.2 Sunset check (on 6th invocation)
 
@@ -653,7 +645,7 @@ E2E:       <E2E from Phase 3>
 
 Tracker:   $WORK_ITEM_DIR/$TRACKER_FILENAME
 Telemetry: $TELEMETRY (line $INVOCATION_COUNT)
-Decisions: $DECISION_LOG (auto mode only; filter run_id=$RUN_ID)
+Decisions: $DECISION_LOG (filter run_id=$RUN_ID)
 
 Next:
   /ship                                # if end_state=green and Phase 2 gates green
@@ -671,22 +663,11 @@ Next:
 
 ## Decision Gates (AskUserQuestion)
 
-The orchestrator AUQs at:
-- Step 2 branch (b/c) — partial-write recovery
-- Step 4 — confirm scaffold shape
-- Step 5.2 — pre-collected AUQs (sensitive surface, taste forks) before Phase 2 dispatch
-- Step 5.3 escalation — Phase 2 subagent flagged ESCALATION_NEEDED
-- Step 6 — post-implement gate red
-- Step 8 — post-QA gate red/ambiguous
-- **Step 8.5 — auto mode final approval gate (auto mode only; skipped if empty-state)**
-- Step 9 — sunset checkpoint on 6th invocation (always-AUQ in both modes)
+The orchestrator only surfaces AUQs at:
+- **Step 8.5 — final approval gate** (skipped if empty-state — i.e. no Taste and no User-Challenge-Approved decisions logged this run)
+- **Step 9 — sunset checkpoint on the 6th invocation, then every 5 thereafter** (always-AUQ by design)
 
-Auto mode (`$AUTO_MODE=true`) auto-decides Steps 2/4/5.2/5.3/6/8 per the
-classification table in `## Auto Mode Overlay`. Mechanical decisions are
-silent; Taste and User-Challenge-Approved decisions surface at Step 8.5.
-Halt-at-Gate User Challenges halt the pipeline at the originating step
-(Step 8.5 never fires for those runs). Step 9 sunset stays interactive in
-both modes — by design, not auto-decided.
+All other gates (Step 2 branch (b/c), Step 4 confirm scaffold shape, Step 5.2 sensitive-surface / taste-fork pre-collection, Step 5.3 ESCALATION_NEEDED, Step 6 post-implement red, Step 8 post-QA red) are auto-decided per the classification table in `## Auto Mode Overlay` and do NOT surface an AUQ at the originating step. Halt-at-Gate decisions halt the pipeline (write telemetry, exit) without surfacing anything; Mechanical decisions are silent; Taste and User-Challenge-Approved decisions accumulate in `$DECISION_LOG` and surface together at Step 8.5.
 
 Subagents NEVER call AUQ (the tool is unreachable in their context per S000026
 spike). Any decision a subagent might want to make is either pre-collected at
@@ -701,8 +682,8 @@ This skill is idempotent at the orchestrator level. The 4 branches in Step 2
 cover the recovery space:
 
 1. **Branch (a)** — already scaffolded, re-runnable. Phase 1 is skipped; Phase 2/3 inherit their own skills' idempotency contracts.
-2. **Branch (b)** — partial state (footer present but path gone). Halt with manual-cleanup AUQ.
-3. **Branch (c)** — partial state (path present but footer gone). Halt with manual-cleanup AUQ.
+2. **Branch (b)** — partial state (footer present but path gone). Auto-classified as User Challenge — Halt-at-Gate (recommend Re-scaffold per P6); orchestrator logs the decision, writes `[gate-red]`, and exits with `end_state=halted_at_gate`. Manual cleanup required.
+3. **Branch (c)** — partial state (path present but footer gone). Auto-classified as User Challenge — Halt-at-Gate (recommend Halt-for-manual-cleanup per P6); same exit contract as branch (b).
 4. **Branch (d)** — clean slate. Full pipeline runs.
 
 No automatic rollback on subagent crash. Tracker journal records what was attempted; re-run resumes from first incomplete phase.
