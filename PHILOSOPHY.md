@@ -58,7 +58,7 @@ The target user is a solo developer using Claude Code who wants lightweight life
 **Adding a new template:** Add the file to `templates/`. Register it in `skills-catalog.json` under the appropriate catalog entry's `templates` array. Run `./scripts/skills-deploy install` to deploy globally.
 
 **Anti-patterns to avoid:**
-- Don't create orchestration skills that wrap existing gstack skills (they'll end up deleted like /workflow)
+- Don't create orchestration skills that wrap gstack skills as **inline prose** (they end up deleted like /workflow — Claude already follows CLAUDE.md rules without a wrapper). **Exception:** orchestrators that use the `Agent` tool with `subagent_type` per phase for fresh-context isolation are structurally different — file-only handoff between subagents, the orchestrator brokers paths, AUQs are pre-collected at the parent layer because subagents can't reach the AskUserQuestion tool. That's plumbing, not prose, and it earns its keep. See `/personal-pipeline` (F000014, shipped v1.13.0) for the pattern + the spike findings that locked the design.
 - Don't hardcode template lists in skill logic (read `artifact-manifests.json` instead)
 - Don't add $AI_CONTENT_DIR indirection (use `./work-items/` directly)
 - Don't add team collaboration features (assignees, locking, notifications)

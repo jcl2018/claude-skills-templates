@@ -20,6 +20,10 @@ When the user's request matches an available skill, invoke it:
 - "health check", "system status" -> /system-health
 - "validate company work item", "company workflow" -> /company-workflow
 - "validate personal work item", "personal workflow", "check work items", "work item tree" -> /personal-workflow
+- "scaffold work item", "convert design doc to work item", "create work item from design" -> /scaffold-work-item
+- "implement work item", "implement from spec", "build the user story" -> /implement-from-spec
+- "qa work item", "qa user story", "run smoke and e2e on this work item" -> /qa-work-item
+- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc" -> /personal-pipeline
 
 ## CI/CD merge convention
 
