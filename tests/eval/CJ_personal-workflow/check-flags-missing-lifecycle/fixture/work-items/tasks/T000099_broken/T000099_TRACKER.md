@@ -12,7 +12,7 @@ blocked_by: ""
 ---
 
 <!-- This tracker is deliberately malformed for the eval harness:
-     Phase 3 (Ship) is missing entirely. /personal-workflow check should
+     Phase 3 (Ship) is missing entirely. /CJ_personal-workflow check should
      surface the missing phase + below-minimum checkbox count. -->
 
 ## Lifecycle
@@ -45,7 +45,7 @@ blocked_by: ""
 - [x] Files section updated with changed files
 
 <!-- NOTE: ### Phase 3: Ship is intentionally missing from this fixture.
-     This is what /personal-workflow check should surface. -->
+     This is what /CJ_personal-workflow check should surface. -->
 
 ## Todos
 
@@ -65,7 +65,7 @@ blocked_by: ""
 ## Insights
 
 This fixture is intentionally malformed to test eval coverage of the
-"missing lifecycle phase" failure mode in `/personal-workflow check`.
+"missing lifecycle phase" failure mode in `/CJ_personal-workflow check`.
 
 ## Journal
 

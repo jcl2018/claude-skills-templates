@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "check-passing-feature expected output",
+  "description": "Asserts that /CJ_personal-workflow check on a canonical valid feature directory reports overall=PASS with every sub-check=PASS. This is the BASELINE case — proves the validator correctly identifies a healthy feature work-item, so when other failure-detection cases report FAIL we can distinguish 'real failure detected' from 'validator broken on valid input'.",
+  "type": "object",
+  "required": ["overall", "checks"],
+  "additionalProperties": true,
+  "properties": {
+    "overall": {
+      "type": "string",
+      "enum": ["PASS"],
+      "description": "Must be PASS — fixture is a canonical valid feature."
+    },
+    "checks": {
+      "type": "object",
+      "required": ["frontmatter", "sections", "lifecycle", "artifacts"],
+      "additionalProperties": true,
+      "properties": {
+        "frontmatter": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "enum": ["PASS"] }
+          }
+        },
+        "sections": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "enum": ["PASS"] }
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "enum": ["PASS"] }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "required": ["status", "missing"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "enum": ["PASS"] },
+            "missing": {
+              "type": "array",
+              "maxItems": 0,
+              "description": "Must be empty — every required artifact is present in the fixture."
+            }
+          }
+        }
+      }
+    }
+  }
+}

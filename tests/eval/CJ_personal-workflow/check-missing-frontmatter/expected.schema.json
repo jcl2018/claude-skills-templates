@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "check-missing-frontmatter expected output",
+  "description": "Asserts that /CJ_personal-workflow check correctly identifies a feature tracker with deliberately incomplete frontmatter (only name + type present; id/status/created/updated/repo/branch/blocked_by missing). Schema requires overall=FAIL, frontmatter.status=FAIL, and at least 3 missing_fields entries.",
+  "type": "object",
+  "required": ["overall", "checks"],
+  "additionalProperties": true,
+  "properties": {
+    "overall": {
+      "type": "string",
+      "enum": ["FAIL"],
+      "description": "Must be FAIL because frontmatter is incomplete."
+    },
+    "checks": {
+      "type": "object",
+      "required": ["frontmatter"],
+      "additionalProperties": true,
+      "properties": {
+        "frontmatter": {
+          "type": "object",
+          "required": ["status", "missing_fields"],
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["FAIL"],
+              "description": "Must be FAIL — required fields are missing."
+            },
+            "missing_fields": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 3,
+              "description": "Must list at least 3 missing fields. Fixture omits 7 fields (id, status, created, updated, repo, branch, blocked_by); a robust validator should find at least 3 of them."
+            }
+          }
+        }
+      }
+    }
+  }
+}
