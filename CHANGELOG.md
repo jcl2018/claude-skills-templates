@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.15.1] - 2026-05-10
+
+Pre-existing CI flake fix. Two consecutive releases (PR #74 / v1.13.1 and PR #75 / v1.14.0) shipped under `--admin` overrides because seven `echo "$_t11_out" | grep -qF "needle"` call sites in `scripts/test.sh` (lines 1879/1893/1907/1918/1929/1950/1970, T000011 + autoplan D5 blocks) raced against `set -o pipefail` (inherited from `lib.sh`) on GitHub Actions runners — `grep -qF` matches early and exits, `echo`'s next write hits a closed pipe, SIGPIPE flips the pipeline non-zero, the enclosing `if` becomes false, and `fail_test` triggers spuriously. Locally the race window is too tight to reproduce; in CI it tripped 2-3 times per run. Replaced each pipeline with a SIGPIPE-free `case "$_t11_out" in *"needle"*) true;; *) false;; esac` form. No behavioral change to the test assertions; same needles, same gates, same passing path. Out-of-scope sites at lines 1700/1713/1732/1741/1816/1835 use the same shape but are in different test blocks (S000010 + autoplan G3) — left as-is, same fix can be applied if they ever flake. Rebumped from v1.14.1 after queue collision with PR #76's v1.15.0 (`/suggest` skill).
+
+### Fixed
+
+- **`scripts/test.sh` SIGPIPE race in T000011 + autoplan D5 test blocks** — 7 `echo "$_t11_out" | grep -qF "needle"` call sites converted to `case "$_t11_out" in *"needle"*) true;; *) false;; esac`. Eliminates the spurious CI failures that forced `--admin` overrides on the last two ships.
+
+### Changed
+
+- **`VERSION`** — 1.15.0 → 1.15.1 (PATCH bump for CI-only fix; no user-facing behavior change).
+
 ## [1.15.0] - 2026-05-10
 
 T000017 — `/suggest` skill. New slash command that prints a top-5 ranked "what's next?" markdown table by reading `TODOS.md` (the candidate set) and joining against `work-items/**/*_TRACKER.md` YAML frontmatter for live `status` / `blocked_by` / `updated`. Score = priority weight (P1=4..P4=1) + size inverse (S=3..L=1) + unblocked bonus (+2) − recency penalty (1 per 14d since `updated`); tie-break alphabetic by title. Pure bash + standard Unix tools (find, awk, grep, sed, sort, BSD `date -j`); single-file SKILL.md, no script extraction in v1, no new runtime deps. macOS-targeted with explicit `uname` guard. Read-only and idempotent. Status: experimental — promote to `active` after one week of soak. Defensive hardening from ship-time adversarial review: pipe-in-title parsing rewritten to three separate sed captures (the single-sed `|`-delimited form would have corrupted titles containing `|` and broken markdown table rendering); active-section band-pass tightened to reset on any `## ` heading other than `## Active work` (was leaking if a future `## Triage`-style section landed between Active and Deferred); `find` now skips hidden subdirs; explicit not-in-git-repo error replaces silent fallback to `pwd`. Rebumped from v1.14.0 after `/ship` queue collision with PR #75's v1.14.0 (`/personal-pipeline --auto`).

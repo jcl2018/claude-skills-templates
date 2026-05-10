@@ -1876,7 +1876,7 @@ _t11_out=$(_run_validate)
 _t11_rc=$?
 cp "$_t11_orig" "$REPO_ROOT/work-copilot/WORKFLOW.md"
 rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "work-copilot/WORKFLOW.md differs from"; then
+if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"work-copilot/WORKFLOW.md differs from"*) true;; *) false;; esac; then
   ok "T000011 case 1 (single-file drift): validate.sh fails, names diverged file"
 else
   fail_test "T000011 case 1: drift on WORKFLOW.md not detected. rc=$_t11_rc"
@@ -1890,7 +1890,7 @@ _t11_out=$(_run_validate)
 _t11_rc=$?
 cp "$_t11_orig" "$REPO_ROOT/work-copilot/reference/guide-task.md"
 rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "guide-task.md differs"; then
+if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"guide-task.md differs"*) true;; *) false;; esac; then
   ok "T000011 case 4 (flat-glob drift): validate.sh fails on reference/ drift"
 else
   fail_test "T000011 case 4: drift on reference/guide-task.md not detected. rc=$_t11_rc"
@@ -1904,7 +1904,7 @@ _t11_out=$(_run_validate)
 _t11_rc=$?
 cp "$_t11_orig" "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
 rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "valid-feature-dir/TRACKER.md differs"; then
+if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"valid-feature-dir/TRACKER.md differs"*) true;; *) false;; esac; then
   ok "T000011 case 7 (recursive-glob drift): validate.sh fails on nested fixture drift"
 else
   fail_test "T000011 case 7: drift on nested fixture not detected. rc=$_t11_rc"
@@ -1915,7 +1915,7 @@ echo "stale" > "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
 _t11_out=$(_run_validate)
 _t11_rc=$?
 rm -f "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
-if [ "$_t11_rc" -eq 0 ] && echo "$_t11_out" | grep -qF "legacy-tracker.md has no counterpart"; then
+if [ "$_t11_rc" -eq 0 ] && case "$_t11_out" in *"legacy-tracker.md has no counterpart"*) true;; *) false;; esac; then
   ok "T000011 case 6 (autoplan D3): orphan in templates/ warns only (v1 backward compat)"
 else
   fail_test "T000011 case 6: templates/ orphan policy regressed (should WARN, not FAIL)"
@@ -1926,7 +1926,7 @@ echo "stale" > "$REPO_ROOT/work-copilot/reference/guide-stale.md"
 _t11_out=$(_run_validate)
 _t11_rc=$?
 rm -f "$REPO_ROOT/work-copilot/reference/guide-stale.md"
-if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "guide-stale.md has no counterpart"; then
+if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"guide-stale.md has no counterpart"*) true;; *) false;; esac; then
   ok "T000011 case 9 (autoplan D3): orphan in reference/ FAILS (new-mirror policy)"
 else
   fail_test "T000011 case 9: orphan in reference/ should FAIL (autoplan D3 broken). rc=$_t11_rc"
@@ -1947,7 +1947,7 @@ with open(p, 'w') as f: json.dump(m, f, indent=2)
   _t11_rc=$?
   cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
   rm -f "$_t11_orig"
-  if [ "$_t11_rc" -ne 0 ] && echo "$_t11_out" | grep -qF "schema differs"; then
+  if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"schema differs"*) true;; *) false;; esac; then
     ok "autoplan D5: manifest schema-parity rejects schema change"
   else
     fail_test "autoplan D5: manifest schema change not detected. rc=$_t11_rc"
@@ -1967,7 +1967,7 @@ with open(p, 'w') as f: json.dump(m, f, indent=2)
   _t11_rc=$?
   cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
   rm -f "$_t11_orig"
-  if [ "$_t11_rc" -eq 0 ] && echo "$_t11_out" | grep -qF "schema-parity"; then
+  if [ "$_t11_rc" -eq 0 ] && case "$_t11_out" in *"schema-parity"*) true;; *) false;; esac; then
     ok "autoplan D5: description-only divergence passes (field exempt from sync)"
   else
     fail_test "autoplan D5: description-only change incorrectly failed. rc=$_t11_rc"
