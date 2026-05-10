@@ -6,16 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
-## [2.0.3] - 2026-05-10
+## [2.0.4] - 2026-05-10
 
-Documentation sync. The `CJ_qa-work-item` and `CJ_implement-from-spec` skills have actually handled all four work-item types (user-story, defect, task, feature-via-child-AUQ) since v1.11.0 (F000012 / S000021), but their `skills-catalog.json` entries still described scope as "a CJ_personal-workflow user-story" — and `README.md` is auto-generated from the catalog, so the staleness propagated to the public Skills table. v2.0.3 syncs both catalog entries to match the (correct) SKILL.md frontmatter descriptions and regenerates `README.md`. Closes the open `qa-work-item + implement-from-spec catalog descriptions` P3 TODO that's been on the books since v1.13.0's post-ship audit. Pure doc churn — no skill behavior change, no script changes, no test changes. Caught in this session while running /document-release after the v1.16.0 + v2.0.0 + v2.0.1 + v2.0.2 chain landed; the CJ_ rename + auto-only refactor + eval cases + scaffold queue-collision fix had each touched their own surface but none touched these two skills' catalog entries to close the staleness gap.
+Documentation sync. The `CJ_qa-work-item` and `CJ_implement-from-spec` skills have actually handled all four work-item types (user-story, defect, task, feature-via-child-AUQ) since v1.11.0 (F000012 / S000021), but their `skills-catalog.json` entries still described scope as "a CJ_personal-workflow user-story" — and `README.md` is auto-generated from the catalog, so the staleness propagated to the public Skills table. v2.0.4 syncs both catalog entries to match the (correct) SKILL.md frontmatter descriptions and regenerates `README.md`. Closes the open `qa-work-item + implement-from-spec catalog descriptions` P3 TODO that's been on the books since v1.13.0's post-ship audit. Pure doc churn — no skill behavior change, no script changes, no test changes. Caught in this session while running /document-release after the v1.16.0 + v2.0.0 + v2.0.1 + v2.0.2 chain landed; the CJ_ rename + auto-only refactor + eval cases + scaffold queue-collision fix had each touched their own surface but none touched these two skills' catalog entries to close the staleness gap. Rebumped from v2.0.3 after queue collision with PR #84's v2.0.3 (D000017 /CJ_suggest zsh crash fix) which landed first.
 
 ### Changed
 
 - **`skills-catalog.json`** — synced `CJ_qa-work-item` and `CJ_implement-from-spec` `description` fields to the per-type dispatch wording from their respective SKILL.md frontmatter (was: "user-story" only; now: "user-story, defect, or task" / "user-story, defect, task, or feature").
 - **`README.md`** — regenerated from `skills-catalog.json` to pick up the description updates.
-- **`TODOS.md`** — marked `qa-work-item + implement-from-spec catalog descriptions` as DONE (closed in v2.0.3).
-- **`VERSION`** — 2.0.2 → 2.0.3 (PATCH; doc-only sync, no skill behavior change).
+- **`TODOS.md`** — marked `qa-work-item + implement-from-spec catalog descriptions` as DONE (closed in v2.0.4).
+- **`VERSION`** — 2.0.3 → 2.0.4 (PATCH on top of v2.0.3; doc-only sync, no skill behavior change).
+
+## [2.0.3] - 2026-05-10
+
+### Fixed
+- D000017 — `/CJ_suggest` no longer crashes with `read-only variable: status`
+  on zsh-eval'd Bash-tool invocations. The ~250-line bash body in
+  `skills/CJ_suggest/SKILL.md` moves to a new
+  `skills/CJ_suggest/scripts/suggest.sh` with `#!/usr/bin/env bash` shebang
+  and `set -euo pipefail`; SKILL.md routing collapses to a one-liner that
+  dispatches to the deployed script. The shebang pins execution to bash
+  regardless of harness shell, fixing the `status=$(...)` collision with
+  zsh's read-only `$status` builtin. Rebumped from v2.0.1 after queue
+  collisions with PR #81 (v2.0.1) and PR #82 (v2.0.2) which landed first.
+- `sort | head -n 5` under `set -o pipefail` hardened with `|| true` for
+  forward-compat against SIGPIPE on inputs large enough to outgrow the sort
+  buffer.
+
+### Changed
+- `/CJ_suggest` routing resolves the script via
+  `$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh` (the deployed path)
+  instead of `$(git rev-parse --show-toplevel)/skills/...`. Closes a
+  trust-boundary hole flagged by codex adversarial review: any repo
+  containing `skills/CJ_suggest/scripts/suggest.sh` would otherwise have run
+  as the skill. Workbench developers iterating on the script must run
+  `./scripts/skills-deploy install` to sync (existing convention).
+- `skills-catalog.json` `CJ_suggest` entry's `files` array gains
+  `skills/CJ_suggest/scripts/suggest.sh`.
 
 ## [2.0.2] - 2026-05-10
 
