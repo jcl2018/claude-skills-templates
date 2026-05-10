@@ -193,5 +193,28 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "suggest",
+    "version": "0.1.0",
+    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "bash",
+        "awk",
+        "find",
+        "grep",
+        "sed",
+        "sort"
+      ]
+    },
+    "portability": "local-only",
+    "files": [
+      "skills/suggest/SKILL.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]

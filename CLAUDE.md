@@ -25,6 +25,7 @@ When the user's request matches an available skill, invoke it:
 - "qa work item", "qa user story", "run smoke and e2e on this work item" -> /qa-work-item
 - "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc" -> /personal-pipeline
 - "auto pipeline", "fire and forget pipeline", "auto mode", "personal-pipeline auto" -> /personal-pipeline --auto
+- "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /suggest
 
 ## CI/CD merge convention
 
