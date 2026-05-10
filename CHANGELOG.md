@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.12.1] - 2026-05-09
+
+T000016 — repo-local gstack output via project-slug symlink. Two scripts (setup + teardown) redirect `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, so gstack design docs, plans, reviews, and checkpoints commit alongside code instead of staying machine-local. The `.gitignore` flips from blanket `.gstack/` ignore to a specific machine-local denylist (sessions, analytics, learnings, .gbrain*, etc.) — designs and plans now track in git. README + CLAUDE.md document the per-machine setup and the parallel `.gstack/` (lateral) vs `work-items/` (structured) design surfaces. Defensive hardening from ship-time adversarial review: `eval "$(gstack-slug)"` replaced with regex extraction (no arbitrary code execution), and rsync gets `--backup --suffix=.predeploy.bak` so a misjudged `--force` is recoverable.
+
+### Added
+
+- **`scripts/setup-gstack-symlink.sh`** — per-machine symlink wiring. rsyncs existing `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, backs up the original (`$SRC.bak.<timestamp>`), replaces the source dir with a symlink. Idempotent; `--force` for re-pointing existing symlinks or merging non-empty targets. Resolves the MAIN repo via `git rev-parse --git-common-dir` so it works from worktrees too. SLUG extracted via regex (no `eval`); `set -euo pipefail`; shellcheck-clean.
+- **`scripts/teardown-gstack-symlink.sh`** — reversal. Removes the symlink, rsyncs DEST contents back into the home-dir SRC. Refuses if the symlink target doesn't match the expected `<main-repo>/.gstack/` (no blind reverts).
+- **`work-items/tasks/ops/T000016_repo_local_gstack_output/`** — task tracker + 12-case regression test-plan covering fresh setup, idempotent re-runs, `--force` semantics, teardown safety, write integration, `.gitignore` correctness, `gstack-slug` failure modes, and worktree resolution. Verification is manual (scripts modify the user's `$HOME/.gstack/`).
+
+### Changed
+
+- **`.gitignore`** — removed blanket `.gstack/` line; added 8 specific machine-local patterns under `.gstack/` (`sessions/`, `analytics/`, `learnings.jsonl`, `timeline.jsonl`, `.gbrain*`, `.brain-*`, `.pending-*`, `tmp/`). Designs, ceo-plans, reviews, and checkpoints under `.gstack/` now track in git by default.
+- **`scripts/generate-readme.sh`** — new `## gstack plans live in this repo` section (between Installation and Scripts) + 2 new rows in the Scripts table for `setup-gstack-symlink.sh` and `teardown-gstack-symlink.sh`.
+- **`README.md`** — regenerated from the updated generator (same delta as `scripts/generate-readme.sh`).
+- **`CLAUDE.md`** — new `### .gstack/ vs work-items/ (parallel design surfaces)` subsection under Conventions, documenting that gstack output (lateral/exploratory) and `work-items/` (structured per-feature) are parallel surfaces, not merged.
+- **`VERSION`** — 1.12.0 → 1.12.1 (PATCH bump: operational tooling, no new feature surface).
+
 ## [1.12.0] - 2026-05-09
 
 F000013 behavioral eval harness V1 — first slice (S000023): a bash + jq runner that spawns the real `claude` CLI headless against scratch worktrees, validates structured JSON output via `--json-schema` enforcement, and runs cases under `xargs -P 4`. Spike 0 resolved live against the workbench: direct `--plugin-dir` skill loading works, inline `--json-schema` syntax works, schema mismatch exit-fails (no need for ajv-cli post-validation). First passing case `check-flags-missing-lifecycle` lands at $0.10/15s with the model output matching fixture truth exactly. Security hardening from /ship review baked in. Remaining V1 stories (S000024 case coverage + S000025 nightly CI) scaffolded as follow-up PRs.
