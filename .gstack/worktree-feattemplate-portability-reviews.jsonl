@@ -1,0 +1,5 @@
+{"skill":"plan-ceo-review","timestamp":"2026-04-11T05:12:44Z","status":"clean","unresolved":0,"critical_gaps":0,"mode":"SELECTIVE_EXPANSION","via":"autoplan","commit":"2dc99e8"}
+{"skill":"plan-eng-review","timestamp":"2026-04-11T05:12:44Z","status":"clean","unresolved":0,"critical_gaps":0,"issues_found":12,"mode":"FULL_REVIEW","via":"autoplan","commit":"2dc99e8"}
+{"skill":"plan-devex-review","timestamp":"2026-04-11T05:12:44Z","status":"clean","initial_score":8,"overall_score":8,"product_type":"CLI","tthw_current":"2min","tthw_target":"2min","unresolved":0,"via":"autoplan","commit":"2dc99e8"}
+{"skill":"autoplan-voices","timestamp":"2026-04-11T05:12:44Z","status":"clean","source":"codex+subagent","phase":"ceo","via":"autoplan","consensus_confirmed":3,"consensus_disagree":3,"commit":"2dc99e8"}
+{"skill":"autoplan-voices","timestamp":"2026-04-11T05:12:44Z","status":"clean","source":"codex+subagent","phase":"eng","via":"autoplan","consensus_confirmed":3,"consensus_disagree":3,"commit":"2dc99e8"}

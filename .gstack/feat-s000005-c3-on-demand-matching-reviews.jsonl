@@ -1,0 +1,2 @@
+{"skill":"ship","timestamp":"2026-04-21T23:01:02Z","coverage_pct":100,"plan_items_total":0,"plan_items_done":0,"verification_result":"skipped","version":"0.13.0","branch":"feat/s000005-c3-on-demand-matching"}
+{"skill":"land-and-deploy","timestamp":"2026-04-21T23:03:55Z","status":"SUCCESS","pr":41,"merge_sha":"b27946f","merge_path":"auto","first_run":false,"deploy_status":"SKIPPED","staging_status":"N/A","review_status":"CURRENT","ci_wait_s":15,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":60}

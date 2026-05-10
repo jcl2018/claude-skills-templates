@@ -1,0 +1,2 @@
+{"skill":"ship","timestamp":"2026-05-05T20:22:41Z","coverage_pct":-1,"plan_items_total":12,"plan_items_done":10,"verification_result":"skipped","version":"1.4.0","branch":"claude/cool-payne-300ef9"}
+{"skill":"land-and-deploy","timestamp":"2026-05-05T20:26:04Z","status":"SUCCESS","pr":57,"merge_sha":"abe411c","merge_path":"squash","first_run":false,"deploy_status":"N/A","staging_status":"N/A","review_status":"RECENT","verdict":"DEPLOYED (workbench, no canary)"}

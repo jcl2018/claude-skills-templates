@@ -1,0 +1,2 @@
+{"skill":"review","timestamp":"2026-04-13T22:07:09Z","status":"clean","issues_found":1,"critical":0,"informational":1,"quality_score":10,"specialists":{},"findings":[{"fingerprint":"templates/tracker-feature.md:22:hierarchy-mismatch","severity":"INFORMATIONAL","action":"auto-fixed"}],"commit":"195d41f","via":"ship"}
+{"skill":"adversarial-review","timestamp":"2026-04-13T22:07:09Z","status":"clean","source":"both","tier":"always","gate":"skipped","commit":"195d41f"}

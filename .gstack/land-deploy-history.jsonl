@@ -1,0 +1,1 @@
+{"skill":"land-and-deploy","timestamp":"2026-05-05T19:09:50Z","status":"SUCCESS","pr":53,"merge_sha":"018d53ab","merge_path":"auto-squash","first_run":false,"deploy_status":"NO_WORKFLOW","staging_status":"N/A","review_status":"CURRENT","ci_wait_s":60,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":410}

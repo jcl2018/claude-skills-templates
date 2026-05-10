@@ -1,0 +1,2 @@
+{"skill":"ship","timestamp":"2026-04-13T22:08:12Z","coverage_pct":-1,"plan_items_total":0,"plan_items_done":0,"verification_result":"skipped","version":"0.3.5","branch":"chore/close-f000001"}
+{"skill":"land-and-deploy","timestamp":"2026-04-13T22:12:25Z","status":"SUCCESS","pr":26,"merge_sha":"dd1e8a1","merge_path":"direct","first_run":false,"deploy_status":"SKIPPED","staging_status":"SKIPPED","review_status":"CURRENT","ci_wait_s":0,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":30}

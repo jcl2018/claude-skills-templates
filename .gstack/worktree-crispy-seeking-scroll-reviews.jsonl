@@ -1,0 +1,3 @@
+{"skill":"ship","timestamp":"2026-04-12T02:01:28Z","coverage_pct":-1,"plan_items_total":0,"plan_items_done":0,"verification_result":"skipped","version":"0.2.3","branch":"worktree-crispy-seeking-scroll"}
+{"skill":"review","timestamp":"2026-04-12T02:01:28Z","status":"clean","issues_found":0,"critical":0,"informational":0,"quality_score":10.0,"specialists":{},"findings":[],"commit":"5490620","via":"ship"}
+{"skill":"land-and-deploy","timestamp":"2026-04-12T02:07:05Z","status":"SUCCESS","pr":19,"merge_sha":"03f5a35","merge_path":"squash","first_run":false,"deploy_status":"SKIPPED","staging_status":"SKIPPED","review_status":"CURRENT","ci_wait_s":0,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":0}

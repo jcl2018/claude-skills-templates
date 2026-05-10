@@ -1,0 +1,2 @@
+{"skill":"ship","timestamp":"2026-04-14T05:53:46Z","coverage_pct":-1,"plan_items_total":12,"plan_items_done":12,"verification_result":"skipped","version":"0.3.8","branch":"fix/workitem-format-consistency"}
+{"skill":"land-and-deploy","timestamp":"2026-04-14T05:59:57Z","status":"SUCCESS","pr":29,"merge_sha":"fecbdbb","merge_path":"direct","first_run":false,"deploy_status":"SKIPPED","staging_status":"SKIPPED","review_status":"CURRENT","ci_wait_s":0,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":0}

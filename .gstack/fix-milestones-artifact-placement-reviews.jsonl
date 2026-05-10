@@ -1,0 +1,2 @@
+{"skill":"ship","timestamp":"2026-04-14T02:32:42Z","coverage_pct":-1,"plan_items_total":6,"plan_items_done":6,"verification_result":"pass","version":"0.3.7","branch":"fix/milestones-artifact-placement"}
+{"skill":"land-and-deploy","timestamp":"2026-04-14T04:48:11Z","status":"SUCCESS","pr":28,"merge_sha":"99cee3b","merge_path":"direct","first_run":false,"deploy_status":"SKIPPED","staging_status":"SKIPPED","review_status":"CURRENT","ci_wait_s":0,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":30}

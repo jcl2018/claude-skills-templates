@@ -1,0 +1,3 @@
+{"skill":"ship","timestamp":"2026-04-13T22:57:42Z","coverage_pct":-1,"plan_items_total":14,"plan_items_done":14,"verification_result":"pass","version":"0.3.6","branch":"chore/workflow-alignment"}
+{"skill":"ship","timestamp":"2026-04-13T23:44:09Z","coverage_pct":-1,"plan_items_total":14,"plan_items_done":14,"verification_result":"pass","version":"0.3.6","branch":"chore/workflow-alignment"}
+{"skill":"land-and-deploy","timestamp":"2026-04-13T23:45:44Z","status":"SUCCESS","pr":27,"merge_sha":"1d1cb32","merge_path":"direct","first_run":false,"deploy_status":"SKIPPED","staging_status":"SKIPPED","review_status":"CURRENT","ci_wait_s":0,"queue_s":0,"deploy_s":0,"staging_s":0,"canary_s":0,"total_s":30}

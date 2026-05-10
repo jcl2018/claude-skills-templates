@@ -1,0 +1,2 @@
+{"skill":"review","timestamp":"2026-04-11T04:08:19Z","status":"clean","issues_found":0,"critical":0,"informational":0,"commit":"2c1b3c3","via":"ship"}
+{"skill":"ship","timestamp":"2026-04-11T04:08:27Z","coverage_pct":-1,"plan_items_total":7,"plan_items_done":7,"verification_result":"skipped","version":"0.2.0","branch":"feat-system-health-v2"}

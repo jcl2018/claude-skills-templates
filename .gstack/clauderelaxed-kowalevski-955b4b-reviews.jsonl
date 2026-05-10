@@ -1,0 +1,31 @@
+{
+  "skill": "review",
+  "timestamp": "2026-05-10T00:36:40Z",
+  "status": "clean",
+  "issues_found": 0,
+  "critical": 0,
+  "informational": 0,
+  "quality_score": 10.0,
+  "specialists": {
+    "testing": {
+      "dispatched": false,
+      "reason": "scope"
+    },
+    "maintainability": {
+      "dispatched": false,
+      "reason": "scope"
+    }
+  },
+  "findings": [],
+  "commit": "a178843",
+  "via": "ship"
+}
+{
+  "skill": "adversarial-review",
+  "timestamp": "2026-05-10T00:36:40Z",
+  "status": "issues_found",
+  "source": "claude",
+  "tier": "always",
+  "gate": "informational",
+  "commit": "a178843"
+}

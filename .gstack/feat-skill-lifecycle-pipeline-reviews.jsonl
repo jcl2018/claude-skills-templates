@@ -1,0 +1,2 @@
+{"skill":"review","timestamp":"2026-04-11T01:03:31Z","status":"clean","issues_found":0,"critical":0,"informational":0,"commit":"5eeb764","via":"ship"}
+{"skill":"ship","timestamp":"2026-04-11T01:03:34Z","coverage_pct":-1,"plan_items_total":9,"plan_items_done":9,"verification_result":"pass","version":"0.1.0","branch":"feat-skill-lifecycle-pipeline"}

@@ -1,0 +1,3 @@
+{"skill":"review","timestamp":"2026-04-13T15:15:28Z","status":"clean","issues_found":0,"critical":0,"informational":0,"quality_score":10.0,"specialists":{},"findings":[],"commit":"7d26bf9","via":"ship"}
+{"skill":"adversarial-review","timestamp":"2026-04-13T15:17:18Z","status":"clean","source":"claude","tier":"always","gate":"skipped","commit":"7d26bf9"}
+{"skill":"ship","timestamp":"2026-04-13T15:18:44Z","coverage_pct":-1,"plan_items_total":9,"plan_items_done":7,"verification_result":"skipped","version":"0.3.4","branch":"chore/consolidate-work-items"}
