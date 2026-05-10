@@ -60,8 +60,8 @@ blocked_by: ""
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -85,6 +85,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #73: v1.13.0 feat: F000014 /personal-pipeline orchestrator + T000015 fork-aware update detection](https://github.com/jcl2018/claude-skills-templates/pull/73) — MERGED
 
 ## Files
 
@@ -116,3 +118,4 @@ blocked_by: ""
 - 2026-05-09 [qa-smoke] 4 (test-plan row 4): green — both remotes present (origin VERSION=99.0.0, upstream VERSION=50.0.0), banner emits using origin/main — `SKILLS_UPGRADE_AVAILABLE 1.0.0 99.0.0`. Origin preferred over upstream as designed.
 - 2026-05-09 [qa-smoke-summary] green: 4/4 non-manual rows green (0 manual rows pending). Verification Steps row 1 (`./scripts/validate.sh`) PASS post-change.
 - 2026-05-09 [qa-pass] T000015 (task): green smoke from test-plan rows (4 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #73,/land-and-deploy — PR merged,PRs section: linked PR #73 (MERGED).

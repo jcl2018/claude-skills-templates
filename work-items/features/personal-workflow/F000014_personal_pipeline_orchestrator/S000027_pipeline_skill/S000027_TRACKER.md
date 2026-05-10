@@ -64,11 +64,11 @@ blocked_by: "S000026"
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -102,6 +102,8 @@ blocked_by: "S000026"
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #73: v1.13.0 feat: F000014 /personal-pipeline orchestrator + T000015 fork-aware update detection](https://github.com/jcl2018/claude-skills-templates/pull/73) — MERGED
 
 ## Files
 
@@ -147,3 +149,4 @@ blocked_by: "S000026"
 - 2026-05-09 [qa-e2e-followup] E1 (AC-2, AC-6): UPGRADED ambiguous → green via live happy-path bootstrap run. User chose option B (run happy-path live now) at the E2E ambiguous AUQ. Created synthetic design doc for TODOS.md:8 (Fork-aware update detection P3); invoked /personal-pipeline live; full 9-step pipeline ran end-to-end with end_state=green. T000015 task scaffolded at work-items/tasks/ops/T000015_fork_aware_update_detection/, scripts/skills-update-check modified (+11 lines remote-resolution stanza), validate.sh PASS, qa-work-item ran 4 test-plan rows green via temp-repo simulation. Telemetry: ~/.gstack/analytics/personal-pipeline.jsonl line 1. All 3 subagent phases (scaffold/implement/qa) emitted clean RESULT lines; lenient parser unused but available. Run ID: 20260509-165854-3005. This bootstrap run also closes F000014 ROADMAP milestone #3 (first real run on a TODOS.md entry) ahead of schedule.
 - 2026-05-09 [qa-e2e-summary] green (after live bootstrap run): 4/4 E2E criteria green. E1 verified by actual pipeline execution; E2/E3/E4 by structural verification of pipeline.md.
 - 2026-05-09 [qa-pass] S000027 (user-story): green smoke (4/4 after S4 inline fix) + green E2E (4/4 after live bootstrap). Phase 2 gates transitioned. /personal-pipeline orchestrator validated end-to-end on real input; ready for /ship.
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #73,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #73,PRs section: linked PR #73 (MERGED).

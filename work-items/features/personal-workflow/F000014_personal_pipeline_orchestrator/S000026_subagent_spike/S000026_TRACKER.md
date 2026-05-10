@@ -63,11 +63,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -93,6 +93,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #73: v1.13.0 feat: F000014 /personal-pipeline orchestrator + T000015 fork-aware update detection](https://github.com/jcl2018/claude-skills-templates/pull/73) — MERGED
 
 ## Files
 
@@ -130,3 +132,4 @@ blocked_by: ""
 - 2026-05-09 [qa-e2e-summary] green (≈90s subagent + ~3min claude -p × 5 trials): all 3 E2E criteria green after live probe execution.
 - 2026-05-09 [qa-finding] **Spike outcome implies F000014_DESIGN updates required.** Both probes failed → F000014's "Big decisions" #2 (Phase 2 dispatch via subagent AUQ_NEEDED return contract) is supplanted by "orchestrator pre-collects AUQs before dispatch" — the subagent has no AskUserQuestion tool to call. RESULT-line parser must be lenient (strip `>` prefixes + code fences). S000027's pipeline.md MUST be authored with these two adjustments (documented in findings.md "Implications" section). Updating F000014_DESIGN big-decisions table is a follow-up TODO (not blocking S000026 ship).
 - 2026-05-09 [qa-pass] S000026 (user-story): green smoke + green E2E. Phase 2 gates transitioned. Spike findings.md committed at tests/spike/subagent-capabilities/findings.md; ready to unblock S000027 (with the design adjustments from findings.md).
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #73,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #73,PRs section: linked PR #73 (MERGED).

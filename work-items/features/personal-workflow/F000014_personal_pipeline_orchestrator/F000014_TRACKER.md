@@ -54,10 +54,10 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/personal-workflow check` — all children pass validation
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 - [ ] `/document-release` — post-ship doc audit done; drifts fixed inline or spawned as D-tickets
 
 ## Acceptance Criteria
@@ -89,6 +89,8 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #73: v1.13.0 feat: F000014 /personal-pipeline orchestrator + T000015 fork-aware update detection](https://github.com/jcl2018/claude-skills-templates/pull/73) — MERGED
+
 ## Files
 
 - `skills/personal-pipeline/SKILL.md` (NEW, S000027)
@@ -117,3 +119,4 @@ blocked_by: ""
 - 2026-05-09 [finding] Spec review across 3 iterations caught 13 issues; quality went 6/10 → 7/10 → 9/10. Iteration 2 surfaced new issues introduced by iteration 1 fixes — typical convergence pattern, not a sign the doc was wrong.
 - 2026-05-09 [decision] Source design approved via /office-hours; will pass through /plan-eng-review before pipeline.md is written (catches architecture gaps the spec-review subagent doesn't, e.g., concurrent-invocation races on `work-items/` ID generation).
 - 2026-05-09 [decision] **F000014_DESIGN big-decisions table extended with rows 2.1 + 2.2 after S000026 spike findings.** Spike found AUQ is unreachable inside Agent subagents (not just hang/auto-cancel) → Phase 2 dispatch model SUPERSEDED: orchestrator pre-collects AUQs at parent layer, subagents run without AUQ. Spike also found RESULT-line formatting non-deterministic (2/5 strict hits, content always present) → parser leniency required (strip `>` blockquote prefixes + code fences). Both adjustments cascade into S000027_SPEC.md and the eventual pipeline.md.
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #73,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #73,PRs section: linked PR #73 (MERGED).
