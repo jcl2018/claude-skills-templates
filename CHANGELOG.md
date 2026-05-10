@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.14.0] - 2026-05-10
+
+S000028 — `/personal-pipeline --auto` flag adds autoplan-style auto-decision mode to the F000014 orchestrator. One keystroke runs scaffold/implement/QA end-to-end with intermediate AUQs auto-decided by 6 principles; close calls surface at one final approval gate (Step 8.5) instead of inline across the run. Manual mode (no flag) stays byte-identical to v1.13.1 — every auto-mode behavior is gated on `$AUTO_MODE=true`. The 6 principles port `/autoplan`'s framework with one substitution: P6 becomes "bias toward halt-on-doubt" instead of "bias toward action," reflecting the higher blast radius of code-mutating pipeline vs plan-review. User Challenge classification splits into Approve-with-surfacing (sensitive-surface AUQs at Step 5.2 — auto-pick approve forward, surface at 8.5 for confirmation) and Halt-at-Gate (gate-red at Steps 5.3/6/8 — halt now, log for audit). Halt-regardless paths (boundary check red, subagent crash) skip the decision log entirely; Halt-at-Gate User Challenges DO log a `user_challenge_halt` line for audit before halting. Step 8.5 final approval gate fires only on the green-or-recoverable path with empty-state short-circuit (no Taste + no User-Challenge-Approved → silent `[auto-pipeline-clean]` to tracker). Reject at 8.5 is "Abort + show what to revert" (per-decision files-affected list grouped by gate; user runs `git restore` manually) — no programmatic rollback in v1. Telemetry gains `mode: auto|manual` field; sunset trip-wire counts both modes pooled. Decision log is a single shared file at `~/.gstack/analytics/personal-pipeline-auto-decisions.jsonl`, run_id-tagged.
+
+### Added
+
+- **`/personal-pipeline --auto` flag** — new mode flag on the F000014 orchestrator. Auto-decides intermediate AUQs at Steps 2/4/5.2/5.3/6/8 using 6 principles + decision classification (Mechanical / Taste / User-Challenge-Approved / User-Challenge-Halt). Default behavior (no flag) is unchanged.
+- **Auto Mode Overlay section** in `skills/personal-pipeline/pipeline.md` — the 6 principles, classification rules, halt categories with distinct logging contracts, `$DECISION_LOG` schema with jq -nc emit example. Single discoverable section at the top.
+- **Step 8.5 Final Approval Gate** — fires only when `$AUTO_MODE=true` and pipeline reaches it (no Halt-at-Gate fired). Single AUQ in gstack format with two options: Approve all (commit decisions, set `end_state=green`) or Abort + show what to revert (per-decision files-affected list grouped by gate; pipeline state preserved for manual `git restore`). Empty-state short-circuit writes `[auto-pipeline-clean]` to tracker and skips the AUQ when no Taste/User-Challenge-Approved decisions accumulated.
+- **Per-step auto-mode callouts** at Steps 2b/2c/4/5.2/5.3/6/8 in `pipeline.md` — 7 inline callouts cross-referencing the Auto Mode Overlay's classification table.
+- **Decision log** — new artifact at `~/.gstack/analytics/personal-pipeline-auto-decisions.jsonl`, single shared file, run_id-tagged per line. Schema: `{run_id, step, gate_id, classification, decision, recommendation, reasoning, context_missing, files_affected, ts}`.
+
+### Changed
+
+- **`skills/personal-pipeline/SKILL.md`** — Usage section gains `[--auto]` syntax; new `## Auto Mode` subsection (~50 lines) summarizes the 6 principles, classification, halt-regardless contract, and Step 8.5 with pointer to pipeline.md's overlay section.
+- **`skills/personal-pipeline/pipeline.md`** — Step 1 parses `--auto` flag at the front of `$@`; sets `$AUTO_MODE=true|false`; initializes `$DECISION_LOG` constant path. Step 9.1 telemetry adds `mode: auto|manual` field. Decision Gates summary section names Step 8.5. ~250 lines added; manual code path remains byte-identical (every new behavior gated on `$AUTO_MODE=true`).
+- **`skills-catalog.json`** — `personal-pipeline` description bumped to mention `--auto` flag and `/autoplan` parity.
+- **`README.md`** — regenerated from the updated catalog.
+- **`VERSION`** — 1.13.1 → 1.14.0 (MINOR bump for new user-facing capability).
+
 ## [1.13.1] - 2026-05-09
 
 T000016 — repo-local gstack output via project-slug symlink. Two scripts (setup + teardown) redirect `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, so gstack design docs, plans, reviews, and checkpoints commit alongside code instead of staying machine-local. The `.gitignore` flips from blanket `.gstack/` ignore to a specific machine-local denylist (sessions, analytics, learnings, .gbrain*, etc.) — designs and plans now track in git. README + CLAUDE.md document the per-machine setup and the parallel `.gstack/` (lateral) vs `work-items/` (structured) design surfaces. Defensive hardening from ship-time adversarial review: `eval "$(gstack-slug)"` replaced with regex extraction (no arbitrary code execution), and rsync gets `--backup --suffix=.predeploy.bak` so a misjudged `--force` is recoverable.
