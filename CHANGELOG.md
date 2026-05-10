@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.1] - 2026-05-10
+
+`/CJ_scaffold-work-item` Step 5 now scans open PRs for claimed work-item IDs in addition to local `work-items/` to prevent queue-collision IDs across parallel worktrees. The original Step 5 generated next ID from `find work-items -name "${PREFIX}*_TRACKER.md"` only, so two worktrees scaffolding from the same baseline (e.g. main at S000028) both grabbed S000029 — exactly what happened with PR #80 (`S000029_auto_default` under F000014) and closed PR #79 (`S000029_phase0_spike` under F000015) on 2026-05-09. Different parent dirs avoided filesystem collision but duplicated the global S000029 ID, and the second branch only learned about it at /land-and-deploy Step 3.4 post-push. New Step 5 caps the open-PR scan at 5 PRs (`gh pr list --state open --base main --limit 5` then `gh pr view --json files` per PR), treats any `${PREFIX}NNNNNN_*_TRACKER.md` path in an open PR as a claimed ID, and skip-silents if `gh` is offline/unauthenticated. Adds 2-5s to scaffold runtime when gh is available — acceptable cost given that scaffold runs once per work-item creation. Also fixes a latent octal-interpretation bug in arithmetic: `$((HIGHEST + 1))` interpreted leading-zero strings like `000029` as octal under bash, breaking on digits 8/9; new code uses `$((10#$HIGHEST + 1))` to force base-10. Verified under both bash and zsh. Limitation: only catches collisions where the parallel worktree has ALREADY pushed and opened a PR; two worktrees both scaffolding without push still collide, with /land-and-deploy Step 3.4 as the safety net. TODOS.md updated: P3 marked DONE, P2 (brief-mode redo) updated to use `CJ_*` skill names post-v2.0.0 rename, P4 dropped (out-of-workbench-scope — `/office-hours` is a gstack skill, not a workbench skill).
+
+### Fixed
+
+- **`skills/CJ_scaffold-work-item/scaffold.md` Step 5: queue-collision detection at ID-pick time.** Open-PR scan added before `NEW_ID` generation; latent octal-interpretation bug in `$((HIGHEST + 1))` fixed via `10#` base-10 prefix.
+
+### Changed
+
+- **`VERSION`** — 2.0.0 → 2.0.1 (PATCH; bug fix to scaffold ID-pick logic, no skill-surface change).
+
 ## [2.0.0] - 2026-05-09
 
 T000018 — Rename all 8 user-authored skills to use the `CJ_` prefix. Pure
