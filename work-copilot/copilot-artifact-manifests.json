@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "description": "Company work item type-to-artifact mapping. Read by validate.prompt.md (directory mode). Mirror of skills/company-workflow/company-artifact-manifests.json — kept in sync via scripts/validate.sh.",
+  "description": "Company work item type-to-artifact mapping. Read by validate.prompt.md (directory mode). Mirror of deprecated/CJ_company-workflow/company-artifact-manifests.json — kept in sync via scripts/validate.sh.",
   "types": {
     "feature": {
       "required": [

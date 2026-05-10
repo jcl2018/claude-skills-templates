@@ -2,6 +2,22 @@
 
 ## Active work
 
+### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
+Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
+`CJ_*`: `CJ_personal-workflow`, `CJ_system-health`, `CJ_scaffold-work-item`,
+`CJ_implement-from-spec`, `CJ_qa-work-item`, `CJ_personal-pipeline`,
+`CJ_suggest`, `CJ_company-workflow` (deprecated). Aligns with the existing
+`anthropic-skills:*` and `KB_*` namespacing on the user's machine, ends slash-
+command collision risk with upstream/native skills, marks ownership unambiguously.
+**Breaking:** all slash-command names change post-deploy; consumers must run
+`./scripts/skills-deploy install --include-deprecated` after pulling v2.0.0
+to re-link the renamed skills under `~/.claude/skills/CJ_*/` and templates
+under `~/.claude/templates/CJ_personal-workflow/`. Catalog, scripts (`validate.sh`,
+`test.sh`, `test-deploy.sh`, `skills-deploy`, `eval.sh`,
+`check-gates-update.sh`), CLAUDE.md routing block, README.md (regenerated),
+work-copilot byte-mirror, and per-skill SKILL.md cross-references all updated
+in lockstep. `git mv` used throughout so blame history follows.
+
 ### ~~scripts/test.sh SIGPIPE flake forces --admin overrides at ship time (P2, S)~~ DONE
 Closed in v1.15.1. `scripts/test.sh` lines 1879/1893/1907/1918/1929/1950/1970 used `if [ ... ] && echo "$_t11_out" | grep -qF "needle"; then` patterns. Under `set -o pipefail` (inherited from `lib.sh`), GitHub Actions runners hit a SIGPIPE race: when `grep -qF` matched early and exited, `echo`'s next write hit a closed pipe → pipeline exits non-zero → enclosing `if` becomes false → `fail_test` triggered spuriously. Locally the race window was too tight to reproduce; in CI it tripped 2-3 times per run inconsistently. Two consecutive ships needed `--admin` overrides for the same flake: PR #74 (v1.13.1) and PR #75 (v1.14.0). **Fix shipped:** replaced each pipeline with a SIGPIPE-free `case "$_t11_out" in *"needle"*) true;; *) false;; esac` form across all 7 call sites in T000011 + autoplan D5 blocks. Full local suite green. Out-of-scope sites at lines 1700/1713/1732/1741/1816/1835 left alone (different test blocks — same fix can be applied if they ever flake). **Reference:** spawned as a follow-up task during /land-and-deploy on PR #75 (2026-05-10).
 

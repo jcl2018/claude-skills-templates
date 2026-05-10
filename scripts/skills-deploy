@@ -137,7 +137,7 @@ file_checksum() {
 }
 
 # Validate template name is safe (no path traversal)
-# Allows one subfolder level: "company-workflow/tracker-feature.md"
+# Allows one subfolder level: "CJ_company-workflow/tracker-feature.md"
 # Blocks ".." segments to prevent path traversal
 validate_template_name() {
   if [[ "$1" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)?\.md$ ]] && [[ "$1" != *".."* ]]; then
@@ -320,7 +320,7 @@ do_install() {
     done
 
     # Manifest path comes from catalog files[0] so it reflects the real source
-    # location (e.g. deprecated/company-workflow/SKILL.md), not a guess.
+    # location (e.g. deprecated/CJ_company-workflow/SKILL.md), not a guess.
     local manifest_path
     manifest_path=$(skill_md_path "$name")
     manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "$manifest_path" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -630,7 +630,7 @@ do_relink() {
 
   for name in $(echo "$manifest" | jq -r '.skills // {} | keys[]'); do
     # Source dir is catalog-driven (F000006): read manifest .skills[$n].path
-    # (e.g. deprecated/company-workflow/SKILL.md), then dirname it. Falls back
+    # (e.g. deprecated/CJ_company-workflow/SKILL.md), then dirname it. Falls back
     # to the legacy skills/{name}/ shape when the manifest has no path field
     # (older installs from before F000006).
     local manifest_path

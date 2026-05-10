@@ -6,6 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.0] - 2026-05-09
+
+T000018 — Rename all 8 user-authored skills to use the `CJ_` prefix. Pure
+disambiguation, zero functional change: `personal-workflow` → `CJ_personal-workflow`,
+`system-health` → `CJ_system-health`, `scaffold-work-item` → `CJ_scaffold-work-item`,
+`implement-from-spec` → `CJ_implement-from-spec`, `qa-work-item` → `CJ_qa-work-item`,
+`personal-pipeline` → `CJ_personal-pipeline`, `suggest` → `CJ_suggest`,
+`company-workflow` → `CJ_company-workflow`. Aligns with the existing
+`anthropic-skills:*` and `KB_*` namespacing on the user's machine, ends the
+slash-command collision risk with the catalog of upstream/native skills, and
+unambiguously marks ownership.
+
+**Breaking:** all slash-command names change. Old forms
+(`/personal-workflow`, `/scaffold-work-item`, etc.) are gone post-deploy. After
+pulling this release on each consuming machine, run
+`./scripts/skills-deploy install --include-deprecated` to re-link the renamed
+skills under `~/.claude/skills/CJ_*/` and the renamed templates under
+`~/.claude/templates/CJ_personal-workflow/`. Existing in-flight `/personal-pipeline`
+runs that were started under the old name continue unaffected (the agent already
+holds its skill assets in context); next invocation requires the `CJ_*` form.
+
+### Changed
+
+- **`skills-catalog.json`** — all 8 user-authored entries renamed (`name`,
+  `files`, `templates`, `templates_source`, `depends.skills[]`). Major version
+  bump on each touched skill (breaking change). `templates` entry forms
+  retain `{skill}/foo.md` per-skill prefix convention; only the `{skill}/`
+  prefix changed.
+- **Directory layout** — `skills/{name}/` → `skills/CJ_{name}/` (7 active /
+  experimental); `deprecated/company-workflow/` → `deprecated/CJ_company-workflow/`
+  (1 deprecated). `templates/personal-workflow/` → `templates/CJ_personal-workflow/`;
+  `deprecated/CJ_company-workflow/templates/` retained at new parent path. All
+  via `git mv` so blame history follows.
+- **`work-copilot/` byte-mirror** — internal references updated to track
+  upstream rename. `validate.sh` Error check 10 (`MIRROR_SPECS`) stays green:
+  byte-identity preserved with the renamed `deprecated/CJ_company-workflow/`
+  source.
+- **Scripts hardcoding skill names** — `validate.sh` `MIRROR_SPECS` array,
+  `scripts/test.sh`, `scripts/test-deploy.sh`, `scripts/skills-deploy`,
+  `scripts/eval.sh`, `scripts/check-gates-update.sh` — all updated to the
+  `CJ_*` names.
+- **`CLAUDE.md` skill-routing block** — 8 slash-command names updated so the
+  router maps natural-language requests to the renamed skills.
+- **`README.md`** — regenerated from the updated catalog.
+- **`VERSION`** — 1.15.1 → 2.0.0 (MAJOR bump for breaking rename).
 ## [1.16.0] - 2026-05-09
 
 S000029 — `/personal-pipeline` polarity flip. Auto-decision becomes the only mode; the `--auto` flag from v1.14.0 is now a silent no-op (and `--manual` is symmetrically accepted-and-discarded for forgiveness). This change explicitly **reverses S000028 premise 1** ("preserve manual as the default; auto is opt-in"): lived experience after v1.14.0 confirmed the manual path is dead-by-policy — nothing outside personal habit recommended it, and the `/autoplan` precedent (single mode, no toggle) had already proved that "two ways to do the same thing" UX is unnecessary for auto-decision skills. The structural deletion is ~40-50 lines of conditional gating in `pipeline.md` (`$AUTO_MODE` references, "Skip if `$AUTO_MODE=false`" guards, "Manual mode: …" / "Auto mode (Step N): …" parity prose at 7 sites) plus the entire 50-line `## Auto Mode` section in `SKILL.md`. The Auto Mode Overlay's substance — 6 principles, decision classification (Mechanical / Taste / User-Challenge), `$DECISION_LOG` schema, Step 8.5 final approval gate logic — is preserved by promotion (overlay → main flow), not deletion. A future revert would re-wrap in conditionals (~1 hour) rather than re-author. Telemetry `mode` field stays in v1.16.0 emitting `"auto"` literal; field deletion deferred to v1.17.0 (TODOS.md follow-up) so external JSONL readers get one release of grace. Sub-skills (`/scaffold-work-item`, `/implement-from-spec`, `/qa-work-item`) remain individually callable as the manual escape hatch.

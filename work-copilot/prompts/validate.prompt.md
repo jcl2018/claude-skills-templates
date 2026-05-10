@@ -1,12 +1,12 @@
 ---
 mode: agent
-description: "Validate a work item tracker (file) or work item directory against the company-workflow manifest and templates."
+description: "Validate a work item tracker (file) or work item directory against the CJ_company-workflow manifest and templates."
 tools: ['codebase', 'search', 'searchResults', 'findTestFiles']
 ---
 
 # /validate
 
-Validate work items against the company-workflow spec. Templates are the single
+Validate work items against the CJ_company-workflow spec. Templates are the single
 source of truth — every structural rule is derived by reading the matching
 template at runtime.
 
@@ -141,12 +141,12 @@ Status tags are the grep-able surface. Match exactly:
 | `VIOLATION` | File Mode failure line (prefix for each specific issue) |
 
 **Do not** invent new tags, reorder the report blocks, or translate
-`[MISSING]` into plain English. Grep parity with `/company-workflow check`
+`[MISSING]` into plain English. Grep parity with `/CJ_company-workflow check`
 (Claude Code) is the acceptance test.
 
 ## Parity check
 
 This prompt produces the same output as
-`skills/company-workflow/SKILL.md` §"Command: validate" in the upstream
+`deprecated/CJ_company-workflow/SKILL.md` §"Command: validate" in the upstream
 `claude-skills-templates` repo. If behavior diverges, fix the prompt — do not
-fix the company-workflow skill to match.
+fix the CJ_company-workflow skill to match.

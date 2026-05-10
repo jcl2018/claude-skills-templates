@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 3 custom skills (personal-workflow, company-workflow, system-health), a template library for doc-first development, a standalone GitHub Copilot bundle (`work-copilot/`) mirroring company-workflow validation for non-Claude machines, and tooling to validate, test, and distribute skills.
+A skill development workbench for Claude Code. Contains 3 custom skills (CJ_personal-workflow, CJ_company-workflow, CJ_system-health), a template library for doc-first development, a standalone GitHub Copilot bundle (`work-copilot/`) mirroring CJ_company-workflow validation for non-Claude machines, and tooling to validate, test, and distribute skills.
 
 ## Quick start
 
@@ -17,14 +17,14 @@ cd claude-skills-templates
 
 When the user's request matches an available skill, invoke it:
 
-- "health check", "system status" -> /system-health
-- "validate company work item", "company workflow" -> /company-workflow
-- "validate personal work item", "personal workflow", "check work items", "work item tree" -> /personal-workflow
-- "scaffold work item", "convert design doc to work item", "create work item from design" -> /scaffold-work-item
-- "implement work item", "implement from spec", "build the user story" -> /implement-from-spec
-- "qa work item", "qa user story", "run smoke and e2e on this work item" -> /qa-work-item
-- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline", "auto mode" -> /personal-pipeline (v1.16.0+: auto-decision is the only mode; legacy `--auto` flag accepted as silent no-op for backwards compat)
-- "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /suggest
+- "health check", "system status" -> /CJ_system-health
+- "validate company work item", "company workflow" -> /CJ_company-workflow
+- "validate personal work item", "personal workflow", "check work items", "work item tree" -> /CJ_personal-workflow
+- "scaffold work item", "convert design doc to work item", "create work item from design" -> /CJ_scaffold-work-item
+- "implement work item", "implement from spec", "build the user story" -> /CJ_implement-from-spec
+- "qa work item", "qa user story", "run smoke and e2e on this work item" -> /CJ_qa-work-item
+- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline", "auto mode" -> /CJ_personal-pipeline (v1.16.0+: auto-decision is the only mode; legacy `--auto` flag accepted as silent no-op for backwards compat)
+- "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest
 
 ## CI/CD merge convention
 
@@ -58,8 +58,8 @@ to gstack.
 ## Work item templates
 
 Each workflow skill owns its own templates and artifact manifest:
-- **personal-workflow**: `templates/personal-workflow/` + `skills/personal-workflow/personal-artifact-manifests.json`
-- **company-workflow** (deprecated, source-of-truth for `work-copilot/`): `deprecated/company-workflow/templates/` + `deprecated/company-workflow/company-artifact-manifests.json`
+- **CJ_personal-workflow**: `templates/CJ_personal-workflow/` + `skills/CJ_personal-workflow/personal-artifact-manifests.json`
+- **CJ_company-workflow** (deprecated, source-of-truth for `work-copilot/`): `deprecated/CJ_company-workflow/templates/` + `deprecated/CJ_company-workflow/company-artifact-manifests.json`
 
 Scaffolding conventions live in each skill's WORKFLOW.md. Invoke the skill to access them.
 
@@ -74,10 +74,10 @@ skills/{skill-name}/
 
 ### Template naming
 Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills):
-- `templates/personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
-- `deprecated/company-workflow/templates/` — company work item templates (tracker-*.md, doc-*.md). Deprecated skill; source-of-truth for the `work-copilot/` byte-mirror, kept in-tree but skipped by `skills-deploy install` unless `--include-deprecated` is passed.
+- `templates/CJ_personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
+- `deprecated/CJ_company-workflow/templates/` — company work item templates (tracker-*.md, doc-*.md). Deprecated skill; source-of-truth for the `work-copilot/` byte-mirror, kept in-tree but skipped by `skills-deploy install` unless `--include-deprecated` is passed.
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
-- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `deprecated/company-workflow/templates/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `deprecated/company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array.
+- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `deprecated/CJ_company-workflow/templates/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `deprecated/CJ_company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array.
 
 ### Deprecated skills convention
 Skills with `status: deprecated` in `skills-catalog.json` live under `deprecated/{name}/` instead of `skills/{name}/`. The catalog is the source of truth for paths — consumer scripts (`skills-deploy`, `validate.sh`, `test.sh`) derive `dirname(files[0])` for the source root and an optional `templates_source` field for the templates source. Future relocations are a one-line catalog change. See `deprecated/README.md` for what belongs there and what doesn't.
@@ -114,9 +114,9 @@ Templates at `~/.claude/templates/`. Upstream skills sync via git pull.
 This repo has **two design-intent homes**, in parallel:
 
 - **`.gstack/`** — lateral / exploratory. gstack skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/context-save`) write here. Design exploration, what-ifs, draft plans. Symlinked from `~/.gstack/projects/<slug>/` via `scripts/setup-gstack-symlink.sh` (per-machine setup); see "gstack plans live in this repo" in README.md.
-- **`work-items/`** — structured per-feature. The `personal-workflow` taxonomy (features, defects, user-stories, tasks) with TRACKER + SPEC + TEST-SPEC + lifecycle gates. This is the implementation pipeline; design intent gets re-shaped into a tracked work item via `/scaffold-work-item`.
+- **`work-items/`** — structured per-feature. The `CJ_personal-workflow` taxonomy (features, defects, user-stories, tasks) with TRACKER + SPEC + TEST-SPEC + lifecycle gates. This is the implementation pipeline; design intent gets re-shaped into a tracked work item via `/CJ_scaffold-work-item`.
 
-Different lifecycles, different surfaces. Don't try to merge them. A typical flow: `/office-hours` produces a design doc in `.gstack/`, then `/scaffold-work-item` distills it into a `work-items/` entry that drives `/implement-from-spec` and `/qa-work-item`.
+Different lifecycles, different surfaces. Don't try to merge them. A typical flow: `/office-hours` produces a design doc in `.gstack/`, then `/CJ_scaffold-work-item` distills it into a `work-items/` entry that drives `/CJ_implement-from-spec` and `/CJ_qa-work-item`.
 
 Machine-local gstack state (sessions, analytics, learnings) is `.gitignore`d under `.gstack/`; everything else under `.gstack/` commits.
 
@@ -179,7 +179,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 
 ## Update-check mechanism (F000009)
 
-Active skills (`personal-workflow`, `system-health`) emit a banner when a newer
+Active skills (`CJ_personal-workflow`, `CJ_system-health`) emit a banner when a newer
 collection version is available on `origin/main`. The user is prompted with
 Upgrade now / Snooze 24h / Skip this version, then either auto-upgrades via
 `git pull --ff-only && skills-deploy install --from-upgrade <old>` or suppresses

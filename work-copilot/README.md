@@ -1,6 +1,6 @@
 # work-copilot
 
-Portable GitHub Copilot bundle that mirrors the `company-workflow` skill from
+Portable GitHub Copilot bundle that mirrors the `CJ_company-workflow` skill from
 `claude-skills-templates`. Gives a Copilot user the same `/validate` workflow
 and ambient knowledge a Claude Code user gets at home.
 
@@ -127,7 +127,7 @@ For more, see [`instructions/copilot-instructions.md`](instructions/copilot-inst
 | `fixtures/` | Validator self-tests (`/validate` against these should produce known output) |
 | `copilot-artifact-manifests.json` | Which artifacts each work-item type requires |
 
-The bundle is byte-identically mirrored from `skills/company-workflow/` and
-`templates/company-workflow/` in the parent repo. Drift is enforced by
+The bundle is byte-identically mirrored from `deprecated/CJ_company-workflow/` and
+`deprecated/CJ_company-workflow/templates/` in the parent repo. Drift is enforced by
 `scripts/validate.sh` Error check 10 (CI). Edit upstream first; the mirror
 follows.
