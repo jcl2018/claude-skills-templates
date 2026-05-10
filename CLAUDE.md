@@ -104,6 +104,17 @@ Every SKILL.md must have YAML frontmatter with at least `name` and `description`
 No $AI_CONTENT_DIR indirection. Work items live at `./work-items/` per repo.
 Templates at `~/.claude/templates/`. Upstream skills sync via git pull.
 
+### `.gstack/` vs `work-items/` (parallel design surfaces)
+
+This repo has **two design-intent homes**, in parallel:
+
+- **`.gstack/`** — lateral / exploratory. gstack skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/context-save`) write here. Design exploration, what-ifs, draft plans. Symlinked from `~/.gstack/projects/<slug>/` via `scripts/setup-gstack-symlink.sh` (per-machine setup); see "gstack plans live in this repo" in README.md.
+- **`work-items/`** — structured per-feature. The `personal-workflow` taxonomy (features, defects, user-stories, tasks) with TRACKER + SPEC + TEST-SPEC + lifecycle gates. This is the implementation pipeline; design intent gets re-shaped into a tracked work item via `/scaffold-work-item`.
+
+Different lifecycles, different surfaces. Don't try to merge them. A typical flow: `/office-hours` produces a design doc in `.gstack/`, then `/scaffold-work-item` distills it into a `work-items/` entry that drives `/implement-from-spec` and `/qa-work-item`.
+
+Machine-local gstack state (sessions, analytics, learnings) is `.gitignore`d under `.gstack/`; everything else under `.gstack/` commits.
+
 ## Creating a new skill
 
 To create a new skill, create the directory and files manually (no scaffolding scripts needed):

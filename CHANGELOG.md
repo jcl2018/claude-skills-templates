@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.13.1] - 2026-05-09
+
+T000016 — repo-local gstack output via project-slug symlink. Two scripts (setup + teardown) redirect `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, so gstack design docs, plans, reviews, and checkpoints commit alongside code instead of staying machine-local. The `.gitignore` flips from blanket `.gstack/` ignore to a specific machine-local denylist (sessions, analytics, learnings, .gbrain*, etc.) — designs and plans now track in git. README + CLAUDE.md document the per-machine setup and the parallel `.gstack/` (lateral) vs `work-items/` (structured) design surfaces. Defensive hardening from ship-time adversarial review: `eval "$(gstack-slug)"` replaced with regex extraction (no arbitrary code execution), and rsync gets `--backup --suffix=.predeploy.bak` so a misjudged `--force` is recoverable.
+
+### Added
+
+- **`scripts/setup-gstack-symlink.sh`** — per-machine symlink wiring. rsyncs existing `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, backs up the original (`$SRC.bak.<timestamp>`), replaces the source dir with a symlink. Idempotent; `--force` for re-pointing existing symlinks or merging non-empty targets. Resolves the MAIN repo via `git rev-parse --git-common-dir` so it works from worktrees too. SLUG extracted via regex (no `eval`); `set -euo pipefail`; shellcheck-clean.
+- **`scripts/teardown-gstack-symlink.sh`** — reversal. Removes the symlink, rsyncs DEST contents back into the home-dir SRC. Refuses if the symlink target doesn't match the expected `<main-repo>/.gstack/` (no blind reverts).
+- **`work-items/tasks/ops/T000016_repo_local_gstack_output/`** — task tracker + 12-case regression test-plan covering fresh setup, idempotent re-runs, `--force` semantics, teardown safety, write integration, `.gitignore` correctness, `gstack-slug` failure modes, and worktree resolution. Verification is manual (scripts modify the user's `$HOME/.gstack/`).
+
+### Changed
+
+- **`.gitignore`** — removed blanket `.gstack/` line; added 8 specific machine-local patterns under `.gstack/` (`sessions/`, `analytics/`, `learnings.jsonl`, `timeline.jsonl`, `.gbrain*`, `.brain-*`, `.pending-*`, `tmp/`). Designs, ceo-plans, reviews, and checkpoints under `.gstack/` now track in git by default.
+- **`scripts/generate-readme.sh`** — new `## gstack plans live in this repo` section (between Installation and Scripts) + 2 new rows in the Scripts table for `setup-gstack-symlink.sh` and `teardown-gstack-symlink.sh`.
+- **`README.md`** — regenerated from the updated generator (same delta as `scripts/generate-readme.sh`).
+- **`CLAUDE.md`** — new `### .gstack/ vs work-items/ (parallel design surfaces)` subsection under Conventions, documenting that gstack output (lateral/exploratory) and `work-items/` (structured per-feature) are parallel surfaces, not merged.
+- **`VERSION`** — 1.13.0 → 1.13.1 (PATCH bump: operational tooling, no new feature surface; rebumped from 1.12.1 to 1.13.1 after `/ship` queue collision with PR #73's v1.13.0).
+
 ## [1.13.0] - 2026-05-09
 
 F000014 `/personal-pipeline` orchestrator — single-keystroke wrapper over the three pipeline skills (`/scaffold-work-item`, `/implement-from-spec`, `/qa-work-item`). Closes the deferred TODOS.md:20 entry from the 2026-05-08 office-hours session. Each phase runs in a fresh-context Agent subagent with file-only handoff between subagents (orchestrator-as-broker). Independent inter-step quality gates (pre-scaffold idempotency check with 4-branch recovery, post-scaffold structural check + footer-write-back confirm, post-implement `/personal-workflow check` + `validate.sh`, post-QA tracker journal parse). AUQs are pre-collected at the orchestrator BEFORE Phase 2 dispatch — S000026 spike found `AskUserQuestion` is not reachable inside Agent subagents in Claude Code 2.1.91, so the original "subagent reports `AUQ_NEEDED`" pattern was supplanted. RESULT-line parsing is lenient (strips markdown blockquote prefixes and code fences) — spike trials hit RESULT content reliably but formatted it inconsistently 60% of the time. Sunset criterion baked in: telemetry to `~/.gstack/analytics/personal-pipeline.jsonl`; on the 6th invocation (then every 5 thereafter), the orchestrator AUQs keep/delete based on a mechanical trip-wire (≥3 of 5 `halted_at_gate` recommends delete). PHILOSOPHY.md:11/:61 anti-orchestration warning honored: this is structural plumbing (Agent dispatch + file-only handoff), not prose composition.
@@ -28,7 +46,6 @@ Bootstrap validation: ran `/personal-pipeline` end-to-end on a synthetic design 
 ### Fixed
 
 - Adversarial review caught five real bugs in pipeline.md before the first commit landed: (1) `find -o` POSIX precedence — Step 5.1's SPEC-locator was missing parens around the alternation, so it ignored `-maxdepth 1` and pulled SPEC.md from arbitrarily-nested subdirs (e.g. a child user-story's SPEC instead of the parent's). Fixed with explicit `\( ... -o ... \)` grouping. (2) Telemetry JSON breakage on paths containing quotes/special chars — Step 9.1 used raw shell interpolation, now uses `jq -nc --arg` with a sanitized-echo fallback for jq-less environments. (3) Sunset checkpoint AUQ recurrence — gate previously fired on every run from invocation 6 onward; now fires once at 6, then every 5 (`(N - 6) % 5 == 0`). (4) Step 2 branch (c) work-items glob assumed cwd=repo-root — fixed with `git rev-parse --show-toplevel` + `find ... -name TRACKER.md` so the partial-write-recovery branch fires regardless of invocation directory. (5) Inverted fork-aware fallback semantics in `skills-update-check` (see Changed above) — would have let a dead origin remote silently freeze updates indefinitely.
-
 
 ## [1.12.0] - 2026-05-09
 
