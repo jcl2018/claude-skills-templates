@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.1] - 2026-05-10
+
+### Fixed
+- D000017 — `/CJ_suggest` no longer crashes with `read-only variable: status`
+  on zsh-eval'd Bash-tool invocations. The ~250-line bash body in
+  `skills/CJ_suggest/SKILL.md` moves to a new
+  `skills/CJ_suggest/scripts/suggest.sh` with `#!/usr/bin/env bash` shebang
+  and `set -euo pipefail`; SKILL.md routing collapses to a one-liner that
+  dispatches to the deployed script. The shebang pins execution to bash
+  regardless of harness shell, fixing the `status=$(...)` collision with
+  zsh's read-only `$status` builtin.
+- `sort | head -n 5` under `set -o pipefail` hardened with `|| true` for
+  forward-compat against SIGPIPE on inputs large enough to outgrow the sort
+  buffer.
+
+### Changed
+- `/CJ_suggest` routing resolves the script via
+  `$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh` (the deployed path)
+  instead of `$(git rev-parse --show-toplevel)/skills/...`. Closes a
+  trust-boundary hole flagged by codex adversarial review: any repo
+  containing `skills/CJ_suggest/scripts/suggest.sh` would otherwise have run
+  as the skill. Workbench developers iterating on the script must run
+  `./scripts/skills-deploy install` to sync (existing convention).
+- `skills-catalog.json` `CJ_suggest` entry's `files` array gains
+  `skills/CJ_suggest/scripts/suggest.sh`.
+
+
 ## [2.0.0] - 2026-05-09
 
 T000018 — Rename all 8 user-authored skills to use the `CJ_` prefix. Pure
