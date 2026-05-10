@@ -87,17 +87,49 @@ Read `$_PW_SKILL_DIR/WORKFLOW.md` for hierarchy + scaffolding rules. Pay attenti
 
 ## Step 5: Generate ID
 
-Scan `work-items/` for the highest existing ID matching the type prefix:
+Scan local work-items AND open PRs for the highest existing ID matching the type prefix. The two-source check prevents ID collisions when parallel worktrees scaffold from the same baseline (e.g. main at S000028 → both worktrees grab S000029) before either has merged.
 
 ```bash
-find work-items -name "${PREFIX}*_TRACKER.md" 2>/dev/null \
+# Source 1: local work-items
+LOCAL_MAX=$(find work-items -name "${PREFIX}*_TRACKER.md" 2>/dev/null \
   | sed "s|.*/${PREFIX}\([0-9]*\)_.*|\1|" \
-  | sort -un | tail -1
+  | sort -un | tail -1)
+LOCAL_MAX=${LOCAL_MAX:-0}
+
+# Source 2: open PRs (queue-collision detection — added 2026-05-10).
+# Skip silently if gh is offline/unauthenticated or `gh pr list` fails.
+# Cap at 5 open PRs to keep the call cheap (~2-5s total). Limitation: only
+# catches collisions where the parallel worktree has ALREADY pushed and opened
+# a PR. Two worktrees both scaffolding without push still collide; the
+# post-push /land-and-deploy Step 3.4 VERSION drift check is the safety net
+# for that case.
+PR_MAX=0
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  for PR_NUM in $(gh pr list --state open --base main --limit 5 --json number -q '.[].number' 2>/dev/null); do
+    while IFS= read -r CLAIMED; do
+      case "$CLAIMED" in
+        ''|*[!0-9]*) continue ;;
+      esac
+      [ "$CLAIMED" -gt "$PR_MAX" ] && PR_MAX="$CLAIMED"
+    done < <(
+      gh pr view "$PR_NUM" --json files -q '.files[].path' 2>/dev/null \
+        | grep -oE "${PREFIX}[0-9]{6}_[^/]*_TRACKER\.md$" \
+        | sed "s|^${PREFIX}\([0-9]*\)_.*|\1|"
+    )
+  done
+fi
+
+HIGHEST=$LOCAL_MAX
+[ "$PR_MAX" -gt "$HIGHEST" ] 2>/dev/null && HIGHEST=$PR_MAX
+# Force base-10 in arithmetic context: bash interprets leading-zero strings
+# like "000029" as octal, which fails on digits 8/9. The 10# prefix is
+# bash-specific but zsh tolerates it (with OCTAL_ZEROES unset, the default).
+NEW_ID=$(printf "${PREFIX}%06d" $((10#$HIGHEST + 1)))
 ```
 
-Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect.
+Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect. The PR-claim check applies to all four prefixes uniformly: any open PR adding a `${PREFIX}NNNNNN_*_TRACKER.md` file counts as claiming that ID.
 
-Increment the highest existing ID by 1. Pad to 6 digits. Result: `NEW_ID` (e.g., `F000010`).
+Result: `NEW_ID` (e.g., `F000010`), guaranteed not to collide with local state OR any open PR's claimed IDs.
 
 ## Step 6: Determine Slug
 

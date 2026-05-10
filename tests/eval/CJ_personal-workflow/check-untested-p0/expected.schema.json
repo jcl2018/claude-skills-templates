@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "check-untested-p0 expected output",
+  "description": "Asserts that /CJ_personal-workflow check Step 18 correctly flags a P0 story as [UNTESTED] when no matching AC token appears in TEST-SPEC's ac_set. Fixture: SPEC has P0 #1, #2; TEST-SPEC contains AC-1 only. Schema requires overall=FAIL, p0_stories.1.covered=true, p0_stories.2.covered=false, untested_p0_stories contains 2.",
+  "type": "object",
+  "required": ["overall", "p0_stories", "untested_p0_stories", "ac_set"],
+  "additionalProperties": true,
+  "properties": {
+    "overall": {
+      "type": "string",
+      "enum": ["FAIL"],
+      "description": "Must be FAIL — at least one P0 is untested in this fixture."
+    },
+    "p0_stories": {
+      "type": "object",
+      "required": ["1", "2"],
+      "additionalProperties": true,
+      "properties": {
+        "1": {
+          "type": "object",
+          "required": ["covered"],
+          "additionalProperties": true,
+          "properties": {
+            "covered": { "type": "boolean", "const": true }
+          }
+        },
+        "2": {
+          "type": "object",
+          "required": ["covered"],
+          "additionalProperties": true,
+          "properties": {
+            "covered": { "type": "boolean", "const": false }
+          }
+        }
+      }
+    },
+    "untested_p0_stories": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "minItems": 1,
+      "contains": { "const": 2 },
+      "description": "Must contain at least the integer 2 (P0 #2 has no AC coverage)."
+    },
+    "ac_set": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": { "const": "AC-1" },
+      "description": "Must contain AC-1; the fixture's TEST-SPEC has one row with AC-1."
+    }
+  }
+}
