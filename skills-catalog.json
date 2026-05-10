@@ -168,5 +168,30 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "personal-pipeline",
+    "version": "0.1.0",
+    "description": "Single-keystroke orchestrator over the 3 personal-workflow pipeline skills (scaffold-work-item, implement-from-spec, qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Halt-on-red default; idempotent; sunset criterion built in.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "scaffold-work-item",
+        "implement-from-spec",
+        "qa-work-item",
+        "personal-workflow"
+      ],
+      "tools": [
+        "git",
+        "jq"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/personal-pipeline/SKILL.md",
+      "skills/personal-pipeline/pipeline.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]

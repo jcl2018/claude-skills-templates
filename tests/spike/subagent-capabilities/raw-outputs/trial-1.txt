@@ -1,0 +1,7 @@
+Here is the subagent's final assistant message verbatim:
+
+---
+
+There are **16** files/directories in the current directory.
+
+RESULT: STATUS=ok
