@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "check-step18-faithful-comma-split expected output",
+  "description": "Asserts that Claude faithfully executes the Step 18 comma-split spec from /CJ_personal-workflow check.md against a fixture with multi-AC traceability cells. Fixture has three P0 stories (#1, #2, #3) covered via cells like 'AC-1, AC-2, AC-3' and 'AC-1, AC-2'. When the spec is followed correctly, all three P0s are detected as covered. When the spec is reverted on a test branch and Claude no longer comma-splits, P0s appear uncovered and this schema fails (case FAILs — exactly the regression-detection signal we want).",
+  "type": "object",
+  "required": ["overall", "p0_stories", "all_p0_covered", "ac_set"],
+  "additionalProperties": true,
+  "properties": {
+    "overall": {
+      "type": "string",
+      "enum": ["PASS"],
+      "description": "Must be PASS — on a correct spec, every P0 is covered via multi-AC cells."
+    },
+    "p0_stories": {
+      "type": "object",
+      "required": ["1", "2", "3"],
+      "additionalProperties": true,
+      "properties": {
+        "1": {
+          "type": "object",
+          "required": ["covered"],
+          "additionalProperties": true,
+          "properties": {
+            "covered": { "type": "boolean", "const": true }
+          }
+        },
+        "2": {
+          "type": "object",
+          "required": ["covered"],
+          "additionalProperties": true,
+          "properties": {
+            "covered": { "type": "boolean", "const": true }
+          }
+        },
+        "3": {
+          "type": "object",
+          "required": ["covered"],
+          "additionalProperties": true,
+          "properties": {
+            "covered": { "type": "boolean", "const": true }
+          }
+        }
+      }
+    },
+    "all_p0_covered": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true — every P0 story is in ac_set after the comma-split."
+    },
+    "ac_set": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "contains": {
+        "const": "AC-1"
+      },
+      "description": "Must contain at least AC-1, AC-2, AC-3. Order does not matter; deduplication is fine. Schema only enforces presence of AC-1; the p0_stories.* checks enforce the rest."
+    }
+  }
+}

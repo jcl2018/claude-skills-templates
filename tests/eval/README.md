@@ -6,7 +6,7 @@ per-case JSON Schemas. Cadence is nightly on `main` (see
 `.github/workflows/eval-nightly.yml`, lands in S000025) plus manual local
 invocation.
 
-V1 scope: `personal-workflow` and `system-health` only — skills whose primary
+V1 scope: `CJ_personal-workflow` and `CJ_system-health` only — skills whose primary
 user-facing output is a structured report. Filesystem-mutating skills
 (`scaffold-work-item`, `implement-from-spec`, `qa-work-item`) defer to V2.
 
@@ -19,8 +19,8 @@ Tracker: `work-items/features/ops/testing/F000013_eval_harness_v1/`
 
 ```bash
 bash scripts/eval.sh                                      # all cases
-bash scripts/eval.sh personal-workflow                    # one skill
-bash scripts/eval.sh personal-workflow check-flags-missing-lifecycle  # one case
+bash scripts/eval.sh CJ_personal-workflow                    # one skill
+bash scripts/eval.sh CJ_personal-workflow check-flags-missing-lifecycle  # one case
 ```
 
 Exit 0 = all PASS. Exit 1 = at least one FAIL. Failed case names are surfaced
@@ -117,7 +117,7 @@ For CI: set `ANTHROPIC_API_KEY` as a secret, runner works either way.
 
 Test:
 ```bash
-claude -p "/personal-workflow check work-items/" \
+claude -p "/CJ_personal-workflow check work-items/" \
   --plugin-dir <repo>/skills \
   --add-dir <fixture-tmpdir> \
   --print --output-format json --no-session-persistence \
@@ -178,12 +178,12 @@ full-suite verification log in `work-items/features/ops/testing/F000013_eval_har
 
 | # | Case | Skill | Type | What it validates |
 |---|------|-------|------|-------------------|
-| 1 | `check-flags-missing-lifecycle` | personal-workflow | reasoning | Tracker missing whole `### Phase` headers is detected; reports `missing_phases` and `below_minimum` in JSON |
-| 2 | `check-step18-faithful-comma-split` | personal-workflow | regression | S000022: Claude comma-splits multi-AC traceability cells like `AC-1, AC-2, AC-3` so each P0 maps to coverage. See empirical caveat below. |
-| 3 | `check-passing-feature` | personal-workflow | baseline | Canonical valid feature work-item produces `overall: PASS` with every sub-check PASS. Distinguishes "real failure detected" from "validator broken on valid input". |
-| 4 | `check-missing-frontmatter` | personal-workflow | failure-detection | Tracker with only `name` + `type` (other required fields missing) is flagged with `missing_fields` populated and `overall: FAIL`. |
-| 5 | `check-lifecycle-drift` | personal-workflow | failure-detection | Gate-row drift inside lifecycle phases — every `### Phase` header is present but checkbox count is below template minimum. Distinct from #1 (missing phase) by enforcing `missing_phases: []`. |
-| 6 | `check-untested-p0` | personal-workflow | failure-detection | Step 18 `[UNTESTED]` detection — SPEC has P0 #1, #2; TEST-SPEC's `ac_set` only contains `AC-1`. Schema asserts `untested_p0_stories: [2]`. Complements case #2 (which proves coverage works) by proving uncovered detection works. |
+| 1 | `check-flags-missing-lifecycle` | CJ_personal-workflow | reasoning | Tracker missing whole `### Phase` headers is detected; reports `missing_phases` and `below_minimum` in JSON |
+| 2 | `check-step18-faithful-comma-split` | CJ_personal-workflow | regression | S000022: Claude comma-splits multi-AC traceability cells like `AC-1, AC-2, AC-3` so each P0 maps to coverage. See empirical caveat below. |
+| 3 | `check-passing-feature` | CJ_personal-workflow | baseline | Canonical valid feature work-item produces `overall: PASS` with every sub-check PASS. Distinguishes "real failure detected" from "validator broken on valid input". |
+| 4 | `check-missing-frontmatter` | CJ_personal-workflow | failure-detection | Tracker with only `name` + `type` (other required fields missing) is flagged with `missing_fields` populated and `overall: FAIL`. |
+| 5 | `check-lifecycle-drift` | CJ_personal-workflow | failure-detection | Gate-row drift inside lifecycle phases — every `### Phase` header is present but checkbox count is below template minimum. Distinct from #1 (missing phase) by enforcing `missing_phases: []`. |
+| 6 | `check-untested-p0` | CJ_personal-workflow | failure-detection | Step 18 `[UNTESTED]` detection — SPEC has P0 #1, #2; TEST-SPEC's `ac_set` only contains `AC-1`. Schema asserts `untested_p0_stories: [2]`. Complements case #2 (which proves coverage works) by proving uncovered detection works. |
 
 **S000023** (the spike) shipped #1. **S000024** ships #2–#6.
 
@@ -199,6 +199,15 @@ The system-health gates are reachable in V2 once the runner gains a HOME-faking 
 ### Empirical caveat — S000022 regression case (#2)
 
 The case PASSed even when `check.md` Step 18's comma-split spec was reverted on a throwaway test branch. The signal is therefore **weaker** than the SPEC anticipated: Claude infers comma-splitting from common sense even when the spec is silent. The case still catches a deeper "model can't comma-split at all" regression (e.g., a future model whose extraction breaks on mixed-AC cells), but it doesn't catch a "we forgot to mandate comma-split in the spec" regression. The V2 parser-extraction work in `scripts/check-helpers/parse-traceability.sh` + unit tests is the path to deterministic regression coverage of this specific behavior.
+
+### LLM-variance flake observations
+
+Two cases exhibit a ~33% failure rate under repeated runs, both with `no parseable JSON object in .result` (model returns prose instead of JSON):
+
+- **`check-untested-p0`** — 4 of 6 observed runs PASS (67% pass rate). Symptom: `--json-schema` enforcement retries fail; the case eventually exits without producing schema-matching JSON.
+- **`check-passing-feature`** — 4 of 6 observed runs PASS (67% pass rate). Same symptom. This case asks Claude to do the most expensive work in the suite (full directory-mode validation across 3 artifact files), which probably explains why it's the second flaky one.
+
+This aligns with the SPEC's pre-acknowledged Coverage Gap on LLM run-to-run variance. **Nightly CI at S000025 will surface flake rates empirically and is the right venue for tuning a retry policy or hardening these specific prompts.** Locally, `bash scripts/eval.sh` will sometimes need a single retry before reporting 6/6 PASS.
 
 ## V2 trajectory (out of V1 scope)
 

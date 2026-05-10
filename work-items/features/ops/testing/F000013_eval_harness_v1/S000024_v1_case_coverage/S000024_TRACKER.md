@@ -39,7 +39,7 @@ blocked_by: "S000023"
 1. Read DESIGN + SPEC for context
 2. Implement according to architecture decisions in SPEC
 3. Run smoke tests as you go (TEST-SPEC `## Smoke Tests` table)
-4. Run `/personal-workflow check` on modified docs after updates
+4. Run `/CJ_personal-workflow check` on modified docs after updates
 5. Update tracker: move through lifecycle phases, add journal entries
 6. Update Files section with changed file paths
 
@@ -51,18 +51,18 @@ blocked_by: "S000023"
 
 ### Phase 3: Ship
 
-1. Run `/personal-workflow check` — verify all validation passes
+1. Run `/CJ_personal-workflow check` — verify all validation passes
 2. Verify smoke tests pass in CI (automated regression)
 3. Walk E2E manually — drive the feature as a user would (TEST-SPEC `## E2E Tests` table)
 4. Ensure all child tasks (if any) have shipped
 5. Run `/ship` — creates PR, bumps version, updates changelog (includes pre-landing code review)
 6. Run `/land-and-deploy` — merges PR and verifies deployment
 
-❌ If `/personal-workflow check` finds issues: fix findings, re-run until clean
+❌ If `/CJ_personal-workflow check` finds issues: fix findings, re-run until clean
 ❌ If smoke or E2E fails: fix, re-run
 
 **Gates:**
-- [ ] `/personal-workflow check` — validation passed
+- [ ] `/CJ_personal-workflow check` — validation passed
 - [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
@@ -73,9 +73,9 @@ blocked_by: "S000023"
 
 <!-- What "done" looks like for this story. -->
 
-- [x] `tests/eval/personal-workflow/check-step18-faithful-comma-split/` — fixture has multi-AC traceability cells (`AC-1, AC-2, AC-3`); schema asserts ac_coverage shape; case PASSES on a clean checkout. NOTE: regression-detection on a reverted-spec branch was empirically *weaker than designed* — see Reviewer Concerns below.
-- [x] `tests/eval/personal-workflow/check-passing-feature/` — fixture is a canonical valid feature work-item; schema asserts overall=PASS, all checks=PASS
-- [x] `tests/eval/personal-workflow/check-missing-frontmatter/` — fixture has incomplete frontmatter; schema asserts overall=FAIL with frontmatter check FAIL and ≥3 missing_fields
+- [x] `tests/eval/CJ_personal-workflow/check-step18-faithful-comma-split/` — fixture has multi-AC traceability cells (`AC-1, AC-2, AC-3`); schema asserts ac_coverage shape; case PASSES on a clean checkout. NOTE: regression-detection on a reverted-spec branch was empirically *weaker than designed* — see Reviewer Concerns below.
+- [x] `tests/eval/CJ_personal-workflow/check-passing-feature/` — fixture is a canonical valid feature work-item; schema asserts overall=PASS, all checks=PASS
+- [x] `tests/eval/CJ_personal-workflow/check-missing-frontmatter/` — fixture has incomplete frontmatter; schema asserts overall=FAIL with frontmatter check FAIL and ≥3 missing_fields
 - [x] At least one more `personal-workflow` case covering a distinct check — `check-lifecycle-drift` (gate-row drift within phases, distinct from existing `check-flags-missing-lifecycle`'s missing-phase signal) PLUS `check-untested-p0` (Step 18 UNTESTED detection)
 - [ ] `tests/eval/system-health/report-clean-system/` — DEFERRED TO V2 (runner doesn't fake $HOME; system-health hard-codes `~/.claude/`; case can't be authored without runner change). See Reviewer Concerns.
 - [ ] `tests/eval/system-health/report-with-issues/` — DEFERRED TO V2 (same blocker as above)
@@ -124,11 +124,11 @@ The case `check-step18-faithful-comma-split` was authored and PASSes on a clean 
 
 <!-- Affected file paths. -->
 
-- `tests/eval/personal-workflow/check-step18-faithful-comma-split/**` (new — prompt.md + fixture/ user-story tree + expected.schema.json)
-- `tests/eval/personal-workflow/check-passing-feature/**` (new — fixture copies the F999999 valid-feature-dir bundle)
-- `tests/eval/personal-workflow/check-missing-frontmatter/**` (new — F999001 broken tracker fixture)
-- `tests/eval/personal-workflow/check-lifecycle-drift/**` (new — F999002 gate-row-drift fixture)
-- `tests/eval/personal-workflow/check-untested-p0/**` (new — F999003/S999003 untested-P0 fixture)
+- `tests/eval/CJ_personal-workflow/check-step18-faithful-comma-split/**` (new — prompt.md + fixture/ user-story tree + expected.schema.json)
+- `tests/eval/CJ_personal-workflow/check-passing-feature/**` (new — fixture copies the F999999 valid-feature-dir bundle)
+- `tests/eval/CJ_personal-workflow/check-missing-frontmatter/**` (new — F999001 broken tracker fixture)
+- `tests/eval/CJ_personal-workflow/check-lifecycle-drift/**` (new — F999002 gate-row-drift fixture)
+- `tests/eval/CJ_personal-workflow/check-untested-p0/**` (new — F999003/S999003 untested-P0 fixture)
 - `tests/eval/README.md` (modified — V1 case index updated for #2–#6; deferred-to-V2 section added; empirical S000022 caveat documented)
 - `work-items/features/ops/testing/F000013_eval_harness_v1/S000024_v1_case_coverage/S000024_TRACKER.md` (modified — Phase 1 working-branch gate ticked; Phase 2 implementer gates ticked; ACs ticked; Reviewer Concerns added; journal entries appended)
 - (Deferred) `tests/eval/system-health/report-clean-system/**` — V2
@@ -161,8 +161,11 @@ The case `check-step18-faithful-comma-split` was authored and PASSes on a clean 
 - 2026-05-09 [qa-smoke-summary-revised] green-with-flake: full-suite has a 33% flake rate on `check-untested-p0` based on 3 observations. All other cases stably green. Promoting smoke verdict to green-with-flake-disclosure for E2E continuation; flake is honestly documented and aligns with SPEC's pre-acknowledged variance gap.
 - 2026-05-09 [qa-e2e] E1 (AC-2): ambiguous — regression-detection proof was performed via worktree-local edit (see [impl-finding] line 150) instead of the row's prescribed `git checkout -b test/s000022-revert` + `git revert <commit>` flow; result was case still PASSed when spec was reverted, contradicting the row's "Pass: case fails on revert" rubric. RC2 honestly documents the empirical-vs-designed gap. Verdict deferred to human judgment on whether (a) the alternative methodology is acceptable proof and (b) the rubric tolerates a case that doesn't fail-on-revert. See S000024_TRACKER.md:150 ([impl-finding]) and S000024_TRACKER.md:92-94 (RC2).
 - 2026-05-09 [qa-e2e] E2 (AC-7): green — full suite ran via parent skill smoke phase (see [qa-smoke] line 154 + [qa-smoke-retry] line 160). Initial run hit a 1-case flake (`check-untested-p0` no-parseable-JSON, LLM variance per SPEC Coverage Gap), passed on retry. Net 6/6 PASS with documented 33% flake rate on one case. Per the Rubric "Pass: all PASS", green-with-flake-disclosure is acceptable; no deterministic FAIL or unexpected error.
-- 2026-05-09 [qa-e2e] E3 (AC-8): green — `tests/eval/personal-workflow/check-step18-faithful-comma-split/prompt.md` line 5 contains the in-line caveat: "This case tests that Claude faithfully executes the comma-split spec as written in check.md Step 18. It does NOT test the comma-split logic in isolation — that's covered (or scheduled) under V2's parser-extraction work." Reads cleanly to a future contributor; matches the Expected Outcome.
-- 2026-05-09 [qa-e2e] E4 (AC-5, AC-6): green — `tests/eval/personal-workflow/check-untested-p0/` exists with prompt.md + expected.schema.json + fixture/, integrated into the full-suite run automatically (visible in [qa-smoke] line 154). `git diff origin/main -- scripts/eval.sh tests/eval/lib/run-case.sh` is empty: zero runner changes. New case lands in V1 case count without modifying eval.sh per the rubric.
+- 2026-05-09 [qa-e2e] E3 (AC-8): green — `tests/eval/CJ_personal-workflow/check-step18-faithful-comma-split/prompt.md` line 5 contains the in-line caveat: "This case tests that Claude faithfully executes the comma-split spec as written in check.md Step 18. It does NOT test the comma-split logic in isolation — that's covered (or scheduled) under V2's parser-extraction work." Reads cleanly to a future contributor; matches the Expected Outcome.
+- 2026-05-09 [qa-e2e] E4 (AC-5, AC-6): green — `tests/eval/CJ_personal-workflow/check-untested-p0/` exists with prompt.md + expected.schema.json + fixture/, integrated into the full-suite run automatically (visible in [qa-smoke] line 154). `git diff origin/main -- scripts/eval.sh tests/eval/lib/run-case.sh` is empty: zero runner changes. New case lands in V1 case count without modifying eval.sh per the rubric.
 - 2026-05-09 [qa-e2e-summary] 3 green (E2, E3, E4) + 1 ambiguous (E1, methodology + rubric judgment needed). No reds. Smoke verdict was green-with-flake; E2E confirms the new case integrates and is documented.
 - 2026-05-09 [qa-e1-adjudication] User adjudicated E1 ambiguous → green. Rationale (per the user's selection): RC2 captures the gap honestly; the case has value beyond what the original rubric anticipated; ship V1 with the documented limitation. The rubric "Pass: case fails on revert" is treated as design-intent rather than a hard contract; followups (V2 parser-extraction unit tests) are the path to deterministic regression coverage.
 - 2026-05-09 [qa-pass] S000024 (user-story): green smoke (with documented 33% flake rate on `check-untested-p0`) + green E2E (1 ambiguous adjudicated to green by user). Phase 2 QA-owned gates transitioned (`Acceptance criteria verified met`, `Smoke tests pass`). Phase 2 implementer-owned gates were already green (transitioned by /implement-from-spec). RC1 (system-health deferred to V2) and RC2 (S000022 regression-detection signal weaker than designed) carry forward into Phase 3 review.
+- 2026-05-10 [rebase] PR #81 caught v2.0.0 (T000018, the CJ_-prefix rename) landing on main between /ship and /land-and-deploy. Rebased onto v2.0.0; resolved VERSION (1.16.1 → 2.0.1), CHANGELOG (entry rewritten under [2.0.1] header), TODOS.md (auto-merged), README.md/CLAUDE.md (auto-merged); renamed `tests/eval/personal-workflow/` → `tests/eval/CJ_personal-workflow/` via `git mv` (blame follows); updated all 6 prompts + schema descriptions + fixture-content lifecycle gate text to use `/CJ_personal-workflow check`; updated tests/eval/README.md case index paths; updated this tracker's AC paths and TEST-SPEC's `bash scripts/eval.sh` examples; closed a v2.0.0 oversight where the existing S000023 case prompt (`check-flags-missing-lifecycle`) wasn't updated when the skills were renamed. Re-verified by running the full eval suite at the new path/prompts.
+- 2026-05-10 [impl-finding] v2.0.0's T000018 missed updating `tests/eval/personal-workflow/check-flags-missing-lifecycle/prompt.md` from `/personal-workflow check` to `/CJ_personal-workflow check`. Without S000024's rebase, the existing case would have started failing on next eval run (skill name not found in `--plugin-dir`). Folded into this PR rather than a follow-up to keep the case suite coherent. Worth surfacing to T000018's owner as a post-merge audit finding.
+- 2026-05-10 [qa-smoke-postrebase] Re-ran full eval suite at the new path (`tests/eval/CJ_personal-workflow/`) with `/CJ_personal-workflow check` prompts. First run: 5/6 PASS, 1 FAIL on `check-passing-feature` (no parseable JSON in .result, $0.35, similar pattern to the original `check-untested-p0` flake). Single-case retry: FAIL again at $0.30. Second retry: PASS at $0.21, 65s. Pattern across all observations: `check-passing-feature` 4/6 = 67% pass rate; `check-untested-p0` 4/6 = 67% pass rate. Two flaky cases in the V1 suite, both LLM-variance per SPEC Coverage Gap. Total post-rebase verification spend: $1.26. Decision (consistent with /qa-work-item E1 adjudication): document and ship; nightly CI at S000025 will tune flake baselines empirically. Updated `tests/eval/README.md` to note both flaky cases.
