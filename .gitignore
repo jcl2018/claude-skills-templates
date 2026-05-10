@@ -1,6 +1,17 @@
 .claude/settings.json
 .claude/settings.local.json
 .claude/worktrees/
-.gstack/
+
+# .gstack/ is repo-local via scripts/setup-gstack-symlink.sh — designs/plans/reviews
+# track in git; machine-local gstack state stays local.
+.gstack/sessions/
+.gstack/analytics/
+.gstack/learnings.jsonl
+.gstack/timeline.jsonl
+.gstack/.gbrain*
+.gstack/.brain-*
+.gstack/.pending-*
+.gstack/tmp/
+
 .docs/
 .context/
