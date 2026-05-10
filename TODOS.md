@@ -60,8 +60,8 @@ S000021 (in F000012_pipeline_parity, v1.11.0) implemented option 1 — generaliz
 ### Verify `/personal-pipeline` works on a fresh remote machine (P3, S)
 v1.13.0 shipped `/personal-pipeline` and the bootstrap pipeline run was validated on the author's machine. Need a clean-room verification on a different machine: fresh git clone, `./scripts/setup.sh` (or `skills-deploy install`), then run the orchestrator on a synthetic design doc end-to-end. **Why it matters:** Agent-tool subagent behavior, AskUserQuestion availability inside subagents (S000026 spike key finding), and `claude -p` headless behavior are all environment-dependent — the spike findings were captured on Claude Code 2.1.91 with the Opus overlay. A fresh-machine run validates the design holds across setups and catches any path-resolution / upstream-skill discovery regressions. **Steps:** (1) clone repo on remote machine, (2) `./scripts/setup.sh` (or `git pull && ./scripts/skills-deploy install` if already cloned), (3) verify `~/.claude/skills/personal-pipeline/SKILL.md` exists, (4) `/office-hours` to produce a small design doc, (5) `/personal-pipeline <design-doc>` end-to-end, (6) check `~/.gstack/analytics/personal-pipeline.jsonl` for the telemetry line. **When:** before recommending the skill broadly, or when a second machine becomes available. **Reference:** found 2026-05-09 during v1.13.0's /document-release session.
 
-### F000013 V1 eval harness — case coverage + nightly CI (P1, M)
-Tracked separately at the bottom under "Behavioral eval harness". Two open user-stories: **S000024** (V1 case coverage — 5 personal-workflow cases including S000022 regression + 2 system-health cases; xargs concurrency exercised once ≥2 cases exist) and **S000025** (nightly CI workflow at `.github/workflows/eval-nightly.yml`, first real CI run validation). After both ship, mark the parent eval-harness entry DONE-V1.
+### F000013 V1 eval harness — nightly CI (P1, S)
+S000024 shipped in v1.16.1: 4 personal-workflow cases (#2–#5 in the V1 case index) plus a supplementary `check-untested-p0` to satisfy AC-7 after system-health deferral; full suite verified via `bash scripts/eval.sh` at $0.99 / ~72s wall-clock. system-health behavioral cases (`report-clean-system`, `report-with-issues`) deferred to V2 — `tests/eval/lib/run-case.sh` doesn't fake `$HOME` and `system-health` hard-codes `~/.claude/`, so fixtures under `tests/eval/system-health/<case>/fixture/` are invisible. Path forward: opt-in `HOME=$tmpdir` runner flag. Remaining: **S000025** (nightly CI workflow at `.github/workflows/eval-nightly.yml`, first real CI run validation). After S000025 ships, mark the parent eval-harness entry DONE-V1.
 
 ## Deferred work
 
@@ -109,17 +109,17 @@ pre-commit, not just when someone runs `/docs check`.
 **When:** After graph artifact schema (v1.0.0) is proven stable.
 **Depends on:** `.docs/work-item-graph.json` emitted by `/docs check` Steps 15-17.
 
-### Behavioral eval harness (P1, M) — PARTIAL — V1 first slice shipped in v1.12.0 (S000023 of F000013)
+### Behavioral eval harness (P1, M) — PARTIAL — V1 case coverage shipped in v1.12.0 (S000023) + v1.16.1 (S000024); nightly CI (S000025) remains
 Golden tasks, expected outputs, regression fixtures, safety checks per skill.
 Measures whether a skill actually works, not just whether metadata exists.
 
 **Shipped in v1.12.0 (S000023):** `scripts/eval.sh` runner + `tests/eval/lib/{run-case,seed-fixture}.sh` + first passing case (`check-flags-missing-lifecycle` for personal-workflow, $0.10/15s end-to-end). Spike 0 resolved (direct `--plugin-dir` works; schema enforcement is exit-fail). Security hardening (env scrub, symlink rejection, schema $ref lint, aggregate budget cap) baked in.
 
 **Pending in F000013 follow-ups:**
-- **S000024** — V1 case coverage (5 personal-workflow cases incl. S000022 regression + 2 system-health cases; xargs concurrency exercised once ≥2 cases exist).
+- ~~**S000024** — V1 case coverage~~ — **shipped in v1.16.1.** 5 personal-workflow cases authored (#2–#6 in `tests/eval/README.md` V1 case index): `check-step18-faithful-comma-split` (S000022 regression), `check-passing-feature` (baseline), `check-missing-frontmatter`, `check-lifecycle-drift`, `check-untested-p0`. Full suite green at $0.99/run, ~72s wall-clock. `check-untested-p0` exhibits ~33% LLM-variance flake (3-run baseline) — nightly CI will surface drift. system-health cases deferred — see V2 trajectory below.
 - **S000025** — Nightly CI workflow (`.github/workflows/eval-nightly.yml`), first real CI run validation, this entry marked DONE-V1 then.
 
-**V2 trajectory:** scaffold/implement/qa skill cases (need structural-assertion helpers), per-PR cadence with `paths` filter, LLM-judge for prose-quality outputs, sandboxed execution (drop `Bash` from --allowedTools, `env -i`-level scrub), parser-logic unit tests for `check.md` (closes the S000022 spec-vs-execution gap).
+**V2 trajectory:** runner $HOME-faking (unblocks system-health behavioral cases — current blocker is `tests/eval/lib/run-case.sh` not setting `HOME=$tmpdir` while `system-health` hard-codes `~/.claude/`); scaffold/implement/qa skill cases (need structural-assertion helpers); per-PR cadence with `paths` filter; LLM-judge for prose-quality outputs; sandboxed execution (drop `Bash` from --allowedTools, `env -i`-level scrub); parser-logic unit tests for `check.md` Step 18 in `scripts/check-helpers/parse-traceability.sh` (deterministic regression coverage that closes the S000022 spec-execution gap surfaced in S000024 RC2).
 
 **Reference:** [F000013_eval_harness_v1/](work-items/features/ops/testing/F000013_eval_harness_v1/), source design at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-110013.md`.
 
