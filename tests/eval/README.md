@@ -170,22 +170,35 @@ complexity):
 - **10 × $0.15 = $1.50/run** (matches the design's success criterion ≤ $1.50)
 - **10 × 28s ÷ 4 parallel = ~70s wall-clock** (well under the 12-min target)
 
-These projections need re-validation in S000024 when the full V1 case set
-exists, but the V1 design holds up in the small.
+S000024 shipped 5 cases (case index #2–#6). Observed per-case spend during
+authoring: $0.13–$0.35 (median $0.15). Six-case suite cost: see the
+full-suite verification log in `work-items/features/ops/testing/F000013_eval_harness_v1/S000024_v1_case_coverage/S000024_TRACKER.md`.
 
 ## V1 case index
 
 | # | Case | Skill | Type | What it validates |
 |---|------|-------|------|-------------------|
-| 1 | `check-flags-missing-lifecycle` | personal-workflow | reasoning | Tracker missing required lifecycle gate rows is detected and reported via JSON |
-| 2 | `check-step18-faithful-comma-split` (S000024) | personal-workflow | regression | S000022: Claude correctly comma-splits multi-AC traceability cells |
-| 3 | `check-passing-feature` (S000024) | personal-workflow | baseline | Canonical valid feature work-item produces overall=PASS |
-| 4 | `check-missing-frontmatter` (S000024) | personal-workflow | failure-detection | Malformed frontmatter is detected |
-| 5 | `check-lifecycle-drift` (S000024) | personal-workflow | failure-detection | Tracker missing lifecycle gates (variant) |
-| 6 | `report-clean-system` (S000024) | system-health | baseline | Healthy state produces overall=PASS |
-| 7 | `report-with-issues` (S000024) | system-health | failure-detection | Drifted state surfaces specific issues in JSON |
+| 1 | `check-flags-missing-lifecycle` | personal-workflow | reasoning | Tracker missing whole `### Phase` headers is detected; reports `missing_phases` and `below_minimum` in JSON |
+| 2 | `check-step18-faithful-comma-split` | personal-workflow | regression | S000022: Claude comma-splits multi-AC traceability cells like `AC-1, AC-2, AC-3` so each P0 maps to coverage. See empirical caveat below. |
+| 3 | `check-passing-feature` | personal-workflow | baseline | Canonical valid feature work-item produces `overall: PASS` with every sub-check PASS. Distinguishes "real failure detected" from "validator broken on valid input". |
+| 4 | `check-missing-frontmatter` | personal-workflow | failure-detection | Tracker with only `name` + `type` (other required fields missing) is flagged with `missing_fields` populated and `overall: FAIL`. |
+| 5 | `check-lifecycle-drift` | personal-workflow | failure-detection | Gate-row drift inside lifecycle phases — every `### Phase` header is present but checkbox count is below template minimum. Distinct from #1 (missing phase) by enforcing `missing_phases: []`. |
+| 6 | `check-untested-p0` | personal-workflow | failure-detection | Step 18 `[UNTESTED]` detection — SPEC has P0 #1, #2; TEST-SPEC's `ac_set` only contains `AC-1`. Schema asserts `untested_p0_stories: [2]`. Complements case #2 (which proves coverage works) by proving uncovered detection works. |
 
-S000023 (this story) ships #1 only. S000024 fills out #2–#7.
+**S000023** (the spike) shipped #1. **S000024** ships #2–#6.
+
+### Deferred to V2
+
+| Case | Skill | Reason |
+|------|-------|--------|
+| `report-clean-system` | system-health | The runner doesn't fake `$HOME`, so any fixture under `tests/eval/system-health/<case>/fixture/` is invisible — the skill scans the maintainer's real `~/.claude/`. Needs `HOME=$tmpdir` override in `run-case.sh` (out of S000024 scope). |
+| `report-with-issues` | system-health | Same blocker as above. |
+
+The system-health gates are reachable in V2 once the runner gains a HOME-faking surface OR system-health gains a `--root <path>` argument. Until then, system-health behavioral coverage stays at zero.
+
+### Empirical caveat — S000022 regression case (#2)
+
+The case PASSed even when `check.md` Step 18's comma-split spec was reverted on a throwaway test branch. The signal is therefore **weaker** than the SPEC anticipated: Claude infers comma-splitting from common sense even when the spec is silent. The case still catches a deeper "model can't comma-split at all" regression (e.g., a future model whose extraction breaks on mixed-AC cells), but it doesn't catch a "we forgot to mandate comma-split in the spec" regression. The V2 parser-extraction work in `scripts/check-helpers/parse-traceability.sh` + unit tests is the path to deterministic regression coverage of this specific behavior.
 
 ## V2 trajectory (out of V1 scope)
 
