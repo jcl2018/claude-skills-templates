@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [1.15.2] - 2026-05-10
+
+F000015 scaffold-only PR. New 3-story feature on the workbench: `--brief "<paragraph>" --type {task|defect}` flag for `/personal-pipeline` so small work-items can skip a full `/office-hours` session. The orchestrator synthesizes a stub design doc inline (brief text wrapped in a fenced verbatim block to insulate special characters), writes it to `~/.gstack/projects/{slug}/`, and continues into the existing scaffold/implement/qa flow byte-identical to manual mode. v1 type lock to `{task, defect}`; `--type user-story` deferred to v1.1 against real adoption data. Telemetry gains an additive `mode` field (`auto|manual|brief|brief+auto`); sunset checkpoint parser defaults to `manual` if absent. Three child user-stories: S000029_phase0_spike (BLOCKING — enumerate `/scaffold-work-item` parser surface AND Step 8.5 scan surface, confirm or extend stub template, escalate to Approach B if unsatisfiable), S000030_brief_flag_synth (flag plumbing + Step 0a Brief Mode branch + 8 error rows including mutual exclusivity, 2000-char cap, `-2` collision suffix; v1 refuses `--type feature` per multi-story-deserves-real-/office-hours rule), S000031_e2e_fixture (end-to-end fixture exercising backtick + `## Header` insulation). Source design doc survived 2 rounds of adversarial spec review (7/10 → 9/10, 27 issues resolved). Implementation lands per-child in subsequent PRs (v1 multi-story features are manual per-child; v2 deferred). No code changes in this PR — just the work-item directory tree. PATCH bump because no user-visible behavior shipped yet.
+
+### Added
+
+- **`work-items/features/personal-workflow/F000015_brief_mode_for_personal_pipeline/`** — feature TRACKER + DESIGN + ROADMAP plus 3 user-story directories (S000029/S000030/S000031) each with TRACKER + DESIGN + SPEC + TEST-SPEC. 15 artifacts total, all matching `personal-artifact-manifests.json` for their type.
+
+### Changed
+
+- **`VERSION`** — 1.15.1 → 1.15.2 (PATCH bump; scaffold-only, no behavior change).
+
 ## [1.15.1] - 2026-05-10
 
 Pre-existing CI flake fix. Two consecutive releases (PR #74 / v1.13.1 and PR #75 / v1.14.0) shipped under `--admin` overrides because seven `echo "$_t11_out" | grep -qF "needle"` call sites in `scripts/test.sh` (lines 1879/1893/1907/1918/1929/1950/1970, T000011 + autoplan D5 blocks) raced against `set -o pipefail` (inherited from `lib.sh`) on GitHub Actions runners — `grep -qF` matches early and exits, `echo`'s next write hits a closed pipe, SIGPIPE flips the pipeline non-zero, the enclosing `if` becomes false, and `fail_test` triggers spuriously. Locally the race window is too tight to reproduce; in CI it tripped 2-3 times per run. Replaced each pipeline with a SIGPIPE-free `case "$_t11_out" in *"needle"*) true;; *) false;; esac` form. No behavioral change to the test assertions; same needles, same gates, same passing path. Out-of-scope sites at lines 1700/1713/1732/1741/1816/1835 use the same shape but are in different test blocks (S000010 + autoplan G3) — left as-is, same fix can be applied if they ever flake. Rebumped from v1.14.1 after queue collision with PR #76's v1.15.0 (`/suggest` skill).
