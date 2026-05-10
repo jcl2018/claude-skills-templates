@@ -33,6 +33,9 @@ Re-pointed 22 references to `doc-RCA.md` (subfoldered to `templates/personal-wor
 ### ~~Wire test-deploy.sh into CI / test.sh (P3, S)~~ DONE
 Added invocation of `scripts/test-deploy.sh` to `scripts/test.sh` between the T11 manifest schema-parity tests and the Summary block. The existing wrapper-grep pre-flight check stays as-is (structural assertion). Negative test confirmed wire-up catches future regressions: reintroducing one stale reference produces `RESULT: FAIL` with named failure, restored → PASS. Closed by D000016.
 
+### v1.17.0: drop telemetry `mode` field from personal-pipeline JSONL writes (P4, S)
+v1.16.0 (S000029) flipped `/personal-pipeline` to single-mode. The telemetry `mode` field at `~/.gstack/analytics/personal-pipeline.jsonl` now always emits `"auto"` literal (deletion deferred to give external JSONL readers one release of grace). v1.17.0 should drop the field entirely from `skills/personal-pipeline/pipeline.md` Step 9.1 jq emit and the fallback `echo` line, and update the explanatory comment. Sunset trip-wire (Step 9.2) doesn't slice by mode anyway, so deletion is mechanical. **When:** v1.17.0 release window. **Reference:** `work-items/features/personal-workflow/F000014_personal_pipeline_orchestrator/S000029_auto_default/`.
+
 ### Origin remote URL pinning for the upgrade path (P4, S)
 The "Upgrade now" body block runs `git -C "$source" pull --ff-only origin main` based on `manifest.source` from `~/.claude/.skills-templates.json`. A user who can write that manifest can redirect upgrades to attacker-controlled code. Mitigation: at install time, store `manifest.upstream_url` (the expected `origin` URL) and have skills-update-check verify `git -C "$source" remote get-url origin` matches before recommending upgrade. Same trust boundary already applies to skills-deploy install, so this is hardening, not a new defense. **Depends on:** any real-world threat scenario where this matters.
 

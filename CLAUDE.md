@@ -23,8 +23,7 @@ When the user's request matches an available skill, invoke it:
 - "scaffold work item", "convert design doc to work item", "create work item from design" -> /CJ_scaffold-work-item
 - "implement work item", "implement from spec", "build the user story" -> /CJ_implement-from-spec
 - "qa work item", "qa user story", "run smoke and e2e on this work item" -> /CJ_qa-work-item
-- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc" -> /CJ_personal-pipeline
-- "auto pipeline", "fire and forget pipeline", "auto mode", "personal-pipeline auto" -> /CJ_personal-pipeline --auto
+- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline", "auto mode" -> /CJ_personal-pipeline (v1.16.0+: auto-decision is the only mode; legacy `--auto` flag accepted as silent no-op for backwards compat)
 - "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest
 
 ## CI/CD merge convention
