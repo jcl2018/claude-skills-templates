@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
-## [1.12.1] - 2026-05-09
+## [1.13.1] - 2026-05-09
 
 T000016 — repo-local gstack output via project-slug symlink. Two scripts (setup + teardown) redirect `~/.gstack/projects/<slug>/` into `<main-repo>/.gstack/`, so gstack design docs, plans, reviews, and checkpoints commit alongside code instead of staying machine-local. The `.gitignore` flips from blanket `.gstack/` ignore to a specific machine-local denylist (sessions, analytics, learnings, .gbrain*, etc.) — designs and plans now track in git. README + CLAUDE.md document the per-machine setup and the parallel `.gstack/` (lateral) vs `work-items/` (structured) design surfaces. Defensive hardening from ship-time adversarial review: `eval "$(gstack-slug)"` replaced with regex extraction (no arbitrary code execution), and rsync gets `--backup --suffix=.predeploy.bak` so a misjudged `--force` is recoverable.
 
@@ -22,7 +22,30 @@ T000016 — repo-local gstack output via project-slug symlink. Two scripts (setu
 - **`scripts/generate-readme.sh`** — new `## gstack plans live in this repo` section (between Installation and Scripts) + 2 new rows in the Scripts table for `setup-gstack-symlink.sh` and `teardown-gstack-symlink.sh`.
 - **`README.md`** — regenerated from the updated generator (same delta as `scripts/generate-readme.sh`).
 - **`CLAUDE.md`** — new `### .gstack/ vs work-items/ (parallel design surfaces)` subsection under Conventions, documenting that gstack output (lateral/exploratory) and `work-items/` (structured per-feature) are parallel surfaces, not merged.
-- **`VERSION`** — 1.12.0 → 1.12.1 (PATCH bump: operational tooling, no new feature surface).
+- **`VERSION`** — 1.13.0 → 1.13.1 (PATCH bump: operational tooling, no new feature surface; rebumped from 1.12.1 to 1.13.1 after `/ship` queue collision with PR #73's v1.13.0).
+
+## [1.13.0] - 2026-05-09
+
+F000014 `/personal-pipeline` orchestrator — single-keystroke wrapper over the three pipeline skills (`/scaffold-work-item`, `/implement-from-spec`, `/qa-work-item`). Closes the deferred TODOS.md:20 entry from the 2026-05-08 office-hours session. Each phase runs in a fresh-context Agent subagent with file-only handoff between subagents (orchestrator-as-broker). Independent inter-step quality gates (pre-scaffold idempotency check with 4-branch recovery, post-scaffold structural check + footer-write-back confirm, post-implement `/personal-workflow check` + `validate.sh`, post-QA tracker journal parse). AUQs are pre-collected at the orchestrator BEFORE Phase 2 dispatch — S000026 spike found `AskUserQuestion` is not reachable inside Agent subagents in Claude Code 2.1.91, so the original "subagent reports `AUQ_NEEDED`" pattern was supplanted. RESULT-line parsing is lenient (strips markdown blockquote prefixes and code fences) — spike trials hit RESULT content reliably but formatted it inconsistently 60% of the time. Sunset criterion baked in: telemetry to `~/.gstack/analytics/personal-pipeline.jsonl`; on the 6th invocation (then every 5 thereafter), the orchestrator AUQs keep/delete based on a mechanical trip-wire (≥3 of 5 `halted_at_gate` recommends delete). PHILOSOPHY.md:11/:61 anti-orchestration warning honored: this is structural plumbing (Agent dispatch + file-only handoff), not prose composition.
+
+Bootstrap validation: ran `/personal-pipeline` end-to-end on a synthetic design doc for the Fork-aware update detection P3 entry (TODOS.md:8). Full 9-step pipeline ran green; T000015 task scaffolded, implemented, QA-passed; `scripts/skills-update-check` modified with a fork-aware `origin` → `upstream` fallback.
+
+### Added
+
+- **`/personal-pipeline`** — new LLM-driven orchestrator skill. Status: `experimental`. Depends on `scaffold-work-item`, `implement-from-spec`, `qa-work-item`, `personal-workflow`. Two files: `skills/personal-pipeline/SKILL.md` (entry: preamble, 2-level path resolution + upstream-skill verification, usage, error-handling table, sunset section) + `skills/personal-pipeline/pipeline.md` (9-step orchestration: input validation, pre-scaffold idempotency check with 4 branches, Phase 1 scaffold-runner subagent, post-scaffold gate, Phase 2 SPEC pre-scan + AUQ pre-collection + threaded implement-runner dispatch, post-implement gate, Phase 3 qa-runner subagent, post-QA gate, telemetry write + sunset checkpoint). Lenient `parse_result()` bash function strips `>` blockquote prefixes and ` ``` ` / `~~~` code fences before grep. Sensitive-surface pre-scan regex covers catalog, manifests, templates, validators, git hooks. ~636 lines total skill markdown (under 800-line budget).
+- **`skills/personal-pipeline/fixtures/`** — 5 README-stub fixtures: index README, `example-design-doc/` (happy path), `regression-pre-scaffold-idempotency/` (Step 2 branch (a) reuse), `regression-partial-write-halt/` (Step 2 branch (c) crash recovery), `regression-broken-validate/` (Step 6 post-implement halt). Each documents setup steps + expected outcome; fully-self-contained test artifacts deferred to v2.
+- **`tests/spike/subagent-capabilities/`** — S000026 throwaway probes used to verify F000014 design assumptions before pipeline.md was written. `probe-auq.sh` (operator-driven; prints a paste-into-fresh-session prompt + verdict rubric, `--try-headless` flag for secondary `claude -p` signal) + `probe-result.sh` (5-trial automated; lenient last-line check; raw outputs preserved under `raw-outputs/`) + `findings.md` (verdicts: AUQ_BUBBLES=no SUBCLASS=error, RESULT_LINE_HITS=2/5; recommended action: both redesigns).
+- **F000014 work-item tree** at `work-items/features/personal-workflow/F000014_personal_pipeline_orchestrator/` with TRACKER, DESIGN (Big decisions table extended with rows 2.1+2.2 reflecting spike-driven Phase 2 + parser overrides), ROADMAP, plus user-stories S000026 (spike) and S000027 (skill implementation). All Phase 2 green via /qa-work-item.
+- **T000015 work-item tree** at `work-items/tasks/ops/T000015_fork_aware_update_detection/` (TRACKER + test-plan). Task type, scaffolded as part of the bootstrap pipeline run.
+
+### Changed
+
+- **`scripts/skills-update-check`** — fork-aware remote resolution: tries `origin/main` first, falls back to `upstream/main` if origin is missing OR origin's fetch fails (dead URL, deleted/renamed branch, no main on that remote). Silent no-op if neither remote yields a VERSION. Closes TODOS.md:8. Caught and corrected during the orchestrator's own pre-landing review: the original "config-only" gate (`git config --get` triggering before fetch) couldn't fall through on dead origins, so the loop now drives off fetch success instead of remote-configured-ness.
+- **`skills-catalog.json`** — appended one entry for `personal-pipeline` (status: `experimental`, depends.skills: scaffold-work-item + implement-from-spec + qa-work-item + personal-workflow). 8 active skills total.
+
+### Fixed
+
+- Adversarial review caught five real bugs in pipeline.md before the first commit landed: (1) `find -o` POSIX precedence — Step 5.1's SPEC-locator was missing parens around the alternation, so it ignored `-maxdepth 1` and pulled SPEC.md from arbitrarily-nested subdirs (e.g. a child user-story's SPEC instead of the parent's). Fixed with explicit `\( ... -o ... \)` grouping. (2) Telemetry JSON breakage on paths containing quotes/special chars — Step 9.1 used raw shell interpolation, now uses `jq -nc --arg` with a sanitized-echo fallback for jq-less environments. (3) Sunset checkpoint AUQ recurrence — gate previously fired on every run from invocation 6 onward; now fires once at 6, then every 5 (`(N - 6) % 5 == 0`). (4) Step 2 branch (c) work-items glob assumed cwd=repo-root — fixed with `git rev-parse --show-toplevel` + `find ... -name TRACKER.md` so the partial-write-recovery branch fires regardless of invocation directory. (5) Inverted fork-aware fallback semantics in `skills-update-check` (see Changed above) — would have let a dead origin remote silently freeze updates indefinitely.
 
 ## [1.12.0] - 2026-05-09
 

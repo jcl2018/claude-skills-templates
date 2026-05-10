@@ -233,11 +233,24 @@ cmd_default() {
     # GIT_ASKPASS=true (the literal `true` command) returns success-but-empty
     # for any credential request, so HTTPS clones requiring creds fail fast
     # instead of hanging. Same for SSH passphrase via GIT_SSH_COMMAND.
+    # Fork-aware remote resolution: try origin first (common: origin IS canonical),
+    # fall back to upstream if origin is missing OR origin's fetch fails (dead URL,
+    # deleted/renamed branch, no main on that remote, etc.). Silent no-op if
+    # neither remote yields a VERSION.
     local fresh_remote=""
-    if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
-       git -C "$source_path" fetch --quiet origin main 2>/dev/null; then
-      fresh_remote=$(git -C "$source_path" show origin/main:VERSION 2>/dev/null | tr -d '[:space:]')
-    fi
+    local remote=""
+    for try_remote in origin upstream; do
+      git -C "$source_path" config --get "remote.${try_remote}.url" >/dev/null 2>&1 || continue
+      if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
+         git -C "$source_path" fetch --quiet "$try_remote" main 2>/dev/null; then
+        fresh_remote=$(git -C "$source_path" show "${try_remote}/main:VERSION" 2>/dev/null | tr -d '[:space:]')
+        if [ -n "$fresh_remote" ]; then
+          remote="$try_remote"
+          break
+        fi
+      fi
+    done
+    [ -z "$remote" ] && exit 0
     if [ -n "$fresh_remote" ] && is_semver "$fresh_remote"; then
       remote_version="$fresh_remote"
       cache_read | jq --argjson t "$now_ts" --arg lv "$local_version" --arg rv "$remote_version" \
