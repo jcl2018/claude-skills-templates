@@ -32,25 +32,53 @@ This repo uses **squash merges**. When `/ship` or `/land-and-deploy` reaches the
 merge step (`gh pr merge`), use this exact invocation:
 
 ```bash
-gh pr merge <PR#> --auto --squash --delete-branch
+gh pr merge <PR#> --squash --delete-branch
 ```
 
-The `--auto` flag enables auto-merge (queues for after CI passes); the `--squash`
-flag is mandatory because `gh pr merge --auto` without a method silently fails
-(prints help, exits 0, no merge queued). Do NOT use `gh pr merge --auto --delete-branch`
-alone, even though the upstream gstack skill instructions suggest it.
+Do NOT add `--auto`. Auto-merge is disabled in this repo's settings, so
+`gh pr merge --auto` exits 0 even when the actual merge fails (error goes to
+stderr). The upstream gstack `/land-and-deploy` Step 4 documents a fallback path,
+but the silent exit-0 makes it easy for agents/operators to miss the fallback
+and treat a non-merge as success. Skipping `--auto` entirely sidesteps this.
+
+**Verify before cleanup.** After ANY `gh pr merge` invocation, verify the merge
+succeeded BEFORE running cleanup (especially the worktree-workaround
+`gh api -X DELETE` below):
+
+```bash
+gh pr view <PR#> --json state -q .state  # must print MERGED
+```
+
+If state is OPEN, the merge silently failed. Do NOT delete the remote branch —
+deleting the branch on an open PR auto-closes the PR (we burned ~5 min recovering
+from this exact failure mode on PR #83 / v2.0.4).
 
 **Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
 `.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
 `gh pr merge --delete-branch` does a local `git checkout main` to clean up; in a worktree
 that errors with `'main' is already checked out`. The remote merge succeeds anyway, but
-the remote branch is NOT deleted. Workaround:
+the remote branch is NOT deleted. Workaround (only after verifying MERGED above):
 
 ```bash
 gh api -X DELETE "repos/jcl2018/claude-skills-templates/git/refs/heads/<branch>"
 ```
 
 Run this after the merge to actually delete the remote branch.
+
+**Queue-collision preflight.** When multiple worktrees may be active and you're
+about to run `/ship`, optionally run:
+
+```bash
+./scripts/check-version-queue.sh
+```
+
+The script scans open PRs targeting main, extracts `v<X.Y.Z>` from title prefixes,
+and prints the next free VERSION slot. Catches collisions BEFORE `/ship`'s
+local-only bump (cheaper than `/land-and-deploy` Step 3.4 post-push drift
+detection). Skips with a one-line note when `gh` is offline or unauthenticated.
+Read-only; no mutations. This is a workbench-side fallback for when gstack's
+own `bin/gstack-next-version` queue util is offline in this repo (the typical
+state — gstack-next-version is an upstream feature not currently deployed here).
 
 See `work-items/defects/D000008_*` for the full root cause and the planned upstream fix
 to gstack.

@@ -525,24 +525,52 @@ echo ""
 echo "Regression test (D000008): CLAUDE.md merge convention guard..."
 
 # CLAUDE.md must keep the merge-convention section so future /ship runs in this
-# repo use the right gh pr merge invocation (--auto --squash, not --auto alone)
-# and know to use gh api for the worktree-aware remote-branch cleanup
+# repo use the right gh pr merge invocation. The convention evolved in v2.0.5:
+# - Original: prescribe --auto --squash --delete-branch (guarded against
+#   regressing to --auto --delete-branch which silently fails without --squash).
+# - v2.0.5+: --auto removed entirely. This repo's auto-merge is disabled, so
+#   `gh pr merge --auto` exits 0 even when the actual merge fails (error to
+#   stderr). Skipping --auto sidesteps the silent-fail; the new "Verify before
+#   cleanup" guard tells agents to confirm state=MERGED after merge.
+# This guard now checks for the new convention: --squash --delete-branch
+# without --auto, plus the verify-before-cleanup paragraph.
 if grep -q "^## CI/CD merge convention" "$REPO_ROOT/CLAUDE.md"; then
   ok "CLAUDE.md has the CI/CD merge convention section"
 else
   fail_test "CLAUDE.md is missing the '## CI/CD merge convention' section (D000008 guard)"
 fi
 
-if grep -qE 'gh pr merge.*--auto.*--squash' "$REPO_ROOT/CLAUDE.md"; then
-  ok "CLAUDE.md prescribes the --auto --squash combined invocation"
+if grep -qE 'gh pr merge[^`]*--squash[^`]*--delete-branch' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md prescribes the --squash --delete-branch invocation"
 else
-  fail_test "CLAUDE.md is missing the explicit --auto --squash gh pr merge invocation (D000008 guard)"
+  fail_test "CLAUDE.md is missing the --squash --delete-branch gh pr merge invocation (D000008 guard)"
+fi
+
+# v2.0.5+ guard: must explicitly tell agents NOT to add --auto.
+if grep -qE '(Do NOT add|do NOT use).{0,30}--auto' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md warns against the --auto flag (auto-merge disabled in repo)"
+else
+  fail_test "CLAUDE.md is missing the 'do not add --auto' warning (v2.0.5 D000008 guard)"
+fi
+
+# v2.0.5+ guard: must tell agents to verify state=MERGED before cleanup.
+if grep -qE '(must print|state.{0,5}=|state.{0,5}is).{0,40}MERGED|MERGED.{0,40}(before|cleanup)' "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md prescribes the verify-state=MERGED check before cleanup"
+else
+  fail_test "CLAUDE.md is missing the verify-state=MERGED guidance (v2.0.5 D000008 guard)"
 fi
 
 if grep -qE 'gh api .*-X DELETE.*git/refs/heads' "$REPO_ROOT/CLAUDE.md"; then
   ok "CLAUDE.md documents the worktree-aware remote-branch cleanup workaround"
 else
   fail_test "CLAUDE.md is missing the 'gh api -X DELETE' worktree cleanup workaround (D000008 guard)"
+fi
+
+# v2.0.5+ guard: must point to the workbench-side check-version-queue.sh preflight.
+if grep -q "check-version-queue.sh" "$REPO_ROOT/CLAUDE.md"; then
+  ok "CLAUDE.md points to scripts/check-version-queue.sh queue-collision preflight"
+else
+  fail_test "CLAUDE.md is missing the check-version-queue.sh queue-collision preflight pointer (v2.0.5 D000008 guard)"
 fi
 
 echo ""
@@ -1995,6 +2023,25 @@ if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
 else
   _td_rc=$?
   fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+fi
+
+# Smoke-test scripts/check-version-queue.sh
+echo ""
+echo "Smoke-testing scripts/check-version-queue.sh..."
+if "$REPO_ROOT/scripts/check-version-queue.sh" >/dev/null 2>&1; then
+  ok "scripts/check-version-queue.sh exits 0 on default (human-readable) invocation"
+else
+  _cvq_rc=$?
+  fail_test "scripts/check-version-queue.sh failed on default invocation (rc=$_cvq_rc) — run \`./scripts/check-version-queue.sh\` directly to see"
+fi
+# Verify --json mode produces valid JSON (only when gh is online + authed; skip otherwise)
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  _cvq_json=$("$REPO_ROOT/scripts/check-version-queue.sh" --json 2>/dev/null || true)
+  if [ -n "$_cvq_json" ] && echo "$_cvq_json" | jq -e '.next' >/dev/null 2>&1; then
+    ok "scripts/check-version-queue.sh --json emits valid JSON with .next field"
+  else
+    fail_test "scripts/check-version-queue.sh --json output is not valid JSON or missing .next field"
+  fi
 fi
 
 # Summary
