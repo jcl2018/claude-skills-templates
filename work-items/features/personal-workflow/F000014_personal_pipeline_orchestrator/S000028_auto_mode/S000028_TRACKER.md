@@ -71,8 +71,8 @@ blocked_by: ""
 - [ ] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -110,6 +110,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #75: v1.14.0 feat: S000028 /personal-pipeline --auto flag — autoplan-style auto-decision mode](https://github.com/jcl2018/claude-skills-templates/pull/75) — MERGED
 
 ## Files
 
@@ -154,3 +156,4 @@ blocked_by: ""
 - 2026-05-10 [qa-e2e] E2 (AC-8): green — Abort branch at pipeline.md:562-574 groups `$DECISIONS_THIS_RUN` by `gate_id` and prints `files_affected` per group with the literal "Files to revert (grouped by decision)" header + Decision/sensitive-surface-catalog/taste-fork-<row-name> grouping example; sets `$END_STATE=user_aborted` (line 574); explicit "The orchestrator does NOT auto-revert — the user runs `git restore` themselves" (line 574) contract preserves pipeline state for manual revert; v1 deliberate drop of "Reject specific decisions" documented at line 576.
 - 2026-05-10 [qa-e2e-summary] green: 2/2 E2E criteria green via structural verification of pipeline.md (skill markdown is source-of-truth for an LLM-driven skill, S000027 precedent). Runtime walk-through of `--auto` flow + Approve/Abort interaction deferred to post-ship validation per F000014 ROADMAP.
 - 2026-05-10 [qa-pass] S000028 (user-story): green smoke + green E2E. Phase 2 gates transitioned (Acceptance criteria verified met, Smoke tests pass).
+- 2026-05-09 [gates-update] Phase 3: /ship — PR #75,/land-and-deploy — PR merged,PRs section: linked PR #75 (MERGED).

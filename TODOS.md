@@ -2,6 +2,9 @@
 
 ## Active work
 
+### scripts/test.sh SIGPIPE flake forces --admin overrides at ship time (P2, S)
+`scripts/test.sh` lines 1879/1893/1907/1918/1929/1950/1970 use `if [ ... ] && echo "$_t11_out" | grep -qF "needle"; then` patterns. Under `set -o pipefail` (which test.sh enables), GitHub Actions runners hit a SIGPIPE race: when `grep -qF` matches early and exits, `echo` writes to a closed pipe → pipeline exits non-zero → enclosing `if` becomes false → `fail_test` triggers spuriously. Locally the race window is too tight; in CI it triggers 2-3 times per run inconsistently. Two consecutive ships needed `--admin` overrides for the same flake: PR #74 (v1.13.1) and PR #75 (v1.14.0). **Fix:** replace each `echo "$X" | grep -qF "Y"` call site with `case "$X" in *"Y"*) true;; *) false;; esac`. Affected blocks: T000011 + autoplan D5. Verify with a follow-up PR + `gh run rerun` until CI is green-green-green. **When:** before the next ship to avoid a third override. **Reference:** spawned as a follow-up task during /land-and-deploy on PR #75 (2026-05-10).
+
 ### ~~T000003: skills-deploy subfolder template support (P1, M)~~ DONE
 Regex extended to allow `subfolder/name.md` patterns. `mkdir -p` added for subfolder creation during deploy. Company-workflow templates now deploy correctly.
 

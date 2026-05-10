@@ -110,7 +110,7 @@ For the full step-by-step logic, see [pipeline.md](pipeline.md).
 Examples:
 
 ```
-# Manual mode (default, byte-identical to v1.13.0): asks at every gate.
+# Manual mode (default, byte-identical to v1.13.1): asks at every gate.
 /personal-pipeline ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-135305.md
 
 # Auto mode: auto-decides intermediate AUQs using 6 principles, surfaces
