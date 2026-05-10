@@ -272,13 +272,13 @@ done
 # To add a new mirror dir: append one line to MIRROR_SPECS.
 
 MIRROR_SPECS=(
-  "deprecated/company-workflow/templates|work-copilot/templates|flat|warn"
-  "deprecated/company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
-  "deprecated/company-workflow/reference|work-copilot/reference|flat|fail"
-  "deprecated/company-workflow/philosophy|work-copilot/philosophy|flat|fail"
-  "deprecated/company-workflow/examples|work-copilot/examples|flat|fail"
-  "deprecated/company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
-  "deprecated/company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
+  "deprecated/CJ_company-workflow/templates|work-copilot/templates|flat|warn"
+  "deprecated/CJ_company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
+  "deprecated/CJ_company-workflow/reference|work-copilot/reference|flat|fail"
+  "deprecated/CJ_company-workflow/philosophy|work-copilot/philosophy|flat|fail"
+  "deprecated/CJ_company-workflow/examples|work-copilot/examples|flat|fail"
+  "deprecated/CJ_company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
+  "deprecated/CJ_company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
 )
 
 # Orphan reporter — emits FAIL or WARN based on policy. Used by all shapes.
@@ -447,14 +447,14 @@ done
 # Error check 11: Manifest reconciliation — work-items + fixtures vs manifests
 # Catches the drift case where the manifest declares a required artifact but
 # real work-item directories or "valid-*" fixtures don't have it. The skills'
-# /personal-workflow check and /company-workflow validate commands are
+# /CJ_personal-workflow check and /CJ_company-workflow validate commands are
 # LLM-driven; bash CI cannot invoke them end-to-end, so this is the only
 # gate that catches manifest-vs-filesystem drift on every CI run.
 echo ""
 echo "Checking manifest reconciliation (work-items + fixtures)..."
 
-PERSONAL_MANIFEST="$REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json"
-COMPANY_MANIFEST="$REPO_ROOT/deprecated/company-workflow/company-artifact-manifests.json"
+PERSONAL_MANIFEST="$REPO_ROOT/skills/CJ_personal-workflow/personal-artifact-manifests.json"
+COMPANY_MANIFEST="$REPO_ROOT/deprecated/CJ_company-workflow/company-artifact-manifests.json"
 
 # Strip ID prefix (^[A-Z][0-9]+_) — same rule used by the LLM-driven validator.
 strip_id_prefix() {
@@ -492,7 +492,7 @@ check_work_item_dir() {
     }
   ' "$tracker")
 
-  # Normalize: company-workflow accepts userstory as alias for user-story.
+  # Normalize: CJ_company-workflow accepts userstory as alias for user-story.
   [ "$type" = "userstory" ] && type="user-story"
 
   # Skip if type isn't declared in this manifest (silent — same as the validator).
@@ -527,27 +527,27 @@ check_work_item_dir() {
 }
 
 # Walk every dir under work-items/ that has a TRACKER. All work-items in this
-# repo are personal-workflow (templates were scaffolded from personal-workflow).
+# repo are CJ_personal-workflow (templates were scaffolded from CJ_personal-workflow).
 echo ""
-echo "  Reconciling work-items/ against personal-workflow manifest..."
+echo "  Reconciling work-items/ against CJ_personal-workflow manifest..."
 while IFS= read -r tracker; do
   d=$(dirname "$tracker")
   check_work_item_dir "$d" "$PERSONAL_MANIFEST" "work-item"
 done < <(find "$REPO_ROOT/work-items" -type f \( -name '*_TRACKER.md' -o -name 'TRACKER.md' \) 2>/dev/null | LC_ALL=C sort)
 
-# Walk personal-workflow fixtures.
+# Walk CJ_personal-workflow fixtures.
 echo ""
-echo "  Reconciling personal-workflow fixtures..."
+echo "  Reconciling CJ_personal-workflow fixtures..."
 while IFS= read -r d; do
   check_work_item_dir "$d" "$PERSONAL_MANIFEST" "personal-fixture"
-done < <(find "$REPO_ROOT/skills/personal-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
+done < <(find "$REPO_ROOT/skills/CJ_personal-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
 
-# Walk company-workflow fixtures.
+# Walk CJ_company-workflow fixtures.
 echo ""
-echo "  Reconciling company-workflow fixtures..."
+echo "  Reconciling CJ_company-workflow fixtures..."
 while IFS= read -r d; do
   check_work_item_dir "$d" "$COMPANY_MANIFEST" "company-fixture"
-done < <(find "$REPO_ROOT/deprecated/company-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
+done < <(find "$REPO_ROOT/deprecated/CJ_company-workflow/fixtures" -maxdepth 1 -type d -name 'valid-*' 2>/dev/null | LC_ALL=C sort)
 
 # Warning check 3: Orphan template files (walks subdirectories).
 # Walks the default templates/ dir AND any override base from a catalog
@@ -566,7 +566,7 @@ _check_orphan_template() {
   fi
 }
 
-# Default templates/ — key = path relative to templates/ (e.g. personal-workflow/foo.md).
+# Default templates/ — key = path relative to templates/ (e.g. CJ_personal-workflow/foo.md).
 find "$TEMPLATES_DIR" -name "*.md" -type f 2>/dev/null | while read -r tmpl_file; do
   tmpl_rel="${tmpl_file#"$TEMPLATES_DIR"/}"
   _check_orphan_template "$tmpl_file" "$tmpl_rel"

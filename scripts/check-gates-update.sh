@@ -10,7 +10,7 @@
 #   scripts/check-gates-update.sh <work-item-dir>
 #
 # Called from:
-#   - skills/personal-workflow/check.md Step 13.5 (when --update flag passed)
+#   - skills/CJ_personal-workflow/check.md Step 13.5 (when --update flag passed)
 #   - .git/hooks/post-merge (auto-fires after git pull on main)
 #
 # Best-effort contract: prints warnings on partial failure (e.g., gh offline),
@@ -152,7 +152,7 @@ if [ -n "$PR_NUMBER" ] && command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-# Gate 4: /personal-workflow check — validation passed
+# Gate 4: /CJ_personal-workflow check — validation passed
 # DEFERRED in v1: would require invoking the validator with risk of recursion
 # when called from check.md Step 13.5. Documented gap; user runs check separately.
 

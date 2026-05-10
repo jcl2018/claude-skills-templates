@@ -10,11 +10,11 @@ ERRORS=0
 ok() { echo "  OK: $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
-# Path constants for the deprecated company-workflow skill source (F000006).
+# Path constants for the deprecated CJ_company-workflow skill source (F000006).
 # Centralizes the source location so the next relocation (if any) is a
 # one-line edit instead of ~40 hardcoded path replacements across this file.
-COMPANY_PATH="$REPO_ROOT/deprecated/company-workflow"
-COMPANY_TPL="$REPO_ROOT/deprecated/company-workflow/templates"
+COMPANY_PATH="$REPO_ROOT/deprecated/CJ_company-workflow"
+COMPANY_TPL="$REPO_ROOT/deprecated/CJ_company-workflow/templates"
 
 # Catalog-driven SKILL.md path lookup (F000006). Mirrors the helper in
 # scripts/skills-deploy and scripts/validate.sh: skill source root is the
@@ -129,7 +129,7 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 done
 
-# Smoke test for company-workflow's example-doc-feature-summary.md
+# Smoke test for CJ_company-workflow's example-doc-feature-summary.md
 EX_FS="$COMPANY_PATH/examples/example-doc-feature-summary.md"
 if [ -f "$EX_FS" ]; then
   fs_missing=""
@@ -137,9 +137,9 @@ if [ -f "$EX_FS" ]; then
     grep -q "$sec" "$EX_FS" 2>/dev/null || fs_missing="$fs_missing $sec"
   done
   if [ -z "$fs_missing" ]; then
-    ok "company-workflow example-doc-feature-summary.md has all required sections"
+    ok "CJ_company-workflow example-doc-feature-summary.md has all required sections"
   else
-    fail_test "company-workflow example-doc-feature-summary.md missing sections:$fs_missing"
+    fail_test "CJ_company-workflow example-doc-feature-summary.md missing sections:$fs_missing"
   fi
 fi
 
@@ -151,9 +151,9 @@ if [ -f "$FX_FS" ]; then
     grep -q "$sec" "$FX_FS" 2>/dev/null || fs_missing="$fs_missing $sec"
   done
   if [ -z "$fs_missing" ]; then
-    ok "company-workflow valid-feature-dir/feature-summary.md has all required sections"
+    ok "CJ_company-workflow valid-feature-dir/feature-summary.md has all required sections"
   else
-    fail_test "company-workflow valid-feature-dir/feature-summary.md missing sections:$fs_missing"
+    fail_test "CJ_company-workflow valid-feature-dir/feature-summary.md missing sections:$fs_missing"
   fi
 fi
 
@@ -176,7 +176,7 @@ else
 fi
 
 if deps_output=$("$REPO_ROOT/scripts/deps.sh" 2>&1); then
-  if echo "$deps_output" | grep -q "personal-workflow\|system-health"; then
+  if echo "$deps_output" | grep -q "CJ_personal-workflow\|CJ_system-health"; then
     ok "deps.sh runs and output contains known skills"
   else
     fail_test "deps.sh runs but output missing expected skill names"
@@ -250,104 +250,104 @@ echo ""
 echo "Checking tracker template content..."
 
 # S1: No "reviewer noted" in any tracker
-if grep -rl "reviewer noted" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+if grep -rl "reviewer noted" "$REPO_ROOT/templates/CJ_personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
   fail_test "Enterprise gate 'reviewer noted' still present in personal tracker templates"
 else
   ok "No 'reviewer noted' in personal tracker templates"
 fi
 
 # S2: No "Linux branch" in any personal tracker
-if grep -rl "Linux branch" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+if grep -rl "Linux branch" "$REPO_ROOT/templates/CJ_personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
   fail_test "Enterprise gate 'Linux branch' still present in personal tracker templates"
 else
   ok "No 'Linux branch' in personal tracker templates"
 fi
 
 # S3: No JIRA/TFS in any personal tracker
-if grep -rl "JIRA\|TFS" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+if grep -rl "JIRA\|TFS" "$REPO_ROOT/templates/CJ_personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
   fail_test "Enterprise references (JIRA/TFS) still present in personal tracker templates"
 else
   ok "No JIRA/TFS references in personal tracker templates"
 fi
 
 # S4: No workflow_type in any personal tracker
-if grep -rl "workflow_type" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+if grep -rl "workflow_type" "$REPO_ROOT/templates/CJ_personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
   fail_test "Redundant field 'workflow_type' still present in personal tracker templates"
 else
   ok "No workflow_type in personal tracker templates"
 fi
 
 # S6: Task total gate count <= feature total gate count (lighter lifecycle)
-task_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/personal-workflow/tracker-task.md" || true)
-feat_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/personal-workflow/tracker-feature.md" || true)
+task_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/CJ_personal-workflow/tracker-task.md" || true)
+feat_total=$(grep -c '^\- \[ \]' "$REPO_ROOT/templates/CJ_personal-workflow/tracker-feature.md" || true)
 if [ "$task_total" -le "$feat_total" ] 2>/dev/null; then
   ok "Task total gates ($task_total) <= feature total gates ($feat_total)"
 else
   fail_test "Task total gates ($task_total) > feature total gates ($feat_total)"
 fi
 
-# No review tracker template should exist in personal-workflow templates
-# (company-workflow/tracker-review.md is valid — it's a separate template set)
-if [ -f "$REPO_ROOT/templates/personal-workflow/tracker-review.md" ]; then
-  fail_test "tracker-review.md should not exist in personal-workflow (review type is company-only)"
+# No review tracker template should exist in CJ_personal-workflow templates
+# (CJ_company-workflow/tracker-review.md is valid — it's a separate template set)
+if [ -f "$REPO_ROOT/templates/CJ_personal-workflow/tracker-review.md" ]; then
+  fail_test "tracker-review.md should not exist in CJ_personal-workflow (review type is company-only)"
 else
-  ok "No tracker-review.md in personal-workflow (review type correctly absent)"
+  ok "No tracker-review.md in CJ_personal-workflow (review type correctly absent)"
 fi
 
 # Personal-workflow template directory exists with expected count
-pw_count=$(find "$REPO_ROOT/templates/personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+pw_count=$(find "$REPO_ROOT/templates/CJ_personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 if [ "$pw_count" -eq 10 ]; then
-  ok "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+  ok "templates/CJ_personal-workflow/ contains $pw_count templates (expected 10)"
 else
-  fail_test "templates/personal-workflow/ contains $pw_count templates (expected 10)"
+  fail_test "templates/CJ_personal-workflow/ contains $pw_count templates (expected 10)"
 fi
 
 # Personal-workflow catalog entry exists
-if jq -e '.[] | select(.name == "personal-workflow")' "$CATALOG" >/dev/null 2>&1; then
-  ok "personal-workflow catalog entry exists"
+if jq -e '.[] | select(.name == "CJ_personal-workflow")' "$CATALOG" >/dev/null 2>&1; then
+  ok "CJ_personal-workflow catalog entry exists"
 else
-  fail_test "personal-workflow catalog entry missing from skills-catalog.json"
+  fail_test "CJ_personal-workflow catalog entry missing from skills-catalog.json"
 fi
 
 # No stale /docs references in personal tracker templates
-if grep -rl "/docs check\|/docs tree" "$REPO_ROOT/templates/personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
-  fail_test "Stale /docs references in personal tracker templates (should be /personal-workflow)"
+if grep -rl "/docs check\|/docs tree" "$REPO_ROOT/templates/CJ_personal-workflow/tracker-"*.md 2>/dev/null | grep -q .; then
+  fail_test "Stale /docs references in personal tracker templates (should be /CJ_personal-workflow)"
 else
   ok "No stale /docs references in personal tracker templates"
 fi
 
-# Portability test: personal-workflow skill has zero gstack dependencies
+# Portability test: CJ_personal-workflow skill has zero gstack dependencies
 echo ""
-echo "Portability test: personal-workflow standalone..."
+echo "Portability test: CJ_personal-workflow standalone..."
 
-if grep -q "gstack" "$REPO_ROOT/skills/personal-workflow/SKILL.md" 2>/dev/null; then
-  fail_test "personal-workflow SKILL.md contains gstack references (should be standalone)"
+if grep -q "gstack" "$REPO_ROOT/skills/CJ_personal-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "CJ_personal-workflow SKILL.md contains gstack references (should be standalone)"
 else
-  ok "personal-workflow SKILL.md has zero gstack references"
+  ok "CJ_personal-workflow SKILL.md has zero gstack references"
 fi
 
 # shellcheck disable=SC2088
-if grep -q "~/.gstack" "$REPO_ROOT/skills/personal-workflow/SKILL.md" 2>/dev/null; then
-  fail_test "personal-workflow SKILL.md references ~/.gstack/ (should be standalone)"
+if grep -q "~/.gstack" "$REPO_ROOT/skills/CJ_personal-workflow/SKILL.md" 2>/dev/null; then
+  fail_test "CJ_personal-workflow SKILL.md references ~/.gstack/ (should be standalone)"
 else
-  ok "personal-workflow SKILL.md has no ~/.gstack/ paths"
+  ok "CJ_personal-workflow SKILL.md has no ~/.gstack/ paths"
 fi
 
-# Portability test: company-workflow skill has zero gstack dependencies
+# Portability test: CJ_company-workflow skill has zero gstack dependencies
 echo ""
-echo "Portability test: company-workflow standalone..."
+echo "Portability test: CJ_company-workflow standalone..."
 
 if grep -q "gstack" "$COMPANY_PATH/SKILL.md" 2>/dev/null; then
-  fail_test "company-workflow SKILL.md contains gstack references (should be standalone)"
+  fail_test "CJ_company-workflow SKILL.md contains gstack references (should be standalone)"
 else
-  ok "company-workflow SKILL.md has zero gstack references"
+  ok "CJ_company-workflow SKILL.md has zero gstack references"
 fi
 
 # shellcheck disable=SC2088
 if grep -q "~/.gstack" "$COMPANY_PATH/SKILL.md" 2>/dev/null; then
-  fail_test "company-workflow SKILL.md references ~/.gstack/ (should be standalone)"
+  fail_test "CJ_company-workflow SKILL.md references ~/.gstack/ (should be standalone)"
 else
-  ok "company-workflow SKILL.md has no ~/.gstack/ paths"
+  ok "CJ_company-workflow SKILL.md has no ~/.gstack/ paths"
 fi
 
 # Negative test: create orphan directory, verify validate catches it
@@ -412,9 +412,9 @@ else
 fi
 
 echo ""
-echo "Regression test (D000006): company-workflow Phase 2 test-verification gates + scope contracts..."
+echo "Regression test (D000006): CJ_company-workflow Phase 2 test-verification gates + scope contracts..."
 
-# Phase 2 test-verification gates in all 4 company-workflow trackers
+# Phase 2 test-verification gates in all 4 CJ_company-workflow trackers
 # Anchored on '^- [ ]' checkbox prefix + key tokens to survive minor reword but
 # fail loudly on full removal of the gate line.
 if grep -qE '^- \[ \].*test-plan\.md.*Pass' "$COMPANY_TPL/tracker-defect.md"; then
@@ -442,11 +442,11 @@ else
 fi
 
 # Scope comments in test-doc templates (both skills). Path-pair list because
-# company-workflow templates moved to deprecated/company-workflow/templates/
-# under F000006; personal-workflow templates stay at templates/personal-workflow/.
+# company-workflow templates moved to deprecated/CJ_company-workflow/templates/
+# under F000006; personal-workflow templates stay at templates/CJ_personal-workflow/.
 for entry in \
-    "$COMPANY_TPL/doc-test-plan.md|company-workflow doc-test-plan.md" \
-    "$REPO_ROOT/templates/personal-workflow/doc-test-plan.md|personal-workflow doc-test-plan.md"; do
+    "$COMPANY_TPL/doc-test-plan.md|CJ_company-workflow doc-test-plan.md" \
+    "$REPO_ROOT/templates/CJ_personal-workflow/doc-test-plan.md|CJ_personal-workflow doc-test-plan.md"; do
   path="${entry%%|*}"
   display="${entry#*|}"
   if grep -q "ONE fix (defect) or ONE task" "$path"; then
@@ -457,8 +457,8 @@ for entry in \
 done
 
 for entry in \
-    "$COMPANY_TPL/doc-TEST-SPEC.md|company-workflow doc-TEST-SPEC.md" \
-    "$REPO_ROOT/templates/personal-workflow/doc-TEST-SPEC.md|personal-workflow doc-TEST-SPEC.md"; do
+    "$COMPANY_TPL/doc-TEST-SPEC.md|CJ_company-workflow doc-TEST-SPEC.md" \
+    "$REPO_ROOT/templates/CJ_personal-workflow/doc-TEST-SPEC.md|CJ_personal-workflow doc-TEST-SPEC.md"; do
   path="${entry%%|*}"
   display="${entry#*|}"
   if grep -q "ENTIRE user story" "$path"; then
@@ -477,9 +477,9 @@ fi
 
 # WORKFLOW.md has the new subsection
 if grep -q "### test-plan vs TEST-SPEC" "$COMPANY_PATH/WORKFLOW.md"; then
-  ok "company-workflow WORKFLOW.md has the test-plan vs TEST-SPEC subsection"
+  ok "CJ_company-workflow WORKFLOW.md has the test-plan vs TEST-SPEC subsection"
 else
-  fail_test "company-workflow WORKFLOW.md is missing the '### test-plan vs TEST-SPEC' subsection"
+  fail_test "CJ_company-workflow WORKFLOW.md is missing the '### test-plan vs TEST-SPEC' subsection"
 fi
 
 echo ""
@@ -487,15 +487,15 @@ echo "Regression test (D000007): contract.json eliminated; templates are the sin
 
 # contract.json must NOT exist for either skill (templates are now the source of truth)
 if [ -f "$COMPANY_PATH/contract.json" ]; then
-  fail_test "deprecated/company-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
+  fail_test "deprecated/CJ_company-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
 else
-  ok "deprecated/company-workflow/contract.json correctly absent"
+  ok "deprecated/CJ_company-workflow/contract.json correctly absent"
 fi
 
-if [ -f "$REPO_ROOT/skills/personal-workflow/contract.json" ]; then
-  fail_test "skills/personal-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
+if [ -f "$REPO_ROOT/skills/CJ_personal-workflow/contract.json" ]; then
+  fail_test "skills/CJ_personal-workflow/contract.json still exists; D000007 deleted it (templates are now the spec)"
 else
-  ok "skills/personal-workflow/contract.json correctly absent"
+  ok "skills/CJ_personal-workflow/contract.json correctly absent"
 fi
 
 # Validator files must not reference the deleted contract.json as a runtime dependency
@@ -503,8 +503,8 @@ fi
 # fine — we grep for read/cat/load patterns that would indicate runtime use)
 for vf in \
     "$COMPANY_PATH/SKILL.md" \
-    "$REPO_ROOT/skills/personal-workflow/SKILL.md" \
-    "$REPO_ROOT/skills/personal-workflow/check.md"; do
+    "$REPO_ROOT/skills/CJ_personal-workflow/SKILL.md" \
+    "$REPO_ROOT/skills/CJ_personal-workflow/check.md"; do
   vf_rel="${vf#"$REPO_ROOT"/}"
   if grep -qE '(cat|jq|Read|read).*contract\.json' "$vf"; then
     fail_test "$vf_rel still has a runtime read of contract.json (line should be removed)"
@@ -515,8 +515,8 @@ done
 
 # Catalog must not list contract.json under either skill (would cause validate.sh
 # orphan-file warnings after the delete)
-if jq -r '.[] | select(.name=="company-workflow" or .name=="personal-workflow") | .files[]' "$REPO_ROOT/skills-catalog.json" 2>/dev/null | grep -q "contract\.json"; then
-  fail_test "skills-catalog.json still lists contract.json under company-workflow or personal-workflow"
+if jq -r '.[] | select(.name=="CJ_company-workflow" or .name=="CJ_personal-workflow") | .files[]' "$REPO_ROOT/skills-catalog.json" 2>/dev/null | grep -q "contract\.json"; then
+  fail_test "skills-catalog.json still lists contract.json under CJ_company-workflow or CJ_personal-workflow"
 else
   ok "skills-catalog.json no longer references contract.json for either workflow skill"
 fi
@@ -552,7 +552,7 @@ echo "Regression test (D000009): feature type requires DESIGN.md artifact..."
 # and matching doc-DESIGN.md templates must exist. Prevents a future refactor
 # from silently dropping the DESIGN requirement back to where it was before.
 if jq -e '.types.feature.required[] | select(.filename == "DESIGN.md" and .template == "doc-DESIGN.md")' \
-     "$REPO_ROOT/skills/personal-workflow/personal-artifact-manifests.json" > /dev/null; then
+     "$REPO_ROOT/skills/CJ_personal-workflow/personal-artifact-manifests.json" > /dev/null; then
   ok "personal-artifact-manifests.json feature.required includes DESIGN.md"
 else
   fail_test "personal-artifact-manifests.json feature.required missing DESIGN.md entry (D000009 guard)"
@@ -565,16 +565,16 @@ else
   fail_test "company-artifact-manifests.json feature.required missing DESIGN.md entry (D000009 guard)"
 fi
 
-if [ -f "$REPO_ROOT/templates/personal-workflow/doc-DESIGN.md" ]; then
-  ok "templates/personal-workflow/doc-DESIGN.md present"
+if [ -f "$REPO_ROOT/templates/CJ_personal-workflow/doc-DESIGN.md" ]; then
+  ok "templates/CJ_personal-workflow/doc-DESIGN.md present"
 else
-  fail_test "templates/personal-workflow/doc-DESIGN.md missing (D000009 guard)"
+  fail_test "templates/CJ_personal-workflow/doc-DESIGN.md missing (D000009 guard)"
 fi
 
 if [ -f "$COMPANY_TPL/doc-DESIGN.md" ]; then
-  ok "deprecated/company-workflow/templates/doc-DESIGN.md present"
+  ok "deprecated/CJ_company-workflow/templates/doc-DESIGN.md present"
 else
-  fail_test "deprecated/company-workflow/templates/doc-DESIGN.md missing (D000009 guard)"
+  fail_test "deprecated/CJ_company-workflow/templates/doc-DESIGN.md missing (D000009 guard)"
 fi
 
 echo ""
@@ -591,10 +591,10 @@ echo "Regression test (D000012): deployed workflow templates stay in sync with w
 #       asserts every workbench template is present and byte-identical in the
 #       deployed copy. Skipped on hosts where skills-deploy hasn't run (e.g. CI).
 
-for _wf in personal-workflow company-workflow; do
+for _wf in CJ_personal-workflow CJ_company-workflow; do
   case "$_wf" in
-    personal-workflow) _tmpls="doc-DESIGN.md doc-SPEC.md doc-ROADMAP.md" ;;
-    company-workflow)  _tmpls="doc-DESIGN.md doc-feature-summary.md" ;;
+    CJ_personal-workflow) _tmpls="doc-DESIGN.md doc-SPEC.md doc-ROADMAP.md" ;;
+    CJ_company-workflow)  _tmpls="doc-DESIGN.md doc-feature-summary.md" ;;
   esac
   for _tmpl in $_tmpls; do
     if jq -e --arg p "$_wf/$_tmpl" --arg n "$_wf" \
@@ -607,10 +607,10 @@ for _wf in personal-workflow company-workflow; do
   done
 done
 
-for _wf in personal-workflow company-workflow; do
+for _wf in CJ_personal-workflow CJ_company-workflow; do
   _D12_DEPLOYED="${HOME}/.claude/templates/$_wf"
   # Catalog-driven workbench source dir (F000006). Honors the catalog
-  # templates_source override (e.g. deprecated/company-workflow/templates/);
+  # templates_source override (e.g. deprecated/CJ_company-workflow/templates/);
   # falls back to templates/{wf} for active skills.
   _D12_SRC_REL=$(jq -r --arg n "$_wf" '.[] | select(.name == $n) | .templates_source // ""' "$CATALOG" 2>/dev/null || echo "")
   if [ -n "$_D12_SRC_REL" ]; then
@@ -657,15 +657,19 @@ done
 echo ""
 echo "Regression test (D000014): WORKFLOW.md type-to-artifact counts match manifest..."
 
-# Background: D000009 (DESIGN), v0.14.2 (feature-summary), and earlier company-workflow
+# Background: D000009 (DESIGN), v0.14.2 (feature-summary), and earlier CJ_company-workflow
 # changes (PR-DESCRIPTION) added required artifacts to the manifest but didn't update
 # the type-to-artifact tables and prose in skills/{personal,company}-workflow/WORKFLOW.md.
 # Scaffolding AIs read WORKFLOW.md, see the wrong count, and produce incomplete work
 # items that fail downstream validation. This block forces the markdown table count
 # to match the manifest's required-array length — manifest is authoritative.
 
-for _wf in personal-workflow company-workflow; do
-  _PREFIX="${_wf%-workflow}"
+for _wf in CJ_personal-workflow CJ_company-workflow; do
+  # Strip the CJ_ prefix from the skill name to recover the manifest filename
+  # base (manifests retain their original "personal-/company-artifact-manifests.json"
+  # filenames; only the directory was renamed under T000018).
+  _NAKED="${_wf#CJ_}"
+  _PREFIX="${_NAKED%-workflow}"
   # Catalog-driven source dir (F000006): manifest + WORKFLOW.md live in the
   # same directory as the skill's SKILL.md, wherever the catalog points.
   _SOURCE_DIR=$(skill_source_dir_abs "$_wf")
@@ -770,7 +774,7 @@ fi
 
 echo ""
 echo "Regression test (T000004): AI_KNOWLEDGE_DIR resolution block (S000004)..."
-# Background: /company-workflow validate is an LLM-driven SKILL.md, not an
+# Background: /CJ_company-workflow validate is an LLM-driven SKILL.md, not an
 # executable, so bash CI cannot invoke it end-to-end. These tests extract the
 # Knowledge Resolution bash block from SKILL.md and exec it in isolation
 # against mocked env states. That block IS the implementation for S000004;
@@ -875,7 +879,7 @@ else
   fi
 
   # Case 9 (regression diff): MANUAL ONLY per test-plan.md scope note.
-  # /company-workflow validate is LLM-driven; bash CI cannot invoke it end-to-end.
+  # /CJ_company-workflow validate is LLM-driven; bash CI cannot invoke it end-to-end.
 
   # Case 10 (E1b): empty-string env → 'not set' (parity with unset)
   if _t4_out=$(AI_KNOWLEDGE_DIR="" bash "$_T4_KR" 2>&1 1>/dev/null); then
@@ -919,7 +923,7 @@ echo "Regression test (T000006 c1): Knowledge Helpers (S000005)..."
 # Background: c1 adds a ## Knowledge Helpers section that documents four bash
 # helpers (parse_knowledge_yml, parse_knowledge_triggers, list_categories,
 # list_md_files). Canonical implementations live in
-# deprecated/company-workflow/bin/knowledge-helpers.sh; SKILL.md blocks source
+# deprecated/CJ_company-workflow/bin/knowledge-helpers.sh; SKILL.md blocks source
 # that file rather than inlining definitions. Tests source the canonical
 # file directly and exercise each function against fixtures built by
 # scripts/test-helpers/knowledge.sh.
@@ -1197,8 +1201,8 @@ _t6l_make_repo() {
   local repo
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6l-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
-  mkdir -p "$repo/skills/company-workflow"
-  ln -snf "$COMPANY_PATH/bin" "$repo/skills/company-workflow/bin"
+  mkdir -p "$repo/skills/CJ_company-workflow"
+  ln -snf "$COMPANY_PATH/bin" "$repo/skills/CJ_company-workflow/bin"
   printf '%s' "$repo"
 }
 
@@ -1492,8 +1496,8 @@ _t6m_make_repo() {
   local repo
   repo=$(mktemp -d 2>/dev/null || mktemp -d -t 't6m-repo' 2>/dev/null)
   ( cd "$repo" && git init -q )
-  mkdir -p "$repo/skills/company-workflow"
-  ln -snf "$COMPANY_PATH/bin" "$repo/skills/company-workflow/bin"
+  mkdir -p "$repo/skills/CJ_company-workflow"
+  ln -snf "$COMPANY_PATH/bin" "$repo/skills/CJ_company-workflow/bin"
   printf '%s' "$repo"
 }
 

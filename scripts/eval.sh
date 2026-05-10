@@ -3,12 +3,12 @@
 #
 # Spawns the real `claude` CLI headless against scratch worktrees per case,
 # validates structured JSON output against per-case schemas. Cadence: nightly
-# on main + manual local invocation. V1 covers personal-workflow + system-health.
+# on main + manual local invocation. V1 covers CJ_personal-workflow + CJ_system-health.
 #
 # Usage:
 #   bash scripts/eval.sh                              # all skills, all cases
-#   bash scripts/eval.sh personal-workflow            # all cases for one skill
-#   bash scripts/eval.sh personal-workflow case-name  # single case
+#   bash scripts/eval.sh CJ_personal-workflow            # all cases for one skill
+#   bash scripts/eval.sh CJ_personal-workflow case-name  # single case
 #
 # Exit 0 = all cases pass. Exit 1 = at least one case failed.
 #

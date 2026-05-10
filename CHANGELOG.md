@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.0] - 2026-05-09
+
+T000018 — Rename all 8 user-authored skills to use the `CJ_` prefix. Pure
+disambiguation, zero functional change: `personal-workflow` → `CJ_personal-workflow`,
+`system-health` → `CJ_system-health`, `scaffold-work-item` → `CJ_scaffold-work-item`,
+`implement-from-spec` → `CJ_implement-from-spec`, `qa-work-item` → `CJ_qa-work-item`,
+`personal-pipeline` → `CJ_personal-pipeline`, `suggest` → `CJ_suggest`,
+`company-workflow` → `CJ_company-workflow`. Aligns with the existing
+`anthropic-skills:*` and `KB_*` namespacing on the user's machine, ends the
+slash-command collision risk with the catalog of upstream/native skills, and
+unambiguously marks ownership.
+
+**Breaking:** all slash-command names change. Old forms
+(`/personal-workflow`, `/scaffold-work-item`, etc.) are gone post-deploy. After
+pulling this release on each consuming machine, run
+`./scripts/skills-deploy install --include-deprecated` to re-link the renamed
+skills under `~/.claude/skills/CJ_*/` and the renamed templates under
+`~/.claude/templates/CJ_personal-workflow/`. Existing in-flight `/personal-pipeline`
+runs that were started under the old name continue unaffected (the agent already
+holds its skill assets in context); next invocation requires the `CJ_*` form.
+
+### Changed
+
+- **`skills-catalog.json`** — all 8 user-authored entries renamed (`name`,
+  `files`, `templates`, `templates_source`, `depends.skills[]`). Major version
+  bump on each touched skill (breaking change). `templates` entry forms
+  retain `{skill}/foo.md` per-skill prefix convention; only the `{skill}/`
+  prefix changed.
+- **Directory layout** — `skills/{name}/` → `skills/CJ_{name}/` (7 active /
+  experimental); `deprecated/company-workflow/` → `deprecated/CJ_company-workflow/`
+  (1 deprecated). `templates/personal-workflow/` → `templates/CJ_personal-workflow/`;
+  `deprecated/CJ_company-workflow/templates/` retained at new parent path. All
+  via `git mv` so blame history follows.
+- **`work-copilot/` byte-mirror** — internal references updated to track
+  upstream rename. `validate.sh` Error check 10 (`MIRROR_SPECS`) stays green:
+  byte-identity preserved with the renamed `deprecated/CJ_company-workflow/`
+  source.
+- **Scripts hardcoding skill names** — `validate.sh` `MIRROR_SPECS` array,
+  `scripts/test.sh`, `scripts/test-deploy.sh`, `scripts/skills-deploy`,
+  `scripts/eval.sh`, `scripts/check-gates-update.sh` — all updated to the
+  `CJ_*` names.
+- **`CLAUDE.md` skill-routing block** — 8 slash-command names updated so the
+  router maps natural-language requests to the renamed skills.
+- **`README.md`** — regenerated from the updated catalog.
+- **`VERSION`** — 1.15.1 → 2.0.0 (MAJOR bump for breaking rename).
+
 ## [1.15.1] - 2026-05-10
 
 Pre-existing CI flake fix. Two consecutive releases (PR #74 / v1.13.1 and PR #75 / v1.14.0) shipped under `--admin` overrides because seven `echo "$_t11_out" | grep -qF "needle"` call sites in `scripts/test.sh` (lines 1879/1893/1907/1918/1929/1950/1970, T000011 + autoplan D5 blocks) raced against `set -o pipefail` (inherited from `lib.sh`) on GitHub Actions runners — `grep -qF` matches early and exits, `echo`'s next write hits a closed pipe, SIGPIPE flips the pipeline non-zero, the enclosing `if` becomes false, and `fail_test` triggers spuriously. Locally the race window is too tight to reproduce; in CI it tripped 2-3 times per run. Replaced each pipeline with a SIGPIPE-free `case "$_t11_out" in *"needle"*) true;; *) false;; esac` form. No behavioral change to the test assertions; same needles, same gates, same passing path. Out-of-scope sites at lines 1700/1713/1732/1741/1816/1835 use the same shape but are in different test blocks (S000010 + autoplan G3) — left as-is, same fix can be applied if they ever flake. Rebumped from v1.14.1 after queue collision with PR #76's v1.15.0 (`/suggest` skill).

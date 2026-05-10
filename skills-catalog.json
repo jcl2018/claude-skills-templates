@@ -1,7 +1,7 @@
 [
   {
-    "name": "system-health",
-    "version": "1.0.0",
+    "name": "CJ_system-health",
+    "version": "2.0.0",
     "description": "~/.claude/ health dashboard with dependency graph and usage trends. Scans installed skills, builds dependency graph, checks filesystem health, surfaces skill usage analytics with behavioral topology overlay, invokes waza for config hygiene.",
     "source": "local",
     "depends": {
@@ -13,7 +13,7 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/system-health/SKILL.md"
+      "skills/CJ_system-health/SKILL.md"
     ],
     "templates": [],
     "status": "active"
@@ -35,8 +35,8 @@
     "status": "active"
   },
   {
-    "name": "personal-workflow",
-    "version": "3.0.0",
+    "name": "CJ_personal-workflow",
+    "version": "4.0.0",
     "description": "Personal work item validation. Validates tracker files and work item directories against personal templates and personal-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {
@@ -47,33 +47,33 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/personal-workflow/SKILL.md",
-      "skills/personal-workflow/WORKFLOW.md",
-      "skills/personal-workflow/check.md",
-      "skills/personal-workflow/personal-artifact-manifests.json"
+      "skills/CJ_personal-workflow/SKILL.md",
+      "skills/CJ_personal-workflow/WORKFLOW.md",
+      "skills/CJ_personal-workflow/check.md",
+      "skills/CJ_personal-workflow/personal-artifact-manifests.json"
     ],
     "templates": [
-      "personal-workflow/tracker-feature.md",
-      "personal-workflow/tracker-user-story.md",
-      "personal-workflow/tracker-task.md",
-      "personal-workflow/tracker-defect.md",
-      "personal-workflow/doc-DESIGN.md",
-      "personal-workflow/doc-SPEC.md",
-      "personal-workflow/doc-ROADMAP.md",
-      "personal-workflow/doc-TEST-SPEC.md",
-      "personal-workflow/doc-RCA.md",
-      "personal-workflow/doc-test-plan.md"
+      "CJ_personal-workflow/tracker-feature.md",
+      "CJ_personal-workflow/tracker-user-story.md",
+      "CJ_personal-workflow/tracker-task.md",
+      "CJ_personal-workflow/tracker-defect.md",
+      "CJ_personal-workflow/doc-DESIGN.md",
+      "CJ_personal-workflow/doc-SPEC.md",
+      "CJ_personal-workflow/doc-ROADMAP.md",
+      "CJ_personal-workflow/doc-TEST-SPEC.md",
+      "CJ_personal-workflow/doc-RCA.md",
+      "CJ_personal-workflow/doc-test-plan.md"
     ],
     "status": "active"
   },
   {
-    "name": "scaffold-work-item",
-    "version": "0.1.0",
-    "description": "Scaffold a personal-workflow work item from an /office-hours design doc. Reads design + templates + manifest + WORKFLOW.md, produces a compliant work-item directory tree with all required artifacts. Runs /personal-workflow check at boundaries; idempotent (re-run on same input is NO-OP).",
+    "name": "CJ_scaffold-work-item",
+    "version": "1.0.0",
+    "description": "Scaffold a CJ_personal-workflow work item from an /office-hours design doc. Reads design + templates + manifest + WORKFLOW.md, produces a compliant work-item directory tree with all required artifacts. Runs /CJ_personal-workflow check at boundaries; idempotent (re-run on same input is NO-OP).",
     "source": "local",
     "depends": {
       "skills": [
-        "personal-workflow"
+        "CJ_personal-workflow"
       ],
       "tools": [
         "git",
@@ -82,15 +82,15 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/scaffold-work-item/SKILL.md",
-      "skills/scaffold-work-item/scaffold.md"
+      "skills/CJ_scaffold-work-item/SKILL.md",
+      "skills/CJ_scaffold-work-item/scaffold.md"
     ],
     "templates": [],
     "status": "experimental"
   },
   {
-    "name": "company-workflow",
-    "version": "4.0.0",
+    "name": "CJ_company-workflow",
+    "version": "5.0.0",
     "description": "Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
     "source": "local",
     "depends": {
@@ -99,40 +99,40 @@
     },
     "portability": "standalone",
     "files": [
-      "deprecated/company-workflow/SKILL.md",
-      "deprecated/company-workflow/WORKFLOW.md",
-      "deprecated/company-workflow/company-artifact-manifests.json"
+      "deprecated/CJ_company-workflow/SKILL.md",
+      "deprecated/CJ_company-workflow/WORKFLOW.md",
+      "deprecated/CJ_company-workflow/company-artifact-manifests.json"
     ],
     "templates": [
-      "company-workflow/tracker-feature.md",
-      "company-workflow/tracker-defect.md",
-      "company-workflow/tracker-task.md",
-      "company-workflow/tracker-user-story.md",
-      "company-workflow/tracker-review.md",
-      "company-workflow/doc-feature-summary.md",
-      "company-workflow/doc-PRD.md",
-      "company-workflow/doc-ARCHITECTURE.md",
-      "company-workflow/doc-TEST-SPEC.md",
-      "company-workflow/doc-DESIGN.md",
-      "company-workflow/doc-milestones.md",
-      "company-workflow/doc-RCA.md",
-      "company-workflow/doc-test-plan.md",
-      "company-workflow/doc-review-notes.md",
-      "company-workflow/doc-scrum.md",
-      "company-workflow/doc-pr-description-task.md",
-      "company-workflow/doc-pr-description-defect.md"
+      "CJ_company-workflow/tracker-feature.md",
+      "CJ_company-workflow/tracker-defect.md",
+      "CJ_company-workflow/tracker-task.md",
+      "CJ_company-workflow/tracker-user-story.md",
+      "CJ_company-workflow/tracker-review.md",
+      "CJ_company-workflow/doc-feature-summary.md",
+      "CJ_company-workflow/doc-PRD.md",
+      "CJ_company-workflow/doc-ARCHITECTURE.md",
+      "CJ_company-workflow/doc-TEST-SPEC.md",
+      "CJ_company-workflow/doc-DESIGN.md",
+      "CJ_company-workflow/doc-milestones.md",
+      "CJ_company-workflow/doc-RCA.md",
+      "CJ_company-workflow/doc-test-plan.md",
+      "CJ_company-workflow/doc-review-notes.md",
+      "CJ_company-workflow/doc-scrum.md",
+      "CJ_company-workflow/doc-pr-description-task.md",
+      "CJ_company-workflow/doc-pr-description-defect.md"
     ],
     "status": "deprecated",
-    "templates_source": "deprecated/company-workflow/templates"
+    "templates_source": "deprecated/CJ_company-workflow/templates"
   },
   {
-    "name": "qa-work-item",
-    "version": "0.1.0",
-    "description": "QA a personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2.",
+    "name": "CJ_qa-work-item",
+    "version": "1.0.0",
+    "description": "QA a CJ_personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2.",
     "source": "local",
     "depends": {
       "skills": [
-        "personal-workflow"
+        "CJ_personal-workflow"
       ],
       "tools": [
         "git",
@@ -141,20 +141,20 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/qa-work-item/SKILL.md",
-      "skills/qa-work-item/qa.md"
+      "skills/CJ_qa-work-item/SKILL.md",
+      "skills/CJ_qa-work-item/qa.md"
     ],
     "templates": [],
     "status": "experimental"
   },
   {
-    "name": "implement-from-spec",
-    "version": "0.1.0",
-    "description": "Implement a personal-workflow user-story from its SPEC. Reads SPEC + DESIGN + TRACKER, plans the change against the SPEC architecture, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes. Idempotent (re-run on completed story is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
+    "name": "CJ_implement-from-spec",
+    "version": "1.0.0",
+    "description": "Implement a CJ_personal-workflow user-story from its SPEC. Reads SPEC + DESIGN + TRACKER, plans the change against the SPEC architecture, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes. Idempotent (re-run on completed story is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
     "source": "local",
     "depends": {
       "skills": [
-        "personal-workflow"
+        "CJ_personal-workflow"
       ],
       "tools": [
         "git",
@@ -163,23 +163,23 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/implement-from-spec/SKILL.md",
-      "skills/implement-from-spec/implement.md"
+      "skills/CJ_implement-from-spec/SKILL.md",
+      "skills/CJ_implement-from-spec/implement.md"
     ],
     "templates": [],
     "status": "experimental"
   },
   {
-    "name": "personal-pipeline",
-    "version": "0.1.0",
-    "description": "Single-keystroke orchestrator over the 3 personal-workflow pipeline skills (scaffold-work-item, implement-from-spec, qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Optional --auto flag auto-decides intermediate AUQs using 6 principles, surfaces Taste decisions and User Challenges at one final approval gate (mirrors /autoplan's contract); manual mode stays byte-identical to v1.13.1. Halt-on-red default; idempotent; sunset criterion built in.",
+    "name": "CJ_personal-pipeline",
+    "version": "1.0.0",
+    "description": "Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Optional --auto flag auto-decides intermediate AUQs using 6 principles, surfaces Taste decisions and User Challenges at one final approval gate (mirrors /autoplan's contract); manual mode stays byte-identical to v1.13.1. Halt-on-red default; idempotent; sunset criterion built in.",
     "source": "local",
     "depends": {
       "skills": [
-        "scaffold-work-item",
-        "implement-from-spec",
-        "qa-work-item",
-        "personal-workflow"
+        "CJ_scaffold-work-item",
+        "CJ_implement-from-spec",
+        "CJ_qa-work-item",
+        "CJ_personal-workflow"
       ],
       "tools": [
         "git",
@@ -188,15 +188,15 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/personal-pipeline/SKILL.md",
-      "skills/personal-pipeline/pipeline.md"
+      "skills/CJ_personal-pipeline/SKILL.md",
+      "skills/CJ_personal-pipeline/pipeline.md"
     ],
     "templates": [],
     "status": "experimental"
   },
   {
-    "name": "suggest",
-    "version": "0.1.0",
+    "name": "CJ_suggest",
+    "version": "1.0.0",
     "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter.",
     "source": "local",
     "depends": {
@@ -212,7 +212,7 @@
     },
     "portability": "local-only",
     "files": [
-      "skills/suggest/SKILL.md"
+      "skills/CJ_suggest/SKILL.md"
     ],
     "templates": [],
     "status": "experimental"
