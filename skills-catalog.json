@@ -128,7 +128,7 @@
   {
     "name": "CJ_qa-work-item",
     "version": "1.0.0",
-    "description": "QA a CJ_personal-workflow user-story per its TEST-SPEC. Runs smoke tests from the Smoke Tests table first; on green, dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per the E2E Tests table. Writes findings to tracker journal, transitions Phase 2 gates on green smoke + green E2E. Idempotent (re-run on green user-story is NO-OP). Boundary check refuses on incomplete Phase 2.",
+    "description": "QA a CJ_personal-workflow work-item (user-story, defect, or task) per its test rows. For user-stories: runs Smoke Tests then dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per TEST-SPEC. For defects/tasks: runs test-plan rows as smoke-equivalent (no E2E subagent in v1). Writes findings to tracker journal; transitions Phase 2 qa-owned gates for user-stories; records [qa-pass] for defects/tasks. Idempotent (re-run on green work-item is NO-OP). Boundary check refuses on incomplete Phase 2.",
     "source": "local",
     "depends": {
       "skills": [
@@ -150,7 +150,7 @@
   {
     "name": "CJ_implement-from-spec",
     "version": "1.0.0",
-    "description": "Implement a CJ_personal-workflow user-story from its SPEC. Reads SPEC + DESIGN + TRACKER, plans the change against the SPEC architecture, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes. Idempotent (re-run on completed story is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
+    "description": "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (≤2 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
     "source": "local",
     "depends": {
       "skills": [
