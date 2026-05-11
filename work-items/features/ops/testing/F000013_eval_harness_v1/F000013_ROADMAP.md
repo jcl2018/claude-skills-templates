@@ -70,6 +70,7 @@ V1 of a behavioral eval harness for the skill workbench. Bash runner (`scripts/e
      milestones content during a feature-summary+milestones → ROADMAP migration. -->
 
 - 2026-05-09: F000013 scaffolded from `chjiang-main-design-20260509-110013.md`
+- 2026-05-11: S000025 implementation landed — `.github/workflows/eval-nightly.yml` authored (cron 09:00 UTC + workflow_dispatch + 15-min timeout + npm-installed claude CLI + job-summary); TODOS.md "Behavioral eval harness" entry marked DONE-V1; this Delivery History entry. Workflow PR link + first-run cost/wall-clock pending ship + manual `gh workflow run` (drives S000025 ACs 2/3/4/7 + ROADMAP milestone #4).
 
 ## Dependency Graph
 
