@@ -75,15 +75,35 @@ NO_TRACKERS=0
 # Heading regex: `^### {title} (P{1-4}, {S|M|L})` with NO leading `~~`
 # (strikethrough = DONE/RETIRED).
 
-# Bound the active band on EITHER `## Deferred work` OR any other top-level
-# `## ` heading. Without the second clause, inserting `## Triage` between
-# Active and Deferred would leak that section's `### …` rows into the candidate
-# set (adversarial review CRITICAL #2).
-ACTIVE_HEADINGS=$(awk '
-  /^## Active work[[:space:]]*$/ {a=1; next}
-  /^## / && !/^## Active work[[:space:]]*$/ {a=0}
-  a && /^### [^~]/ { print }
-' "$TODOS")
+# Two TODOS.md conventions are supported:
+#
+# 1. CJ_personal-workflow shape — single `## Active work` section gates the
+#    candidate set. Bound the active band on EITHER `## Deferred work` OR any
+#    other top-level `## ` heading. Without the second clause, inserting
+#    `## Triage` between Active and Deferred would leak that section's `###`
+#    rows into the candidate set (adversarial review CRITICAL #2).
+#
+# 2. Domain-grouped shape (e.g. portfolio repo) — work items live under
+#    domain-specific `## ` sections (`## Dispatcher`, `## Alert Rules`, ...)
+#    with no `## Active work` gate. Fall back to scanning all `### ` headings
+#    except those under terminal/completed buckets. Items without the
+#    `(Pn, X)` suffix already default to P4/M downstream (premise #3), so
+#    portable TODOs rank by recency/blocked-status alone.
+#
+# Detection: presence of `## Active work` switches modes.
+if grep -q '^## Active work[[:space:]]*$' "$TODOS"; then
+  ACTIVE_HEADINGS=$(awk '
+    /^## Active work[[:space:]]*$/ {a=1; next}
+    /^## / && !/^## Active work[[:space:]]*$/ {a=0}
+    a && /^### [^~]/ { print }
+  ' "$TODOS")
+else
+  ACTIVE_HEADINGS=$(awk '
+    /^## (Completed|Done|Archive|Archived|Shipped|Deferred work)[[:space:]]*$/ {a=0; next}
+    /^## / {a=1}
+    a && /^### [^~]/ { print }
+  ' "$TODOS")
+fi
 
 if [ -z "$ACTIVE_HEADINGS" ]; then
   echo "No actionable items."
