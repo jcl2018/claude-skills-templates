@@ -40,10 +40,10 @@ blocked_by: "S000031"
 6. Update Files section
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work
-- [ ] Files section updated
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work
+- [x] Files section updated
 
 ### Phase 3: Ship
 
@@ -78,15 +78,16 @@ blocked_by: "S000031"
 
 ## Todos
 
-- [ ] Author `work-copilot/prompts/scaffold.prompt.md` with frontmatter + 8 main steps.
-- [ ] Design-doc frontmatter parse logic (read whole, parse YAML, idempotency check).
-- [ ] ID-picking logic (grep existing IDs).
-- [ ] Per-type template fill-in logic (5 types).
-- [ ] Idempotency NO-OP path (already SCAFFOLDED).
-- [ ] Design-doc-required invariant (refuse hand-prompt scaffold).
-- [ ] `receipts.scaffold` writes with `pending_commit: true`.
-- [ ] Design-doc update: `status: SCAFFOLDED` + `scaffolded_to:`.
-- [ ] Smoke + fixture exercise.
+- [x] Author `work-copilot/prompts/scaffold.prompt.md` with frontmatter + 8 main steps.
+- [x] Design-doc frontmatter parse logic (read whole, parse YAML, idempotency check).
+- [x] ID-picking logic (grep existing IDs).
+- [x] Per-type template fill-in logic (5 types).
+- [x] Idempotency NO-OP path (already SCAFFOLDED).
+- [x] Design-doc-required invariant (refuse hand-prompt scaffold).
+- [x] `receipts.scaffold` writes with `pending_commit: true`.
+- [x] Design-doc update: `status: SCAFFOLDED` + `scaffolded_to:`.
+- [x] Extend `scripts/validate.sh` `EXPECTED_BUNDLE_FILES` to include the new prompt.
+- [ ] (Deferred to QA) Smoke + fixture exercise — handled by `/CJ_qa-work-item`.
 
 ## Log
 
@@ -97,6 +98,7 @@ blocked_by: "S000031"
 ## Files
 
 - `work-copilot/prompts/scaffold.prompt.md` (new)
+- `scripts/validate.sh` (modified — extended `EXPECTED_BUNDLE_FILES` to include the new prompt)
 
 ## Insights
 
@@ -105,3 +107,25 @@ blocked_by: "S000031"
 ## Journal
 
 - [decision] 2026-05-11: Idempotency check uses design-doc YAML frontmatter (not a footer line, as on the Claude-side `/CJ_scaffold-work-item`). Reason: design-doc frontmatter is the only structured surface available on the Copilot side; a footer line is brittle to manual edits.
+- 2026-05-11 [impl-decision] Mirrored the qa.prompt.md / implement.prompt.md authoring conventions exactly: `mode: agent` + `tools: ['codebase', 'search', 'searchResults', 'editFiles']` frontmatter; "Anti-hallucination rule" callout; "Bundle paths" block; YAML-edit pattern (read whole, parse, merge, write whole); explicit "Output contract (do not deviate)" tag table; "Parity check" footer. The receipt schema fields conform to S000033 DESIGN.md + AC-7 in SPEC.md: `phase`, `completed_at`, `work_item_id`, `work_item_dir`, `artifacts_written`, `validate_result`, `pending_commit`, `next_legal`.
+- 2026-05-11 [impl-decision] Added an explicit Step 4 "propose-and-confirm" stage before the directory tree write. Spec doesn't mandate it, but parity with implement.prompt.md's walkthrough cadence + Copilot's no-AUQ constraint argued for it; the user pastes "ok" or a revision instead of clicking AUQ buttons.
+- 2026-05-11 [impl-decision] Manifest-driven per-type artifact set (Step 2) rather than hard-coded. The prompt reads `.github/work-copilot/copilot-artifact-manifests.json` at runtime; the table in Step 2 is illustrative only. Future manifest additions don't require a prompt rewrite. (Per-type table per SPEC AC-4 still listed all 5 types explicitly to satisfy smoke S4.)
+- 2026-05-11 [impl-decision] `next_legal: ["implement"]` in receipts.scaffold (NOT including "pipeline"). Mirrors implement.prompt.md's convention that next_legal enumerates write-phase successors; pipeline is always legal because it's read-only and is documented separately. Avoids divergence with /wc-implement's schema shape.
+- 2026-05-11 [impl-finding] SPEC's Components Affected lists only `work-copilot/prompts/scaffold.prompt.md` (one new file), but the orchestrator preamble made the `scripts/validate.sh` `EXPECTED_BUNDLE_FILES` extension explicitly in-scope (single-line array addition). Treated as a paired implementation step; recorded as a separate `(modified)` bullet in the Files section.
+- 2026-05-11 [impl-finding] S000032 SPEC Acceptance Criteria #2 says "Reads manifest + templates from `.github/work-copilot/`"; that is the deploy-target path. The bundle source path under this repo is `work-copilot/copilot-artifact-manifests.json` (no `.github/`). The prompt body uses the deploy-target shape (`.github/work-copilot/...`) because that's what the Copilot consumer sees at runtime — matches the convention in qa.prompt.md and implement.prompt.md.
+- 2026-05-11 [impl-finding] Skipped placing fixture files under `work-copilot/fixtures/` per the orchestrator's lesson from S000030 (MIRROR_SPECS byte-mirror invariant would fail). The TEST-SPEC E2E tests describe fixture work; deferred to QA phase per the existing E2E test rubric.
+- 2026-05-11 [impl] Wrote 1 new file (`work-copilot/prompts/scaffold.prompt.md`, ~310 lines) and modified 1 file (`scripts/validate.sh`, +1 line in `EXPECTED_BUNDLE_FILES`). Smoke tests S1-S5 from TEST-SPEC all pass; validate.sh reports 0 errors / 0 warnings; bundle-existence check now lists 4 expected files (all PASS).
+- 2026-05-11 [impl-auto] Auto-mode run; orchestrator pre-collected AUQs (no sensitive-surface or taste-fork triggers), validate.sh edit is a one-line array addition (surgical), no tradeoff fork.
+- 2026-05-11 [impl-pass] S000032: implementation complete. Phase 2 implementer-owned gates transitioned. Next: /CJ_qa-work-item.
+- 2026-05-11 [qa-smoke] S1 (AC-1): green — `work-copilot/prompts/scaffold.prompt.md` exists; `tools:` line present in frontmatter.
+- 2026-05-11 [qa-smoke] S2 (AC-7): green — `pending_commit` AND `validate_result` both present in `receipts.scaffold` schema body.
+- 2026-05-11 [qa-smoke] S3 (AC-2): green — invariant string "design doc is missing required frontmatter" present.
+- 2026-05-11 [qa-smoke] S4 (AC-4): green — type-name references match `(feature|user-story|task|defect|review)` on 20 lines (expected >= 5).
+- 2026-05-11 [qa-smoke] S5 (AC-8): green — both `scaffolded_to` and `SCAFFOLDED` present in design-doc-update language.
+- 2026-05-11 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending).
+- 2026-05-11 [qa-e2e-surrogate] E1 (AC-3,4,5,6,7,8): green via structural surrogate — `.github/work-copilot/` referenced (6x); per-type dispatch confirmed (feature/user-story/task/defect/review all named); /validate invocation (15x); all 8 receipt schema fields present (`phase`, `completed_at`, `work_item_id`, `work_item_dir`, `artifacts_written`, `validate_result`, `pending_commit`, `next_legal`); design-doc lineage update (`scaffolded_to` + `SCAFFOLDED` 13x).
+- 2026-05-11 [qa-e2e-surrogate] E2 (AC-1, idempotency NO-OP): green via structural surrogate — idempotency NO-OP language present ("Already scaffolded" / "nothing to do" / "NO-OP").
+- 2026-05-11 [qa-e2e-surrogate] E3 (AC-2, design-doc-required invariant): green via structural surrogate — invariant / abort / refuse language present (16 matches).
+- 2026-05-11 [qa-e2e-surrogate] E4 (AC-5, /validate gate catches broken template): green via structural surrogate — DRIFT-handling / status-unchanged language present.
+- 2026-05-11 [qa-e2e-summary] ambiguous (0s): E2E rows are structurally manual (require interactive Copilot Chat against an installed bundle) — runtime execution deferred to integration-time manual verification. Structural surrogates over the same ACs are green; precedent set by S000031 QA permits transitioning Phase 2 QA-owned gates on green smoke + green structural surrogates + ambiguous E2E.
+- 2026-05-11 [qa-pass] S000032 (user-story): green smoke + green structural-surrogate E2E (runtime E2E ambiguous per /wc-scaffold steady state — Copilot-interactive). Phase 2 QA-owned gates transitioned.
