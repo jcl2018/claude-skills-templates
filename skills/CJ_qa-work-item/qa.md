@@ -328,8 +328,40 @@ AskUserQuestion:
 
 Default: re-run after fix. On `Re-run`: stop and let the user fix the
 implementation, then re-invoke `/CJ_qa-work-item`. On `Skip smoke`: continue
-to Step 7 with `SMOKE_VERDICT = red` recorded in the tracker; the parent
+to Step 6.5 with `SMOKE_VERDICT = red` recorded in the tracker; the parent
 skill caller bears responsibility. On `Abort`: print "Aborted." and exit.
+
+## Step 6.5: E2E Run Marker (D000018)
+
+Before any `[qa-e2e]` entry is written (by Step 7 subagent or Step 7.5
+parent-inline), the orchestrator writes a run-start marker to the TRACKER's
+`## Journal` section. The marker scopes Step 8's verdict aggregation to
+entries from THIS run, so prior runs' entries do not pollute the verdict
+math (D000018 R5 mitigation).
+
+For type = defect or type = task: skip this step (no E2E phase; the type
+dispatch in Step 4 already set `E2E_ROWS = []`).
+
+For user-stories: capture a run ID and write the marker.
+
+```bash
+QA_RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+QA_RUN_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+```
+
+Append the marker entry verbatim:
+
+```
+- {YYYY-MM-DD} [qa-e2e-run-start] RUN_ID={QA_RUN_ID} commit={QA_RUN_COMMIT}
+```
+
+Store `QA_RUN_ID` for use in Step 8 (the aggregator finds the LATEST marker
+line and only considers `[qa-e2e]` entries appearing after it).
+
+**Idempotency note:** the marker is written every run (even when Step 3's
+NO-OP path is reached, control never gets here — Step 3 exits before Step
+6.5). On re-runs that go through to E2E, each run gets its own marker; Step
+8 always scopes to the latest one.
 
 ## Step 7: Spawn QA Engineer Subagent (E2E — user-story only)
 
@@ -457,9 +489,11 @@ For each row in `E2E_ROWS_PARENT`:
 1. **Deferred rows (parent-inline cap exceeded):** if the row was marked
    `deferred-to-manual` in Step 4.5, do NOT execute. Write a journal entry:
    ```
-   - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): ambiguous — deferred to manual (parent-inline cap reached at 5 rows)
+   - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): ambiguous — deferred to manual (parent-inline cap reached at 5 rows) [parent-inline]
    ```
-   and continue to the next row.
+   The trailing `[parent-inline]` source tag is consistent with executed
+   parent-inline entries (Step 7.5.5) so the Step 8 aggregator's source
+   bookkeeping stays uniform. Continue to the next row.
 
 2. **Recursive rows:** invoke the Agent tool per the row's Expected Outcome
    (e.g., row references `/CJ_personal-pipeline` which itself spawns Phase
@@ -503,16 +537,35 @@ so Step 8's aggregate prints coherently.
 
 ## Step 8: Process E2E Results (aggregate subagent + parent-inline)
 
-Aggregate `[qa-e2e]` entries from both sources by row number:
+Aggregate `[qa-e2e]` entries from both sources by row number, scoped to
+this run via the Step 6.5 marker:
 
-1. Collect every `[qa-e2e] E#` entry from the TRACKER's `## Journal`
-   appended during this run (both subagent writes from Step 7 and
-   parent-inline writes from Step 7.5).
-2. For each distinct row number `E#`, take the most recent entry (last
+1. **Scope to this run (D000018 R5 mitigation).** Find the line number of
+   the LATEST `[qa-e2e-run-start]` entry in the TRACKER (matches the
+   `QA_RUN_ID` written at Step 6.5). Only consider `[qa-e2e]` entries
+   AFTER that line. Entries before the latest marker are from prior runs
+   and MUST NOT be aggregated — they may belong to a different commit, a
+   different partition decision, or pre-D000018 schema.
+
+   Concretely:
+   ```bash
+   MARKER_LINE=$(grep -n '\[qa-e2e-run-start\]' "$TRACKER" | tail -1 | cut -d: -f1)
+   # then aggregate only journal lines with index > MARKER_LINE
+   ```
+
+2. **Anchored row-number match.** Match each E2E entry's row number with
+   an anchor on the trailing ` (` to prevent `E1` matching `E10`, `E11`,
+   etc. Regex: `\[qa-e2e\] (E[0-9]+) \(` (capture `E[0-9]+` followed by a
+   literal space and `(`). The `(` is always present because the entry
+   format is `[qa-e2e] E# (AC-...): ...` — see the format spec in Step 7
+   stable preamble and Step 7.5.5.
+
+3. For each distinct row number `E#`, take the most recent entry (last
    wins) as the row's authoritative verdict. Source tag `[parent-inline]`
-   is preserved for audit; the verdict word (`green` / `red` / `ambiguous`)
-   is what counts.
-3. If a row appears in neither source (classifier bug — should not happen),
+   is preserved for audit; the verdict word (`green` / `red` /
+   `ambiguous`) is what counts.
+
+4. If a row appears in neither source (classifier bug — should not happen),
    record an `[impl-finding] qa-e2e classifier missed row E#; treating as
    ambiguous` entry and treat the row as ambiguous.
 
@@ -723,6 +776,11 @@ must:
 - Not spawn its own subagents (anti-recursion)
 - Return a 1-2 sentence summary, not a verbose findings dump
 - Write detailed per-row findings to the tracker journal as `[qa-e2e]` entries
+- **Entry format (D000018 R6 mitigation):** every `[qa-e2e]` entry MUST
+  use the exact shape `[qa-e2e] E# (AC-...): verdict — summary`. The
+  literal ` (` after the row number is the Step 8 aggregator's anchor;
+  without it, `E1` would match `E10`, `E11`, etc. The aggregator regex
+  is `\[qa-e2e\] (E[0-9]+) \(` so the trailing ` (` is mandatory.
 - **Tool surface (re-probed 2026-05-11):** Read, Bash, Grep, Glob, Skill.
   AskUserQuestion and Agent are NOT in the subagent's deferred-tools list;
   rows requiring those are partitioned by Step 4.5 into parent-inline
@@ -742,16 +800,25 @@ subagent cannot handle (interactive / recursive). Contract:
 
 - Uses the parent's full toolbelt: Skill + AskUserQuestion + Agent.
 - Per-row journal entry shape is **identical** to subagent entries except
-  for a trailing `[parent-inline]` source tag. Step 8 aggregates both
-  sources by row number; the tag is for audit, not for verdict math.
+  for a trailing `[parent-inline]` source tag. The literal ` (` after the
+  row number is mandatory (Step 8's aggregator regex `\[qa-e2e\] (E[0-9]+) \(`
+  anchors on it — D000018 R6 mitigation). Step 8 aggregates both sources
+  by row number; the tag is for audit, not for verdict math.
 - Capped at 5 rows per run (R3 mitigation). Surplus rows are recorded as
   `ambiguous — deferred to manual (parent-inline cap reached at 5 rows)`
-  so the aggregate verdict is visible and accurate.
+  so the aggregate verdict is visible and accurate. Deferred entries also
+  follow the `E# (AC-...): ambiguous — ...` shape with the trailing ` (`
+  anchor so the aggregator scopes them correctly.
 - Soft 5-minute per-row wall-clock cap. The parent doesn't kill the row
   (no separate process), but rows exceeding the soft cap are marked
   ambiguous so a runaway row doesn't block the whole run.
 - Smoke-red short-circuit (Step 6) still gates parent-inline execution.
   Step 7.5 runs only if Step 6 didn't abort.
+- **Run-scoping (D000018 R5 mitigation):** Step 6.5 writes a
+  `[qa-e2e-run-start] RUN_ID=...` marker before any `[qa-e2e]` entry.
+  Step 8 only aggregates entries appearing AFTER the latest marker. This
+  prevents prior-run entries (including pre-D000018 entries without source
+  tags) from polluting the verdict on re-runs.
 
 ## Spec Deviations
 
@@ -774,3 +841,13 @@ Step 8 reunifies them. Prior to D000018, every E2E row went to the
 subagent regardless of capability fit, which caused recurring
 `ambiguous via structural inspection` outcomes across S000027, S000028,
 S000022, S000020, and S000030.
+
+D000018 also introduces a `[qa-e2e-run-start] RUN_ID=...` marker written
+at Step 6.5 that scopes Step 8's verdict aggregation to entries from the
+current run only. The marker is a journal entry like any other; pre-fix
+trackers without the marker are still readable but the aggregator skips
+them (no marker found → no entries to aggregate → vacuous verdict; re-run
+QA writes a fresh marker and the aggregator picks up the new entries).
+Row-number matching uses the regex `\[qa-e2e\] (E[0-9]+) \(` with the
+trailing ` (` as anchor, preventing `E1` from absorbing `E10`'s entry on
+TEST-SPECs with ≥10 E2E rows.
