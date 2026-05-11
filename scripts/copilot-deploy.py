@@ -9,6 +9,19 @@ Subcommands:
 Stdlib only. Runs on Python 3.8+, macOS and Windows. Text files (.md, .json,
 .yaml, .yml, .txt) are normalized CRLF/CR -> LF before hashing so hashes are
 stable across platforms regardless of git autocrlf settings.
+
+Special handling — per-target USER DATA (S000033):
+
+  - `work-copilot/domain/*.template.md` are SKELETONS. On install, the
+    `.template.md` suffix is stripped and the skeleton is written to
+    `<target>/.github/work-copilot/domain/<name>.md` ONLY if that file does
+    not already exist. If it exists (user-filled), the install prints
+    `[KEEP-USER] <name>.md` and skips. Skeletons are NOT tracked in the
+    install-manifest (so `doctor` and `remove` do not touch user-filled
+    files).
+  - On install, an empty `<target>/.github/work-copilot/designs/.gitkeep`
+    is created (idempotent) so the `designs/` folder exists in git from
+    day 1 — `/wc-investigate` writes its design-docs there.
 """
 
 import argparse
@@ -22,6 +35,16 @@ from pathlib import Path
 INSTALL_MANIFEST = "install-manifest.json"
 BUNDLE_DIR_NAME = "work-copilot"
 MIN_PYTHON = (3, 8)
+
+# Per-target USER DATA: skeleton templates that fill a per-target slot on first
+# install and are preserved on re-install. Source files carry the suffix
+# `.template.md`; install strips the suffix to `<name>.md`.
+DOMAIN_SKELETON_SUFFIX = ".template.md"
+DOMAIN_DIR_PARTS = ("domain",)  # under work-copilot/
+
+# Per-target USER DATA: empty folder seeded by .gitkeep so git tracks it
+# from day 1. /wc-investigate writes its first design-doc here.
+DESIGNS_GITKEEP_DEST = Path(".github") / BUNDLE_DIR_NAME / "designs" / ".gitkeep"
 
 
 TEXT_SUFFIXES = (".md", ".json", ".yaml", ".yml", ".txt")
@@ -77,17 +100,52 @@ def map_dest(bundle_rel):
     return Path(".github") / BUNDLE_DIR_NAME / bundle_rel
 
 
+def is_domain_skeleton(bundle_rel):
+    """Return True iff bundle_rel is a per-target domain skeleton template.
+
+    Skeletons live at work-copilot/domain/*.template.md. They are first-install
+    USER DATA — install strips `.template.md` to `.md`, writes only if the
+    target file is absent, and never tracks them in the install-manifest.
+    """
+    parts = bundle_rel.parts
+    if len(parts) < 2:
+        return False
+    if parts[0] != DOMAIN_DIR_PARTS[0]:
+        return False
+    return bundle_rel.name.endswith(DOMAIN_SKELETON_SUFFIX)
+
+
+def map_domain_skeleton_dest(bundle_rel):
+    """Map a domain skeleton (X.template.md) to its install path (X.md)."""
+    name = bundle_rel.name
+    # Strip ".template.md", append ".md"
+    base = name[: -len(DOMAIN_SKELETON_SUFFIX)]
+    new_name = base + ".md"
+    return Path(".github") / BUNDLE_DIR_NAME / DOMAIN_DIR_PARTS[0] / new_name
+
+
 def build_file_map(bundle_dir):
-    """Walk bundle_dir and return [(src_abs, dest_rel, bundle_rel)] sorted."""
-    items = []
+    """Walk bundle_dir and return (regular_items, skeleton_items).
+
+    regular_items: [(src_abs, dest_rel, bundle_rel)] — copied verbatim,
+                   tracked in install-manifest.
+    skeleton_items: [(src_abs, dest_rel, bundle_rel)] — first-install only;
+                    NOT tracked in install-manifest (per-target user data).
+    Both lists are sorted by path.
+    """
+    regular = []
+    skeletons = []
     for p in sorted(bundle_dir.rglob("*")):
         if not p.is_file():
             continue
         rel = p.relative_to(bundle_dir)
         if rel.name == INSTALL_MANIFEST:
             continue
-        items.append((p, map_dest(rel), rel))
-    return items
+        if is_domain_skeleton(rel):
+            skeletons.append((p, map_domain_skeleton_dest(rel), rel))
+        else:
+            regular.append((p, map_dest(rel), rel))
+    return regular, skeletons
 
 
 def find_bundle_dir():
@@ -106,8 +164,8 @@ def cmd_install(args):
         sys.stderr.write(f"ERROR: target is not a directory: {target}\n")
         sys.exit(2)
 
-    file_map = build_file_map(bundle_dir)
-    if not file_map:
+    regular_map, skeleton_map = build_file_map(bundle_dir)
+    if not regular_map and not skeleton_map:
         sys.stderr.write(f"ERROR: bundle is empty: {bundle_dir}\n")
         sys.exit(2)
 
@@ -121,6 +179,7 @@ def cmd_install(args):
     existing_by_dest = {e["dest"]: e for e in existing.get("files", [])}
 
     installed = updated = skipped = overwritten = 0
+    seeded = kept_user = 0  # per-target USER DATA counters (S000033)
     drifted = []
     new_entries = []
     dry = bool(getattr(args, "dry_run", False))
@@ -130,7 +189,7 @@ def cmd_install(args):
     else:
         print(f"copilot-deploy install -> {target}")
 
-    for src, dest_rel, bundle_rel in file_map:
+    for src, dest_rel, bundle_rel in regular_map:
         src_sha = sha256_file(src)
         dest_key = dest_rel.as_posix()
         dest_abs = _safe_resolve(target, dest_rel)
@@ -175,6 +234,50 @@ def cmd_install(args):
             "sha256": src_sha,
         })
 
+    # Per-target USER DATA: domain skeleton templates (S000033).
+    # First-install only — if the destination file (with `.template.md`
+    # suffix stripped) already exists, skip with [KEEP-USER]. Skeletons are
+    # NEVER tracked in install-manifest, so `doctor` and `remove` leave the
+    # user's filled-in content alone.
+    for src, dest_rel, bundle_rel in skeleton_map:
+        dest_key = dest_rel.as_posix()
+        dest_abs = _safe_resolve(target, dest_rel)
+        if dest_abs.exists():
+            if dry:
+                print(f"  [KEEP-USER] {dest_key}  (would skip; user-filled)")
+            else:
+                print(f"  [KEEP-USER] {dest_key}")
+            kept_user += 1
+        else:
+            label = "  [SEED]".ljust(14) + dest_key
+            if dry:
+                print(f"{label}  (would write skeleton)")
+            else:
+                dest_abs.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest_abs)
+                print(label)
+            seeded += 1
+
+    # Per-target USER DATA: designs/ folder seed (S000033). Empty .gitkeep
+    # so git can track the folder from day 1; /wc-investigate writes its
+    # first design-doc here. Idempotent; not tracked in install-manifest.
+    gitkeep_abs = _safe_resolve(target, DESIGNS_GITKEEP_DEST)
+    gitkeep_key = DESIGNS_GITKEEP_DEST.as_posix()
+    if gitkeep_abs.exists():
+        if dry:
+            print(f"  [SKIP]      {gitkeep_key}  (would skip; already present)")
+        else:
+            print(f"  [SKIP]      {gitkeep_key}")
+    else:
+        label = "  [SEED]".ljust(14) + gitkeep_key
+        if dry:
+            print(f"{label}  (would create empty .gitkeep)")
+        else:
+            gitkeep_abs.parent.mkdir(parents=True, exist_ok=True)
+            gitkeep_abs.write_bytes(b"")
+            print(label)
+        seeded += 1
+
     if drifted:
         sys.stderr.write(
             f"\nERROR: {len(drifted)} file(s) have drifted from the installed bundle.\n"
@@ -196,7 +299,8 @@ def cmd_install(args):
     summary_label = "SUMMARY (DRY RUN)" if dry else "SUMMARY"
     print(
         f"\n{summary_label}: installed={installed} updated={updated} skipped={skipped} "
-        f"overwritten={overwritten} total={len(new_entries)}"
+        f"overwritten={overwritten} seeded={seeded} kept_user={kept_user} "
+        f"total={len(new_entries)}"
     )
 
 
@@ -230,8 +334,11 @@ def cmd_doctor(args):
             passed += 1
 
     orphan = 0
+    user_data = 0  # per-target USER DATA: domain/ files + designs/ contents (S000033)
     bundle_root = target / ".github" / BUNDLE_DIR_NAME
     manifest_rel = manifest_path.relative_to(target).as_posix()
+    domain_prefix = (Path(".github") / BUNDLE_DIR_NAME / DOMAIN_DIR_PARTS[0]).as_posix() + "/"
+    designs_prefix = (Path(".github") / BUNDLE_DIR_NAME / "designs").as_posix() + "/"
     if bundle_root.exists():
         for p in bundle_root.rglob("*"):
             if not p.is_file():
@@ -239,10 +346,21 @@ def cmd_doctor(args):
             rel = p.relative_to(target).as_posix()
             if rel == manifest_rel or rel in expected_dests:
                 continue
+            # Per-target USER DATA paths (S000033): never tracked in the
+            # install-manifest; doctor must not flag them as orphans.
+            # - domain/*.md (skeleton seed or user-filled)
+            # - designs/<anything> (.gitkeep + /wc-investigate output)
+            if rel.startswith(domain_prefix) or rel.startswith(designs_prefix):
+                print(f"  [USER-DATA] {rel}")
+                user_data += 1
+                continue
             print(f"  [ORPHAN]    {rel}")
             orphan += 1
 
-    print(f"\nSUMMARY: passed={passed} missing={missing} drift={drift} orphan={orphan}")
+    print(
+        f"\nSUMMARY: passed={passed} missing={missing} drift={drift} "
+        f"orphan={orphan} user_data={user_data}"
+    )
     if missing or drift or orphan:
         sys.exit(1)
 
