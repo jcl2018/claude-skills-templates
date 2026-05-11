@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.8] - 2026-05-11
+
+Lands the first milestone of F000015 (work-copilot pipeline) plus the prerequisite validator gate. Scaffolds the feature tree (F000015 + 6 user-story children for the 6 planned Copilot slash commands), ships the schema-locking `/wc-qa` prompt content (S000030), and adds the validator existence check that gates the bundle (T000019). Five sibling stories (S000031–S000035) remain unimplemented — this PR closes 1 of 6 prompts, not the full feature.
+
+Origin: `/office-hours` produced a workbench-scoped design doc for porting `/CJ_personal-pipeline` to GitHub Copilot's runtime (no `Agent` subagent dispatch, no `AskUserQuestion`). The design adopted Codex's "make the work-item folder a visible state machine" reframe — each phase command writes a structured receipt block into tracker frontmatter, and `/wc-pipeline` (still pending in S000035) reads receipts to compute drift math. `S000030_wc_qa` ships first per Codex's argument that "a printer with weak child prompts is theater" — /qa locks the receipt schema before downstream prompts conform.
+
+`/CJ_personal-pipeline` ran scaffold cleanly. The implement-batch attempt halted twice on S000030 (fixture-placement MIRROR_SPECS violation, then a post-QA gap where `validate.sh` didn't enforce prompt-file existence). The user chose to scaffold T000019 to close the second gap inline; T000019 ships in this PR alongside S000030.
+
+### Added
+
+- **`work-copilot/prompts/qa.prompt.md`** (new, 310 lines) — the schema-locking `/wc-qa` Copilot slash command. 9-step prompt body: (1) `/validate` first; (2) read test-plan or TEST-SPEC and print numbered checklist; (3) extract AC IDs from SPEC/PRD/RCA and flag uncovered; (4) ask user to paste `git log --name-only --since=…` (with first-run fallback to `receipts.scaffold` SHA); (5) Working-Tree Rule paste pattern (hard-stop on uncommitted changes); (6) walk checklist; (7) write `[smoke-pass]` / `[qa-fail]` journal entries; (8) write `receipts.qa` block to tracker frontmatter; (9) print `READY_FOR_SHIP` gate. Locks the receipt schema (`phase`, `completed_at`, `test_rows_run`, `ac_ids_covered`, `ac_ids_uncovered`, `diff_audit.changed_files_without_tests`, `journal_entries`, `ready_for_ship`, `next_legal`) that S000031–S000035 will conform to. Encodes the "read-whole-file / parse-YAML / merge / write-whole-file" frontmatter-edit pattern (surgical edits from Copilot are unreliable; this matches the existing `validate.prompt.md` precedent).
+- **`work-items/features/work-copilot/F000015_work_copilot_pipeline/`** — full feature scaffold (TRACKER + DESIGN + ROADMAP) with 6 child user-stories (S000030 wc_qa, S000031 wc_implement, S000032 wc_scaffold, S000033 wc_investigate, S000034 wc_ship, S000035 wc_pipeline). Each child has TRACKER + DESIGN + SPEC + TEST-SPEC stubs. Build order documented as Approach C from the design doc: `/wc-qa` → `/wc-implement` → `/wc-scaffold` → `/wc-investigate` → `/wc-ship` → `/wc-pipeline` (Codex's contract-forcing bottom-up reasoning).
+- **`work-items/features/work-copilot/F000015_work_copilot_pipeline/S000030_wc_qa/fixtures/uncovered_ac/`** — work-item-local fixture (`PRD.md`, `ARCHITECTURE.md`, `TEST-SPEC.md`, `milestones.md`, `TRACKER.fixture.md`) giving `/wc-qa` a deliberately-uncovered-AC target to exercise the diagnostic. Initial placement under `work-copilot/fixtures/valid-feature-dir/S999001_uncovered_ac/` violated the `MIRROR_SPECS` byte-mirror invariant (no upstream counterpart in `deprecated/CJ_company-workflow/fixtures/`); moved here and `TRACKER.md` renamed to `TRACKER.fixture.md` so the work-items walker (`find -name 'TRACKER.md' -o -name '*_TRACKER.md'`) doesn't treat the fixture as a real work-item.
+- **`work-items/tasks/work-copilot/T000019_validate_sh_existence_check/`** (TRACKER + test-plan; hand-scaffolded per "skip-design-for-small-todos") — task ownership for the new `validate.sh` Error check 10b.
+- **`scripts/validate.sh`** Error check 10b (~30 lines added after the MIRROR_SPECS loop, before manifest reconciliation) — asserts work-copilot-only bundle files exist. Structurally distinct from the existing Error check 10 (byte-identity vs upstream); catches a different drift mode (file deleted or never shipped, not content drift). Progressive gating via an `EXPECTED_BUNDLE_FILES` array — currently lists `validate.prompt.md` + `qa.prompt.md`; each F000015 child story will extend the array by one line when its prompt ships. Test plan cases 1-4 all pass: current state PASS; synthetic-delete of `qa.prompt.md` fires correct FAIL; restore brings PASS; existing MIRROR_SPECS behavior preserved without overlap.
+
+### Changed
+
+- **`VERSION`** — 2.0.7 → 2.0.8 (PATCH; partial feature milestone, not breaking).
+
+### Deferred / known-state at this PR
+
+- `S000031_wc_implement`, `S000032_wc_scaffold`, `S000033_wc_investigate`, `S000034_wc_ship`, `S000035_wc_pipeline` — scaffolded only. Their `/CJ_implement-from-spec` runs land in subsequent PRs. Each will extend `EXPECTED_BUNDLE_FILES` in `scripts/validate.sh` by one line when its prompt ships.
+- `T000020_tracker_receipts_stub` — not yet scaffolded. Adds `receipts: {}` to `deprecated/CJ_company-workflow/templates/tracker-*.md` (byte-mirror source-of-truth) for `MIRROR_SPECS` to propagate. Not blocking runtime: `qa.prompt.md`'s read-whole / merge / write-whole pattern handles missing `receipts:` key gracefully (writes it on first invocation).
+- `S000030_wc_qa` Phase 2 QA-owned gates ship at `partial` — smoke green (5/5 after T000019 closed the existence-check gap), E2E `ambiguous` (E1-E4 rows require interactive Copilot Chat against an installed bundle and cannot be exercised from a Claude-side subagent). This is the steady state for Copilot-side stories; full green requires manual walks documented in each TEST-SPEC.
+
+
 ## [2.0.7] - 2026-05-11
 
 Closes F000013 V1 (behavioral eval harness) by shipping the nightly CI workflow that operationalizes the runner from S000023 + cases from S000024. The harness goes from "works when chjiang remembers to invoke it locally" (= approximately never under sustained development) to "produces regression signal nightly without human intervention." Marks the parent `## TODOS.md` entry DONE-V1 with the F000013 link + V2 trajectory bullets so any future reader sees what shipped vs what's deferred. Implementation flowed `/CJ_suggest` → `/CJ_implement-from-spec` → `/CJ_qa-work-item` → `/ship` cleanly; full scaffold work (S000025_SPEC.md + DESIGN.md + TEST-SPEC.md + TRACKER.md) was already in place before this PR's branch opened.
