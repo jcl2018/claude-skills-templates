@@ -540,6 +540,7 @@ else
   fail_test "CLAUDE.md is missing the '## CI/CD merge convention' section (D000008 guard)"
 fi
 
+# shellcheck disable=SC2016  # backticks are intentional regex content, not command substitution
 if grep -qE 'gh pr merge[^`]*--squash[^`]*--delete-branch' "$REPO_ROOT/CLAUDE.md"; then
   ok "CLAUDE.md prescribes the --squash --delete-branch invocation"
 else

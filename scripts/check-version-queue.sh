@@ -80,6 +80,7 @@ if [ "$MODE" = "--json" ]; then
   # there are no claims.
   to_array() {
     if [ -n "$1" ]; then
+      # shellcheck disable=SC2086  # intentional word-splitting: $1 is space-separated versions
       printf '%s\n' $1 | jq -R . | jq -s .
     else
       echo '[]'
