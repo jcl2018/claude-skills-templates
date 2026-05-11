@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.10] - 2026-05-11
+
+Fixes `/CJ_suggest` silently returning "No actionable items." in non-`CJ_personal-workflow` repos (e.g. the downstream portfolio consumer). Root cause: the script's band-pass required a `## Active work` section header in `TODOS.md`. Repos that group work items under domain-specific section headers (`## Dispatcher`, `## Alert Rules`, …) never flipped the awk active flag → empty candidate set → silent zero output, which surfaced to the user as the skill being "ignored." The skill's own SKILL.md called out the constraint ("tied to the CJ_personal-workflow tracker shape and TODOS.md `(Pn, X)` heading convention"), but the failure mode was silent enough that it looked like a routing miss in consumer-repo `CLAUDE.md`. Fix is workbench-side only — the portable fallback handles the domain-grouped shape without changing CJ_personal-workflow behavior.
+
+### Fixed
+
+- **`skills/CJ_suggest/scripts/suggest.sh`** — band-pass now detects which TODOS convention the repo uses. If `## Active work` exists (the CJ_personal-workflow shape), the existing gate runs unchanged. Otherwise the script falls back to scanning all `### ` headings across every `## ` section EXCEPT terminal/completed buckets (`## Completed | Done | Archive | Archived | Shipped | Deferred work`). Headings without the `(Pn, X)` suffix continue to default to P4/M downstream (premise #3 unchanged), so portable TODOs rank by recency/blocked-status alone. The `next` clause in the fallback awk prevents fallthrough from the terminal-section matcher to the generic `## ` matcher — without it, `## Completed` would re-enable the active flag a line later. Verified end-to-end: workbench output byte-identical to v2.0.9 baseline (5 ranked rows, same titles, same scores); portfolio consumer goes from `No actionable items.` → 5 ranked rows. `scripts/validate.sh` PASS (0 errors / 0 warnings), `scripts/test.sh` PASS.
+
+### Changed
+
+- **`skills/CJ_suggest/SKILL.md`** — Overview documents the two supported TODOS conventions explicitly (CJ_personal-workflow shape + domain-grouped shape) with the detection rule ("presence of `## Active work` switches modes") and the terminal-section exclusion list. Removes the "this-repo only" framing that contradicted the new portable behavior.
+- **`VERSION`** — 2.0.9 → 2.0.10 (PATCH; bug fix, no behavior change for existing CJ_personal-workflow callers).
+
+### Known concerns (DONE_WITH_CONCERNS)
+
+- **No automated regression test added.** No `tests/eval/CJ_suggest/` harness exists today; building fixture + eval scaffolding for this fix would be larger than the fix itself. The verification is currently manual (byte-comparing workbench output, running against the portfolio repo). Adding a CJ_suggest eval suite is a reasonable follow-up if regressions become a concern.
+- **Downstream consumer `CLAUDE.md` routing gap is separate.** The portfolio repo's `CLAUDE.md` skill-routing block listed 12 skills but not CJ_suggest, so even with this fix, Claude may not auto-invoke `/CJ_suggest` on "what's next" in that repo. That edit lives in the portfolio repo, not the workbench, and is the consumer's to commit.
+
 ## [2.0.9] - 2026-05-11
 
 Ships build #2 of F000015 (work-copilot pipeline): the `/wc-implement` Copilot slash command, which performs per-type implementation dispatch with a walkthrough flow (NOT auto). Locks in the second prompt against the receipt schema fixed by S000030's `/wc-qa` in v2.0.8. Four of six F000015 child user-stories remain to ship (S000032 wc-scaffold, S000033 wc-investigate, S000034 wc-ship, S000035 wc-pipeline).

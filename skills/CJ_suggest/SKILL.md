@@ -14,8 +14,21 @@ against `work-items/**/*_TRACKER.md` YAML frontmatter (the live `status`,
 `blocked_by`, `updated` per work item), scores each row, and prints the
 top 5 as a markdown table.
 
-Read-only. Stateless. This-repo only (tied to the CJ_personal-workflow tracker
-shape and TODOS.md `(Pn, X)` heading convention).
+Read-only. Stateless. Portable across two TODOS.md conventions:
+
+1. **CJ_personal-workflow shape** — single `## Active work` section gates
+   the candidate set; `### Title (P1, S)` headings; joins against
+   `work-items/**/*_TRACKER.md`. Full ranking signal (priority, size,
+   blocked, recency).
+2. **Domain-grouped shape** — work items live under domain-specific `## `
+   sections (e.g. `## Dispatcher`, `## Alert Rules`) with no `## Active work`
+   gate. Items without the `(Pn, X)` suffix default to P4/M. Sections named
+   `## Completed`, `## Done`, `## Archive(d)`, `## Shipped`, or
+   `## Deferred work` are excluded.
+
+Detection: presence of `## Active work` switches modes. Tracker join still
+works in both — repos without `work-items/` simply degrade to TODOS-only
+ranking.
 
 Scoring (locked in design premise #2):
 
