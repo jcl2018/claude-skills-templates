@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.1.1] - 2026-05-11
+
+**`/CJ_personal-pipeline` final summary now points at gstack `/qa` for web-app polish.** Adds `/qa` as a sibling entry to `/ship` inside Step 9.3's printed `Next:` block — one line, conditionally phrased ("if work-item touched a web app — visual / E2E polish"). When the pipeline finishes a green run, users now see `/qa` alongside `/ship` instead of having to remember it exists.
+
+Scope-disciplined per design doc decision: text-only pointer, no new dependency on gstack, no schema change, no commit-ownership tangle with `/CJ_qa-work-item`. The four ruled-out heavier integrations (TEST-SPEC frontmatter flag, full pipeline integration, hard dependency, etc.) all violate one of P2 (subagent-AUQ unreachability per S000026 spike), P3 (commit-owner conflict between `/qa`'s autonomous fix-and-commit loop and `/CJ_qa-work-item`'s contract-driven gate transitions), or P4 (workbench portability — `skills-deploy install` must continue to work without gstack present).
+
+Origin: T000020 task work-item scaffolded + implemented + QA'd by `/CJ_personal-pipeline` itself (eating its own dog food). Design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-epic-williams-a2c0c2-design-20260511-145646.md` (approved via /office-hours on 2026-05-11).
+
+### Added
+
+- **`/CJ_personal-pipeline` final summary names `/qa`** — `skills/CJ_personal-pipeline/pipeline.md:652` adds one column-aligned entry under the existing `Next:` block in Step 9.3. The inline comment (`# if work-item touched a web app — visual / E2E polish`) makes the line self-filtering at read time so non-web work-items aren't bothered by it. Discoverability surface for `/qa` at the moment it's relevant; no runtime coupling.
+
+### Changed
+
+- **`TODOS.md` entry "Step 7 strict halt-on-ambiguous blocks defects" → "blocks defects and tasks"** — extended the existing P3 entry to capture a second occurrence (T000020 strict-halt path) alongside the prior D000017 taste-override path. Two halts on the same root cause across two work-item types confirms the bug is structural, not a one-off; the existing fix proposal (type-aware halt rule, treat `E2E=ambiguous` as green when `WORK_ITEM_TYPE in {defect, task}` AND smoke green AND gates green) now also recommends tightening the Phase 3 dispatch prompt to map task/defect E2E to `green` explicitly. Reference run: 20260511-150733-27826.
+
 ## [2.1.0] - 2026-05-11
 
 **F000015 work-copilot pipeline: feature-complete.** Ships the final four Copilot slash commands (`/wc-scaffold`, `/wc-investigate`, `/wc-ship`, `/wc-pipeline`) plus three domain-knowledge skeleton templates and a first-install rule in `copilot-deploy.py`. The full receipt-driven pipeline (`/wc-investigate` → `/wc-scaffold` → `/wc-implement` → `/wc-qa` → `/wc-ship`) is now installable end-to-end on a Copilot target repo, with `/wc-pipeline` as the read-only status compiler that reads receipts from tracker frontmatter and computes drift math across the chain.

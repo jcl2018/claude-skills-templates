@@ -649,6 +649,7 @@ Decisions: $DECISION_LOG (filter run_id=$RUN_ID)
 
 Next:
   /ship                                # if end_state=green and Phase 2 gates green
+  /qa                                  # if work-item touched a web app — visual / E2E polish
 ```
 
 ---
