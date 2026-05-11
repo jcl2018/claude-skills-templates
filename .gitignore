@@ -12,6 +12,7 @@
 .gstack/.brain-*
 .gstack/.pending-*
 .gstack/tmp/
+.gstack/deploy-reports/
 
 .docs/
 .context/
