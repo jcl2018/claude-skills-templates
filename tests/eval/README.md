@@ -3,8 +3,8 @@
 V1 of the eval harness for the skill workbench. Spawns the real `claude` CLI
 headless against scratch worktrees, validates structured JSON output against
 per-case JSON Schemas. Cadence is nightly on `main` (see
-`.github/workflows/eval-nightly.yml`, lands in S000025) plus manual local
-invocation.
+`.github/workflows/eval-nightly.yml`, shipped in S000025 / v2.0.7) plus manual
+local invocation (`bash scripts/eval.sh` or `gh workflow run eval-nightly.yml`).
 
 V1 scope: `CJ_personal-workflow` and `CJ_system-health` only — skills whose primary
 user-facing output is a structured report. Filesystem-mutating skills
