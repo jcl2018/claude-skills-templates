@@ -455,15 +455,22 @@ done
 # Extend EXPECTED_BUNDLE_FILES as each F000015 child user-story lands:
 #   - S000030_wc_qa            → work-copilot/prompts/qa.prompt.md          (SHIPPED)
 #   - S000031_wc_implement     → work-copilot/prompts/implement.prompt.md   (SHIPPED)
-#   - S000032_wc_scaffold      → work-copilot/prompts/scaffold.prompt.md    (pending)
-#   - S000033_wc_investigate   → work-copilot/prompts/investigate.prompt.md (pending)
-#                              → work-copilot/domain/*.template.md          (pending, 3 files)
-#   - S000034_wc_ship          → work-copilot/prompts/ship.prompt.md        (pending)
-#   - S000035_wc_pipeline      → work-copilot/prompts/pipeline.prompt.md    (pending)
+#   - S000032_wc_scaffold      → work-copilot/prompts/scaffold.prompt.md    (SHIPPED)
+#   - S000033_wc_investigate   → work-copilot/prompts/investigate.prompt.md (SHIPPED)
+#                              → work-copilot/domain/*.template.md          (SHIPPED, 3 files)
+#   - S000034_wc_ship          → work-copilot/prompts/ship.prompt.md        (SHIPPED)
+#   - S000035_wc_pipeline      → work-copilot/prompts/pipeline.prompt.md    (SHIPPED)
 EXPECTED_BUNDLE_FILES=(
   "work-copilot/prompts/validate.prompt.md"
   "work-copilot/prompts/qa.prompt.md"
   "work-copilot/prompts/implement.prompt.md"
+  "work-copilot/prompts/scaffold.prompt.md"
+  "work-copilot/prompts/investigate.prompt.md"
+  "work-copilot/prompts/ship.prompt.md"
+  "work-copilot/domain/domain-knowledge.template.md"
+  "work-copilot/domain/coding-conventions.template.md"
+  "work-copilot/domain/architecture-overview.template.md"
+  "work-copilot/prompts/pipeline.prompt.md"
 )
 echo ""
 echo "Checking work-copilot bundle existence (${#EXPECTED_BUNDLE_FILES[@]} expected files)..."
