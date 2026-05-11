@@ -444,6 +444,36 @@ for spec in "${MIRROR_SPECS[@]}"; do
   esac
 done
 
+# Error check 10b: work-copilot bundle existence check (T000019)
+# Structurally distinct from MIRROR_SPECS Error check 10 (byte-identity vs upstream).
+# This catches a different drift mode: file deleted / never shipped (not file
+# content drift). Required for files that live ONLY in work-copilot/ (no
+# upstream counterpart in deprecated/CJ_company-workflow/), i.e. the new
+# Copilot-specific prompts and domain skeletons added by F000015.
+#
+# Progressive gating: list only files whose owning child story has shipped.
+# Extend EXPECTED_BUNDLE_FILES as each F000015 child user-story lands:
+#   - S000030_wc_qa            → work-copilot/prompts/qa.prompt.md          (SHIPPED)
+#   - S000031_wc_implement     → work-copilot/prompts/implement.prompt.md   (pending)
+#   - S000032_wc_scaffold      → work-copilot/prompts/scaffold.prompt.md    (pending)
+#   - S000033_wc_investigate   → work-copilot/prompts/investigate.prompt.md (pending)
+#                              → work-copilot/domain/*.template.md          (pending, 3 files)
+#   - S000034_wc_ship          → work-copilot/prompts/ship.prompt.md        (pending)
+#   - S000035_wc_pipeline      → work-copilot/prompts/pipeline.prompt.md    (pending)
+EXPECTED_BUNDLE_FILES=(
+  "work-copilot/prompts/validate.prompt.md"
+  "work-copilot/prompts/qa.prompt.md"
+)
+echo ""
+echo "Checking work-copilot bundle existence (${#EXPECTED_BUNDLE_FILES[@]} expected files)..."
+for _path in "${EXPECTED_BUNDLE_FILES[@]}"; do
+  if [ -f "$REPO_ROOT/$_path" ]; then
+    pass "$_path is present (work-copilot/-only bundle file)"
+  else
+    fail "$_path is required but not present (work-copilot/-only bundle file; restore via copilot-deploy or re-run the owning child story)"
+  fi
+done
+
 # Error check 11: Manifest reconciliation — work-items + fixtures vs manifests
 # Catches the drift case where the manifest declares a required artifact but
 # real work-item directories or "valid-*" fixtures don't have it. The skills'
