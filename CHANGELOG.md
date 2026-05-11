@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.5] - 2026-05-11
+
+Internal-planning TODO update only. Three followups from the D000017 (PR #84) auto-pipeline + ship pass logged to `TODOS.md` under `## Active work`. No skill behavior change, no script changes, no test changes — pure planning churn so the gaps surfaced during D000017 don't get lost.
+
+### Added (TODOS.md)
+- **P3** — `/CJ_personal-pipeline` Step 5.1 sensitive-surface regex misses `skills/*/scripts/`. New shell-script files created by `/CJ_implement-from-spec` (e.g. D000017's `skills/CJ_suggest/scripts/suggest.sh`) auto-approve through the pipeline without surfacing at Step 8.5; codex caught the trust-boundary hole at /ship Step 11 instead. Fix path: extend the regex to match `skills/[^/]+/scripts/[^/]+\.sh` and add a sensitive-surface table row.
+- **P3** — `/CJ_personal-pipeline` Step 7 strict halt-on-ambiguous blocks defects. `E2E=ambiguous` from defect/task QA is structural (no E2E subagent dispatches for those types), not uncertain — should be treated as green when SMOKE+PHASE2_GATES are green. Fix path: type-aware halt logic reading `WORK_ITEM_TYPE` from tracker frontmatter.
+- **P4** — `/CJ_implement-from-spec` should `chmod +x` shell scripts it creates. D000017 shipped `suggest.sh` at mode 644; /ship Step 9 caught it as [LOW] AUTO-FIX. Fix path: post-write `chmod +x` for `*.sh`/`*.bash`/shebang-bearing files in the implement skill's per-type write loop.
+
+
 ## [2.0.4] - 2026-05-10
 
 Documentation sync. The `CJ_qa-work-item` and `CJ_implement-from-spec` skills have actually handled all four work-item types (user-story, defect, task, feature-via-child-AUQ) since v1.11.0 (F000012 / S000021), but their `skills-catalog.json` entries still described scope as "a CJ_personal-workflow user-story" — and `README.md` is auto-generated from the catalog, so the staleness propagated to the public Skills table. v2.0.4 syncs both catalog entries to match the (correct) SKILL.md frontmatter descriptions and regenerates `README.md`. Closes the open `qa-work-item + implement-from-spec catalog descriptions` P3 TODO that's been on the books since v1.13.0's post-ship audit. Pure doc churn — no skill behavior change, no script changes, no test changes. Caught in this session while running /document-release after the v1.16.0 + v2.0.0 + v2.0.1 + v2.0.2 chain landed; the CJ_ rename + auto-only refactor + eval cases + scaffold queue-collision fix had each touched their own surface but none touched these two skills' catalog entries to close the staleness gap. Rebumped from v2.0.3 after queue collision with PR #84's v2.0.3 (D000017 /CJ_suggest zsh crash fix) which landed first.
