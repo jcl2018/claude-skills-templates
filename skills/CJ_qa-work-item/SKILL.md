@@ -82,15 +82,15 @@ test rows:
 
 - **Per-type test-row source** (resolved from `_TRACKER.md` frontmatter `type:` field):
 
-  | Type | Test rows source | E2E subagent dispatch (v1) |
+  | Type | Test rows source | E2E dispatch (v1) |
   |---|---|---|
-  | user-story | `TEST-SPEC.md` (`## Smoke Tests` + `## E2E Tests`) | YES (existing path) |
+  | user-story | `TEST-SPEC.md` (`## Smoke Tests` + `## E2E Tests`) | YES — partitioned by Step 4.5 classifier: subagent (read-only / skill-invoking) + parent-inline (interactive / recursive) |
   | defect | `test-plan.md` (`## Regression Test Cases` table) — all rows treated as smoke-equivalent | NO (defer to v2) |
   | task | `test-plan.md` (`## Regression Test Cases` table) — all rows treated as smoke-equivalent | NO (defer to v2) |
   | feature | (delegates to a child work-item via AUQ) | (per chosen child's type) |
 
 - **Smoke phase:** executes each row's Script/Command (or test-plan row's Steps), captures exit codes + stdout/stderr. For test-plan rows, run the steps as a sequence; for TEST-SPEC Smoke rows, the Script/Command column is the runnable.
-- **E2E phase (user-story only, on green smoke):** dispatches a QA engineer subagent via the Agent tool. Subagent reads TEST-SPEC, verifies each E2E row's Expected Outcome, writes detailed findings to the TRACKER journal, returns a 1-2 sentence summary. For defect/task: skipped in v1 (test-plan rows are the verification layer).
+- **E2E phase (user-story only, on green smoke):** Step 4.5's tool-need classifier partitions each E2E row into one of four categories — `read-only`, `skill-invoking`, `interactive`, `recursive`. Subagent-eligible rows (`read-only` + `skill-invoking`) dispatch to a QA engineer subagent via the Agent tool (Step 7); the subagent's tool surface includes Skill, so /skill-invoking rows execute directly instead of degrading to structural source inspection. Interactive and recursive rows run **parent-inline** (Step 7.5) using the parent orchestrator's full toolbelt (Skill + AskUserQuestion + Agent), capped at 5 rows per run. Step 8 aggregates `[qa-e2e]` journal entries from both sources by row number. For defect/task: E2E phase skipped in v1 (test-plan rows are the verification layer).
 - **Phase 2 gate transition (per type):**
   - user-story (on green smoke + green E2E): marks `Smoke tests pass` + `Acceptance criteria verified met`.
   - defect / task: no qa-owned Phase 2 gates per template. Records `[qa-pass]` journal entry on green; the Phase 3 `Test-plan verified` gate is marked at `/ship` time or by `/CJ_personal-workflow check --update` post-merge.

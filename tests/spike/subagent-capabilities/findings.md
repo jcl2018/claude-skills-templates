@@ -66,3 +66,58 @@ S000027's `pipeline.md` MUST be authored with two adjustments to the F000014_DES
 2. **RESULT-line parser leniency.** Use `grep -E 'RESULT: [A-Z_]+=' "$output" | tail -1 | sed 's/^[> ]\+//;s/```//g'` (or equivalent) instead of `grep -E '^RESULT: '`. This strips markdown blockquote prefixes and code fences, so subagent output wrapping doesn't break parsing. Document the leniency contract in pipeline.md.
 
 These adjustments should be applied to S000027's SPEC + the eventual pipeline.md authoring; F000014_DESIGN's "Big decisions" table should be updated to reflect that Phase 2 dispatch is "pre-collect AUQs" not "subagent reports AUQ_NEEDED".
+
+## 2026-05-11 Re-probe: Skill tool surface (D000018)
+
+**VERDICT (re-probe, both subagent types):** SKILL=yes, AUQ=no, AGENT=no.
+
+### Why re-probed
+
+D000018 surfaced a recurring `[qa-e2e] ambiguous — structural inspection`
+pattern across S000027, S000028, S000022, S000020, and S000030. The 2026-05-09
+spike above correctly established AUQ + Agent absence but did NOT explicitly
+audit whether the subagent had the `Skill` tool. The /CJ_qa-work-item Step 7
+prompt named only Read / Bash / Grep / Glob, which would silently cause
+skill-invoking E2E rows to degrade even if `Skill=yes` at the tool surface
+level. A direct re-probe was needed to disambiguate "subagent can't /skill"
+(architectural) from "Step 7 prompt forgot to mention Skill" (prompt blind
+spot).
+
+### Re-probe method
+
+Spawned a fresh Agent subagent with `subagent_type: "general-purpose"` and
+asked it to enumerate its deferred-tools surface via ToolSearch. Repeated
+with `subagent_type: "claude"`. Both reported `Skill` as available; both
+confirmed `AskUserQuestion` and `Agent` were absent (matching the 2026-05-09
+result for those two tools).
+
+### Implication
+
+The Step 7 prompt was the blind spot, not the subagent capabilities. The
+fix in D000018 (Approach B) is:
+
+1. Update Step 7's stable preamble to list `Skill` alongside Read/Bash/Grep/Glob
+   and to grant explicit permission for /skill invocation. This addresses the
+   prompt-only failure mode.
+2. Add a Step 4.5 row classifier that partitions E2E rows by tool-need
+   (read-only / skill-invoking → subagent; interactive / recursive →
+   parent-inline). This addresses the AUQ + Agent absence (which the
+   2026-05-09 spike correctly identified).
+3. Add a Step 7.5 parent-inline execution path for the interactive /
+   recursive partition.
+4. Update Step 8 to aggregate `[qa-e2e]` entries from both sources by row
+   number.
+
+Net effect: skill-invoking rows execute end-to-end inside the subagent (no
+degradation to structural inspection); interactive / recursive rows execute
+parent-inline using the parent's full toolbelt. Both sources write to the
+same `[qa-e2e] E#` journal-entry shape so Step 8 aggregates cleanly.
+
+### Correction to the 2026-05-09 spike
+
+The earlier spike's leg (a) and leg (b) findings are still correct. The
+spike's implication block, however, implied (by omission) that all
+E2E-execution problems would route through the AUQ-absence axis, which left
+the prompt-text blind spot unaudited. The two re-probes (this 2026-05-11
+note + the qa.md Step 7 prompt text in `skills/CJ_qa-work-item/qa.md`)
+together close the gap.
