@@ -6,6 +6,61 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.1.0] - 2026-05-11
+
+**F000015 work-copilot pipeline: feature-complete.** Ships the final four Copilot slash commands (`/wc-scaffold`, `/wc-investigate`, `/wc-ship`, `/wc-pipeline`) plus three domain-knowledge skeleton templates and a first-install rule in `copilot-deploy.py`. The full receipt-driven pipeline (`/wc-investigate` → `/wc-scaffold` → `/wc-implement` → `/wc-qa` → `/wc-ship`) is now installable end-to-end on a Copilot target repo, with `/wc-pipeline` as the read-only status compiler that reads receipts from tracker frontmatter and computes drift math across the chain.
+
+Minor bump (vs the v2.0.7–2.0.9 PATCH cadence) reflects feature completion across 6 user-facing Copilot commands + new on-disk surface (`work-copilot/domain/`, `work-copilot/designs/`). v2.0.8 and v2.0.9 shipped milestones 1 and 2; this PR closes milestones 3-6.
+
+Origin: F000015 design at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-zealous-antonelli-5f8036-design-20260511-095218.md` (approved via /office-hours on 2026-05-11). Build order followed Codex's Approach C bottom-up: /wc-qa first (schema-lock), then /wc-implement, /wc-scaffold, /wc-investigate, /wc-ship, /wc-pipeline.
+
+### Added
+
+- **`work-copilot/prompts/scaffold.prompt.md`** (new, 451 lines) — `/wc-scaffold` Copilot slash command (build #3 of 6). Reads a design-doc path's frontmatter for `status:` + `receipts.investigate` (idempotency check, mirrors `/CJ_scaffold-work-item` Step 9 intent via frontmatter not footer), reads the bundle manifest + templates, picks the next work-item ID, writes the directory tree with all required artifacts populated, runs `/validate <new-dir>` as a structural gate, copies `receipts.investigate` from the design-doc frontmatter into the new tracker's frontmatter (preserves lineage), writes `receipts.scaffold` block to the new tracker, updates the design doc's frontmatter `status: SCAFFOLDED` + `scaffolded_to: <work-item-dir>`. Design-doc-required invariant: `/wc-scaffold` refuses to scaffold without a design doc (user can author a stub if needed).
+
+- **`work-copilot/prompts/investigate.prompt.md`** (new) — `/wc-investigate` Copilot slash command (build #4 of 6). Reads every `.md` under `.github/work-copilot/domain/` (skipping `.template.md` skeletons) as ambient context, greps/searches the target codebase for entities mentioned in the user's prompt, walks the user through a scoping conversation in chat (no AUQ available in Copilot — plain back-and-forth), synthesizes a design doc to `.github/work-copilot/designs/<slug>-design-<datetime>.md` with the required frontmatter contract, writes `receipts.investigate` block into the design-doc frontmatter (no tracker exists yet at this stage).
+
+- **`work-copilot/domain/{domain-knowledge,coding-conventions,architecture-overview}.template.md`** (new, 3 files) — domain-knowledge skeleton templates installed once per target repo by `copilot-deploy install`. Each is a small structured Markdown skeleton (TODO sections) the target-repo user fills in once; provides stable ambient context for `/wc-investigate` to ground its scoping conversations. Per F000015 P3: domain folder is user data, never byte-mirrored from the workbench.
+
+- **`work-copilot/prompts/ship.prompt.md`** (new) — `/wc-ship` Copilot slash command (build #5 of 6). Runs `/validate` first, reads tracker + PRD/RCA (per type) + existing `PR-DESCRIPTION.md` template, runs the Working-Tree Rule paste pattern in WARN mode (distinct from `/wc-implement` and `/wc-qa` which hard-stop — synthesized PR description is useful even with an unpushed working tree), synthesizes a PR description from tracker journal + AC coverage from `receipts.qa` + commits in `receipts.implement.commits_since_scaffold`, prints to chat for clipboard paste, optionally writes to `<work-item>/PR-DESCRIPTION.md`. Writes `receipts.ship` with `pr_opened: false`, `pr_url: null` — user manually flips `pr_opened: true` after opening the PR on GitHub. `pr_opened` is the canonical truth (NOT `pr_url`) for `/wc-pipeline`'s ship-not-opened drift rule.
+
+- **`work-copilot/prompts/pipeline.prompt.md`** (new, 549 lines) — `/wc-pipeline` read-only status compiler (build #6 of 6, **final**). `tools: [codebase, search, searchResults]` — NO `editFiles` (read-only diagnostic). Reads receipts from work-item tracker frontmatter (multi-phase drift math) OR design-doc frontmatter (DRAFT / APPROVED / SCAFFOLDED state) — input mode auto-detected by file shape. Reads `.git/HEAD` via the `codebase` tool (a plain file read; no shell access needed) and compares string-equality against `receipts.implement.latest_sha_at_implement` for the stale-check. Five drift rules computed: Missing (any phase receipt absent), Stale (HEAD moved past `latest_sha_at_implement`), Coverage holes (`qa.ac_ids_uncovered` non-empty), Diff audit drift (`qa.diff_audit.changed_files_without_tests` non-empty), Ship-not-opened (`ship.pr_opened == false AND completed_at older than 24h`). Plus Next Legal computed as union of all receipts' `next_legal` minus already-completed phases. Prints a single fixed-format status block; no mutations.
+
+### Changed
+
+- **`scripts/copilot-deploy.py`** — extended with the first-install rule for the 3 domain skeleton templates: on `install`, strip the `.template.md` suffix and write to `<target>/.github/work-copilot/domain/<name>.md` ONLY IF the target file doesn't already exist. Re-install on a target that has filled-in `<name>.md` content emits a `[KEEP-USER]` line and preserves the user's content byte-for-byte (verified via fixture: install → user-edit one file → re-install → shasum identical). Also creates an empty `<target>/.github/work-copilot/designs/.gitkeep` on install (user-data folder for `/wc-investigate` output, never byte-mirrored or overwritten). New `[USER-DATA]` doctor classification for paths under `.github/work-copilot/{domain,designs}/` — `copilot-deploy doctor` no longer treats per-target user content as `[ORPHAN]`.
+
+- **`scripts/validate.sh`** — `EXPECTED_BUNDLE_FILES` array (Error check 10b, shipped in v2.0.8 / T000019) extended by SIX lines to require the 4 new prompts + 3 new domain skeletons. The array now lists all 10 F000015 bundle files; each is gated for existence at workbench-validation time. Progressive gating pattern is now mature (v2.0.8 introduced the gate with 1 entry; v2.0.9 extended by 1; v2.1.0 extends by 6 to complete F000015).
+
+- **`VERSION`** — 2.0.9 → 2.1.0 (MINOR; F000015 feature-complete across 6 milestones touching 6+ user-facing commands + new on-disk surface).
+
+- **Phase 2 gates all green** for S000032 / S000033 / S000034 / S000035 trackers. Notably S000033's `/wc-investigate` got `E2E=green` (not ambiguous) because the first-install rule + `[KEEP-USER]` re-install behavior is bash-exercisable from a Claude-side QA subagent against a `mktemp` target. S000032 / S000034 / S000035 got `E2E=ambiguous` (standard steady state for Copilot stories requiring interactive Copilot Chat).
+
+### Now installable end-to-end
+
+After `python3 scripts/copilot-deploy.py install <target-repo>` from a clone of this collection:
+
+```
+<target>/.github/copilot-instructions.md          # always-on ambient context
+<target>/.github/prompts/validate.prompt.md        # /validate (pre-F000015)
+<target>/.github/prompts/qa.prompt.md              # /wc-qa
+<target>/.github/prompts/implement.prompt.md       # /wc-implement
+<target>/.github/prompts/scaffold.prompt.md        # /wc-scaffold
+<target>/.github/prompts/investigate.prompt.md     # /wc-investigate
+<target>/.github/prompts/ship.prompt.md            # /wc-ship
+<target>/.github/prompts/pipeline.prompt.md        # /wc-pipeline
+<target>/.github/work-copilot/                     # manifest + templates + reference (byte-mirrored)
+<target>/.github/work-copilot/domain/*.md          # 3 user-authored skeletons (first-install only)
+<target>/.github/work-copilot/designs/.gitkeep     # empty user-data folder for /wc-investigate output
+```
+
+Open Copilot Chat in the target repo and invoke any of the 6 `/wc-*` commands. Recommended flow on a new feature: `/wc-investigate` → `/wc-scaffold <design-doc-path>` → `/wc-implement <work-item-path>` → `/wc-qa <work-item-path>` → `/wc-ship <work-item-path>` → open PR on GitHub → flip `pr_opened: true` in the tracker → `/wc-pipeline <work-item-path>` for status / drift math.
+
+### Deferred follow-ups (non-blocking for installation testing)
+
+- `T000020_tracker_receipts_stub` — adds `receipts: {}` to `deprecated/CJ_company-workflow/templates/tracker-*.md` (byte-mirror source-of-truth) for `MIRROR_SPECS` propagation. Not blocking runtime: the prompts use read-whole / merge / write-whole patterns that handle missing `receipts:` keys gracefully. Defer until real end-to-end usage surfaces a need.
+
+
 ## [2.0.9] - 2026-05-11
 
 Ships build #2 of F000015 (work-copilot pipeline): the `/wc-implement` Copilot slash command, which performs per-type implementation dispatch with a walkthrough flow (NOT auto). Locks in the second prompt against the receipt schema fixed by S000030's `/wc-qa` in v2.0.8. Four of six F000015 child user-stories remain to ship (S000032 wc-scaffold, S000033 wc-investigate, S000034 wc-ship, S000035 wc-pipeline).
