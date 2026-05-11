@@ -119,6 +119,7 @@ For more, see [`instructions/copilot-instructions.md`](instructions/copilot-inst
 |------|------|
 | `prompts/validate.prompt.md` | The `/validate` slash command logic |
 | `prompts/qa.prompt.md` | The `/wc-qa` slash command — QA walkthrough that writes a `receipts.qa` block into tracker frontmatter (F000015 milestone 1; locks the receipt schema for the remaining 5 pipeline prompts) |
+| `prompts/implement.prompt.md` | The `/wc-implement` slash command — per-type implementation dispatch with walkthrough flow (F000015 milestone 2). Reads different input artifacts depending on tracker `type:` field (user-story → PRD + ARCHITECTURE + TEST-SPEC; defect → RCA + test-plan; task → TRACKER + test-plan; feature → delegates to child user-story; review → degenerate receipt path). Walkthrough mode only — never auto. Writes a `receipts.implement` block to tracker frontmatter conforming to the schema locked by milestone 1. |
 | `instructions/copilot-instructions.md` | Always-on Copilot context (work-item conventions, sources of truth, bundle layout, troubleshooting) |
 | `templates/*.md` | Required frontmatter / sections / phases per work-item type |
 | `WORKFLOW.md` | Procedural backbone — phases, scaffolding rules, when to validate |

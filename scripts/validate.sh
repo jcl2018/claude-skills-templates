@@ -454,7 +454,7 @@ done
 # Progressive gating: list only files whose owning child story has shipped.
 # Extend EXPECTED_BUNDLE_FILES as each F000015 child user-story lands:
 #   - S000030_wc_qa            → work-copilot/prompts/qa.prompt.md          (SHIPPED)
-#   - S000031_wc_implement     → work-copilot/prompts/implement.prompt.md   (pending)
+#   - S000031_wc_implement     → work-copilot/prompts/implement.prompt.md   (SHIPPED)
 #   - S000032_wc_scaffold      → work-copilot/prompts/scaffold.prompt.md    (pending)
 #   - S000033_wc_investigate   → work-copilot/prompts/investigate.prompt.md (pending)
 #                              → work-copilot/domain/*.template.md          (pending, 3 files)
@@ -463,6 +463,7 @@ done
 EXPECTED_BUNDLE_FILES=(
   "work-copilot/prompts/validate.prompt.md"
   "work-copilot/prompts/qa.prompt.md"
+  "work-copilot/prompts/implement.prompt.md"
 )
 echo ""
 echo "Checking work-copilot bundle existence (${#EXPECTED_BUNDLE_FILES[@]} expected files)..."
