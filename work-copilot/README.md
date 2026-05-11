@@ -118,6 +118,7 @@ For more, see [`instructions/copilot-instructions.md`](instructions/copilot-inst
 | Path | Role |
 |------|------|
 | `prompts/validate.prompt.md` | The `/validate` slash command logic |
+| `prompts/qa.prompt.md` | The `/wc-qa` slash command — QA walkthrough that writes a `receipts.qa` block into tracker frontmatter (F000015 milestone 1; locks the receipt schema for the remaining 5 pipeline prompts) |
 | `instructions/copilot-instructions.md` | Always-on Copilot context (work-item conventions, sources of truth, bundle layout, troubleshooting) |
 | `templates/*.md` | Required frontmatter / sections / phases per work-item type |
 | `WORKFLOW.md` | Procedural backbone — phases, scaffolding rules, when to validate |
@@ -130,4 +131,6 @@ For more, see [`instructions/copilot-instructions.md`](instructions/copilot-inst
 The bundle is byte-identically mirrored from `deprecated/CJ_company-workflow/` and
 `deprecated/CJ_company-workflow/templates/` in the parent repo. Drift is enforced by
 `scripts/validate.sh` Error check 10 (CI). Edit upstream first; the mirror
-follows.
+follows. Bundle-only files (the F000015 pipeline prompts; no upstream counterpart)
+are covered by `scripts/validate.sh` Error check 10b instead — fails fast if any
+expected prompt file is missing from `work-copilot/`.
