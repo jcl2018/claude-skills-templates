@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.0.9] - 2026-05-11
+
+Ships build #2 of F000015 (work-copilot pipeline): the `/wc-implement` Copilot slash command, which performs per-type implementation dispatch with a walkthrough flow (NOT auto). Locks in the second prompt against the receipt schema fixed by S000030's `/wc-qa` in v2.0.8. Four of six F000015 child user-stories remain to ship (S000032 wc-scaffold, S000033 wc-investigate, S000034 wc-ship, S000035 wc-pipeline).
+
+### Added
+
+- **`work-copilot/prompts/implement.prompt.md`** (new, 381 lines) — the `/wc-implement` Copilot slash command. Per-type dispatch reads different input artifacts depending on tracker `type:` field: user-story → PRD + ARCHITECTURE + TEST-SPEC; defect → RCA + test-plan; task → TRACKER + test-plan; feature → feature-summary + DESIGN + milestones (multi-story → delegates to child user-story via chat-prompt); review → review-notes (degenerate receipt path: empty arrays, `open_risks` records review action). Walkthrough mode only — never runs auto; the prompt proposes a plan, user confirms in chat, edits code, re-confirms. Encodes the user-paste pattern for `git rev-parse HEAD` and `git log --oneline <scaffold_sha>..HEAD` to populate `latest_sha_at_implement` and `commits_since_scaffold` receipt fields. Working-Tree Rule (hard-stop on uncommitted changes in `files_touched`) via user-paste of `git status --porcelain`. Writes `receipts.implement` block to tracker frontmatter using the same read-whole / parse-YAML / merge / write-whole contract established by `qa.prompt.md`.
+
+### Changed
+
+- **`scripts/validate.sh`** — `EXPECTED_BUNDLE_FILES` array extended by one line to require `work-copilot/prompts/implement.prompt.md`. Progressive gating per Error check 10b shipped in v2.0.8 (T000019): each F000015 child story extends the array as its prompt ships, so the bundle existence check stays in sync with what's actually deployed.
+- **`.gitignore`** — added `.gstack/deploy-reports/` alongside the existing `.gstack/sessions/` + `.gstack/analytics/` + `.gstack/learnings.jsonl` machine-local exclusions. Deploy reports written by `/land-and-deploy` are per-machine artifacts (not project history); ignoring them keeps `git status` clean across sessions without polluting the repo with workflow output.
+- **`VERSION`** — 2.0.8 → 2.0.9 (PATCH; partial feature milestone, second of six F000015 builds).
+
+### Deferred / known-state at this PR
+
+- `S000032_wc_scaffold` (build #3), `S000033_wc_investigate` (#4), `S000034_wc_ship` (#5), `S000035_wc_pipeline` (#6) — scaffolded stubs only. Subsequent PRs ship each prompt and extend `EXPECTED_BUNDLE_FILES` accordingly.
+- `T000020_tracker_receipts_stub` — not yet scaffolded. Adds `receipts: {}` to `deprecated/CJ_company-workflow/templates/tracker-*.md` (byte-mirror source-of-truth) for `MIRROR_SPECS` to propagate. Not blocking runtime: both `qa.prompt.md` and `implement.prompt.md` use the read-whole / merge / write-whole pattern that handles a missing `receipts:` key gracefully (created on first write).
+- `S000031_wc_implement` Phase 2 QA-owned gates shipped GREEN this cycle (vs S000030's `partial`) — the QA subagent now treats `E2E=ambiguous + green smoke + structural surrogates over the same ACs` as sufficient. E2E rows remain structurally manual for Copilot-side stories (require interactive walks against an installed bundle); full green E2E is unachievable from a Claude-side subagent regardless of implementation quality.
+
+
 ## [2.0.8] - 2026-05-11
 
 Lands the first milestone of F000015 (work-copilot pipeline) plus the prerequisite validator gate. Scaffolds the feature tree (F000015 + 6 user-story children for the 6 planned Copilot slash commands), ships the schema-locking `/wc-qa` prompt content (S000030), and adds the validator existence check that gates the bundle (T000019). Five sibling stories (S000031–S000035) remain unimplemented — this PR closes 1 of 6 prompts, not the full feature.
