@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.2.0] - 2026-05-12
+
+### Added
+
+- New skill `/CJ_ship-feature` — end-to-end wrapper from an APPROVED `/office-hours` design doc to a verified production deploy. Chains `/autoplan` (review) → `/CJ_personal-pipeline` (scaffold→impl→QA, dispatched as Agent subagent with `--suppress-final-gate` from v2.1.4) → `/ship` (PR creation) → `/land-and-deploy` (merge + verify). Exactly 2 wrapper-orchestrated AUQ gates: `/autoplan` final-approval (design decisions) + `/ship` diff review (code-level); sub-skill native AUQs pass through. `CJ_personal-pipeline` 8.5 + 9.2 AUQs are SUPPRESSED via the wrapper contract; decisions logged to `/tmp/cj-ship-feature-$RUN_ID-pipeline-decisions.jsonl` and surfaced in the wrapper's final-summary tail. Halt-on-red default; idempotent per sub-skill re-entry paths; sunset criterion on the 6th invocation counts only orchestration-brittleness end_states (`halted_at_autoplan`, `halted_at_pipeline`, `halted_at_deploy`, `subagent_crashed`) — excludes `halted_at_ship` (healthy review catch), `deploy_red` (production state), and multi-story-scaffold-only rows. Multi-story features halt cleanly at the scaffold gate per existing `CJ_personal-pipeline` behavior; wrapper skips `/ship` + `/land-and-deploy` and prints per-child invocation instructions. Per [chjiang-claude-stupefied-ellis-2949b6-design-20260511-220642.md](https://github.com/jcl2018/knowledge-base/blob/main/.gstack/projects/jcl2018-knowledge-base/chjiang-claude-stupefied-ellis-2949b6-design-20260511-220642.md) (PR2 of 3; PR1 was v2.1.4 `--suppress-final-gate`; PR3 = real first run + docs).
+- New skills-catalog entry `CJ_ship-feature` (status: experimental, portability: standalone, depends on `CJ_personal-pipeline`).
+- New fixture `skills/CJ_ship-feature/fixtures/` — `README.md` documenting the smoke workflow (copy synthetic design to `~/.gstack/projects/scratch/`, invoke wrapper, stop manually before /ship creates a real PR) + `synthetic-approved-design.md` minimum-valid fixture for pre-flight exercises.
+
+
 ## [2.1.4] - 2026-05-12
 
 ### Added
