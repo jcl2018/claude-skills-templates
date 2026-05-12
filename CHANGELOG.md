@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.1.4] - 2026-05-12
+
+### Added
+
+- `/CJ_personal-pipeline` learns `--suppress-final-gate` flag (paired with `GSTACK_PIPELINE_DECISION_LOG_PATH` env var). When set, Step 8.5's final-approval AUQ AND Step 9.2's sunset-checkpoint AUQ are skipped; decision log redirects to the wrapper-specified path; tracker journal records `[auto-pipeline-clean]` (zero Taste + zero User-Challenge-Approved decisions) or `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved` (non-empty); telemetry write is unchanged, with `mode: "auto-suppressed"` distinguishing wrapper-invoked from standalone runs. Designed for wrapper skills (e.g. forthcoming `/CJ_ship-feature`) that dispatch the pipeline as an Agent subagent — AskUserQuestion is unreachable inside subagents (S000026 spike), so the flag makes that unreachability explicit and lets the wrapper handle decision surfacing itself (typically via `/ship`'s diff review). Standalone behavior (flag absent) is unchanged. Per [chjiang-claude-stupefied-ellis-2949b6-design-20260511-220642.md](https://github.com/jcl2018/knowledge-base/blob/main/.gstack/projects/jcl2018-knowledge-base/chjiang-claude-stupefied-ellis-2949b6-design-20260511-220642.md) (PR1 of 3; PR2 = wrapper skill, PR3 = real first run).
+- New `Suppression Contract` subsection under `## Decision Gates` in `pipeline.md` documenting the flag + env var contract. New `Step 8.5 + 9.2 with $SUPPRESS_FINAL_GATE` row in the per-gate classification table.
+- New fixture `skills/CJ_personal-pipeline/fixtures/regression-suppress-final-gate/` covering: (a) with-flag path — 8.5 + 9.2 AUQs skipped, journal entry present, decisions land in custom log; (b) no-flag regression — behaves identically to v2.1.3; (c) flag-without-env-var negative test — soft warning to stderr, pipeline still proceeds.
+
+### Changed
+
+- Step 1 in `pipeline.md` adds a soft-warning to stderr if `--suppress-final-gate` is set but `GSTACK_PIPELINE_DECISION_LOG_PATH` is not (supported but not recommended: would mingle suppressed-gate decisions with standalone-run history).
+
+
 ## [2.1.3] - 2026-05-11
 
 ### Added
