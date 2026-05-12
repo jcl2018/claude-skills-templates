@@ -48,9 +48,12 @@ their state is observable directly in the orchestrator's conversation context.
 
 ---
 
-## Step 1: Validate Input
+## Step 1: Validate Input + Initialize state file
 
-Parse the user's argument and set up shared state.
+Parse the user's argument and set up shared state. **All state lives in a per-run
+state file** (`/tmp/cj-ship-feature-$RUN_ID.env`) — every subsequent step's bash
+block starts by sourcing this file. This solves the "bash variables don't cross
+orchestrator-model Bash tool calls" problem (the failure mode PR1 caught at v2.1.4).
 
 ```bash
 # Single positional arg: <design-doc-path>
@@ -70,28 +73,74 @@ grep -q '^Status: APPROVED' "$DESIGN_DOC" || {
   exit 1
 }
 
-# Capture absolute path + generate run id
+# Capture absolute path; generate stable RUN_ID.
+# NOTE: $$ here is the ephemeral bash shell's PID — fine for RUN_ID uniqueness
+# in practice (date+PID collision requires same-second + PID reuse). The RUN_ID
+# is written to the state file below; subsequent steps read the file, not $$.
 DESIGN_DOC=$(realpath "$DESIGN_DOC")
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 
-# Shared decision log paths
-# - WRAPPER_DECISION_LOG: reserved for v1.1+ wrapper-level auto-decisions (zero in v1)
-# - PIPELINE_DECISION_LOG: per-run, consumed from the pipeline subagent
-mkdir -p "$HOME/.gstack/analytics"
-WRAPPER_DECISION_LOG="$HOME/.gstack/analytics/CJ_ship-feature-decisions.jsonl"
-PIPELINE_DECISION_LOG="/tmp/cj-ship-feature-$RUN_ID-pipeline-decisions.jsonl"
+# Initialize state file. Every subsequent step `source`s this at the start of
+# any bash block to recover state. Variables: RUN_ID, DESIGN_DOC, END_STATE,
+# MULTI_STORY, WORK_ITEM_DIR, PR_URL, PIPELINE_DECISION_LOG.
+STATE_FILE="/tmp/cj-ship-feature-$RUN_ID.env"
+PIPELINE_DECISION_LOG="$HOME/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl"
+# NOTE: PIPELINE_DECISION_LOG points to the pipeline's standalone log. The
+# wrapper does NOT redirect the pipeline's log via env var (that mechanism
+# doesn't propagate cleanly across Skill-tool boundaries — F2 in PR2 review).
+# Wrapper reads from the standalone log post-pipeline and filters by RUN_ID.
+# Pipeline's Step 1 will emit a soft-warning about co-mingling; accepted.
 
-# Initialize end_state; updated as phases complete or halt.
+mkdir -p "$HOME/.gstack/analytics"
+cat > "$STATE_FILE" <<EOF
+RUN_ID="$RUN_ID"
+DESIGN_DOC="$DESIGN_DOC"
+PIPELINE_DECISION_LOG="$PIPELINE_DECISION_LOG"
+STATE_FILE="$STATE_FILE"
 END_STATE="green"
 MULTI_STORY=0
 WORK_ITEM_DIR=""
 PR_URL=""
+PR_NUM=""
+EOF
+
+echo "STATE_FILE: $STATE_FILE"
+echo "RUN_ID: $RUN_ID"
 ```
 
-Remember `$RUN_ID`, `$DESIGN_DOC`, `$PIPELINE_DECISION_LOG`, `$END_STATE`,
-`$MULTI_STORY`, `$WORK_ITEM_DIR`, `$PR_URL` as prose state throughout the run —
-bash variables don't persist across orchestrator-model Bash calls; the model
-threads literal values into subsequent commands.
+**State-file contract** (every subsequent bash block in ship-feature.md MUST
+begin with this):
+
+```bash
+# Recover state from the per-run state file. STATE_FILE path is the literal
+# computed at Step 1 — model carries the path through as prose.
+source "$STATE_FILE" || { echo "ERROR: state file missing at $STATE_FILE — aborting"; exit 1; }
+```
+
+**State-mutation contract**: any step that updates a state variable (e.g., sets
+`END_STATE=halted_at_pipeline` or `MULTI_STORY=1`) MUST rewrite the state file
+before continuing. Use this helper pattern:
+
+```bash
+write_state() {
+  cat > "$STATE_FILE" <<EOF
+RUN_ID="$RUN_ID"
+DESIGN_DOC="$DESIGN_DOC"
+PIPELINE_DECISION_LOG="$PIPELINE_DECISION_LOG"
+STATE_FILE="$STATE_FILE"
+END_STATE="$END_STATE"
+MULTI_STORY=$MULTI_STORY
+WORK_ITEM_DIR="$WORK_ITEM_DIR"
+PR_URL="$PR_URL"
+PR_NUM="$PR_NUM"
+EOF
+}
+# Call write_state after any field update.
+```
+
+**Cleanup**: the state file is in `/tmp/`; tmpfiles cleanup will reap it. The
+final telemetry write (Step 6 helper below) is durable; state file is
+working-state-only.
 
 ---
 
@@ -111,11 +160,14 @@ context, which is the wrapper's own context.
 After `/autoplan` completes, branch:
 
 - **/autoplan completed with final-approval AUQ → Approve**: continue to Step 3.
-- **/autoplan aborted at final-approval AUQ or pre-flight halt**: set `END_STATE=halted_at_autoplan`; write telemetry (Step 6 with `WORK_ITEM_DIR=""` and `PR_URL=""`); exit non-zero with tail summary:
+- **/autoplan aborted at final-approval AUQ or pre-flight halt**: set state and flow to Step 6 (finalize). Do NOT exit directly:
+  ```bash
+  source "$STATE_FILE"
+  END_STATE="halted_at_autoplan"
+  write_state
+  # PROCEED TO STEP 6 — Step 6.2 will print the halt summary; Step 6.4 → Step 7.1 will exit non-zero.
   ```
-  Wrapper halted at /autoplan final gate.
-  Re-invoke /CJ_ship-feature when ready; /autoplan re-runs (3-10 min cost — wrapper-level skip-if-reviewed is deferred to v1.1).
-  ```
+  Step 6.2's halt-print template will surface the "Wrapper halted at /autoplan final gate. Re-invoke when ready; /autoplan re-runs (3-10 min cost — wrapper-level skip-if-reviewed is deferred to v1.1)." message as part of its standard halt tail.
 
 **Re-entry note**: on wrapper re-invocation, /autoplan re-runs its full review — it
 appends a new `## GSTACK REVIEW REPORT` block on each invocation. v1 accepts this
@@ -126,36 +178,58 @@ header before invoking).
 
 ## Step 3: Phase 2 — `CJ_personal-pipeline` (Agent subagent, suppress-final-gate)
 
-Spawn an Agent subagent via the Agent tool with `subagent_type: "general-purpose"`.
-The subagent invokes `/CJ_personal-pipeline` with `--suppress-final-gate` and exports
-`GSTACK_PIPELINE_DECISION_LOG_PATH` pointing at our per-run path.
+First source the state file to recover the design-doc path:
 
-**Subagent prompt** (substitute `$PIPELINE_DECISION_LOG` and `$DESIGN_DOC` literally
-at dispatch time — bash variables don't cross orchestrator-model Bash calls, so the
-prompt template carries the literal path):
+```bash
+source "$STATE_FILE"
+```
+
+Then spawn an Agent subagent via the Agent tool with `subagent_type: "general-purpose"`.
+The subagent invokes `/CJ_personal-pipeline` with `--suppress-final-gate`. The pipeline
+writes its decision log to its standalone path (`~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl`)
+— wrapper does NOT redirect via env var (env vars don't propagate across Skill-tool
+boundaries cleanly; F2 fix in PR2 review).
+
+The pipeline's Step 1 will emit a soft-warning to stderr about co-mingling decisions
+with standalone-run history. That's accepted v1 behavior — Step 6.3 of the wrapper
+filters by run_id when reading the audit.
+
+**Subagent prompt template** (substitute `$DESIGN_DOC` literally at dispatch time —
+bash variables don't cross orchestrator-model Bash calls; the prompt template carries
+the literal path):
 
 ```
 ROLE: pipeline runner for /CJ_ship-feature wrapper.
-TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode. The wrapper
-is consuming the decision log; do NOT surface Step 8.5 or Step 9.2 AUQs.
+TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end state.
 
 STEPS:
-1. Run this bash command first:
-   export GSTACK_PIPELINE_DECISION_LOG_PATH="<literal $PIPELINE_DECISION_LOG path>"
-2. Then invoke the slash command:
-   /CJ_personal-pipeline --suppress-final-gate "<literal $DESIGN_DOC path>"
-3. Follow the pipeline through its normal phases (scaffold → impl → QA + post-phase
-   gates). It will skip 8.5 + 9.2 AUQs per the suppress-final-gate contract; tracker
-   journal will record [auto-pipeline-clean] (zero-decision) or
-   [auto-final-gate-suppressed] (non-zero).
+1. Invoke the slash command (via the Skill tool):
+     /CJ_personal-pipeline --suppress-final-gate "<literal $DESIGN_DOC path>"
+2. The pipeline runs its full lifecycle (Phase 1 scaffold → Phase 2 impl → Phase 3 QA + post-phase gates).
+   It will SKIP Step 8.5's AUQ and Step 9.2's sunset AUQ per the --suppress-final-gate contract.
+   Its tracker journal will record [auto-pipeline-clean] (zero-decision run) or
+   [auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved (non-zero).
+3. At pipeline completion, the pipeline prints a "PIPELINE COMPLETE: end_state=<X>" line as its final output (Step 9.3 of pipeline.md).
+4. Read that end_state value. Map it to the wrapper's RESULT contract:
+     pipeline's end_state=green                 → PIPELINE_END_STATE=green
+     pipeline's end_state=halted_at_gate         → PIPELINE_END_STATE=halted_at_gate
+     pipeline's end_state=user_aborted           → PIPELINE_END_STATE=user_aborted (shouldn't fire under --suppress-final-gate; defensive)
+     pipeline's end_state=subagent_crashed       → PIPELINE_END_STATE=subagent_crashed
+5. Also extract the work-item directory path from the pipeline's "Work item: <path>" output line.
 
-RETURN CONTRACT: end your final assistant message with this exact line on its own:
-  RESULT: PIPELINE_END_STATE=<green|halted_at_gate|user_aborted|subagent_crashed>; WORK_ITEM_DIR=<absolute_path>
+RETURN CONTRACT — end your FINAL assistant message with this EXACT line on its own:
+  RESULT: PIPELINE_END_STATE=<value>; WORK_ITEM_DIR=<absolute_path>
 
-No prose after the RESULT line. If the pipeline halts mid-flow, set
-PIPELINE_END_STATE accordingly and include the work-item dir path that was created
-(even on halt, scaffold may have completed).
+Example (literal, this is the expected format):
+  RESULT: PIPELINE_END_STATE=green; WORK_ITEM_DIR=/Users/chjiang/Documents/projects/claude-skills-templates/work-items/features/F000016_example/
+
+No prose, no markdown wrapping, no code fence around the RESULT line itself.
+If pipeline crashed and you cannot read end_state, emit:
+  RESULT: PIPELINE_END_STATE=subagent_crashed; WORK_ITEM_DIR=
+(empty WORK_ITEM_DIR is acceptable when scaffold didn't complete.)
 ```
+
+After the Agent tool returns, the subagent's full output is in `$SUBAGENT_OUTPUT`. The lenient parser from the Subagent Return Contract section finds the RESULT line.
 
 Capture stdout/stderr to `PIPELINE_OUTPUT`. Parse with `parse_result`. Branch:
 
@@ -207,31 +281,31 @@ under `$WORK_ITEM_DIR/`.
 
 `PIPELINE_END_STATE` is `halted_at_gate`, `user_aborted`, or anything other than green.
 
-Set `END_STATE=halted_at_pipeline`; write telemetry; exit non-zero with tail summary:
+Set state and flow to Step 6 (finalize). Step 6.2's halt-print template will name
+the pipeline_end_state value:
 
-```
-Wrapper halted at CJ_personal-pipeline.
-  Pipeline end_state:    <PIPELINE_END_STATE>
-  Work item:             <WORK_ITEM_DIR>
-  Tracker:               <WORK_ITEM_DIR>/<TRACKER>.md (find via *_TRACKER.md)
-  Pipeline decision log: <PIPELINE_DECISION_LOG>
-
-Inspect the tracker journal for halt reason. Re-invoke /CJ_ship-feature to resume
-(pipeline's Branch (a) skip path reuses the existing scaffold). If pipeline halted
-mid-impl with green-enough state, you can manually invoke /ship + /land-and-deploy
-to finish from here.
+```bash
+source "$STATE_FILE"
+END_STATE="halted_at_pipeline"
+WORK_ITEM_DIR="<value parsed from RESULT line>"
+write_state
+# PROCEED TO STEP 6 — finalizer prints "Wrapper halted at CJ_personal-pipeline.
+# Pipeline end_state: <PIPELINE_END_STATE>" + tracker path + pipeline decision
+# log location; exits non-zero via Step 7.1.
 ```
 
 ### Branch (d): empty / no RESULT
 
 `parse_result` returned empty (subagent crashed without emitting RESULT line).
 
-Set `END_STATE=subagent_crashed`; write telemetry; exit non-zero with:
-
-```
-CJ_personal-pipeline subagent crashed (no RESULT line emitted).
-Re-invoke /CJ_ship-feature — pipeline's Branch (a) idempotency will resume from
-disk state if the work-item dir was created before the crash.
+```bash
+source "$STATE_FILE"
+END_STATE="subagent_crashed"
+# WORK_ITEM_DIR may have been created before crash but we don't know — leave as ""
+write_state
+# PROCEED TO STEP 6 — finalizer prints "CJ_personal-pipeline subagent crashed
+# (no RESULT line emitted). Re-invoke /CJ_ship-feature; pipeline's Branch (a)
+# idempotency will resume from disk state if the work-item dir was created."
 ```
 
 ---
@@ -273,22 +347,17 @@ PR created, `$PR_URL` captured. Continue to Step 5.
 
 ### Branch (b): /ship halted or aborted
 
-Set `END_STATE=halted_at_ship`; write telemetry; exit non-zero with tail summary:
+Set state and flow to Step 6 (finalize). The halt-print template will surface
+the "/ship halt is healthy — not wrapper brittleness" framing:
 
-```
-Wrapper halted at /ship.
-  Work item:             <WORK_ITEM_DIR>
-  Branch (commits exist but no PR): <current branch>
-  Pipeline decision log: <PIPELINE_DECISION_LOG>
-
-Commits from CJ_personal-pipeline are local on the branch. /ship may have done
-partial work (version bump, CHANGELOG entry, even a draft commit) before halting.
-To resume: manually invoke /ship (its idempotency will detect existing commits
-and the in-progress state).
-
-Note: halted_at_ship is treated as a healthy outcome by the sunset trip-wire —
-it means /ship's review caught a real issue. Re-invoke /CJ_ship-feature after the
-issue is fixed, or invoke /ship directly to continue.
+```bash
+source "$STATE_FILE"
+END_STATE="halted_at_ship"
+write_state
+# PROCEED TO STEP 6 — finalizer prints standard halt tail; note halted_at_ship
+# is healthy (review caught a real issue), excluded from sunset trip-wire by
+# Step 7's filter. Re-invoke /CJ_ship-feature after fix, or invoke /ship
+# directly to continue (commits exist locally; /ship's idempotency resumes).
 ```
 
 ---
@@ -297,36 +366,56 @@ issue is fixed, or invoke /ship directly to continue.
 
 Reached only on Branch (a) of Step 4 (/ship green, PR created).
 
-Invoke `/land-and-deploy` via the **Skill tool** with the PR number as argument:
+First, source the state file and parse the PR number from `$PR_URL`:
 
-```
-/land-and-deploy #<PR_NUMBER>
+```bash
+source "$STATE_FILE"
+# Parse PR number from URL (typically the last path segment, e.g. ".../pull/95")
+PR_NUM="${PR_URL##*/}"
+# Validate: must be numeric. Bail if not (PR_URL may be the "<see branch on origin>" fallback from Step 4).
+if ! printf '%s' "$PR_NUM" | grep -qE '^[0-9]+$'; then
+  # Try to recover via gh
+  CURRENT_BRANCH=$(git branch --show-current)
+  PR_NUM=$(gh pr list --head "$CURRENT_BRANCH" --state all --json number -q '.[0].number' 2>/dev/null || echo "")
+fi
+if ! printf '%s' "$PR_NUM" | grep -qE '^[0-9]+$'; then
+  echo "WARNING: could not determine PR number. Invoking /land-and-deploy without arg (it will auto-detect from branch)."
+  PR_NUM=""
+fi
+write_state  # persist PR_NUM
 ```
 
-(Parse PR number from `$PR_URL` — typically the last path segment.)
+Invoke `/land-and-deploy` via the **Skill tool**:
+
+- If `PR_NUM` is set: `/land-and-deploy #<PR_NUM>` (literal value).
+- If `PR_NUM` is empty: `/land-and-deploy` (no arg — `/land-and-deploy` will
+  auto-detect from current branch per its Step 1).
 
 `/land-and-deploy` waits for CI, merges the PR, monitors any post-merge deploy
 workflow, runs canary verification if a production URL was configured, and
-writes its own deploy report.
+writes its own deploy report. Its terminal verdict is one of:
+`DEPLOYED AND VERIFIED`, `DEPLOYED (UNVERIFIED)`, `STAGING VERIFIED`, or `REVERTED`.
 
 ### Branch (a): green deploy
 
-`/land-and-deploy` completes with verdict `DEPLOYED AND VERIFIED` (or
-`DEPLOYED (UNVERIFIED)` if no URL was configured — both count as green).
+`/land-and-deploy` ends with verdict `DEPLOYED AND VERIFIED`,
+`DEPLOYED (UNVERIFIED)`, or `STAGING VERIFIED`. All three count as green.
 
-`END_STATE=green`. Continue to Step 6.
+Set `END_STATE=green`; call `write_state`. Continue to Step 6 (finalize).
 
-### Branch (b): canary red
+### Branch (b): merge reverted (canary red caused user-revert)
 
-`/land-and-deploy` completes with verdict `DEPLOY_RED` (canary failed
-post-merge).
+`/land-and-deploy` ends with verdict `REVERTED` (user reverted post-merge after
+canary or another failure). The PR was merged then reverted; the wrapper's
+work is partially live but rolled back.
 
-Set `END_STATE=deploy_red`; write telemetry; exit non-zero with tail summary:
+Set `END_STATE=deploy_red`; call `write_state`. Continue to Step 6 (finalize)
+to record telemetry, then the finalizer exits non-zero with this tail:
 
 ```
-Canary red post-merge. See /land-and-deploy report.
-  PR: <PR_URL> (merged)
-  Manual action needed: rollback OR fix-forward.
+Deploy reverted post-merge. See /land-and-deploy report.
+  PR: <PR_URL> (merged then reverted)
+  Manual action needed: investigate the revert reason; fix-forward when ready.
 
 Note: deploy_red is excluded from the sunset trip-wire — production health
 concerns are separate from wrapper orchestration brittleness.
@@ -334,125 +423,219 @@ concerns are separate from wrapper orchestration brittleness.
 
 ### Branch (c): /land-and-deploy halted pre-merge
 
-CI red, merge conflict, or user aborted at /land-and-deploy's readiness gate.
+CI red, merge conflict, user aborted at /land-and-deploy's readiness gate,
+or any other pre-merge halt that did not produce a terminal verdict above.
 
-Set `END_STATE=halted_at_deploy`; write telemetry; exit non-zero with summary
-naming the halt reason.
+Set `END_STATE=halted_at_deploy`; call `write_state`. Continue to Step 6
+(finalize). The finalizer's tail names the halt reason from /land-and-deploy's
+diagnostic output.
 
 ---
 
-## Step 6: Final summary + telemetry
+## Step 6: Finalize (telemetry + summary) — every exit path calls this
 
-Resolve the tracker path lazily from `WORK_ITEM_DIR`:
+**Every halt branch in Steps 2-5 ends by jumping to Step 6**, with `END_STATE`
+set to the appropriate halt value via `write_state`. The green path also
+reaches Step 6 after Step 5 Branch (a). Step 6 → Step 7 is the universal exit
+path; the orchestrator does NOT exit directly from a halt branch.
+
+This step has 3 sub-blocks: 6.1 telemetry write (always runs), 6.2 final
+summary print (branches on green/halt), 6.3 pipeline-decision audit tail
+(if log has content). Every sub-block sources `$STATE_FILE` to recover state.
+
+### Step 6.1: Telemetry write (universal)
 
 ```bash
+source "$STATE_FILE"
 TRACKER_PATH=""
 if [ -n "$WORK_ITEM_DIR" ]; then
-  TRACKER_PATH=$(find "$WORK_ITEM_DIR" -maxdepth 1 -name '*_TRACKER.md' -print -quit 2>/dev/null)
+  # Union of personal-workflow conventions: prefixed (D000017_TRACKER.md) OR
+  # bare (TRACKER.md). Pipeline.md Step 2 branch-c uses bare; scaffold typically
+  # produces prefixed. Match either.
+  TRACKER_PATH=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name '*_TRACKER.md' -o -name 'TRACKER.md' \) -print -quit 2>/dev/null)
   [ -z "$TRACKER_PATH" ] && TRACKER_PATH="$WORK_ITEM_DIR (TRACKER not found)"
+fi
+
+MULTI_STORY_BOOL=$([ "$MULTI_STORY" = "1" ] && echo "true" || echo "false")
+
+if command -v jq >/dev/null 2>&1; then
+  jq -nc \
+    --arg run_id "$RUN_ID" \
+    --arg design_doc "$DESIGN_DOC" \
+    --arg work_item "${WORK_ITEM_DIR:-}" \
+    --arg pr_url "${PR_URL:-}" \
+    --arg end_state "$END_STATE" \
+    --argjson multi_story_scaffold_only "$MULTI_STORY_BOOL" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_scaffold_only:$multi_story_scaffold_only,ts:$ts}' \
+    >> "$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
+else
+  # Fallback when jq is missing (workbench declared dep, so unlikely).
+  # Lossy on paths with quotes/backslashes but never invalid JSON.
+  _SAFE_DOC=$(printf '%s' "$DESIGN_DOC" | tr -d '\\"')
+  _SAFE_WORK=$(printf '%s' "${WORK_ITEM_DIR:-}" | tr -d '\\"')
+  _SAFE_PR=$(printf '%s' "${PR_URL:-}" | tr -d '\\"')
+  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_scaffold_only\":$MULTI_STORY_BOOL,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+    >> "$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
 fi
 ```
 
-Print the summary:
+### Step 6.2: Print summary — header depends on END_STATE
+
+If `END_STATE=green`:
 
 ```
-/CJ_ship-feature COMPLETE: end_state=$END_STATE  multi_story=$MULTI_STORY
+/CJ_ship-feature COMPLETE (green)  multi_story=$MULTI_STORY
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
 Work item:     ${WORK_ITEM_DIR:-N/A}
 PR:            ${PR_URL:-N/A}
 Tracker:       ${TRACKER_PATH:-N/A}
-Pipeline log:  $PIPELINE_DECISION_LOG (suppressed-gate decisions from this run)
+Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
 Telemetry:     ~/.gstack/analytics/CJ_ship-feature.jsonl
 ```
 
-Then write the telemetry line. Use jq for JSON-safe escaping:
+Otherwise (any halt or `deploy_red`):
 
-```bash
-MULTI_STORY_BOOL=$([ "$MULTI_STORY" = "1" ] && echo "true" || echo "false")
+```
+/CJ_ship-feature HALTED at end_state=$END_STATE
 
-jq -nc \
-  --arg run_id "$RUN_ID" \
-  --arg design_doc "$DESIGN_DOC" \
-  --arg work_item "${WORK_ITEM_DIR:-}" \
-  --arg pr_url "${PR_URL:-}" \
-  --arg end_state "$END_STATE" \
-  --argjson multi_story_scaffold_only "$MULTI_STORY_BOOL" \
-  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_scaffold_only:$multi_story_scaffold_only,ts:$ts}' \
-  >> "$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
+Run ID:        $RUN_ID
+Design:        $DESIGN_DOC
+Work item:     ${WORK_ITEM_DIR:-N/A (halt before work-item created)}
+PR:            ${PR_URL:-N/A (halt before PR created)}
+Tracker:       ${TRACKER_PATH:-N/A}
+Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
+Telemetry:     ~/.gstack/analytics/CJ_ship-feature.jsonl
+
+Resume: re-invoke /CJ_ship-feature on the same design doc, OR continue manually
+from the failed phase (each sub-skill has its own idempotent re-entry).
 ```
 
-If jq is unavailable (shouldn't happen — workbench declared dep), fall back to a
-sanitized echo (strip backslashes + double-quotes from paths).
+### Step 6.3: Pipeline-decision audit tail
 
-### Final-summary tail — suppressed pipeline decisions
-
-After telemetry write, print the suppressed-gate decision audit for this run
-(informational, NOT an AUQ — user can spot-check post-deploy if anything looks
-off; revert is via normal git):
+If `$PIPELINE_DECISION_LOG` exists and has entries with this run's `run_id`,
+print the count summary. Informational only — not an AUQ.
 
 ```bash
-if [ -s "$PIPELINE_DECISION_LOG" ]; then
-  COUNT_MECHANICAL=$(jq -s 'map(select(.classification == "mechanical")) | length' "$PIPELINE_DECISION_LOG" 2>/dev/null || echo 0)
-  COUNT_TASTE=$(jq -s 'map(select(.classification == "taste")) | length' "$PIPELINE_DECISION_LOG" 2>/dev/null || echo 0)
-  COUNT_UC_APPROVED=$(jq -s 'map(select(.classification == "user_challenge_approved")) | length' "$PIPELINE_DECISION_LOG" 2>/dev/null || echo 0)
-  cat <<EOF
-Suppressed-gate pipeline decisions (this run):
+source "$STATE_FILE"
+if [ -s "$PIPELINE_DECISION_LOG" ] && command -v jq >/dev/null 2>&1; then
+  # Filter to this run only (the pipeline writes to the shared standalone log
+  # tagged with its OWN run_id, which equals the wrapper's RUN_ID because we
+  # don't override it — the pipeline computes its run_id at its Step 1 and
+  # writes to the standalone log per its default behavior with the soft-warning
+  # acknowledging co-mingling).
+  THIS_RUN=$(jq -cs --arg rid "$RUN_ID" 'map(select(.run_id == $rid))' "$PIPELINE_DECISION_LOG" 2>/dev/null || echo "[]")
+  COUNT_MECHANICAL=$(echo "$THIS_RUN" | jq 'map(select(.classification == "mechanical")) | length' 2>/dev/null || echo 0)
+  COUNT_TASTE=$(echo "$THIS_RUN" | jq 'map(select(.classification == "taste")) | length' 2>/dev/null || echo 0)
+  COUNT_UC_APPROVED=$(echo "$THIS_RUN" | jq 'map(select(.classification == "user_challenge_approved")) | length' 2>/dev/null || echo 0)
+  TOTAL=$((COUNT_MECHANICAL + COUNT_TASTE + COUNT_UC_APPROVED))
+  if [ "$TOTAL" -gt 0 ]; then
+    cat <<EOF
+
+Suppressed-gate pipeline decisions (this run only):
   - $COUNT_MECHANICAL mechanical (silent, see log for details)
   - $COUNT_TASTE taste
   - $COUNT_UC_APPROVED user-challenge-approved
-Review at: $PIPELINE_DECISION_LOG
+Filter: jq -c '. | select(.run_id == "$RUN_ID")' $PIPELINE_DECISION_LOG
 EOF
+  fi
 fi
 ```
 
+**NOTE on the pipeline's run_id**: the wrapper does NOT override the pipeline's
+decision log path via env var (env vars don't propagate cleanly across
+Skill-tool boundaries — see F2 fix in PR2 review). The pipeline writes to its
+standalone log (`~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl`)
+with its own run_id, which is computed independently inside the pipeline's
+Step 1. The wrapper filters by THE PIPELINE'S run_id, NOT the wrapper's
+RUN_ID — they're different. To find the pipeline's run_id, parse the tracker
+journal entry written by the suppress-final-gate path:
+`grep '\[auto-final-gate-suppressed\]' "$TRACKER_PATH"` (the entry includes
+the decision log path which embeds the pipeline's run_id pattern). For v1,
+audit-tail print accepts that finding the right entries may require a manual
+`jq` filter; the path is documented for the user. **v1 accepts this minor
+audit-discovery friction; v1.1 may pass RUN_ID explicitly via pipeline CLI arg.**
+
+### Step 6.4: Exit appropriately
+
+After Step 6.1-6.3 complete, proceed to Step 7 (sunset check — also universal).
+Step 7 finishes by exiting with code 0 on `END_STATE=green` or non-zero
+otherwise.
+
 ---
 
-## Step 7: Sunset checkpoint (6th invocation, every 5 thereafter)
+## Step 7: Sunset checkpoint — runs on every exit path
 
-Mirror `/CJ_personal-pipeline`'s pattern.
+**Always runs after Step 6**, regardless of `END_STATE`. The sunset trip-wire
+needs to see halted runs to detect brittleness; gating it on green-only would
+neuter its purpose.
 
 ```bash
+source "$STATE_FILE"
 TELEMETRY="$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
-INVOCATION_COUNT=$(wc -l < "$TELEMETRY" | tr -d ' ')
 
-# Fire on invocation 6, then every 5 thereafter (11, 16, 21, ...)
+# This run's telemetry line was just appended by Step 6.1.
+# INVOCATION_COUNT includes this run.
+INVOCATION_COUNT=$(wc -l < "$TELEMETRY" 2>/dev/null | tr -d ' ')
+INVOCATION_COUNT=${INVOCATION_COUNT:-0}
+
+# Fire on invocation 6, then every 5 thereafter (11, 16, 21, ...).
+SHOULD_FIRE=0
 if [ "$INVOCATION_COUNT" -ge 6 ] && [ $(( (INVOCATION_COUNT - 6) % 5 )) -eq 0 ]; then
-  PRIOR_5=$(tail -6 "$TELEMETRY" | head -5)  # 5 runs immediately before this one
+  SHOULD_FIRE=1
+fi
+
+if [ "$SHOULD_FIRE" = "1" ]; then
+  # Take the 5 runs immediately before THIS one (the latest line is current run).
+  PRIOR_5=$(tail -6 "$TELEMETRY" | head -5)
 
   # Brittleness signal: halted_at_(autoplan|pipeline|deploy) or subagent_crashed.
   # Excludes: green (happy path), halted_at_ship (review caught real issue),
   # deploy_red (production state, not wrapper brittleness), multi_story rows.
+  #
+  # F4 FIX: separate grep -c from the || fallback. grep -c always emits a count
+  # (even 0) and may exit 1 on no-matches; the outer `|| echo 0` would APPEND
+  # a second "0" producing "0\n0" which fails integer comparison. Pattern below
+  # captures grep's exit explicitly without ever appending.
   HALT_COUNT=$(echo "$PRIOR_5" \
-    | jq -r 'select(.multi_story_scaffold_only != true) | .end_state' \
-    | grep -cE '^(halted_at_autoplan|halted_at_pipeline|halted_at_deploy|subagent_crashed)$' \
-    || echo 0)
+    | jq -r 'select((.multi_story_scaffold_only // false) == false) | .end_state' 2>/dev/null \
+    | grep -cE '^(halted_at_autoplan|halted_at_pipeline|halted_at_deploy|subagent_crashed)$') || HALT_COUNT=0
+  HALT_COUNT=${HALT_COUNT:-0}
 
   if [ "$HALT_COUNT" -ge 3 ]; then
     SUNSET_REC="DELETE"
   else
     SUNSET_REC="KEEP"
   fi
+
+  # Render human-readable PRIOR_5 summary for the AUQ body.
+  PRIOR_5_SUMMARY=$(echo "$PRIOR_5" | jq -r '"  - end_state=\(.end_state)  multi_story=\(.multi_story_scaffold_only // false)  design=\(.design_doc | split("/") | last)"' 2>/dev/null || echo "  (unable to parse PRIOR_5)")
+
+  # AskUserQuestion (wrapper-rendered checkpoint AUQ — NOT a sub-skill pass-through).
+  # Surfaces only on the 6th invocation and every 5 thereafter; rendered by the
+  # wrapper itself (AskUserQuestion is in SKILL.md allowed-tools).
+  #
+  # AUQ body:
+  #   /CJ_ship-feature sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
+  #   $PRIOR_5_SUMMARY
+  #
+  #   Trip-wire: $HALT_COUNT/5 brittleness-signal end_states
+  #   (halted_at_autoplan | halted_at_pipeline | halted_at_deploy | subagent_crashed).
+  #   Excluded: green, halted_at_ship (healthy review catch), deploy_red (prod
+  #   state), multi-story rows.
+  #
+  #   Recommendation: $SUNSET_REC.
+  #
+  #   Options:
+  #   - Keep (skill stays as-is; checkpoint recurs every 5 invocations)
+  #   - Delete (recommended if HALT_COUNT >= 3; otherwise honest opt-out)
 fi
 ```
 
-If `INVOCATION_COUNT >= 6` AND the modulo condition fires, AskUserQuestion:
-
-> /CJ_ship-feature sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
-> <human-readable summary of $PRIOR_5: one line per run with end_state + design doc basename>
->
-> Trip-wire: $HALT_COUNT/5 brittleness-signal end_states (halted_at_autoplan / halted_at_pipeline / halted_at_deploy / subagent_crashed).
-> Excluded from count: green, halted_at_ship (healthy review catch), deploy_red (prod state), multi-story rows.
->
-> Recommendation: $SUNSET_REC.
->
-> Options:
-> - Keep (skill stays as-is; checkpoint recurs every 5 invocations)
-> - Delete (recommended if $HALT_COUNT >= 3; otherwise honest opt-out)
-
-On Delete: print instructions to delete the skill:
+On Delete: print instructions to delete the skill (orchestrator does NOT
+auto-delete — destructive actions require explicit user execution):
 
 ```
 To delete /CJ_ship-feature:
@@ -461,7 +644,19 @@ To delete /CJ_ship-feature:
   cd <workbench> && ./scripts/skills-deploy install
 ```
 
-The orchestrator does NOT auto-delete — destructive actions require explicit user execution.
+### Step 7.1: Exit with appropriate code
+
+```bash
+source "$STATE_FILE"
+# Cleanup state file (optional; tmpfiles will eventually reap it)
+rm -f "$STATE_FILE" 2>/dev/null
+
+if [ "$END_STATE" = "green" ]; then
+  exit 0
+else
+  exit 1
+fi
+```
 
 ---
 
@@ -478,12 +673,14 @@ The orchestrator does NOT auto-delete — destructive actions require explicit u
 
 ## Decision Gates (AskUserQuestion)
 
-The wrapper itself introduces NO AUQs in v1 — every decision is owned by a
-sub-skill and surfaces naturally in the orchestrator's conversation context:
+The wrapper-orchestrated AUQ count is **2 wrapper-gated decisions** (autoplan
+final + /ship diff review) plus 1 occasional checkpoint:
 
-- **GATE #1 — /autoplan final-approval AUQ** (Step 2) — design-level decisions
-- **GATE #2 — /ship pre-PR diff-review AUQ** (Step 4) — code-level decisions
-- **Sub-skill native AUQs** that pass through: /autoplan premise gate, /ship pre-flight halts, /land-and-deploy readiness gate, sunset-checkpoint AUQ (Step 7)
+- **GATE #1 — /autoplan final-approval AUQ** (Step 2) — design-level decisions (sub-skill native; surfaces in wrapper's conversation context)
+- **GATE #2 — /ship pre-PR diff-review AUQ** (Step 4) — code-level decisions (sub-skill native)
+- **Wrapper-rendered checkpoint AUQ — sunset (Step 7)** — fires on invocations 6, 11, 16, ... Not a per-run gate; only fires every 5th run after invocation 6. Rendered by the wrapper itself (AskUserQuestion is declared in SKILL.md `allowed-tools`).
+
+**Sub-skill native AUQs that pass through** (wrapper doesn't introduce; sub-skill surfaces them naturally): /autoplan premise gate, /ship pre-flight halts (test red, scope drift, etc.), /land-and-deploy readiness gate (Step 3.5 of /land-and-deploy).
 
 CJ_personal-pipeline's 8.5 + 9.2 AUQs are SUPPRESSED via the
 `--suppress-final-gate` contract shipped in v2.1.4 (PR #95). Decisions are

@@ -91,7 +91,7 @@ end-to-end:
 5. **Phase 4 — /land-and-deploy** (Skill, inline) — merge PR, verify deploy. Auto-passes on green canary; alerts on red.
 6. **Final summary + telemetry** — write to `~/.gstack/analytics/CJ_ship-feature.jsonl`. Sunset checkpoint on invocation 6, then every 5.
 
-Exactly **2 wrapper-orchestrated AUQs** (/autoplan final + /ship diff review). Sub-skills may surface their own native AUQs (autoplan premise gate, /ship pre-flight halts) — those pass through; wrapper does not pre-collect.
+**2 wrapper-orchestrated AUQ gates** (/autoplan final + /ship diff review) plus 1 occasional wrapper-rendered checkpoint AUQ (sunset, fires on invocations 6, 11, 16, ...). Sub-skills may also surface their own native AUQs (autoplan premise gate, /ship pre-flight halts, /land-and-deploy readiness gate) — those pass through; wrapper does not pre-collect.
 
 The orchestrator's own context grows by the sum of /autoplan + /ship + /land-and-deploy
 when those skills are loaded inline (~5-10K tokens combined). CJ_personal-pipeline runs
@@ -100,13 +100,15 @@ suppress-final-gate path. See `ship-feature.md` for the full step-by-step logic.
 
 Sunset criterion baked in: the skill writes one telemetry line per invocation
 to `~/.gstack/analytics/CJ_ship-feature.jsonl` with `{run_id, design_doc, work_item,
-end_state, multi_story_scaffold_only, ts}` where `end_state ∈ {green,
+pr_url, end_state, multi_story_scaffold_only, ts}` where `end_state ∈ {green,
 halted_at_autoplan, halted_at_pipeline, halted_at_ship, halted_at_deploy,
 deploy_red, subagent_crashed}`. On the 6th invocation, the orchestrator
 AskUserQuestions for keep/delete based on a brittleness trip-wire (≥3 of 5
 prior runs in `halted_at_(autoplan|pipeline|deploy)` or `subagent_crashed` →
-recommend delete). `halted_at_ship` and `deploy_red` are excluded — those are
-healthy outcomes (review caught a real issue; production health concern).
+recommend delete). Excluded from the count: `green` (happy path), `halted_at_ship`
+(review caught a real issue — gate doing its job), `deploy_red` (production
+state, not wrapper brittleness), and any line with `multi_story_scaffold_only: true`
+(correct halt at scaffold gate per design).
 
 For the full step-by-step logic, see [ship-feature.md](ship-feature.md).
 
