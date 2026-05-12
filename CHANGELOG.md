@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.1.3] - 2026-05-11
+
+### Added
+
+- TODOS.md entry captures the `skills-deploy install` worktree-pinning bug surfaced during a `/investigate` session: running the installer from `.claude/worktrees/<name>/` records the worktree path in `~/.claude/.skills-templates.json` as `source`, then `skills-deploy doctor` reports FAIL for every skill once the worktree is removed (the per-skill SKILL.md symlinks still resolve fine — only the global `source` anchor breaks). Entry proposes three fix options and recommends auto-resolving to the main git common-dir.
+
+
 ## [2.1.2] - 2026-05-11
 
 ### Fixed
