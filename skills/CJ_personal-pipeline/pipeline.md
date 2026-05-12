@@ -197,11 +197,14 @@ else
 fi
 
 # Soft-warning: --suppress-final-gate without a custom log path means
-# suppressed-gate decisions go into the standalone log, where a later
-# standalone run's Step 8.5 filter would include them. Wrappers should
-# always pair the flag with the env var.
+# suppressed-gate decisions will be co-mingled in the standalone log.
+# Step 8.5's run_id filter still isolates the current run, so the run
+# itself is unaffected — but future audit greps for the standalone log
+# will see entries from wrapper-invoked runs interleaved. Wrappers should
+# always pair the flag with GSTACK_PIPELINE_DECISION_LOG_PATH pointing
+# at a per-run file (e.g. /tmp/cj-<wrapper>-$RUN_ID-decisions.jsonl).
 if [ -n "$SUPPRESS_FINAL_GATE" ] && [ -z "$GSTACK_PIPELINE_DECISION_LOG_PATH" ]; then
-  echo "warning: --suppress-final-gate set without GSTACK_PIPELINE_DECISION_LOG_PATH; decisions go to standalone log $DECISION_LOG" >&2
+  echo "warning: --suppress-final-gate set without GSTACK_PIPELINE_DECISION_LOG_PATH; suppressed-gate decisions will be co-mingled in the standalone log ($DECISION_LOG). Future audit greps will see them. Set GSTACK_PIPELINE_DECISION_LOG_PATH to redirect." >&2
 fi
 ```
 
@@ -513,21 +516,22 @@ COUNT_UC_APPROVED=$(echo "$DECISIONS_THIS_RUN" | jq -s 'map(select(.classificati
 
 ### 8.5.1b Suppression contract — wrapper-invoked path
 
-If `$SUPPRESS_FINAL_GATE` is non-empty (set via the `--suppress-final-gate` flag at Step 1):
+If `$SUPPRESS_FINAL_GATE` is non-empty (set via the `--suppress-final-gate` flag at Step 1), the orchestrator-model takes the suppression path:
 
-```bash
-echo "[auto-final-gate-suppressed] $COUNT_MECHANICAL mechanical, $COUNT_TASTE taste, $COUNT_UC_APPROVED user-challenge-approved; decisions at $DECISION_LOG" >> "$TRACKER_JOURNAL"
-END_STATE="green"
-```
+**Decide which tracker journal entry to write** based on counts:
 
-Then **skip 8.5.2, 8.5.3, 8.5.4** entirely and proceed directly to Step 9.
+- If `COUNT_TASTE == 0` AND `COUNT_UC_APPROVED == 0` (only Mechanical decisions, or zero total): write `[auto-pipeline-clean]` to the work-item tracker journal (matches 8.5.2's standalone semantics — downstream tooling that greps for this marker stays consistent).
+- Otherwise: write `[auto-final-gate-suppressed] $COUNT_MECHANICAL mechanical, $COUNT_TASTE taste, $COUNT_UC_APPROVED user-challenge-approved; decisions at $DECISION_LOG` to the work-item tracker journal.
+
+In both cases the journal-write path is the SAME tracker journal already written to elsewhere in pipeline.md (Step 2(a) re-use journal, Step 4 multi-story halt, Step 8.5.4 approval) — the orchestrator-model resolves the path from the work-item dir (`$WORK_ITEM_DIR/<TRACKER>.md` — the same shape used in Step 9.3's `Tracker:` summary line). No new variable.
+
+**Then set END_STATE.** Set `END_STATE=green` and **carry this value forward** to Step 9.1's telemetry write — bash variables don't persist across orchestrator-model Bash calls, so the model must remember "I set END_STATE=green at 8.5.1b" as prose state, then thread that literal into Step 9.1's `jq --arg end_state` invocation. If unsure, re-derive from observable state: no halt journal entries earlier in this run → green.
+
+**Then skip 8.5.2, 8.5.3, 8.5.4 entirely** and proceed directly to Step 9.
+
 The wrapper that set the flag (e.g. `/CJ_ship-feature`) is consuming
 `$DECISION_LOG` itself and will surface the relevant decisions (typically as
 part of `/ship`'s diff review, since the decisions are visible in the diff).
-
-Bash variables don't persist across orchestrator-model Bash calls (see Step 8.5
-top-of-section comment); the orchestrator-model reads this directive as prose
-state — "I set suppression; skip 8.5.2-8.5.4" — and walks past those substeps.
 
 ### 8.5.2 Empty-state short-circuit
 
@@ -618,7 +622,7 @@ TELEMETRY=~/.gstack/analytics/CJ_CJ_personal-pipeline.jsonl
 # bust raw shell-interpolated JSON; jq -nc + --arg is the contract-preserving
 # form. Falls back to a sanitized echo if jq is missing (shouldn't happen
 # in this workbench — jq is a declared dependency).
-_MODE="auto"
+if [ -n "$SUPPRESS_FINAL_GATE" ]; then _MODE="auto-suppressed"; else _MODE="auto"; fi
 if command -v jq >/dev/null 2>&1; then
   jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg mode "$_MODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,mode:$mode,ts:$ts}' >> "$TELEMETRY"
@@ -657,14 +661,10 @@ if [ "$INVOCATION_COUNT" -ge 6 ] && [ $(( (INVOCATION_COUNT - 6) % 5 )) -eq 0 ];
   else
     SUNSET_REC="KEEP"
   fi
-  # AskUserQuestion: show prior 5 runs + recommendation; user picks keep/delete
-  # BUT: if $SUPPRESS_FINAL_GATE is set, skip the AUQ entirely (wrapper owns
-  # sunset cadence for wrapper-invoked runs).
 fi
 ```
 
-If `$SUPPRESS_FINAL_GATE` is non-empty: skip the AskUserQuestion below. Proceed
-to Step 9.3 directly.
+**STOP**: if `$SUPPRESS_FINAL_GATE` is non-empty, do NOT render the AskUserQuestion below. Proceed directly to Step 9.3. (The suppression directive is prose-only — bash variables don't persist across orchestrator-model Bash calls, so the model carries the suppression flag as prose state from Step 1.)
 
 AskUserQuestion (only if `INVOCATION_COUNT >= 6` AND `$SUPPRESS_FINAL_GATE` is empty):
 
@@ -729,7 +729,7 @@ the orchestrator (Step 5.2) or escalated via `RESULT: ESCALATION_NEEDED=...`
 
 When `/CJ_personal-pipeline` is invoked with `--suppress-final-gate` (typically by a wrapper skill like `/CJ_ship-feature` that runs the pipeline as an Agent subagent and consumes the decision log itself):
 
-- Step 8.5's AUQ is skipped; tracker journal records `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved; decisions at $DECISION_LOG`; `END_STATE=green` (provided no halt fired earlier).
+- Step 8.5's AUQ is skipped. Tracker journal records `[auto-pipeline-clean]` (empty-state: zero Taste, zero User-Challenge-Approved — matches 8.5.2's standalone semantics) OR `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved; decisions at $DECISION_LOG` (non-empty). `END_STATE=green` (provided no halt fired earlier).
 - Step 9.2's sunset-checkpoint AUQ is skipped; telemetry write (Step 9.1) is unchanged so counts stay accurate; wrapper owns sunset cadence.
 - Decision log path defaults to standalone unless the caller also sets `GSTACK_PIPELINE_DECISION_LOG_PATH` to override. The pair is the wrapper contract; using the flag without the env var emits a stderr warning at Step 1 and is supported but not recommended (would mingle suppressed decisions with standalone-run history).
 - Rationale: subagents cannot reach AskUserQuestion (S000026 spike); a Step 8.5 or 9.2 AUQ from inside a wrapper-dispatched subagent would silently fail. The flag makes that unreachability explicit and lets the wrapper handle decision surfacing itself (typically via `/ship`'s diff review).

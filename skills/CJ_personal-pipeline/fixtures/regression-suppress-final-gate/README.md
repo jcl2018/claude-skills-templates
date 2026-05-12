@@ -11,9 +11,11 @@ Two cases under one fixture:
 1. **With-flag path** — invoking with `--suppress-final-gate` and a custom
    decision-log path. Step 8.5 must NOT surface its AUQ. Step 9.2 sunset must
    NOT surface its AUQ even if invocation count would normally trigger it.
-   `[auto-final-gate-suppressed]` tracker journal entry must appear. Decisions
-   land in the wrapper-specified log path, not the standalone one. Telemetry
-   write at Step 9.1 happens normally.
+   Tracker journal entry: `[auto-pipeline-clean]` (zero Taste + zero
+   User-Challenge-Approved) OR `[auto-final-gate-suppressed] N mechanical, M
+   taste, K user-challenge-approved` (non-empty). Decisions land in the
+   wrapper-specified log path, not the standalone one. Telemetry write at
+   Step 9.1 happens normally with `mode: "auto-suppressed"`.
 
 2. **No-flag regression path** — invoking the same design doc WITHOUT the flag
    must behave exactly as v2.1.3 did: 8.5 surfaces (or empty-state short-circuits),
@@ -49,7 +51,8 @@ export GSTACK_PIPELINE_DECISION_LOG_PATH="$WRAPPER_LOG"
 
 - Step 1 stdout: NO warning about missing env var (because env var is set).
 - Step 8.5: no AskUserQuestion fires. Tracker journal at `<WORK_ITEM>/<TRACKER>.md`
-  contains a line matching `[auto-final-gate-suppressed] \d+ mechanical, \d+ taste, \d+ user-challenge-approved; decisions at /tmp/cj-pipeline-suppress-smoke-.*\.jsonl`.
+  contains EITHER `[auto-pipeline-clean]` (if the run had zero Taste + zero
+  User-Challenge-Approved decisions) OR a line matching `[auto-final-gate-suppressed] \d+ mechanical, \d+ taste, \d+ user-challenge-approved; decisions at /tmp/cj-pipeline-suppress-smoke-.*\.jsonl` (if non-empty).
 - Step 9.1: telemetry line appended to `~/.gstack/analytics/CJ_CJ_personal-pipeline.jsonl`
   with `end_state=green` (assuming no earlier halt).
 - Step 9.2: no AskUserQuestion fires even on a contrived invocation 6 (test by
