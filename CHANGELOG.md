@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+## [2.1.2] - 2026-05-11
+
+### Fixed
+
+- `/CJ_qa-work-item` E2E subagent no longer silently degrades to structural source inspection when an E2E row needs to invoke a `/skill` command. The Step 7 subagent prompt now lists Skill alongside Read/Bash/Grep/Glob and explicitly forbids the structural-fallback shortcut. Behavior change for any user-story whose TEST-SPEC E2E rows describe user-facing flows — verdicts are now real `green`/`red` instead of `ambiguous via structural inspection` (D000018).
+
+### Added
+
+- Step 4.5 tool-need classifier in `/CJ_qa-work-item` partitions each E2E row into one of four categories (`read-only`, `skill-invoking`, `interactive`, `recursive`). Rows the subagent can handle (read-only + skill-invoking) dispatch to the existing Step 7 subagent; rows that need AskUserQuestion or recursive Agent dispatch run parent-inline (new Step 7.5) with the orchestrator's full toolbelt. TEST-SPEC authors can force parent-inline via a `Tag: e2e-parent` cell override (D000018).
+- Step 6.5 `[qa-e2e-run-start]` journal marker + Step 8 scope-after-marker aggregation so re-runs don't pick up prior runs' verdicts. Step 8's row-number regex `\[qa-e2e\] (E[0-9]+) \(` anchors on the trailing `(` so `E1` no longer absorbs `E10`'s verdict on TEST-SPECs with 10+ rows (D000018 R5/R6 mitigations from ship-time adversarial review).
+
+### Changed
+
+- `tests/spike/subagent-capabilities/findings.md` appends a 2026-05-11 re-probe note correcting the implication-by-omission in the 2026-05-09 spike. Both `subagent_type: "claude"` and `"general-purpose"` have `Skill=yes` (the original spike's blind spot — the Step 7 prompt-text was the actual bug, not subagent capability).
+
+
 ## [2.1.1] - 2026-05-11
 
 **`/CJ_personal-pipeline` final summary now points at gstack `/qa` for web-app polish.** Adds `/qa` as a sibling entry to `/ship` inside Step 9.3's printed `Next:` block — one line, conditionally phrased ("if work-item touched a web app — visual / E2E polish"). When the pipeline finishes a green run, users now see `/qa` alongside `/ship` instead of having to remember it exists.

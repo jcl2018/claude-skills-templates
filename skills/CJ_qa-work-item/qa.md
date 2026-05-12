@@ -216,6 +216,60 @@ attempting to execute ambiguous prose.
 - **For defect/task: E2E always empty** (skipped per type dispatch); proceed
   to gate transition / [qa-pass] after Step 6 if smoke green.
 
+### Step 4.5: E2E Row Tool-Need Classifier (user-story only)
+
+For type = defect or type = task: skip this sub-step (`E2E_ROWS` already empty).
+
+For user-stories with non-empty `E2E_ROWS`, classify each row into one of four
+tool-need categories. The classifier determines whether the row dispatches to
+the subagent (Step 7) or runs parent-inline (Step 7.5).
+
+| Category | Definition | Execution path |
+|---|---|---|
+| `read-only` | Row can be verified using only Read / Bash / Grep / Glob (e.g., file exists at path, function is exported, exit code of a script) | Subagent (Step 7) |
+| `skill-invoking` | Row requires invoking a `/skill` command (e.g., the Expected Outcome mentions running `/CJ_*`, `/qa`, etc.) | Subagent (Step 7) — the subagent has the Skill tool |
+| `interactive` | Row requires AskUserQuestion (e.g., Expected Outcome describes a user-decision prompt the QA must answer to proceed) | Parent-inline (Step 7.5) |
+| `recursive` | Row requires dispatching an Agent / spawning subagents (e.g., row verifies `/CJ_personal-pipeline` which itself spawns Phase 1/2/3 subagents) | Parent-inline (Step 7.5) |
+
+**Classification heuristic:**
+
+1. **Explicit override (preferred):** If the row's `Tag` column contains the
+   token `e2e-parent`, classify as `interactive` (parent-inline) regardless of
+   content. This is the deterministic escape hatch for ambiguous rows.
+2. **Recursive signal:** If the row's `Steps` or `Expected Outcome` mentions
+   dispatching an Agent / spawning a subagent / running `/CJ_personal-pipeline`,
+   classify as `recursive`.
+3. **Interactive signal:** If the row's `Steps` or `Expected Outcome` mentions
+   AskUserQuestion / answering a prompt / picking an option mid-flow, classify
+   as `interactive`.
+4. **Skill-invoking signal:** If the row's `Steps` or `Expected Outcome`
+   references a `/skill-name` invocation, classify as `skill-invoking`.
+5. **Default:** classify as `read-only`. Most TEST-SPEC E2E rows describe
+   verification-by-inspection of a finished implementation.
+
+**Ambiguity rule:** when in doubt between `read-only` and `skill-invoking`,
+pick `skill-invoking` — the subagent has the Skill tool and the row will
+still execute. When in doubt between subagent-eligible (`read-only` /
+`skill-invoking`) and parent-inline (`interactive` / `recursive`), pick
+parent-inline — parent has the full toolbelt and the row will still run.
+Parent-inline is the safer fallback because it never silently degrades to
+structural inspection.
+
+**Parent-inline cap (R3 mitigation):** if more than 5 rows classify as
+`interactive` or `recursive`, mark the surplus rows (rows 6+) as
+`deferred-to-manual`. They get a `[qa-e2e]` entry with `ambiguous —
+deferred to manual (parent-inline cap reached)` instead of running. Surface
+the cap in the Step 8 aggregate verdict so the user sees the deferral.
+
+Partition `E2E_ROWS` into two groups:
+
+- `E2E_ROWS_SUBAGENT` — rows classified `read-only` or `skill-invoking`
+- `E2E_ROWS_PARENT` — rows classified `interactive` or `recursive` (up to 5),
+  plus surplus `deferred-to-manual` rows
+
+If both groups are empty (every row deferred): proceed to Step 9 with
+`E2E_VERDICT = ambiguous` (all rows deferred to manual).
+
 ## Step 5: Run Smoke
 
 For each row in `SMOKE_ROWS`:
@@ -274,29 +328,69 @@ AskUserQuestion:
 
 Default: re-run after fix. On `Re-run`: stop and let the user fix the
 implementation, then re-invoke `/CJ_qa-work-item`. On `Skip smoke`: continue
-to Step 7 with `SMOKE_VERDICT = red` recorded in the tracker; the parent
+to Step 6.5 with `SMOKE_VERDICT = red` recorded in the tracker; the parent
 skill caller bears responsibility. On `Abort`: print "Aborted." and exit.
+
+## Step 6.5: E2E Run Marker (D000018)
+
+Before any `[qa-e2e]` entry is written (by Step 7 subagent or Step 7.5
+parent-inline), the orchestrator writes a run-start marker to the TRACKER's
+`## Journal` section. The marker scopes Step 8's verdict aggregation to
+entries from THIS run, so prior runs' entries do not pollute the verdict
+math (D000018 R5 mitigation).
+
+For type = defect or type = task: skip this step (no E2E phase; the type
+dispatch in Step 4 already set `E2E_ROWS = []`).
+
+For user-stories: capture a run ID and write the marker.
+
+```bash
+QA_RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+QA_RUN_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+```
+
+Append the marker entry verbatim:
+
+```
+- {YYYY-MM-DD} [qa-e2e-run-start] RUN_ID={QA_RUN_ID} commit={QA_RUN_COMMIT}
+```
+
+Store `QA_RUN_ID` for use in Step 8 (the aggregator finds the LATEST marker
+line and only considers `[qa-e2e]` entries appearing after it).
+
+**Idempotency note:** the marker is written every run (even when Step 3's
+NO-OP path is reached, control never gets here — Step 3 exits before Step
+6.5). On re-runs that go through to E2E, each run gets its own marker; Step
+8 always scopes to the latest one.
 
 ## Step 7: Spawn QA Engineer Subagent (E2E — user-story only)
 
 For type = defect or type = task: skip to Step 9 (the type dispatch in Step 4
 already set `E2E_ROWS = []`; this guard re-confirms for clarity).
 
-If `E2E_ROWS` is empty: skip to Step 9.
+If `E2E_ROWS_SUBAGENT` is empty (only parent-inline rows, or all rows
+deferred): skip to Step 7.5.
 
-Otherwise, dispatch the QA engineer subagent via the Agent tool. The prompt
-is structured **stable preamble first, variable parts last** for prompt-cache
-friendliness (Premise: cache amortizes the stable preamble across runs).
+Otherwise, dispatch the QA engineer subagent via the Agent tool with only the
+subagent-eligible rows from Step 4.5's partition (`E2E_ROWS_SUBAGENT`). The
+prompt is structured **stable preamble first, variable parts last** for
+prompt-cache friendliness (Premise: cache amortizes the stable preamble
+across runs).
 
 **Stable preamble** (identical every run; cacheable):
 
 ```
 You are a QA engineer. Your job is to verify each E2E acceptance criterion in
-the TEST-SPEC.md you are given.
+the TEST-SPEC.md you are given (filtered to the subset listed in the variable
+parts below — the parent orchestrator handles interactive/recursive rows separately).
 
-For each row in the ## E2E Tests table:
+For each row in the filtered E2E rows list:
 1. Read the Scenario, Steps, Expected Outcome, Rubric columns.
-2. Use Read, Bash, Grep, and Glob tools to verify the Expected Outcome.
+2. Use Read, Bash, Grep, Glob, AND Skill tools to verify the Expected Outcome.
+   - When an E2E row requires running a /skill command, invoke it directly
+     via the Skill tool. Do not substitute structural source inspection
+     ("file X exists at path Y") for actually running the skill — the row's
+     Expected Outcome describes user-observable behavior, not code structure.
 3. Categorize the result:
    - green: criterion verified to pass
    - red: criterion verified to fail
@@ -305,10 +399,17 @@ For each row in the ## E2E Tests table:
    in this format:
    - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): {green|red|ambiguous} — {1-line summary}
    On red or ambiguous, include a file path and line range that supports
-   the verdict (e.g., "see scripts/test.sh:42").
+   the verdict (e.g., "see scripts/test.sh:42"). If you marked a row
+   ambiguous because the verification needed AskUserQuestion or recursive
+   Agent dispatch (tools you don't have), say so explicitly in the summary
+   (e.g., "needs AUQ — defer to parent-inline"); the parent orchestrator
+   will re-run such rows itself.
 
 CONSTRAINTS:
-- Do NOT spawn subagents (no Agent tool calls). You are the leaf node.
+- Do NOT spawn subagents (no Agent tool calls). You are the leaf node. If a
+  row genuinely requires recursive Agent dispatch, mark it ambiguous with
+  the reason "needs recursive Agent — defer to parent-inline" — the parent
+  will handle it.
 - Do NOT modify source files. The only file you write to is the TRACKER.md
   provided below (Edit/Write to append journal entries).
 - Do NOT exceed 5 minutes of wall-clock work. If you can't verify a row
@@ -335,13 +436,16 @@ TEST-SPEC path: {TEST_SPEC}
 TRACKER path: {TRACKER}
 WORK_ITEM_ID: {WORK_ITEM_ID}
 SMOKE_VERDICT (already run): {SMOKE_VERDICT}
+Rows to verify (subagent-eligible only): {E#, E#, ...}
+Rows the parent will handle separately (interactive/recursive): {E#, E#, ...}
 
-Now run the E2E verification per the stable preamble above.
+Now run the E2E verification per the stable preamble above. Verify ONLY the
+subagent-eligible rows listed above; the parent runs the others inline.
 ```
 
 Invoke the Agent tool with this prompt and a 5-minute timeout
 (`timeout: 300000`). Use `subagent_type: "general-purpose"` (the QA work
-needs full filesystem read + bash; no specialized agent type matches).
+needs full filesystem read + bash + Skill; no specialized agent type matches).
 
 Capture the subagent's response into `SUBAGENT_SUMMARY`. Capture the wall-
 clock duration into `SUBAGENT_DURATION_S`.
@@ -366,18 +470,117 @@ Default: re-run. On Re-run: re-invoke Step 7 once (no auto-retry beyond
 this; if it times out again, re-prompt). On Skip: proceed to Step 9 with
 `E2E_VERDICT = unknown`; gates will not transition. On Abort: stop.
 
-## Step 8: Process Subagent Result
+## Step 7.5: Parent-Inline E2E (interactive / recursive rows)
 
-Parse `SUBAGENT_SUMMARY` for verdict signals:
+For type = defect or type = task: skip to Step 8.
 
-- `all green` / `N green` (no mention of red or ambiguous) → `E2E_VERDICT = green`
-- `red` / `failed` mentioned → `E2E_VERDICT = red`
-- `ambiguous` / `need user` / `unable to determine` → `E2E_VERDICT = ambiguous`
+If `E2E_ROWS_PARENT` is empty (no interactive/recursive rows from Step 4.5):
+skip to Step 8.
 
-Append a summary journal entry:
+Otherwise, the parent orchestrator runs the partitioned rows inline using its
+full toolbelt (Skill + AskUserQuestion + Agent). Parent-inline execution is
+gated by the same smoke-red short-circuit as Step 7 — if smoke was red and the
+user chose to skip-and-proceed, parent-inline still runs (consistent with
+Step 7's "Skip smoke" path); if the user aborted at Step 6, control never
+reaches here.
+
+For each row in `E2E_ROWS_PARENT`:
+
+1. **Deferred rows (parent-inline cap exceeded):** if the row was marked
+   `deferred-to-manual` in Step 4.5, do NOT execute. Write a journal entry:
+   ```
+   - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): ambiguous — deferred to manual (parent-inline cap reached at 5 rows) [parent-inline]
+   ```
+   The trailing `[parent-inline]` source tag is consistent with executed
+   parent-inline entries (Step 7.5.5) so the Step 8 aggregator's source
+   bookkeeping stays uniform. Continue to the next row.
+
+2. **Recursive rows:** invoke the Agent tool per the row's Expected Outcome
+   (e.g., row references `/CJ_personal-pipeline` which itself spawns Phase
+   1/2/3 subagents). Capture the dispatched skill's result. Determine
+   verdict by inspecting the dispatched skill's RESULT line (lenient parse:
+   strip `>` prefixes and code fences) or by inspecting tracker journal
+   changes the row's Expected Outcome describes.
+
+3. **Interactive rows:** execute the Steps using the parent's full tool
+   surface. When the row's flow requires AskUserQuestion, invoke it; record
+   the user's answer in the journal entry's summary so the verdict is
+   auditable. When the row requires invoking a skill that prompts the user,
+   the parent's AUQ tool handles those prompts natively.
+
+4. Categorize the result per the same rubric as Step 7 (`green` / `red` /
+   `ambiguous`).
+
+5. Append a journal entry in the **identical shape** the subagent emits
+   (Step 8 aggregator joins on this format):
+
+   ```
+   - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): {green|red|ambiguous} — {1-line summary} [parent-inline]
+   ```
+
+   The trailing `[parent-inline]` tag is the source marker for Step 8's
+   aggregator. The verdict (`green` / `red` / `ambiguous`) and `E#` are
+   identical-shape with subagent entries; only the source tag differs.
+
+6. **Parent-inline timeout:** parent-inline has no hard 5-minute cap (the
+   parent runs in user context, not a separate Agent context). However, if a
+   single row's execution exceeds 5 minutes of wall-clock, mark the row
+   `ambiguous — exceeded 5-minute soft cap` and continue. Surface the soft
+   timeout in the Step 8 aggregate.
+
+After all `E2E_ROWS_PARENT` rows are processed, store the per-row verdicts
+in `PARENT_VERDICTS` (parallel to the subagent's per-row writes).
+
+If `E2E_ROWS_SUBAGENT` was empty (Step 7 was skipped), set
+`SUBAGENT_DURATION_S = 0` and `SUBAGENT_SUMMARY = "(no subagent-eligible rows)"`
+so Step 8's aggregate prints coherently.
+
+## Step 8: Process E2E Results (aggregate subagent + parent-inline)
+
+Aggregate `[qa-e2e]` entries from both sources by row number, scoped to
+this run via the Step 6.5 marker:
+
+1. **Scope to this run (D000018 R5 mitigation).** Find the line number of
+   the LATEST `[qa-e2e-run-start]` entry in the TRACKER (matches the
+   `QA_RUN_ID` written at Step 6.5). Only consider `[qa-e2e]` entries
+   AFTER that line. Entries before the latest marker are from prior runs
+   and MUST NOT be aggregated — they may belong to a different commit, a
+   different partition decision, or pre-D000018 schema.
+
+   Concretely:
+   ```bash
+   MARKER_LINE=$(grep -n '\[qa-e2e-run-start\]' "$TRACKER" | tail -1 | cut -d: -f1)
+   # then aggregate only journal lines with index > MARKER_LINE
+   ```
+
+2. **Anchored row-number match.** Match each E2E entry's row number with
+   an anchor on the trailing ` (` to prevent `E1` matching `E10`, `E11`,
+   etc. Regex: `\[qa-e2e\] (E[0-9]+) \(` (capture `E[0-9]+` followed by a
+   literal space and `(`). The `(` is always present because the entry
+   format is `[qa-e2e] E# (AC-...): ...` — see the format spec in Step 7
+   stable preamble and Step 7.5.5.
+
+3. For each distinct row number `E#`, take the most recent entry (last
+   wins) as the row's authoritative verdict. Source tag `[parent-inline]`
+   is preserved for audit; the verdict word (`green` / `red` /
+   `ambiguous`) is what counts.
+
+4. If a row appears in neither source (classifier bug — should not happen),
+   record an `[impl-finding] qa-e2e classifier missed row E#; treating as
+   ambiguous` entry and treat the row as ambiguous.
+
+Compute aggregate `E2E_VERDICT` from the union of per-row verdicts:
+
+- `green` — all rows green
+- `red` — at least one row red
+- `ambiguous` — no red rows but at least one ambiguous (including
+  `deferred-to-manual` and `exceeded 5-minute soft cap`)
+
+Append a summary journal entry. The summary includes the source split so
+the user sees what the subagent vs parent-inline contributed:
 
 ```
-- {YYYY-MM-DD} [qa-e2e-summary] {E2E_VERDICT} ({SUBAGENT_DURATION_S}s): {SUBAGENT_SUMMARY verbatim}
+- {YYYY-MM-DD} [qa-e2e-summary] {E2E_VERDICT} ({SUBAGENT_DURATION_S}s subagent; {N_PARENT} rows parent-inline; {N_DEFERRED} deferred): {SUBAGENT_SUMMARY verbatim}
 ```
 
 **On `E2E_VERDICT = green`:** silent path. Continue to Step 9. NO
@@ -416,7 +619,9 @@ No default — the user must adjudicate. Process the choice accordingly.
 ## Step 9: Transition Phase 2 Gates / Record [qa-pass] (per type, if green)
 
 Only if `SMOKE_VERDICT = green` AND `E2E_VERDICT = green` (or `E2E_ROWS`
-empty AND smoke green):
+empty AND smoke green; the partition split into `E2E_ROWS_SUBAGENT` /
+`E2E_ROWS_PARENT` doesn't change the verdict semantics here — the aggregate
+covers both):
 
 ### Step 9.user-story
 
@@ -571,11 +776,49 @@ must:
 - Not spawn its own subagents (anti-recursion)
 - Return a 1-2 sentence summary, not a verbose findings dump
 - Write detailed per-row findings to the tracker journal as `[qa-e2e]` entries
+- **Entry format (D000018 R6 mitigation):** every `[qa-e2e]` entry MUST
+  use the exact shape `[qa-e2e] E# (AC-...): verdict — summary`. The
+  literal ` (` after the row number is the Step 8 aggregator's anchor;
+  without it, `E1` would match `E10`, `E11`, etc. The aggregator regex
+  is `\[qa-e2e\] (E[0-9]+) \(` so the trailing ` (` is mandatory.
+- **Tool surface (re-probed 2026-05-11):** Read, Bash, Grep, Glob, Skill.
+  AskUserQuestion and Agent are NOT in the subagent's deferred-tools list;
+  rows requiring those are partitioned by Step 4.5 into parent-inline
+  (Step 7.5) instead. Skill-invoking rows are subagent-eligible — the
+  subagent has the Skill tool and Step 7's prompt explicitly grants
+  permission.
 
 The subagent's filesystem boundary is documented but not enforced —
 verification relies on the prompt instruction. If the subagent violates
 the contract (e.g., modifies source files), the user notices via git diff
 on the next commit.
+
+## Parent-Inline E2E Contract (D000018)
+
+Step 7.5 is the parent-orchestrator counterpart to Step 7 for rows the
+subagent cannot handle (interactive / recursive). Contract:
+
+- Uses the parent's full toolbelt: Skill + AskUserQuestion + Agent.
+- Per-row journal entry shape is **identical** to subagent entries except
+  for a trailing `[parent-inline]` source tag. The literal ` (` after the
+  row number is mandatory (Step 8's aggregator regex `\[qa-e2e\] (E[0-9]+) \(`
+  anchors on it — D000018 R6 mitigation). Step 8 aggregates both sources
+  by row number; the tag is for audit, not for verdict math.
+- Capped at 5 rows per run (R3 mitigation). Surplus rows are recorded as
+  `ambiguous — deferred to manual (parent-inline cap reached at 5 rows)`
+  so the aggregate verdict is visible and accurate. Deferred entries also
+  follow the `E# (AC-...): ambiguous — ...` shape with the trailing ` (`
+  anchor so the aggregator scopes them correctly.
+- Soft 5-minute per-row wall-clock cap. The parent doesn't kill the row
+  (no separate process), but rows exceeding the soft cap are marked
+  ambiguous so a runaway row doesn't block the whole run.
+- Smoke-red short-circuit (Step 6) still gates parent-inline execution.
+  Step 7.5 runs only if Step 6 didn't abort.
+- **Run-scoping (D000018 R5 mitigation):** Step 6.5 writes a
+  `[qa-e2e-run-start] RUN_ID=...` marker before any `[qa-e2e]` entry.
+  Step 8 only aggregates entries appearing AFTER the latest marker. This
+  prevents prior-run entries (including pre-D000018 entries without source
+  tags) from polluting the verdict on re-runs.
 
 ## Spec Deviations
 
@@ -589,3 +832,22 @@ underlying motivation (grep-friendly output: `grep '\[qa-' TRACKER.md`)
 without polluting the section structure. If grep-friendliness proves
 insufficient in practice, a future iteration can lift QA findings into a
 dedicated section by extending the `tracker-user-story.md` template.
+
+The E2E execution surface uses a two-source model (Step 7 subagent + Step
+7.5 parent-inline) introduced by D000018 to fix silent degradation to
+structural inspection on skill-invoking / interactive / recursive rows.
+The classifier in Step 4.5 partitions rows by tool-need; the aggregator in
+Step 8 reunifies them. Prior to D000018, every E2E row went to the
+subagent regardless of capability fit, which caused recurring
+`ambiguous via structural inspection` outcomes across S000027, S000028,
+S000022, S000020, and S000030.
+
+D000018 also introduces a `[qa-e2e-run-start] RUN_ID=...` marker written
+at Step 6.5 that scopes Step 8's verdict aggregation to entries from the
+current run only. The marker is a journal entry like any other; pre-fix
+trackers without the marker are still readable but the aggregator skips
+them (no marker found → no entries to aggregate → vacuous verdict; re-run
+QA writes a fresh marker and the aggregator picks up the new entries).
+Row-number matching uses the regex `\[qa-e2e\] (E[0-9]+) \(` with the
+trailing ` (` as anchor, preventing `E1` from absorbing `E10`'s entry on
+TEST-SPECs with ≥10 E2E rows.
