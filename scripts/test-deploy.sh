@@ -855,6 +855,159 @@ else
 fi
 teardown_env
 
+# Test T9: rules/ deploy
+echo "Test T9: rules/ deploy"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+# T9a: each rule in rules/ is deployed to RULES_TARGET
+if [ -d "$REPO_ROOT/rules" ]; then
+  rules_found=0
+  for rule_file in "$REPO_ROOT/rules"/*.md; do
+    [ -f "$rule_file" ] || continue
+    rules_found=$((rules_found + 1))
+    rule_name=$(basename "$rule_file")
+    if [ -f "$SKILLS_DEPLOY_RULES_TARGET/$rule_name" ]; then
+      ok "rules/$rule_name deployed to RULES_TARGET"
+    else
+      fail_test "rules/$rule_name not deployed (expected at $SKILLS_DEPLOY_RULES_TARGET/$rule_name)"
+    fi
+  done
+  [ "$rules_found" -eq 0 ] && ok "rules/ is empty — nothing to deploy (T9 vacuously passes)"
+else
+  ok "rules/ directory does not exist — nothing to deploy (T9 vacuously passes)"
+fi
+
+# T9b: deployed content matches source
+if [ -d "$REPO_ROOT/rules" ]; then
+  for rule_file in "$REPO_ROOT/rules"/*.md; do
+    [ -f "$rule_file" ] || continue
+    rule_name=$(basename "$rule_file")
+    if diff -q "$rule_file" "$SKILLS_DEPLOY_RULES_TARGET/$rule_name" >/dev/null 2>&1; then
+      ok "rules/$rule_name content matches source"
+    else
+      fail_test "rules/$rule_name deployed content differs from source"
+    fi
+  done
+else
+  ok "rules/ does not exist — T9b vacuously passes"
+fi
+
+# T9c: --no-overwrite emits WARN (not PRESERVE) for drifted rule
+if [ -d "$REPO_ROOT/rules" ]; then
+  first_rule=""
+  for rule_file in "$REPO_ROOT/rules"/*.md; do
+    [ -f "$rule_file" ] || continue
+    first_rule="$rule_file"
+    break
+  done
+  if [ -n "$first_rule" ]; then
+    rule_name=$(basename "$first_rule")
+    echo "drifted content" > "$SKILLS_DEPLOY_RULES_TARGET/$rule_name"
+    no_overwrite_output=$("$DEPLOY" install --no-overwrite 2>&1 || true)
+    if echo "$no_overwrite_output" | grep -q "WARN:.*$rule_name"; then
+      ok "--no-overwrite emits WARN for drifted rule"
+    else
+      fail_test "--no-overwrite did not emit WARN for drifted rule (T000021 regressed)"
+    fi
+    if diff -q "$SKILLS_DEPLOY_RULES_TARGET/$rule_name" "$first_rule" >/dev/null 2>&1; then
+      fail_test "--no-overwrite incorrectly overwrote drifted rule"
+    else
+      ok "--no-overwrite kept drifted rule intact"
+    fi
+  fi
+fi
+teardown_env
+
+# Test T9d: doctor reports MISSING for undeployed rule
+echo "Test T9d: doctor MISSING for undeployed rule"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+if [ -d "$REPO_ROOT/rules" ]; then
+  first_rule=""
+  for rule_file in "$REPO_ROOT/rules"/*.md; do
+    [ -f "$rule_file" ] || continue
+    first_rule="$rule_file"
+    break
+  done
+  if [ -n "$first_rule" ]; then
+    rule_name=$(basename "$first_rule")
+    rm -f "$SKILLS_DEPLOY_RULES_TARGET/$rule_name"
+    doctor_output=$("$DEPLOY" doctor 2>&1 || true)
+    if echo "$doctor_output" | grep -q "MISSING: $rule_name"; then
+      ok "doctor reports MISSING for undeployed rule"
+    else
+      fail_test "doctor did not report MISSING for removed rule $rule_name"
+    fi
+  else
+    ok "rules/ is empty — T9d vacuously passes"
+  fi
+else
+  ok "rules/ does not exist — T9d vacuously passes"
+fi
+teardown_env
+
+# Test T9e: doctor reports WARN for drifted rule
+echo "Test T9e: doctor WARN for drifted rule"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+if [ -d "$REPO_ROOT/rules" ]; then
+  first_rule=""
+  for rule_file in "$REPO_ROOT/rules"/*.md; do
+    [ -f "$rule_file" ] || continue
+    first_rule="$rule_file"
+    break
+  done
+  if [ -n "$first_rule" ]; then
+    rule_name=$(basename "$first_rule")
+    echo "drifted content" >> "$SKILLS_DEPLOY_RULES_TARGET/$rule_name"
+    doctor_output=$("$DEPLOY" doctor 2>&1 || true)
+    if echo "$doctor_output" | grep -q "WARN: $rule_name"; then
+      ok "doctor reports WARN for drifted rule"
+    else
+      fail_test "doctor did not report WARN for drifted rule $rule_name"
+    fi
+  else
+    ok "rules/ is empty — T9e vacuously passes"
+  fi
+else
+  ok "rules/ does not exist — T9e vacuously passes"
+fi
+teardown_env
+
+# Test T9g: remove single skill does NOT remove deployed rules
+echo "Test T9g: remove single skill keeps deployed rules"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+if [ -d "$REPO_ROOT/rules" ] && find "$SKILLS_DEPLOY_RULES_TARGET" -name "*.md" 2>/dev/null | grep -q .; then
+  "$DEPLOY" remove CJ_system-health --force >/dev/null 2>&1 || true
+  remaining_rules=$(find "$SKILLS_DEPLOY_RULES_TARGET" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$remaining_rules" -gt 0 ]; then
+    ok "remove single skill keeps deployed rules intact"
+  else
+    fail_test "remove single skill incorrectly deleted deployed rules"
+  fi
+else
+  ok "rules/ empty or not deployed — T9g vacuously passes"
+fi
+teardown_env
+
+# Test T9f: remove --all also removes deployed rules
+echo "Test T9f: remove --all removes deployed rules"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+if [ -d "$REPO_ROOT/rules" ] && [ "$(ls -A "$SKILLS_DEPLOY_RULES_TARGET" 2>/dev/null)" ]; then
+  "$DEPLOY" remove --all --force >/dev/null 2>&1
+  remaining_rules=$(find "$SKILLS_DEPLOY_RULES_TARGET" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$remaining_rules" -eq 0 ]; then
+    ok "remove --all removes deployed rules"
+  else
+    fail_test "remove --all left $remaining_rules rule file(s) in RULES_TARGET"
+  fi
+else
+  ok "rules/ empty or not deployed — T9f vacuously passes"
+fi
+teardown_env
+
 echo ""
 if [ "$ERRORS" -eq 0 ]; then
   echo "All tests passed."

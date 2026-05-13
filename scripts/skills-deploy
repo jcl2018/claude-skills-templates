@@ -429,6 +429,8 @@ do_install() {
       [ -f "$rule_file" ] || continue
       local rule_name
       rule_name=$(basename "$rule_file")
+      # Skip documentation files not intended as global Claude Code instructions.
+      case "$rule_name" in README.md|NOTES.md|DEVELOPMENT.md|CHANGELOG.md) continue ;; esac
       local rule_dst="$RULES_TARGET/$rule_name"
       if [ -f "$rule_dst" ]; then
         local rule_src_sum rule_dst_sum
@@ -437,14 +439,14 @@ do_install() {
         if [ "$rule_src_sum" = "$rule_dst_sum" ]; then
           continue
         elif [ "$overwrite" = true ]; then
-          cp "$rule_file" "$rule_dst"
+          cp "$rule_file" "$rule_dst" || { echo "  WARN: failed to copy $rule_name (skipping)"; continue; }
           echo "  RULE: updated $rule_name"
           rules_installed=$((rules_installed + 1))
         else
-          echo "  PRESERVE: $rule_name — rule exists with different content (--no-overwrite, keeping deployed copy)"
+          echo "  WARN: $rule_name — rule exists with different content (--no-overwrite, keeping deployed copy; routing drift possible)"
         fi
       else
-        cp "$rule_file" "$rule_dst"
+        cp "$rule_file" "$rule_dst" || { echo "  WARN: failed to copy $rule_name (skipping)"; continue; }
         echo "  RULE: installed $rule_name"
         rules_installed=$((rules_installed + 1))
       fi
@@ -488,12 +490,12 @@ do_install() {
 
 do_remove() {
   require_jq
-  local force=false
+  local force=false remove_all=false
   local skills=()
 
   for arg in "$@"; do
     case "$arg" in
-      --all) while IFS= read -r s; do skills+=("$s"); done < <(manifest_read | jq -r '.skills // {} | keys[]'); continue ;;
+      --all) remove_all=true; while IFS= read -r s; do skills+=("$s"); done < <(manifest_read | jq -r '.skills // {} | keys[]'); continue ;;
       --force) force=true; continue ;;
       *) skills+=("$arg") ;;
     esac
@@ -570,21 +572,22 @@ do_remove() {
       fi
     done
 
-    # Clean up rules files for templates-only entries
-    if [ "$tpl_only" = true ] && [ -d "$RULES_SRC" ]; then
-      for rule_file in "$RULES_SRC"/*.md; do
-        [ -f "$rule_file" ] || continue
-        local rule_name
-        rule_name=$(basename "$rule_file")
-        if [ -f "$RULES_TARGET/$rule_name" ]; then
-          rm -f "$RULES_TARGET/$rule_name" && echo "  RULE: removed $rule_name"
-        fi
-      done
-    fi
-
     manifest=$(echo "$manifest" | jq --arg n "$name" 'del(.skills[$n])')
     removed=$((removed + 1))
   done
+
+  # Clean up deployed rules only when removing all skills (rules are global, not per-skill).
+  if [ "$remove_all" = true ] && [ -d "$RULES_SRC" ]; then
+    for rule_file in "$RULES_SRC"/*.md; do
+      [ -f "$rule_file" ] || continue
+      local rule_name
+      rule_name=$(basename "$rule_file")
+      case "$rule_name" in README.md|NOTES.md|DEVELOPMENT.md|CHANGELOG.md) continue ;; esac
+      if [ -f "$RULES_TARGET/$rule_name" ]; then
+        rm -f "$RULES_TARGET/$rule_name" && echo "  RULE: removed $rule_name" || true
+      fi
+    done
+  fi
 
   # Prune orphaned template owners (owners referencing skills no longer installed)
   local installed_skills
@@ -928,6 +931,37 @@ do_doctor() {
           warnings=$((warnings + 1))
         fi
       done
+    done
+    echo ""
+  fi
+
+  # Check deployed rules
+  if [ -d "$RULES_SRC" ]; then
+    echo "--- Rules ---"
+    local rules_ok=0 rules_drift=0 rules_missing=0
+    for rule_file in "$RULES_SRC"/*.md; do
+      [ -f "$rule_file" ] || continue
+      local rule_name
+      rule_name=$(basename "$rule_file")
+      case "$rule_name" in README.md|NOTES.md|DEVELOPMENT.md|CHANGELOG.md) continue ;; esac
+      local rule_dst="$RULES_TARGET/$rule_name"
+      if [ ! -f "$rule_dst" ]; then
+        echo "  MISSING: $rule_name — not deployed (run 'skills-deploy install' to deploy)"
+        errors=$((errors + 1))
+        rules_missing=$((rules_missing + 1))
+      else
+        local src_sum dst_sum
+        src_sum=$(file_checksum "$rule_file")
+        dst_sum=$(file_checksum "$rule_dst")
+        if [ "$src_sum" = "$dst_sum" ]; then
+          echo "  OK: $rule_name"
+          rules_ok=$((rules_ok + 1))
+        else
+          echo "  WARN: $rule_name — deployed copy differs from source (run 'skills-deploy install' to sync)"
+          warnings=$((warnings + 1))
+          rules_drift=$((rules_drift + 1))
+        fi
+      fi
     done
     echo ""
   fi

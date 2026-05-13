@@ -15,16 +15,8 @@ cd claude-skills-templates
 
 ## Skill routing
 
-When the user's request matches an available skill, invoke it:
-
-- "health check", "system status" -> /CJ_system-health
-- "validate company work item", "company workflow" -> /CJ_company-workflow
-- "validate personal work item", "personal workflow", "check work items", "work item tree" -> /CJ_personal-workflow
-- "scaffold work item", "convert design doc to work item", "create work item from design" -> /CJ_scaffold-work-item
-- "implement work item", "implement from spec", "build the user story" -> /CJ_implement-from-spec
-- "qa work item", "qa user story", "run smoke and e2e on this work item" -> /CJ_qa-work-item
-- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline", "auto mode" -> /CJ_personal-pipeline (v1.16.0+: auto-decision is the only mode; legacy `--auto` flag accepted as silent no-op for backwards compat)
-- "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest
+Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
+`./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
 ## CI/CD merge convention
 
@@ -190,7 +182,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | Script | What it does | When to run |
 |--------|-------------|-------------|
 | `setup.sh` | Bootstrap: clones-or-updates the repo and deploys all skills | First-time install on a new machine |
-| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` | After pulling the workbench, or to sync drift |
+| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` (also deploys `rules/*.md` → `~/.claude/rules/`) | After pulling the workbench, or to sync drift |
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
 | `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |

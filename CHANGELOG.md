@@ -16,6 +16,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `templates/CJ_personal-workflow/tracker-defect.md`: synced workbench source with deployed template — added post-v2.2 note about freestanding-file convention for new defects (D000019+); retained dir-wrapper note for legacy defects D000001-D000018.
 - `S000025_TRACKER.md`: cleared stale `blocked_by: S000024` (S000024 shipped v1.16.1), updated date, added deferral decision journal entry.
 
+## [2.2.2] - 2026-05-13
+
+### Added
+
+- `rules/skill-routing.md` — canonical global routing rules for top-level `CJ_*` pipelines and utilities. `skills-deploy install` now deploys this file to `~/.claude/rules/skill-routing.md`, making routing active in every Claude Code session (not just the workbench repo). Source of truth for routing; workbench `CLAUDE.md` is a stub pointer.
+- `scripts/skills-deploy`: rules/ deploy pipeline — installs `rules/*.md` → `~/.claude/rules/` during `install`, removes them on `remove --all`, reports MISSING/WARN/OK in `doctor`. Includes `--no-overwrite` WARN mode, documentation-file exclusion guard (README.md etc.), cp error recovery, and `remove_all` gate (single-skill remove does not touch rules).
+- `scripts/validate.sh` Check 11: verifies `rules/*.md` files are deployed to `~/.claude/rules/`; CI-safe (WARN when deploy target absent, not a hard fail on fresh checkouts).
+- `scripts/test-deploy.sh` T9 suite (T9a–T9g): tests for rules install, content-match, `--no-overwrite` WARN, doctor MISSING/WARN paths, `remove --all` cleanup, and regression guard (single-skill remove preserves rules).
+- `README.md` + `scripts/generate-readme.sh`: skills-deploy entry updated to describe the rules/ pipeline and T9 test suite.
+
+### Changed
+
+- `CLAUDE.md` skill routing section converted to a 2-line stub pointing at `rules/skill-routing.md`. Routing routes trimmed to top-level pipelines only: `/CJ_system-health`, `/CJ_ship-feature`, `/CJ_personal-pipeline`, `/CJ_suggest`. Internal step skills (scaffold/implement/qa) are no longer direct-routed; they are invoked transitively by pipeline orchestrators.
+- `rules/skill-routing.md`: tightened trigger phrases — removed overbroad `"auto mode"` trigger (was catching unrelated phrases globally); renamed `"health check"` to `"check installed skills"` / `"skill system health"` to avoid collision with gstack `/health` skill.
+
 ## [2.2.0] - 2026-05-12
 
 ### Added
