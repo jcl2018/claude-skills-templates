@@ -3,8 +3,26 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.0] - 2026-05-13
 
+### Changed (BREAKING)
 
+- **Renamed `/CJ_ship-feature` to `/CJ_run`.** Single unified public entry point for the CJ pipeline. The new name accurately reflects "run the pipeline" rather than being feature-specific. Direct callers of `/CJ_ship-feature` (scripts, aliases, memory files) must update — no backward-compat shim. Routing keys for both `/CJ_ship-feature` and `/CJ_personal-pipeline` now map to `/CJ_run`.
+- **`/CJ_personal-pipeline` removed from public routing.** Kept in `skills/` as the internal pipeline orchestrator invoked by `/CJ_run`; SKILL.md and catalog descriptions prefixed with "INTERNAL — invoked by /CJ_run. Do not call directly." Still invocable directly as an escape hatch, but no longer surfaced in routing rules.
+
+### Added
+
+- **`/CJ_run` Branch(g): no-arg branch scan.** `/CJ_run` with no arguments scans `work-items/` for in-progress user-stories on the current branch (Phase 1 fully green + Phase 2 implementer-owned gates unchecked + not yet QA'd or shipped). Single candidate → auto-dispatch. Multiple → emits `MULTI_CANDIDATE_AUQ_REQUIRED` marker for the orchestrator to render AskUserQuestion. Empty `work-items/` → graceful "Nothing to resume" message. bash 3.2 compatible (uses `while IFS= read -r`, not `mapfile`). Documents the canonical Phase 1 Gates block scoping for cross-skill use.
+- **`/CJ_run` Branch(f): work-item-dir input mode (placeholder).** Accepts a work-item directory path; phase-detection and dispatch table tracked under S000039 (blocked on F000016). v3.0.0 ships a clear-message placeholder that prints next-step guidance and exits 0; full impl_qa_ship/qa_ship/ship/open_pr/already_shipped/pr_unknown_state dispatch lands in the follow-up story.
+- **`work-items/features/ops/F000017_cj_run_entry_point/`** — feature scaffold with two child user-stories: S000038 (this rename + Branch g) and S000039 (Branch f phase-detection + dispatch, blocked on F000016).
+- **`work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/`** — feature scaffold from a prior `/office-hours` session for multi-story auto-iterate; included in this PR for traceability. Children S000036 and S000037 remain unimplemented; will land in a future PR.
+- `TODOS.md`: new P2 entry for Branch(g) full PR-state detection follow-up (current candidate filter uses Phase 1/2/3 gate states; full `gh pr view` integration deferred).
+
+### Fixed
+
+- `skills/CJ_run/fixtures/README.md` and `skills/CJ_run/fixtures/synthetic-approved-design.md`: stale `/CJ_ship-feature` references replaced with `/CJ_run`. Fixtures are now runnable post-rename.
+- `skills/CJ_personal-pipeline/pipeline.md`: 3 stale `/CJ_ship-feature` references updated to `/CJ_run` (wrapper-relationship paragraphs).
+- `rules/skill-routing.md`: collapsed `/CJ_ship-feature` and `/CJ_personal-pipeline` routing entries into unified `/CJ_run` entries; added explicit notes that Branch(f) work-item-dir mode is a placeholder until S000039.
 
 
 ## [2.2.1] - 2026-05-13
