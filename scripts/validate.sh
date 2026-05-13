@@ -623,6 +623,32 @@ while IFS=$'\t' read -r ts_name ts_path; do
   done
 done < <(jq -r '.[] | select(.templates_source) | "\(.name)\t\(.templates_source)"' "$CATALOG")
 
+# Check 11: rules/ deploy health (each *.md in rules/ must be deployed to ~/.claude/rules/).
+# Skipped when deploy target doesn't exist (e.g. CI fresh checkout, new machines pre-install).
+echo ""
+echo "=== Check 11: rules/ deploy health ==="
+RULES_SRC_DIR="$REPO_ROOT/rules"
+RULES_DEPLOY_DIR="${SKILLS_DEPLOY_RULES_TARGET:-$HOME/.claude/rules}"
+if [ ! -d "$RULES_SRC_DIR" ]; then
+  pass "rules/ directory does not exist (no rules to deploy)"
+elif [ ! -d "$RULES_DEPLOY_DIR" ]; then
+  warn "rules/ deploy target $RULES_DEPLOY_DIR does not exist — run './scripts/skills-deploy install'"
+else
+  found_rules=0
+  for rule_file in "$RULES_SRC_DIR"/*.md; do
+    [ -f "$rule_file" ] || continue
+    found_rules=$((found_rules + 1))
+    rule_name=$(basename "$rule_file")
+    rule_dst="$RULES_DEPLOY_DIR/$rule_name"
+    if [ ! -f "$rule_dst" ]; then
+      fail "rules/$rule_name not deployed at $rule_dst — run './scripts/skills-deploy install'"
+    else
+      pass "rules/$rule_name deployed at $rule_dst"
+    fi
+  done
+  [ "$found_rules" -eq 0 ] && pass "rules/ directory is empty (no rules to deploy)"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="
