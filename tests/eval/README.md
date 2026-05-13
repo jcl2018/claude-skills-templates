@@ -1,5 +1,17 @@
 # Behavioral eval harness — `tests/eval/`
 
+## Why this exists
+
+The harness answers: *"did a change to a skill break expected behavior?"* without requiring manual runs and eyeballing output.
+
+**V1 value is narrow.** All 5 current cases test `/CJ_personal-workflow check`, the workbench's most stable skill. Nightly CI on V1 is useful but not critical — a solo maintainer who knows when they edited `check.md` will catch most regressions manually anyway.
+
+**V2 is where this earns its keep.** The high-value targets are the mutating skills: `CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`. A silent bug in `implement.md` that writes malformed tracker files is easy to miss across a refactor and hard to catch without automation. Eval cases for those skills need structural-assertion helpers (file-tree shape, frontmatter presence, journal entries written) — that's V2 scope.
+
+Until V2 cases exist: trigger manually (`bash scripts/eval.sh` or `gh workflow run eval-nightly.yml`) before shipping changes to `check.md`. Nightly cron is low-value at the current 5-case coverage.
+
+---
+
 V1 of the eval harness for the skill workbench. Spawns the real `claude` CLI
 headless against scratch worktrees, validates structured JSON output against
 per-case JSON Schemas. Cadence is nightly on `main` (see

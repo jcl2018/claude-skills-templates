@@ -4,11 +4,11 @@ type: user-story
 id: "S000025"
 status: active
 created: "2026-05-09"
-updated: "2026-05-11"
+updated: "2026-05-13"
 parent: "F000013"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "claude/funny-yonath-b817ec"
-blocked_by: "S000024"
+blocked_by: ""
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -145,3 +145,4 @@ blocked_by: "S000024"
 - 2026-05-11 [qa-e2e-summary] 1 green (E4), 3 ambiguous (E1/E2/E3 deferred to post-ship CI execution per S000025 implementer's note in journal entry 2026-05-11 [impl-decision]).
 - 2026-05-11 [qa-adjudication] User adjudicated E2E ambiguous → green (D5: "treat as green"). Rationale: 3 ambiguous rows are structurally impossible to verify pre-ship (require `gh workflow run eval-nightly.yml` against merged main); deferred verification is tracked in this tracker's Todos lines 90-93 + ROADMAP Delivery History. New workflow-gap TODO added to TODOS.md (pre-ship vs post-ship AC categorization for /CJ_qa-work-item).
 - 2026-05-11 [qa-pass] S000025 (user-story): green smoke + adjudicated-green E2E. Phase 2 QA-owned gates transitioned. Post-ship verification (ACs 2/3/4/7) remains user-owned via `gh workflow run eval-nightly.yml` after merge.
+- 2026-05-13 [decision] ACs 2/3/4/7 deferred. V1's 5 cases cover only `/CJ_personal-workflow check`; nightly CI at ~$1/run (~$30/month) doesn't justify the cost until V2 adds scaffold/implement/qa cases. Trigger manually before shipping changes to `check.md`. Tracker stays active; ACs remain open.
