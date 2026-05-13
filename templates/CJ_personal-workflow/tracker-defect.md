@@ -10,6 +10,12 @@ branch: "{BRANCH_NAME}"
 blocked_by: ""
 ---
 
+<!-- Note (post-v2.2): new defects use the freestanding-file convention
+     at work-items/defects/<domain>/D<NNN>_bug-report.md (no work-item
+     dir wrapper). This template is retained for legacy defects
+     (D000001-D000018) which use the older D<NNN>_<slug>/ dir pattern.
+     See skills/CJ_personal-workflow/WORKFLOW.md -> Defect workflow (post-v2.2). -->
+
 ## Lifecycle
 
 ### Phase 1: Track

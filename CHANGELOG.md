@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [2.2.1] - 2026-05-13
+
+### Changed
+
+- `tests/eval/README.md`: added "## Why this exists" section explaining V1 narrow scope (5 cases, all `check.md`) vs V2 value (scaffold/implement/qa mutations); makes the harness purpose clear without reading the tracker.
+- `TODOS.md`: S000025 post-ship bullet updated — nightly CI deferral rationale documented (V1's 5 cases cover only `check.md`; ~$1/run cost not justified until V2 adds mutating-skill cases; trigger manually before shipping changes to `check.md`).
+- `templates/CJ_personal-workflow/tracker-defect.md`: synced workbench source with deployed template — added post-v2.2 note about freestanding-file convention for new defects (D000019+); retained dir-wrapper note for legacy defects D000001-D000018.
+- `S000025_TRACKER.md`: cleared stale `blocked_by: S000024` (S000024 shipped v1.16.1), updated date, added deferral decision journal entry.
+
 ## [2.2.0] - 2026-05-12
 
 ### Added
