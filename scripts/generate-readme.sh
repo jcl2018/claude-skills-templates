@@ -85,7 +85,7 @@ See `CLAUDE.md` for the `.gstack/` (lateral/exploratory) vs `work-items/` (struc
 | Script | Purpose | Exit code |
 |--------|---------|-----------|
 | `setup.sh` | Bootstrap: clone-or-update repo and deploy all skills | 1 on error |
-| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` | 1 on error |
+| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` (also deploys `rules/*.md` → `~/.claude/rules/`) | 1 on error |
 | `validate.sh` | Catalog-to-filesystem validation | 1 on error |
 | `test.sh` | Smoke tests (superset of validate) | 1 on failure |
 | `test-deploy.sh` | Automated tests for `skills-deploy` in isolated temp dirs | 1 on failure |
