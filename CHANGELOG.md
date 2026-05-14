@@ -3,6 +3,45 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.2.0] - 2026-05-14
+
+### Added
+
+- **`/CJ_run` Branch(f): full phase-detection + dispatch (S000039).** Replaces the v3.0.0
+  placeholder stub. Branch(f) now reads TRACKER phase state (Phase 2 implementer + qa gate
+  strings, plus PR URL from frontmatter or `## PRs` section), resolves one of six MODE
+  values, and dispatches the right sub-pipeline:
+  - `impl_qa_ship` (IMPL_GATE=0): Agent-dispatches `/CJ_personal-pipeline --work-item-dir`
+    with `--suppress-final-gate`, then runs `/ship` + `/land-and-deploy` via Skill.
+  - `qa_ship` (IMPL_GATE=1, QA_GATE=0): Skill-invokes `/CJ_qa-work-item`, then `/ship` +
+    `/land-and-deploy`.
+  - `ship` (both gates green, no PR URL): Skill-invokes `/ship` + `/land-and-deploy`.
+  - `open_pr` (PR URL set, `gh pr view` returns OPEN/DRAFT): prints pointer + exits 0.
+  - `already_shipped` (PR URL set, state=MERGED): graceful NO-OP exit 0.
+  - `pr_unknown_state` (gh offline / unexpected PR state): presents AskUserQuestion with
+    `retry-ship` / `treat-as-merged` / `abort` options; no auto-decide.
+- Branch(f) integrates with Branch(g) (S000038): when Branch(g) picks a single candidate,
+  it sets `INPUT_MODE=work-item-dir` and falls through to Branch(f) phase-detection.
+  Single source of truth for phase logic.
+- Gate strings (verbatim from `templates/CJ_personal-workflow/tracker-user-story.md` Phase 2):
+  IMPL = `Todos section reflects remaining work`, QA = `Acceptance criteria verified met`.
+  Template drift is a known fragile surface — if those strings change, Branch(f) breaks
+  silently. Documented in `run.md` Step 1.1 comments.
+- Type filter: Branch(f) v0.2 supports user-story TRACKERs only. Defect/task types print
+  a clear error directing the user to invoke sub-skills directly (extend in v0.3).
+- Telemetry: `~/.gstack/analytics/CJ_run.jsonl` gains a `mode: <MODE>` field per
+  Branch(f) invocation for diagnostic visibility.
+- `skills/CJ_run/SKILL.md` description updated to reflect Branch(f) is live (no longer
+  a placeholder); version 0.2.0 → 0.3.0.
+- `skills-catalog.json`: CJ_run version 0.2.0 → 0.3.0; description updated.
+
+### Fixed
+
+- **Tracker corruption recurrence (S000039 only).** PR #100's land-and-deploy hook re-marked
+  Phase 3 ship/deploy/smoke gates on S000039_TRACKER.md (despite S000039's actual impl not
+  being in that PR). Unchecked the gates and removed the stale PR #99 reference. Same hook
+  bug as v3.1.0; defect tracked for follow-up (spawn-task chip).
+
 ## [3.1.0] - 2026-05-14
 
 ### Added

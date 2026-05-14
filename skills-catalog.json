@@ -196,8 +196,8 @@
   },
   {
     "name": "CJ_run",
-    "version": "0.2.0",
-    "description": "Unified pipeline entry point. v0.2.0 ships: (a) APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy), (b) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories (Phase 1 green + Phase 2 not started) and hands off to (c) work-item directory -> Branch(f) phase-detection PLACEHOLDER (prints next-step guidance and exits 0; full dispatch table is tracked under S000039, blocked on F000016/S000036). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
+    "version": "0.3.0",
+    "description": "Unified pipeline entry point. v0.3.0 ships: (a) APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy), (b) work-item directory -> Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, (c) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
     "source": "local",
     "depends": {
       "skills": [
