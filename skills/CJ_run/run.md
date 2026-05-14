@@ -276,7 +276,7 @@ After dispatch completes (or for graceful-exit modes), write the telemetry line:
 #   open_pr | already_shipped | user_aborted | subagent_crashed
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p ~/.gstack/analytics
-echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"\",\"work_item\":\"$WORK_ITEM_DIR\",\"pr_url\":\"${PR_URL:-}\",\"end_state\":\"$END_STATE\",\"mode\":\"$MODE\",\"multi_story_scaffold_only\":false,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> ~/.gstack/analytics/CJ_run.jsonl
+echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"\",\"work_item\":\"$WORK_ITEM_DIR\",\"pr_url\":\"${PR_URL:-}\",\"end_state\":\"$END_STATE\",\"mode\":\"$MODE\",\"multi_story_mode\":false,\"multi_story_children_shipped\":0,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> ~/.gstack/analytics/CJ_run.jsonl
 ```
 
 Branch(f) exits after telemetry — does NOT fall through to Step 1.2 (design-doc branches).
@@ -337,6 +337,10 @@ MULTI_STORY=0
 WORK_ITEM_DIR=""
 PR_URL=""
 PR_NUM=""
+CHILDREN_TOTAL=0
+CHILDREN_DONE=0
+CHILDREN_FAILED=""
+CHILD_PR_URLS=""
 EOF
 
 echo "STATE_FILE: $STATE_FILE"
@@ -368,6 +372,10 @@ MULTI_STORY=$MULTI_STORY
 WORK_ITEM_DIR="$WORK_ITEM_DIR"
 PR_URL="$PR_URL"
 PR_NUM="$PR_NUM"
+CHILDREN_TOTAL=$CHILDREN_TOTAL
+CHILDREN_DONE=$CHILDREN_DONE
+CHILDREN_FAILED="$CHILDREN_FAILED"
+CHILD_PR_URLS="$CHILD_PR_URLS"
 EOF
 }
 # Call write_state after any field update.
@@ -487,30 +495,167 @@ fi
 
 If `MULTI_STORY=0`: store `WORK_ITEM_DIR`; continue to Step 4.
 
-### Branch (b): green + multi-story scaffold-only
+### Branch (b): green + multi-story — auto-iterate children
 
 `PIPELINE_END_STATE=green; WORK_ITEM_DIR=<path>` AND `CHILD_TRACKERS >= 1`.
 
 Pipeline correctly halted at scaffold gate per its existing multi-story branch
-(end_state=green, scaffolded only — no impl/QA). Flowing into /ship would try to
-ship an empty scaffold. SKIP Steps 4-5 entirely; jump to Step 6 with:
+(end_state=green, scaffolded only — no impl/QA on the feature itself). Branch (b)
+now auto-iterates each child user-story: per-child branch off `origin/main`,
+copies scaffold from the feature branch, dispatches the pipeline with
+`--work-item-dir`, runs `/ship` + `/land-and-deploy` per child.
 
-- `END_STATE=green`
-- `MULTI_STORY=1` (telemetry field will reflect this)
-- Tail summary printed:
+**Preamble** — enumerate children and validate count:
+
+```bash
+source "$STATE_FILE"
+MULTI_STORY=1
+write_state
+
+FEATURE_BRANCH=$(git branch --show-current)
+MAIN_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo main)
+FEATURE_NAME=$(basename "$WORK_ITEM_DIR")
+
+# Enumerate child user-story dirs. Naming: S[0-9]* per WORKFLOW.md.
+CHILDREN=()
+while IFS= read -r d; do
+  [ -z "$d" ] && continue
+  CHILDREN+=("$d")
+done < <(find "$WORK_ITEM_DIR" -maxdepth 1 -mindepth 1 -type d -name 'S[0-9]*' 2>/dev/null | sort)
+
+CHILDREN_TOTAL=${#CHILDREN[@]}
+write_state
+
+echo "Branch(b) multi-story: $FEATURE_NAME has $CHILDREN_TOTAL children"
+for c in "${CHILDREN[@]}"; do echo "  - $(basename "$c")"; done
+```
+
+**v1 guard** — if more than 3 children, AskUserQuestion before proceeding. Inline
+Skills for `/ship` + `/land-and-deploy` accumulate ~3K tokens per child; 4+ children
+risk context overflow for the orchestrator. v2 will dispatch each child as an Agent
+subagent to amortize.
 
 ```
-Multi-story feature scaffolded. Per-child invocation needed:
-  /CJ_run <design-doc-for-child-1>
-  /CJ_run <design-doc-for-child-2>
-  ...
-(Or invoke /CJ_personal-pipeline on each child design doc if you want the
-inner loop only.)
+If $CHILDREN_TOTAL > 3:
+  AUQ: "Branch(b) about to iterate $CHILDREN_TOTAL children inline. Each child's
+        /ship + /land-and-deploy adds ~3K tokens to this session. Proceed?"
+  Options:
+    A) Proceed (inline) — recommended for ≤6 children
+    B) Halt — re-design as N separate /CJ_run invocations
 ```
 
-The per-child paths can be derived from the work-item tree: read each child
-TRACKER's frontmatter `source_design` field (if present) or list child dirs
-under `$WORK_ITEM_DIR/`.
+**Loop body** — for each child, run git setup → pipeline dispatch → ship → deploy:
+
+```bash
+source "$STATE_FILE"
+
+for CHILD_DIR in "${CHILDREN[@]}"; do
+  CHILD_NAME=$(basename "$CHILD_DIR")
+  CHILD_REL=$(realpath --relative-to=. "$CHILD_DIR" 2>/dev/null || python3 -c "import os.path; print(os.path.relpath('$CHILD_DIR'))")
+  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+  CHILD_BRANCH="${FEATURE_NAME}--${CHILD_NAME}-${TIMESTAMP}"
+
+  echo "Branch(b) child $((CHILDREN_DONE + 1))/$CHILDREN_TOTAL: $CHILD_NAME"
+
+  # Resume guard: if a prior /CJ_run run already merged this child, skip.
+  # Matches branch name prefix to detect prior merges.
+  PRIOR_PR=$(gh pr list --state merged --search "head:${FEATURE_NAME}--${CHILD_NAME}-" --limit 1 --json url,headRefName -q '.[0].url' 2>/dev/null || echo "")
+  if [ -n "$PRIOR_PR" ]; then
+    echo "  Child $CHILD_NAME: already merged at $PRIOR_PR. Skipping."
+    CHILDREN_DONE=$((CHILDREN_DONE + 1))
+    CHILD_PR_URLS="$CHILD_PR_URLS$PRIOR_PR "
+    write_state
+    continue
+  fi
+
+  # Git setup: branch off origin/main, sparse-copy scaffold from feature branch, commit.
+  git fetch origin "$MAIN_BRANCH" >/dev/null 2>&1
+  if ! git checkout -b "$CHILD_BRANCH" "origin/$MAIN_BRANCH" 2>&1; then
+    echo "  ERROR: failed to create branch $CHILD_BRANCH off origin/$MAIN_BRANCH"
+    END_STATE="halted_at_pipeline"
+    CHILDREN_FAILED="$CHILDREN_FAILED$CHILD_NAME "
+    write_state
+    git checkout "$FEATURE_BRANCH" 2>/dev/null || true
+    break
+  fi
+  # Sparse-copy the child dir tree from the feature branch
+  git checkout "$FEATURE_BRANCH" -- "$CHILD_REL" 2>&1 || {
+    echo "  ERROR: failed to copy $CHILD_REL from $FEATURE_BRANCH"
+    END_STATE="halted_at_pipeline"
+    CHILDREN_FAILED="$CHILDREN_FAILED$CHILD_NAME "
+    write_state
+    git checkout "$FEATURE_BRANCH" 2>/dev/null || true
+    break
+  }
+  git add "$CHILD_REL"
+  git commit -m "scaffold: ${CHILD_NAME} (from ${FEATURE_NAME} feature scaffold)" --no-verify 2>&1 | tail -2
+
+  # Pipeline dispatch via Agent (fresh-context subagent).
+  # Set up per-run decision log to avoid co-mingling in standalone log.
+  CHILD_DECISION_LOG="/tmp/cj-run-${RUN_ID}-${CHILD_NAME}-decisions.jsonl"
+  echo "  Dispatching pipeline for $CHILD_NAME (--work-item-dir, --suppress-final-gate)..."
+  echo "  Pipeline decision log: $CHILD_DECISION_LOG"
+done
+```
+
+After the bash loop block, the orchestrator-model dispatches the pipeline via
+the **Agent** tool (one subagent per child), then `/ship` + `/land-and-deploy`
+via **Skill** tool. The dispatch prose:
+
+> **For each child in `CHILDREN` (continuing the loop above):**
+>
+> 1. Dispatch CJ_personal-pipeline as Agent subagent (general-purpose) with prompt:
+>    `Invoke /CJ_personal-pipeline --work-item-dir "<CHILD_DIR>" --suppress-final-gate. Return the RESULT line verbatim.`
+>    Set env `GSTACK_PIPELINE_DECISION_LOG_PATH=<CHILD_DECISION_LOG>` so the
+>    pipeline's auto-decisions log per-child, not into the global log.
+>
+> 2. Parse the Agent's RESULT line for `PIPELINE_END_STATE` (using the same
+>    `parse_result` pattern as Step 3 Branch (a)).
+>
+> 3. **If `PIPELINE_END_STATE=green`:** invoke `/ship` via **Skill** tool
+>    (Gate #2 fires — diff review AUQ scoped to this child's PR). On `/ship`
+>    success, invoke `/land-and-deploy` via **Skill** tool. Capture the PR URL
+>    from `/ship` output. Update state:
+>    ```bash
+>    CHILDREN_DONE=$((CHILDREN_DONE + 1))
+>    CHILD_PR_URLS="$CHILD_PR_URLS<pr_url> "
+>    write_state
+>    git checkout "$FEATURE_BRANCH"
+>    ```
+>
+> 4. **If `PIPELINE_END_STATE != green`:** halt the loop.
+>    ```bash
+>    CHILDREN_FAILED="$CHILDREN_FAILED$CHILD_NAME "
+>    END_STATE="halted_at_pipeline"
+>    write_state
+>    git checkout "$FEATURE_BRANCH"
+>    break
+>    ```
+>
+> 5. **If subagent crashes (no RESULT line):** halt the loop with
+>    `END_STATE="subagent_crashed"`; same cleanup as failure path.
+
+**Post-loop finalization:**
+
+```bash
+source "$STATE_FILE"
+
+if [ "$CHILDREN_DONE" = "$CHILDREN_TOTAL" ]; then
+  END_STATE="green"
+  echo "Branch(b) complete: $CHILDREN_DONE/$CHILDREN_TOTAL children shipped"
+  echo "Child PRs: $CHILD_PR_URLS"
+else
+  # END_STATE already set to halted_at_pipeline or subagent_crashed by the loop
+  REMAINING=$((CHILDREN_TOTAL - CHILDREN_DONE))
+  echo "Branch(b) halted: $CHILDREN_DONE/$CHILDREN_TOTAL shipped, $REMAINING remaining"
+  echo "Failed children: $CHILDREN_FAILED"
+  echo "Re-run /CJ_run on the design doc to resume (already-merged children will skip)."
+fi
+write_state
+```
+
+**Skip Steps 4-5 in Branch (b)** — per-child /ship + /land-and-deploy already
+ran inside the loop. Flow directly to Step 6 (finalize: telemetry + summary).
 
 ### Branch (c): non-green
 
@@ -692,6 +837,7 @@ if [ -n "$WORK_ITEM_DIR" ]; then
 fi
 
 MULTI_STORY_BOOL=$([ "$MULTI_STORY" = "1" ] && echo "true" || echo "false")
+CHILDREN_DONE=${CHILDREN_DONE:-0}
 
 if command -v jq >/dev/null 2>&1; then
   jq -nc \
@@ -700,9 +846,10 @@ if command -v jq >/dev/null 2>&1; then
     --arg work_item "${WORK_ITEM_DIR:-}" \
     --arg pr_url "${PR_URL:-}" \
     --arg end_state "$END_STATE" \
-    --argjson multi_story_scaffold_only "$MULTI_STORY_BOOL" \
+    --argjson multi_story_mode "$MULTI_STORY_BOOL" \
+    --argjson multi_story_children_shipped "$CHILDREN_DONE" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_scaffold_only:$multi_story_scaffold_only,ts:$ts}' \
+    '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_mode:$multi_story_mode,multi_story_children_shipped:$multi_story_children_shipped,ts:$ts}' \
     >> "$HOME/.gstack/analytics/CJ_run.jsonl"
 else
   # Fallback when jq is missing (workbench declared dep, so unlikely).
@@ -710,17 +857,30 @@ else
   _SAFE_DOC=$(printf '%s' "$DESIGN_DOC" | tr -d '\\"')
   _SAFE_WORK=$(printf '%s' "${WORK_ITEM_DIR:-}" | tr -d '\\"')
   _SAFE_PR=$(printf '%s' "${PR_URL:-}" | tr -d '\\"')
-  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_scaffold_only\":$MULTI_STORY_BOOL,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_mode\":$MULTI_STORY_BOOL,\"multi_story_children_shipped\":$CHILDREN_DONE,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
     >> "$HOME/.gstack/analytics/CJ_run.jsonl"
 fi
 ```
 
 ### Step 6.2: Print summary — header depends on END_STATE
 
-If `END_STATE=green`:
+If `END_STATE=green` AND `MULTI_STORY=1` (multi-story auto-iterate):
 
 ```
-/CJ_run COMPLETE (green)  multi_story=$MULTI_STORY
+/CJ_run COMPLETE (green)  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
+
+Run ID:        $RUN_ID
+Design:        $DESIGN_DOC
+Feature:       ${WORK_ITEM_DIR:-N/A}
+Child PRs:     $CHILD_PR_URLS
+Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
+Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+```
+
+Else if `END_STATE=green` (single-story):
+
+```
+/CJ_run COMPLETE (green)  multi_story=0
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -732,6 +892,25 @@ Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
 ```
 
 Otherwise (any halt or `deploy_red`):
+
+If `MULTI_STORY=1`:
+
+```
+/CJ_run HALTED at end_state=$END_STATE  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
+
+Run ID:        $RUN_ID
+Design:        $DESIGN_DOC
+Feature:       ${WORK_ITEM_DIR:-N/A}
+Shipped PRs:   $CHILD_PR_URLS
+Failed:        $CHILDREN_FAILED
+Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
+Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+
+Resume: re-invoke /CJ_run on the same design doc — already-merged children
+are skipped via the resume guard (gh pr list --state merged).
+```
+
+Else (single-story halt):
 
 ```
 /CJ_run HALTED at end_state=$END_STATE
@@ -834,8 +1013,11 @@ if [ "$SHOULD_FIRE" = "1" ]; then
   # (even 0) and may exit 1 on no-matches; the outer `|| echo 0` would APPEND
   # a second "0" producing "0\n0" which fails integer comparison. Pattern below
   # captures grep's exit explicitly without ever appending.
+  # Multi-story rows excluded from brittleness trip-wire. v3.2.0 renamed
+  # `multi_story_scaffold_only` -> `multi_story_mode`; check both for backward
+  # compat with pre-v3.2.0 log entries.
   HALT_COUNT=$(echo "$PRIOR_5" \
-    | jq -r 'select((.multi_story_scaffold_only // false) == false) | .end_state' 2>/dev/null \
+    | jq -r 'select(((.multi_story_mode // .multi_story_scaffold_only) // false) == false) | .end_state' 2>/dev/null \
     | grep -cE '^(halted_at_autoplan|halted_at_pipeline|halted_at_deploy|subagent_crashed)$') || HALT_COUNT=0
   HALT_COUNT=${HALT_COUNT:-0}
 
@@ -846,7 +1028,7 @@ if [ "$SHOULD_FIRE" = "1" ]; then
   fi
 
   # Render human-readable PRIOR_5 summary for the AUQ body.
-  PRIOR_5_SUMMARY=$(echo "$PRIOR_5" | jq -r '"  - end_state=\(.end_state)  multi_story=\(.multi_story_scaffold_only // false)  design=\(.design_doc | split("/") | last)"' 2>/dev/null || echo "  (unable to parse PRIOR_5)")
+  PRIOR_5_SUMMARY=$(echo "$PRIOR_5" | jq -r '"  - end_state=\(.end_state)  multi_story=\((.multi_story_mode // .multi_story_scaffold_only) // false)  design=\(.design_doc | split("/") | last)"' 2>/dev/null || echo "  (unable to parse PRIOR_5)")
 
   # AskUserQuestion (wrapper-rendered checkpoint AUQ — NOT a sub-skill pass-through).
   # Surfaces only on the 6th invocation and every 5 thereafter; rendered by the
