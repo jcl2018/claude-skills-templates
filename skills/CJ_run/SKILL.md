@@ -1,7 +1,7 @@
 ---
 name: CJ_run
-description: "Unified pipeline entry point. Accepts (a) an APPROVED /office-hours design doc → full pipeline (autoplan → scaffold → impl → QA → PR → deploy), (b) a work-item directory → detect phase from TRACKER state and dispatch the right sub-pipeline (impl_qa_ship / qa_ship / ship / open_pr / already_shipped), or (c) no argument → scan current branch's work-items/ for in-progress user-stories and auto-resume. Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation."
-version: 0.2.0
+description: "Unified pipeline entry point. Accepts (a) an APPROVED /office-hours design doc → full pipeline (autoplan → scaffold → impl → QA → PR → deploy), (b) a work-item directory → Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, or (c) no argument → Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation."
+version: 0.3.0
 allowed-tools:
   - Bash
   - Read

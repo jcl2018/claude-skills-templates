@@ -184,19 +184,106 @@ if [ "$INPUT_MODE" = "no-arg" ]; then
 fi
 ```
 
-### Step 1.1: Branch(f) — work-item-dir entry (placeholder; full impl in S000039)
+### Step 1.1: Branch(f) — work-item-dir entry (S000039)
 
 If `INPUT_MODE = work-item-dir` at this point (either passed directly OR set
 by Branch(g) above), Branch(f) takes over: reads TRACKER phase state, resolves
-MODE, dispatches. **S000038 implements Branch(g) only**; Branch(f) phase
-detection and dispatch table are S000039's scope. Until S000039 lands, Branch(f)
-prints a "not yet implemented" message and exits.
+MODE, dispatches to the right sub-pipeline. Self-contained — does NOT fall through
+to Step 1.2 (design-doc branches).
+
+**Type filter:** v0.2 supports user-story TRACKERs only. Gate strings are
+verbatim from `templates/CJ_personal-workflow/tracker-user-story.md` Phase 2
+Gates; defect/task TRACKERs use different phrasing (extend in v0.3).
+
+**Gate strings** (canonical, must match the template):
+- IMPL gate: `Todos section reflects remaining work`
+- QA gate: `Acceptance criteria verified met`
+
+If these strings change in the template, Branch(f) breaks silently.
 
 ```bash
 if [ "$INPUT_MODE" = "work-item-dir" ]; then
-  echo "Branch(f) work-item-dir mode at: $ARG"
-  echo "Branch(f) phase-detection + dispatch is implemented in S000039."
-  echo "Until S000039 ships, manually invoke /CJ_implement-from-spec or /CJ_qa-work-item or /ship as appropriate."
+  WORK_ITEM_DIR=$(realpath "$ARG")
+  TRACKER=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_TRACKER.md" -o -name "TRACKER.md" \) 2>/dev/null | head -1)
+  [ -z "$TRACKER" ] && { echo "Error: $WORK_ITEM_DIR is not a work-item directory (no TRACKER.md)"; exit 1; }
+  WORK_ITEM_ID=$(basename "$TRACKER" | sed 's/_TRACKER\.md$//')
+
+  # Type filter: user-story only in v0.2
+  TRACKER_TYPE=$(grep "^type:" "$TRACKER" | head -1 | sed 's/type: *//' | tr -d '"' | tr -d ' ')
+  if [ "$TRACKER_TYPE" != "user-story" ]; then
+    echo "Error: Branch(f) v0.2 supports user-story TRACKERs only (got: $TRACKER_TYPE)"
+    echo "Invoke sub-skills directly for defect/task types."
+    exit 1
+  fi
+
+  # Phase state from canonical gate strings (verbatim from tracker-user-story.md)
+  IMPL_GATE=$(grep "Todos section reflects remaining work" "$TRACKER" | grep -c "\[x\]")
+  QA_GATE=$(grep "Acceptance criteria verified met" "$TRACKER" | grep -c "\[x\]")
+
+  # PR URL: check frontmatter `pr:`/`PR:` field first, then ## PRs section markdown links.
+  # Either convention is acceptable; check both for portability.
+  PR_URL=$(grep -E "^pr: |^PR: " "$TRACKER" 2>/dev/null | head -1 | sed -E 's/^[pP][rR]: *//' | tr -d '"' | tr -d ' ')
+  if [ -z "$PR_URL" ]; then
+    PR_URL=$(awk '/^## PRs/,/^## [^P]/' "$TRACKER" 2>/dev/null | grep -oE 'https?://[^ )]+/pull/[0-9]+' | head -1)
+  fi
+
+  # Resolve MODE via case ladder
+  if [ "$IMPL_GATE" = "0" ]; then
+    MODE="impl_qa_ship"
+  elif [ "$QA_GATE" = "0" ]; then
+    MODE="qa_ship"
+  elif [ -z "$PR_URL" ]; then
+    MODE="ship"
+  else
+    # `gh pr view` is best-effort; offline/unauthenticated → UNKNOWN → pr_unknown_state
+    PR_STATE=$(gh pr view "$PR_URL" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+    case "$PR_STATE" in
+      MERGED) MODE="already_shipped" ;;
+      OPEN|DRAFT) MODE="open_pr" ;;
+      *) MODE="pr_unknown_state" ;;
+    esac
+  fi
+
+  echo "Branch(f) phase-detection: $WORK_ITEM_ID → MODE=$MODE (IMPL=$IMPL_GATE QA=$QA_GATE PR_URL=${PR_URL:-none})"
+
+  # Telemetry skeleton (Branch(f) writes telemetry at end; END_STATE filled per-dispatch).
+  # The orchestrator (model) reads $MODE and dispatches per the table below, then
+  # writes the telemetry line at exit.
+fi
+```
+
+### Step 1.1.dispatch: Branch(f) dispatch table
+
+The orchestrator (model) reads `$MODE` from the bash output above and dispatches
+based on this table. The dispatch is prose-level: bash variables don't persist
+across orchestrator Bash calls, so the model carries `$MODE`, `$WORK_ITEM_DIR`,
+`$PR_URL` as prose state.
+
+| MODE | Action |
+|---|---|
+| `impl_qa_ship` | Dispatch `CJ_personal-pipeline` via **Agent** tool (subagent_type: general-purpose) with prompt: `Invoke CJ_personal-pipeline --work-item-dir "<WORK_ITEM_DIR>" --suppress-final-gate. Return the RESULT line.` After Agent returns: parse `PIPELINE_END_STATE`. On green, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. Each step inherits the orchestrator's AUQ flow (Gate #2 at /ship review). |
+| `qa_ship` | Invoke `/CJ_qa-work-item <WORK_ITEM_DIR>` via **Skill** tool. On green QA exit, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. |
+| `ship` | Invoke `/ship` via **Skill** tool. On success, invoke `/land-and-deploy` via Skill. |
+| `open_pr` | Print: `PR already open at $PR_URL. Run /land-and-deploy to merge.` Set `END_STATE=open_pr`. Write telemetry. Exit 0. |
+| `already_shipped` | Print: `Already shipped at $PR_URL. Nothing to do.` Set `END_STATE=already_shipped`. Write telemetry. Exit 0. |
+| `pr_unknown_state` | Present AskUserQuestion: `PR state for $WORK_ITEM_ID is unexpected (gh returned: $PR_STATE). What now?` Options: A) Retry /ship — assume PR is gone/closed (re-create), B) Treat as already shipped — exit clean, C) Abort. **No auto-decide.** Default to C (abort) for safety. |
+
+After dispatch completes (or for graceful-exit modes), write the telemetry line:
+
+```bash
+# Run this after dispatch flow completes. END_STATE values:
+#   green | halted_at_pipeline | halted_at_ship | halted_at_deploy
+#   open_pr | already_shipped | user_aborted | subagent_crashed
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+mkdir -p ~/.gstack/analytics
+echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"\",\"work_item\":\"$WORK_ITEM_DIR\",\"pr_url\":\"${PR_URL:-}\",\"end_state\":\"$END_STATE\",\"mode\":\"$MODE\",\"multi_story_scaffold_only\":false,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> ~/.gstack/analytics/CJ_run.jsonl
+```
+
+Branch(f) exits after telemetry — does NOT fall through to Step 1.2 (design-doc branches).
+
+```bash
+if [ "$INPUT_MODE" = "work-item-dir" ]; then
+  # All Branch(f) logic above completes here; exit cleanly.
   exit 0
 fi
 ```
