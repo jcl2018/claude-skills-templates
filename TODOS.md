@@ -2,6 +2,25 @@
 
 ## Active work
 
+### Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L) — NEXT
+After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY for design-doc input that decomposes into a single user-story. The full "drop any work-item path and it figures out what to do" experience needs two follow-up implementations, in this order:
+
+1. **F000016 — multi-story auto-iterate** (`work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/`)
+   - **S000036 — `--work-item-dir` flag on `/CJ_personal-pipeline`**: adds Branch(e) to pipeline.md so the pipeline accepts an existing work-item directory and runs impl+QA without scaffolding. Unblocks Branch(f) `impl_qa_ship` dispatch in /CJ_run.
+   - **S000037 — Branch(b) auto-iterate loop in /CJ_run**: rewrites the multi-story halt-after-scaffold behavior into a per-child auto-iterate loop. After scaffold detects multiple children, loop each through CJ_personal-pipeline (`--work-item-dir`) → /ship → /land-and-deploy on a per-child branch. Captures per-child PR URLs.
+   - Both are scaffolded with TRACKER/DESIGN/SPEC/TEST-SPEC; need `/CJ_implement-from-spec` + `/CJ_qa-work-item` + `/ship` per child.
+
+2. **F000017 S000039 — Branch(f) full phase-detection dispatch** (`work-items/features/ops/F000017_cj_run_entry_point/S000039_branch_f_work_item_dir/`)
+   - Reads TRACKER phase state (impl gate, QA gate, PR URL) and dispatches to one of 6 modes: `impl_qa_ship` / `qa_ship` / `ship` / `open_pr` / `already_shipped` / `pr_unknown_state`.
+   - Depends on S000036's `--work-item-dir` flag for the `impl_qa_ship` dispatch.
+   - Scaffolded; needs implementation.
+
+**After both ship**, /CJ_run handles: design-doc (single + multi-story), work-item-dir (any user-story phase), no-arg branch scan with auto-resume.
+
+**Defect/task work-item-dir support deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
+
+**Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
+
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
 `CJ_*`: `CJ_personal-workflow`, `CJ_system-health`, `CJ_scaffold-work-item`,
