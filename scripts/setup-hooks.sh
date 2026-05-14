@@ -5,10 +5,18 @@
 # Usage: ./scripts/setup-hooks.sh
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOK_DIR="$REPO_ROOT/.git/hooks"
+# --git-common-dir resolves to the shared .git for both regular checkouts and
+# worktrees (where $REPO_ROOT/.git is a file, not a directory). It returns an
+# absolute path in worktrees but a relative ".git" in main checkouts, so
+# normalize to absolute by prefixing REPO_ROOT when relative.
+GIT_COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null)"
+case "$GIT_COMMON_DIR" in
+  /*) HOOK_DIR="$GIT_COMMON_DIR/hooks" ;;
+  *)  HOOK_DIR="$REPO_ROOT/$GIT_COMMON_DIR/hooks" ;;
+esac
 
 if [ ! -d "$HOOK_DIR" ]; then
-  echo "ERROR: .git/hooks directory not found. Are you in a git repo?" >&2
+  echo "ERROR: cannot resolve git hooks directory. Are you in a git repo?" >&2
   exit 1
 fi
 
