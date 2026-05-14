@@ -3,6 +3,28 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.3.1] - 2026-05-13
+
+### Fixed
+
+- **Phase 3 gate-auto-update no longer false-fires on sibling-story trackers.**
+  Adds a Phase 2 `[x]`-count delta preflight to the post-merge hook in
+  `scripts/setup-hooks.sh`: a touched tracker now invokes
+  `check-gates-update.sh` only if its Phase 2 implementer-owned gates
+  transitioned from `[ ]` to `[x]` in `ORIG_HEAD..HEAD`. Without the guard,
+  the engine resolved PR via `gh pr list --search <work-item-id>`, which
+  matches the ID anywhere in PR title OR body and falsely advanced Phase 3
+  ship + deploy + smoke gates whenever one PR documented multiple
+  work-item IDs in its body. Observed twice: PR #99 marked
+  S036/S037/S039 gates while shipping only S038; PR #100 re-corrupted
+  S037/S039 while shipping only S036. Tracker-only edits (journal
+  cleanup, doc edits on sibling-story trackers) now skip with
+  `[skip] <dir>: Phase 2 [x]-count N -> M (no shipped code in this merge)`.
+- **Pickup:** run `./scripts/setup-hooks.sh` after pulling so the new
+  post-merge body lands in `.git/hooks/post-merge`. The shipped change is
+  to `setup-hooks.sh` itself; the live hook is regenerated on the next
+  invocation.
+
 ## [3.3.0] - 2026-05-14
 
 ### Added

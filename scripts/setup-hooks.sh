@@ -53,14 +53,39 @@ if [ "$BRANCH" = "main" ]; then
   TOUCHED_TRACKERS=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null \
     | grep -E '^work-items/.*_TRACKER\.md$' || true)
   if [ -n "$TOUCHED_TRACKERS" ]; then
-    # Dedup to dirs.
-    TOUCHED_DIRS=$(echo "$TOUCHED_TRACKERS" | xargs -n1 dirname | sort -u)
-    for dir in $TOUCHED_DIRS; do
+    while IFS= read -r tracker_path; do
+      [ -z "$tracker_path" ] && continue
+      dir=$(dirname "$tracker_path")
+
+      # Guard: only fire on trackers whose Phase 2 implementer-owned gates
+      # transitioned from [ ] to [x] in this merge. Pure tracker-edit changes
+      # (journal cleanup, doc edits on sibling-story trackers) MUST NOT
+      # trigger Phase 3 gate inference. The engine resolves PRs via
+      # `gh pr list --search <id>`, which matches the work-item ID anywhere
+      # in title OR body — producing false positives when one PR references
+      # multiple sibling stories (observed twice: PR #99 marked S036/S037/S039
+      # gates while shipping only S038; PR #100 re-corrupted S037/S039 while
+      # shipping only S036). /CJ_implement-from-spec marks Phase 2 gates [x]
+      # only when it writes code, so a Phase 2 [x]-count delta is a strong
+      # proxy for "this work-item shipped code in this merge."
+      before=$(git show "ORIG_HEAD:$tracker_path" 2>/dev/null \
+        | awk '/^### Phase 2:/{f=1; next} f && /^### Phase /{f=0} f' \
+        | grep -cE '^[[:space:]]*-[[:space:]]*\[[xX]\]')
+      [ -z "$before" ] && before=0
+      after=$(awk '/^### Phase 2:/{f=1; next} f && /^### Phase /{f=0} f' "$tracker_path" 2>/dev/null \
+        | grep -cE '^[[:space:]]*-[[:space:]]*\[[xX]\]')
+      [ -z "$after" ] && after=0
+
+      if [ "$after" -le "$before" ]; then
+        echo "  [skip] $dir: Phase 2 [x]-count $before -> $after (no shipped code in this merge)"
+        continue
+      fi
+
       if [ -x "$REPO_ROOT/scripts/check-gates-update.sh" ]; then
         "$REPO_ROOT/scripts/check-gates-update.sh" "$dir" 2>&1 | sed 's/^/  /' || \
           echo "  [WARN] check-gates-update.sh failed for $dir; run manually" >&2
       fi
-    done
+    done <<< "$TOUCHED_TRACKERS"
   fi
 fi
 
