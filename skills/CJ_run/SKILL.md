@@ -1,7 +1,7 @@
 ---
 name: CJ_run
-description: "Unified pipeline entry point. Accepts (a) an APPROVED /office-hours design doc → full pipeline (autoplan → scaffold → impl → QA → PR → deploy), (b) a work-item directory → Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, or (c) no argument → Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation."
-version: 0.4.0
+description: "Unified pipeline entry point. Accepts (a) an APPROVED /office-hours design doc → full pipeline (autoplan → scaffold → impl → QA → PR → deploy), (b) a work-item directory → Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, or (c) no argument → Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Phase 4 invokes /land-and-deploy with --suppress-readiness-gate (opt-in upstream flag mirroring CJ_personal-pipeline's --suppress-final-gate pattern) so green end-to-end runs surface only the autoplan + /ship AUQs; red signals (CI, merge conflict, free-test regression, deploy/canary failure) still halt. Branch(f) open_pr mode auto-continues into /land-and-deploy with the same flag + inline-parsed PR_NUM (verbatim duplicate of Step 5's parsing block). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation."
+version: 0.5.0
 allowed-tools:
   - Bash
   - Read
@@ -106,7 +106,7 @@ Per phase for design-doc mode (Branch c):
 2. **Phase 1 — /autoplan** (Skill, inline) — review the design doc via /autoplan's CEO + design + eng + DX review chain. /autoplan's native final-approval AUQ is **GATE #1**.
 3. **Phase 2 — /CJ_personal-pipeline** (Agent subagent, `--suppress-final-gate`) — scaffold → impl → QA. 8.5 + 9.2 AUQs suppressed; decisions logged to wrapper-specified path.
 4. **Phase 3 — /ship** (Skill, inline) — diff review, version bump confirm, PR creation. /ship's native diff-review AUQ is **GATE #2**.
-5. **Phase 4 — /land-and-deploy** (Skill, inline) — merge PR, verify deploy. Auto-passes on green canary; alerts on red.
+5. **Phase 4 — /land-and-deploy** (Skill, inline, `--suppress-readiness-gate`) — merge PR, verify deploy. AUQ-free on green (Step 3.5a-bis stale-review offer + Step 3.5e readiness gate suppressed); alerts on red (CI, merge conflict, free-test regression at Step 3.5b, deploy failure, canary). Forward-compat: if gstack doesn't recognize the flag yet, it's silently ignored — legacy AUQs fire, no regression.
 6. **Final summary + telemetry** — write to `~/.gstack/analytics/CJ_run.jsonl`. Sunset checkpoint on invocation 6, then every 5.
 
 For Branch(f) (work-item-dir input): reads TRACKER phase state and dispatches to
@@ -117,7 +117,7 @@ For Branch(g) (no arg): scans `work-items/` for in-progress user-story TRACKERs
 on the current branch and dispatches into Branch(f) for the single candidate, or
 AUQs to pick when multiple exist.
 
-**2 wrapper-orchestrated AUQ gates** (/autoplan final + /ship diff review) plus 1 occasional wrapper-rendered checkpoint AUQ (sunset, fires on invocations 6, 11, 16, ...). Sub-skills may also surface their own native AUQs (autoplan premise gate, /ship pre-flight halts, /land-and-deploy readiness gate) — those pass through; wrapper does not pre-collect.
+**2 wrapper-orchestrated AUQ gates** (/autoplan final + /ship diff review) plus 1 occasional wrapper-rendered checkpoint AUQ (sunset, fires on invocations 6, 11, 16, ...). Sub-skills may also surface their own native AUQs (autoplan premise gate, /ship pre-flight halts, /land-and-deploy deploy-failure / canary-red halts) — those pass through; wrapper does not pre-collect. /land-and-deploy's pre-merge readiness gate (Step 3.5a-bis + Step 3.5e) is **suppressed under /CJ_run** via the `--suppress-readiness-gate` flag passed in Step 5; only red signals halt.
 
 The orchestrator's own context grows by the sum of /autoplan + /ship + /land-and-deploy
 when those skills are loaded inline (~5-10K tokens combined). CJ_personal-pipeline runs

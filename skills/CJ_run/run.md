@@ -264,9 +264,38 @@ across orchestrator Bash calls, so the model carries `$MODE`, `$WORK_ITEM_DIR`,
 | `impl_qa_ship` | Dispatch `CJ_personal-pipeline` via **Agent** tool (subagent_type: general-purpose) with prompt: `Invoke CJ_personal-pipeline --work-item-dir "<WORK_ITEM_DIR>" --suppress-final-gate. Return the RESULT line.` After Agent returns: parse `PIPELINE_END_STATE`. On green, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. Each step inherits the orchestrator's AUQ flow (Gate #2 at /ship review). |
 | `qa_ship` | Invoke `/CJ_qa-work-item <WORK_ITEM_DIR>` via **Skill** tool. On green QA exit, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. |
 | `ship` | Invoke `/ship` via **Skill** tool. On success, invoke `/land-and-deploy` via Skill. |
-| `open_pr` | Print: `PR already open at $PR_URL. Run /land-and-deploy to merge.` Set `END_STATE=open_pr`. Write telemetry. Exit 0. |
+| `open_pr` | Parse PR number inline (duplicate of Step 5's parsing block — see "Branch(f) open_pr PR_NUM parsing" below). Print `PR already open at $PR_URL. Continuing into /land-and-deploy...` for audit. Invoke `/land-and-deploy --suppress-readiness-gate #<PR_NUM>` via the **Skill** tool (or `/land-and-deploy --suppress-readiness-gate` if PR_NUM is empty — /land-and-deploy auto-detects from branch). Continue to Step 5's Branch (a/b/c) handling for verdict-based END_STATE assignment. Telemetry write happens at Step 6 (do NOT exit 0 here). |
 | `already_shipped` | Print: `Already shipped at $PR_URL. Nothing to do.` Set `END_STATE=already_shipped`. Write telemetry. Exit 0. |
 | `pr_unknown_state` | Present AskUserQuestion: `PR state for $WORK_ITEM_ID is unexpected (gh returned: $PR_STATE). What now?` Options: A) Retry /ship — assume PR is gone/closed (re-create), B) Treat as already shipped — exit clean, C) Abort. **No auto-decide.** Default to C (abort) for safety. |
+
+#### Branch(f) `open_pr` PR_NUM parsing
+
+The `open_pr` row above references "Parse PR number inline." This is a verbatim
+duplicate of Step 5's PR_NUM parsing block (run.md ~lines 749-766). Duplicating
+is the taste decision over extracting a /CJ_run-internal helper: ~15 lines
+duplicated is cheaper than introducing the abstraction for a single re-use
+site.
+
+```bash
+# Parse PR number from $PR_URL (typically the last path segment, e.g. ".../pull/95")
+PR_NUM="${PR_URL##*/}"
+# Validate: must be numeric. Bail if not (PR_URL may be unusable).
+if ! printf '%s' "$PR_NUM" | grep -qE '^[0-9]+$'; then
+  # Try to recover via gh
+  CURRENT_BRANCH=$(git branch --show-current)
+  PR_NUM=$(gh pr list --head "$CURRENT_BRANCH" --state all --json number -q '.[0].number' 2>/dev/null || echo "")
+fi
+if ! printf '%s' "$PR_NUM" | grep -qE '^[0-9]+$'; then
+  echo "WARNING: could not determine PR number. Invoking /land-and-deploy without arg (it will auto-detect from branch)."
+  PR_NUM=""
+fi
+```
+
+After parsing, the dispatch invokes `/land-and-deploy --suppress-readiness-gate
+#<PR_NUM>` (or without the PR arg if PR_NUM is empty) via the **Skill** tool.
+The verdict-handling Branches (a/b/c) defined in Step 5 apply: green verdict →
+`END_STATE=green`; canary-revert → `END_STATE=deploy_red`; halted pre-merge →
+`END_STATE=halted_at_deploy`. Step 6 writes the telemetry line.
 
 After dispatch completes (or for graceful-exit modes), write the telemetry line:
 
@@ -765,11 +794,19 @@ fi
 write_state  # persist PR_NUM
 ```
 
-Invoke `/land-and-deploy` via the **Skill tool**:
+Invoke `/land-and-deploy` via the **Skill tool**, always passing
+`--suppress-readiness-gate` to skip /land-and-deploy's Step 3.5a-bis (stale-review
+offer) + Step 3.5e (pre-merge readiness AUQ) on green runs. The flag is opt-in
+upstream (gstack); direct callers of /land-and-deploy keep today's behavior.
+Forward-compat: if the running gstack version doesn't recognize the flag yet,
+its arg parser warns-and-continues — the invocation falls back to today's
+behavior with no regression. Hard stops (CI red, merge conflict, free-test
+regression at Step 3.5b, deploy failure, canary red) are unaffected — they
+remain pre-3.5 STOPs or post-3.5 AUQs and still halt /CJ_run cleanly.
 
-- If `PR_NUM` is set: `/land-and-deploy #<PR_NUM>` (literal value).
-- If `PR_NUM` is empty: `/land-and-deploy` (no arg — `/land-and-deploy` will
-  auto-detect from current branch per its Step 1).
+- If `PR_NUM` is set: `/land-and-deploy --suppress-readiness-gate #<PR_NUM>` (literal value).
+- If `PR_NUM` is empty: `/land-and-deploy --suppress-readiness-gate` (no PR arg —
+  `/land-and-deploy` will auto-detect from current branch per its Step 1).
 
 `/land-and-deploy` waits for CI, merges the PR, monitors any post-merge deploy
 workflow, runs canary verification if a production URL was configured, and
