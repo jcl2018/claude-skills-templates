@@ -3,6 +3,23 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.3.2] - 2026-05-13
+
+### Fixed
+
+- **`scripts/setup-hooks.sh` now works from git worktrees.** The wrapper
+  previously computed `HOOK_DIR="$REPO_ROOT/.git/hooks"` and aborted with
+  `.git/hooks directory not found` whenever it was run from a worktree under
+  `.claude/worktrees/`, because `$REPO_ROOT/.git` is a *file* there (pointing
+  to `<main_repo>/.git/worktrees/<name>/`), not a directory. Now resolves
+  the shared hooks directory via `git rev-parse --git-common-dir` and
+  normalizes its relative-or-absolute return value to an absolute path
+  before the existence check. Hooks land in the parent repo's `.git/hooks/`
+  in both regular checkouts and worktrees, which unblocks v3.3.1's pickup
+  step ("run `./scripts/setup-hooks.sh` after pulling") for anyone
+  developing inside a worktree. Hook bodies (pre-commit, post-merge) are
+  unchanged; only the path-resolution wrapper.
+
 ## [3.3.1] - 2026-05-13
 
 ### Fixed
