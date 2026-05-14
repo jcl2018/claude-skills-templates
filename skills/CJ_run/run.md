@@ -1,17 +1,41 @@
-# /CJ_ship-feature — Orchestration
+# /CJ_run — Orchestration
 
-End-to-end wrapper from APPROVED `/office-hours` design doc to verified deploy:
+Unified pipeline entry point with three input shapes:
+
+```
+/CJ_run <design-doc-path>       → Branches (a/b/c/d): full pipeline
+/CJ_run <work-item-dir>         → Branch (f): phase-detect + dispatch
+/CJ_run                         → Branch (g): scan branch + auto-resume
+```
+
+**Branch summary:**
+
+| Branch | Trigger | Behavior |
+|---|---|---|
+| (a) | design-doc mode, work already shipped | idempotency skip |
+| (b) | design-doc mode, MULTI_STORY=1 | auto-iterate children via per-child work-item-dir mode |
+| (c) | design-doc mode, single-story | full pipeline: autoplan → scaffold → impl → QA → PR → deploy |
+| (d) | design-doc arg, Status != APPROVED | error: "Design doc is not APPROVED" |
+| (f) | work-item-dir arg | detect phase from TRACKER state, dispatch sub-pipeline |
+| (g) | no arg | scan work-items/, detect candidate, auto-dispatch to Branch(f) |
+
+Design-doc mode (Branch c) flow:
 
 ```
 /office-hours (manual, separate)
     ↓ produces APPROVED design doc
-/CJ_ship-feature <design-doc-path>
+/CJ_run <design-doc-path>
     ├── Phase 1: /autoplan          (Skill, inline)  [GATE #1: final-approval AUQ]
     ├── Phase 2: CJ_personal-pipeline (Agent subagent, --suppress-final-gate)
     │              └── scaffold → impl → QA (8.5 + 9.2 AUQs suppressed)
     ├── Phase 3: /ship               (Skill, inline)  [GATE #2: diff-review AUQ]
     └── Phase 4: /land-and-deploy    (Skill, inline)  [auto on green; alert on red]
 ```
+
+Branch(f) (work-item-dir) and Branch(g) (no-arg) are added in v0.2.0. Branch(f)
+full impl_qa_ship dispatch depends on CJ_personal-pipeline's `--work-item-dir` flag
+(F000016/S000036). Branch(g) implementation is in this file (S000038); Branch(f)
+implementation lands in S000039.
 
 This file is the step-by-step logic invoked from [SKILL.md](SKILL.md). Read
 SKILL.md first for path resolution, error handling, and usage; then follow the
@@ -48,17 +72,141 @@ their state is observable directly in the orchestrator's conversation context.
 
 ---
 
-## Step 1: Validate Input + Initialize state file
+## Step 1: Validate Input + Dispatch + Initialize state file
 
-Parse the user's argument and set up shared state. **All state lives in a per-run
-state file** (`/tmp/cj-ship-feature-$RUN_ID.env`) — every subsequent step's bash
+Detect the input shape and dispatch to the appropriate branch. **All state lives in a per-run
+state file** (`/tmp/cj-run-$RUN_ID.env`) — every subsequent step's bash
 block starts by sourcing this file. This solves the "bash variables don't cross
 orchestrator-model Bash tool calls" problem (the failure mode PR1 caught at v2.1.4).
 
+### Step 1.0: Input shape detection
+
 ```bash
-# Single positional arg: <design-doc-path>
-DESIGN_DOC="${1:-}"
-[ -n "$DESIGN_DOC" ] || { echo "Error: design-doc path required"; exit 1; }
+ARG="${1:-}"
+
+if [ -z "$ARG" ]; then
+  INPUT_MODE="no-arg"
+elif [ -f "$ARG" ] && [[ "$ARG" == *.md ]]; then
+  INPUT_MODE="design-doc"
+elif [ -d "$ARG" ]; then
+  # Verify it's a work-item dir (contains a *_TRACKER.md)
+  if find "$ARG" -maxdepth 1 -name "*_TRACKER.md" 2>/dev/null | grep -q .; then
+    INPUT_MODE="work-item-dir"
+  else
+    echo "Error: $ARG is not a work-item directory (no TRACKER.md). Run /CJ_scaffold-work-item first."
+    exit 1
+  fi
+else
+  echo "Error: cannot identify input. Pass a design-doc path (*.md), a work-item dir, or no arg."
+  exit 1
+fi
+echo "INPUT_MODE: $INPUT_MODE"
+```
+
+### Step 1.0.g: Branch(g) — no-arg branch scan (S000038)
+
+Runs when `INPUT_MODE = no-arg`. Scans `work-items/` for in-progress user-story
+TRACKERs on the current worktree. Scope: user-story TRACKERs only (gate strings
+below are user-story-specific; defect/task TRACKERs use different phrasing —
+v0.3 may extend).
+
+Bash 3.2 compatible: uses `while IFS= read -r` (not `mapfile -t`).
+
+Gate strings are verbatim from `templates/CJ_personal-workflow/tracker-user-story.md`
+Phase 2 Gates: `Todos section reflects remaining work`. If those strings change in
+the template, this scan breaks silently — keep an eye on template drift.
+
+```bash
+if [ "$INPUT_MODE" = "no-arg" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel)
+  if [ ! -d "$REPO_ROOT/work-items" ]; then
+    echo "No work-items/ found. Run /office-hours or /CJ_scaffold-work-item first."
+    exit 0
+  fi
+
+  CANDIDATES=()
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    # Type filter: user-story only in v0.2 (gate strings below are user-story-specific)
+    TYPE=$(grep "^type:" "$f" | head -1 | sed 's/type: *//' | tr -d '"' | tr -d ' ')
+    [ "$TYPE" != "user-story" ] && continue
+    # Phase 1 Gates block: scope to "**Gates:**" sub-block under "### Phase 1:"
+    # Pattern: extract Phase 1 section, then within it extract the Gates sub-block
+    P1_GATES=$(sed -n '/### Phase 1:/,/^### Phase [^1]/p' "$f" | sed -n '/\*\*Gates:\*\*/,/^$/p')
+    P1_TOTAL=$(echo "$P1_GATES" | grep -c "^- \[.\]")
+    P1_DONE=$(echo "$P1_GATES" | grep -c "^- \[x\]")
+    # Phase 2 implementer-owned gates: BOTH must be [x] for impl to be done
+    P2_IMPL=$(grep "Todos section reflects remaining work" "$f" | grep -c "\[x\]")
+    P2_FILES=$(grep "Files section updated with changed files" "$f" | grep -c "\[x\]")
+    # Phase 2 QA-owned gates: if BOTH checked AND a [qa-pass] entry exists, story is QA'd
+    # If story is QA'd OR Phase 3 ship gates are checked, exclude (it's shipped or shipping)
+    P2_AC=$(grep "Acceptance criteria verified met" "$f" | grep -c "\[x\]")
+    P3_SHIP=$(grep -E "\`/ship\` — PR created|/ship — PR created" "$f" | grep -c "\[x\]")
+    P3_DEPLOY=$(grep -E "\`/land-and-deploy\` — merged|/land-and-deploy — merged" "$f" | grep -c "\[x\]")
+    # In-progress = Phase 1 fully green AND impl not started (no implementer-owned gates checked)
+    # AND not yet QA'd AND not yet shipped/deployed
+    if [ "$P1_TOTAL" = "$P1_DONE" ] && [ "$P1_TOTAL" -gt 0 ] \
+       && [ "$P2_IMPL" = "0" ] && [ "$P2_FILES" = "0" ] \
+       && [ "$P2_AC" = "0" ] && [ "$P3_SHIP" = "0" ] && [ "$P3_DEPLOY" = "0" ]; then
+      CANDIDATES+=("$f")
+    fi
+  done < <(find "$REPO_ROOT/work-items" -name "*_TRACKER.md" 2>/dev/null)
+
+  N_CANDIDATES=${#CANDIDATES[@]}
+  echo "BRANCH_G_CANDIDATES: $N_CANDIDATES"
+  for c in "${CANDIDATES[@]}"; do echo "  $c"; done
+
+  if [ "$N_CANDIDATES" -eq 0 ]; then
+    echo "Nothing to resume. Run /office-hours or /CJ_scaffold-work-item first."
+    exit 0
+  elif [ "$N_CANDIDATES" -eq 1 ]; then
+    # Single candidate: extract work-item dir and switch to work-item-dir mode
+    PICKED_TRACKER="${CANDIDATES[0]}"
+    ARG=$(dirname "$PICKED_TRACKER")
+    INPUT_MODE="work-item-dir"
+    echo "Branch(g) auto-picked: $ARG"
+  else
+    # Multiple candidates: orchestrator-mediated AUQ required.
+    # SKILL-level bash blocks cannot invoke AskUserQuestion directly; the
+    # orchestrator (model) reads this output and renders the AUQ. The
+    # MULTI_CANDIDATE_AUQ_REQUIRED marker tells the orchestrator to
+    # call AskUserQuestion before continuing. Exit non-zero to signal
+    # "not auto-resumed; needs interactive selection" — distinguishing this
+    # path from the single-candidate "auto-picked and proceeding" path.
+    echo "MULTI_CANDIDATE_AUQ_REQUIRED N=$N_CANDIDATES"
+    echo "Candidates:"
+    for c in "${CANDIDATES[@]}"; do echo "  $(dirname "$c")"; done
+    echo ""
+    echo "Orchestrator: render AskUserQuestion with each candidate as an option."
+    echo "On user selection, re-invoke /CJ_run <selected-path> explicitly."
+    exit 2
+  fi
+fi
+```
+
+### Step 1.1: Branch(f) — work-item-dir entry (placeholder; full impl in S000039)
+
+If `INPUT_MODE = work-item-dir` at this point (either passed directly OR set
+by Branch(g) above), Branch(f) takes over: reads TRACKER phase state, resolves
+MODE, dispatches. **S000038 implements Branch(g) only**; Branch(f) phase
+detection and dispatch table are S000039's scope. Until S000039 lands, Branch(f)
+prints a "not yet implemented" message and exits.
+
+```bash
+if [ "$INPUT_MODE" = "work-item-dir" ]; then
+  echo "Branch(f) work-item-dir mode at: $ARG"
+  echo "Branch(f) phase-detection + dispatch is implemented in S000039."
+  echo "Until S000039 ships, manually invoke /CJ_implement-from-spec or /CJ_qa-work-item or /ship as appropriate."
+  exit 0
+fi
+```
+
+### Step 1.2: Branch(a/b/c/d) — design-doc input (existing behavior)
+
+Continues only when `INPUT_MODE = design-doc`.
+
+```bash
+DESIGN_DOC="$ARG"
 [ -f "$DESIGN_DOC" ] || { echo "Error: design doc not found at $DESIGN_DOC"; exit 1; }
 
 # Must be under ~/.gstack/projects/ (the canonical /office-hours output location)
@@ -67,9 +215,9 @@ case "$DESIGN_DOC" in
   *) echo "Error: design doc must be under ~/.gstack/projects/ (got: $DESIGN_DOC)"; exit 1 ;;
 esac
 
-# MUST have Status: APPROVED somewhere in the body (typically near top of doc)
+# MUST have Status: APPROVED somewhere in the body (typically near top of doc) — Branch (d) error
 grep -q '^Status: APPROVED' "$DESIGN_DOC" || {
-  echo "Error: design doc lacks 'Status: APPROVED'. Run /office-hours, accept the final approval option, then re-invoke /CJ_ship-feature."
+  echo "Error: design doc lacks 'Status: APPROVED'. Run /office-hours, accept the final approval option, then re-invoke /CJ_run."
   exit 1
 }
 
@@ -83,7 +231,7 @@ RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 # Initialize state file. Every subsequent step `source`s this at the start of
 # any bash block to recover state. Variables: RUN_ID, DESIGN_DOC, END_STATE,
 # MULTI_STORY, WORK_ITEM_DIR, PR_URL, PIPELINE_DECISION_LOG.
-STATE_FILE="/tmp/cj-ship-feature-$RUN_ID.env"
+STATE_FILE="/tmp/cj-run-$RUN_ID.env"
 PIPELINE_DECISION_LOG="$HOME/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl"
 # NOTE: PIPELINE_DECISION_LOG points to the pipeline's standalone log. The
 # wrapper does NOT redirect the pipeline's log via env var (that mechanism
@@ -108,7 +256,7 @@ echo "STATE_FILE: $STATE_FILE"
 echo "RUN_ID: $RUN_ID"
 ```
 
-**State-file contract** (every subsequent bash block in ship-feature.md MUST
+**State-file contract** (every subsequent bash block in run.md MUST
 begin with this):
 
 ```bash
@@ -199,7 +347,7 @@ bash variables don't cross orchestrator-model Bash calls; the prompt template ca
 the literal path):
 
 ```
-ROLE: pipeline runner for /CJ_ship-feature wrapper.
+ROLE: pipeline runner for /CJ_run wrapper.
 TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end state.
 
 STEPS:
@@ -266,8 +414,8 @@ ship an empty scaffold. SKIP Steps 4-5 entirely; jump to Step 6 with:
 
 ```
 Multi-story feature scaffolded. Per-child invocation needed:
-  /CJ_ship-feature <design-doc-for-child-1>
-  /CJ_ship-feature <design-doc-for-child-2>
+  /CJ_run <design-doc-for-child-1>
+  /CJ_run <design-doc-for-child-2>
   ...
 (Or invoke /CJ_personal-pipeline on each child design doc if you want the
 inner loop only.)
@@ -304,7 +452,7 @@ END_STATE="subagent_crashed"
 # WORK_ITEM_DIR may have been created before crash but we don't know — leave as ""
 write_state
 # PROCEED TO STEP 6 — finalizer prints "CJ_personal-pipeline subagent crashed
-# (no RESULT line emitted). Re-invoke /CJ_ship-feature; pipeline's Branch (a)
+# (no RESULT line emitted). Re-invoke /CJ_run; pipeline's Branch (a)
 # idempotency will resume from disk state if the work-item dir was created."
 ```
 
@@ -356,7 +504,7 @@ END_STATE="halted_at_ship"
 write_state
 # PROCEED TO STEP 6 — finalizer prints standard halt tail; note halted_at_ship
 # is healthy (review caught a real issue), excluded from sunset trip-wire by
-# Step 7's filter. Re-invoke /CJ_ship-feature after fix, or invoke /ship
+# Step 7's filter. Re-invoke /CJ_run after fix, or invoke /ship
 # directly to continue (commits exist locally; /ship's idempotency resumes).
 ```
 
@@ -468,7 +616,7 @@ if command -v jq >/dev/null 2>&1; then
     --argjson multi_story_scaffold_only "$MULTI_STORY_BOOL" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_scaffold_only:$multi_story_scaffold_only,ts:$ts}' \
-    >> "$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
+    >> "$HOME/.gstack/analytics/CJ_run.jsonl"
 else
   # Fallback when jq is missing (workbench declared dep, so unlikely).
   # Lossy on paths with quotes/backslashes but never invalid JSON.
@@ -476,7 +624,7 @@ else
   _SAFE_WORK=$(printf '%s' "${WORK_ITEM_DIR:-}" | tr -d '\\"')
   _SAFE_PR=$(printf '%s' "${PR_URL:-}" | tr -d '\\"')
   echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_scaffold_only\":$MULTI_STORY_BOOL,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-    >> "$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
+    >> "$HOME/.gstack/analytics/CJ_run.jsonl"
 fi
 ```
 
@@ -485,7 +633,7 @@ fi
 If `END_STATE=green`:
 
 ```
-/CJ_ship-feature COMPLETE (green)  multi_story=$MULTI_STORY
+/CJ_run COMPLETE (green)  multi_story=$MULTI_STORY
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -493,13 +641,13 @@ Work item:     ${WORK_ITEM_DIR:-N/A}
 PR:            ${PR_URL:-N/A}
 Tracker:       ${TRACKER_PATH:-N/A}
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
-Telemetry:     ~/.gstack/analytics/CJ_ship-feature.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
 ```
 
 Otherwise (any halt or `deploy_red`):
 
 ```
-/CJ_ship-feature HALTED at end_state=$END_STATE
+/CJ_run HALTED at end_state=$END_STATE
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -507,9 +655,9 @@ Work item:     ${WORK_ITEM_DIR:-N/A (halt before work-item created)}
 PR:            ${PR_URL:-N/A (halt before PR created)}
 Tracker:       ${TRACKER_PATH:-N/A}
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
-Telemetry:     ~/.gstack/analytics/CJ_ship-feature.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
 
-Resume: re-invoke /CJ_ship-feature on the same design doc, OR continue manually
+Resume: re-invoke /CJ_run on the same design doc, OR continue manually
 from the failed phase (each sub-skill has its own idempotent re-entry).
 ```
 
@@ -574,7 +722,7 @@ neuter its purpose.
 
 ```bash
 source "$STATE_FILE"
-TELEMETRY="$HOME/.gstack/analytics/CJ_ship-feature.jsonl"
+TELEMETRY="$HOME/.gstack/analytics/CJ_run.jsonl"
 
 # This run's telemetry line was just appended by Step 6.1.
 # INVOCATION_COUNT includes this run.
@@ -618,7 +766,7 @@ if [ "$SHOULD_FIRE" = "1" ]; then
   # wrapper itself (AskUserQuestion is in SKILL.md allowed-tools).
   #
   # AUQ body:
-  #   /CJ_ship-feature sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
+  #   /CJ_run sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
   #   $PRIOR_5_SUMMARY
   #
   #   Trip-wire: $HALT_COUNT/5 brittleness-signal end_states
@@ -638,8 +786,8 @@ On Delete: print instructions to delete the skill (orchestrator does NOT
 auto-delete — destructive actions require explicit user execution):
 
 ```
-To delete /CJ_ship-feature:
-  rm -rf <workbench>/skills/CJ_ship-feature/
+To delete /CJ_run:
+  rm -rf <workbench>/skills/CJ_run/
   Strike the row from <workbench>/skills-catalog.json
   cd <workbench> && ./scripts/skills-deploy install
 ```

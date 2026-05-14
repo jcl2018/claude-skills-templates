@@ -172,7 +172,7 @@
   {
     "name": "CJ_personal-pipeline",
     "version": "1.0.0",
-    "description": "Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
+    "description": "INTERNAL -- invoked by /CJ_run. Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
     "source": "local",
     "depends": {
       "skills": [
@@ -195,9 +195,9 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_ship-feature",
-    "version": "0.1.0",
-    "description": "End-to-end wrapper from an APPROVED /office-hours design doc to a verified production deploy. Chains /autoplan (review) -> /CJ_personal-pipeline (scaffold->impl->QA, with --suppress-final-gate) -> /ship (PR creation) -> /land-and-deploy (merge + verify). Exactly 2 wrapper-orchestrated AUQ gates: /autoplan final-approval (design decisions) + /ship diff review (code-level). Sub-skill native AUQs (autoplan premise, /ship pre-flight) pass through. CJ_personal-pipeline runs as Agent subagent with --suppress-final-gate (Step 8.5 + 9.2 AUQs suppressed; decisions redirected to wrapper-specified log via GSTACK_PIPELINE_DECISION_LOG_PATH). Halt-on-red default; idempotent (each sub-skill owns its re-entry path); sunset criterion at 6th invocation tracking only orchestration-brittleness end_states.",
+    "name": "CJ_run",
+    "version": "0.2.0",
+    "description": "Unified pipeline entry point. v0.2.0 ships: (a) APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy), (b) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories (Phase 1 green + Phase 2 not started) and hands off to (c) work-item directory -> Branch(f) phase-detection PLACEHOLDER (prints next-step guidance and exits 0; full dispatch table is tracked under S000039, blocked on F000016/S000036). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
     "source": "local",
     "depends": {
       "skills": [
@@ -211,8 +211,8 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/CJ_ship-feature/SKILL.md",
-      "skills/CJ_ship-feature/ship-feature.md"
+      "skills/CJ_run/SKILL.md",
+      "skills/CJ_run/run.md"
     ],
     "templates": [],
     "status": "experimental"

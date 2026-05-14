@@ -1,6 +1,6 @@
 ---
 name: CJ_personal-pipeline
-description: "Single orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Takes a design-doc path, dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). One keystroke for the full CJ_personal-workflow phase 2-4 loop. Halt-on-red default; idempotent; sunset criterion built in."
+description: "INTERNAL — invoked by /CJ_run. Do not call directly. Single orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Takes a design-doc path, dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). One keystroke for the full CJ_personal-workflow phase 2-4 loop. Halt-on-red default; idempotent; sunset criterion built in."
 version: 0.1.0
 allowed-tools:
   - Bash

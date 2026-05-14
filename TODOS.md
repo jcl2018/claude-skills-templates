@@ -2,6 +2,25 @@
 
 ## Active work
 
+### Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L) — NEXT
+After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY for design-doc input that decomposes into a single user-story. The full "drop any work-item path and it figures out what to do" experience needs two follow-up implementations, in this order:
+
+1. **F000016 — multi-story auto-iterate** (`work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/`)
+   - **S000036 — `--work-item-dir` flag on `/CJ_personal-pipeline`**: adds Branch(e) to pipeline.md so the pipeline accepts an existing work-item directory and runs impl+QA without scaffolding. Unblocks Branch(f) `impl_qa_ship` dispatch in /CJ_run.
+   - **S000037 — Branch(b) auto-iterate loop in /CJ_run**: rewrites the multi-story halt-after-scaffold behavior into a per-child auto-iterate loop. After scaffold detects multiple children, loop each through CJ_personal-pipeline (`--work-item-dir`) → /ship → /land-and-deploy on a per-child branch. Captures per-child PR URLs.
+   - Both are scaffolded with TRACKER/DESIGN/SPEC/TEST-SPEC; need `/CJ_implement-from-spec` + `/CJ_qa-work-item` + `/ship` per child.
+
+2. **F000017 S000039 — Branch(f) full phase-detection dispatch** (`work-items/features/ops/F000017_cj_run_entry_point/S000039_branch_f_work_item_dir/`)
+   - Reads TRACKER phase state (impl gate, QA gate, PR URL) and dispatches to one of 6 modes: `impl_qa_ship` / `qa_ship` / `ship` / `open_pr` / `already_shipped` / `pr_unknown_state`.
+   - Depends on S000036's `--work-item-dir` flag for the `impl_qa_ship` dispatch.
+   - Scaffolded; needs implementation.
+
+**After both ship**, /CJ_run handles: design-doc (single + multi-story), work-item-dir (any user-story phase), no-arg branch scan with auto-resume.
+
+**Defect/task work-item-dir support deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
+
+**Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
+
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
 `CJ_*`: `CJ_personal-workflow`, `CJ_system-health`, `CJ_scaffold-work-item`,
@@ -91,6 +110,18 @@ When a work-item's acceptance criteria include rows that are structurally only v
 
 ### `skills-deploy install` pins manifest `source` to cwd; breaks when run from a worktree (P3, S)
 `scripts/skills-deploy install` records `manifest.source` (in `~/.claude/.skills-templates.json`) as the running clone's `REPO_ROOT`, computed from the script's own path. When invoked from `.claude/worktrees/<name>/scripts/skills-deploy`, the manifest gets pinned to that ephemeral worktree path. Once the worktree is removed (Conductor cleanup, `git worktree remove`, etc.), `skills-deploy doctor` reports `FAIL: source path '<dead-worktree>' no longer exists` and emits WARN for every skill as `source directory missing in repo` — even though the per-skill SKILL.md symlinks in `~/.claude/skills/CJ_*/` still resolve correctly to the main checkout (symlinks use absolute paths to `/Users/chjiang/Documents/projects/claude-skills-templates/skills/...`, not the worktree). Update-check and the gstack-update-check fallback also key off `manifest.source` for `git pull --ff-only` during inline upgrades, so a stale source silently breaks the upgrade path too. **Workaround (already applied 2026-05-11):** re-run `skills-deploy install` from the main checkout, not a worktree. **Fix options:** (a) detect when `REPO_ROOT` is under `<toplevel>/.claude/worktrees/` and refuse with an instructive error pointing at the main toplevel — strictest, safest; (b) auto-resolve via `git rev-parse --path-format=absolute --git-common-dir` to find the main repo's git-dir and record THAT toplevel as `source` regardless of which worktree the script ran from — silently does the right thing; (c) print a WARN-and-continue, keeping current behavior but visible. Option (b) is the "boil the lake" pick — also fixes future Conductor / per-feature-worktree flows where running from main isn't always convenient. **When:** before the next time a worktree-based install pollutes the manifest (high-frequency hit because Conductor + per-feature worktree workflows run scripts from worktree paths by default). **Reference:** found 2026-05-11 while investigating "CJ_ skills missing in autocomplete in other repos" — root cause was a different vector (autocomplete was just stale state, resolved when user re-tested), but `skills-deploy doctor` from a worktree surfaced the pinned-to-deleted-worktree manifest. Manifest re-anchored to main checkout; learning logged via `gstack-learnings-log` under key `skills_deploy_source_pins_to_cwd`.
+
+### /CJ_run multi-story: deferred items from autoplan review (P3, M)
+Deferred during autoplan review for the multi-story auto-iterate feature (branch claude/awesome-pasteur-36565c):
+- **Blocking budget gate before loop** — auto-iterate mode implies acceptance; a preflight log line "N children × impl+qa+ship+land" with no AUQ is the right middle ground (already in impl sketch). Full AUQ gate deferred.
+- **`--no-auto-iterate` escape hatch** — user confirmed full-auto intent; opt-out is invoking `/CJ_run` per child manually. Defer to v0.3.0 if demand surfaces.
+- **run_id passthrough `--run-id` flag** — pipeline audit trail is useless in wrapper mode but not harmful. Requires pipeline interface change; defer to v0.3.0.
+- **Migration guide for `--work-item-dir`** — additive flag, no breaking changes to existing callers; CHANGELOG note is sufficient for v0.2.0.
+- **Dependency-aware batching** (Codex CEO) — `--work-item-dir` sequentially respects `S[0-9]*` sort order; `blocked_by` preflight halt is the safety net. Full dependency-aware scheduler deferred.
+**Reference:** autoplan review 2026-05-13 on branch claude/awesome-pasteur-36565c.
+
+### Branch(g) full PR-state detection for `/CJ_run` (P2, M)
+Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to determine "in-progress" — it doesn't call `gh pr view` because the user-story TRACKER template has no `pr:` frontmatter field (PR links live in a Markdown `## PRs` section). This works correctly for the common case (gates accurately reflect ship state), but a tracker with `[x]` gates that was force-merged or manually edited could slip past. **Fix sketch:** (a) extend `tracker-user-story.md` with an optional `pr:` frontmatter field plus a section parser that recognizes both styles; (b) call `gh pr view "$PR_URL" --json state` with a cache to avoid N round-trips per candidate; (c) gate Branch(g) on `MERGED` state for explicit deduplication. **When:** when a false positive surfaces in real use; for now the gate-state filter catches all known shipped work-items. **Reference:** pre-landing review on F000017 S000038 (2026-05-13).
 
 ## Deferred work
 

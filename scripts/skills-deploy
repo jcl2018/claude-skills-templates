@@ -584,7 +584,9 @@ do_remove() {
       rule_name=$(basename "$rule_file")
       case "$rule_name" in README.md|NOTES.md|DEVELOPMENT.md|CHANGELOG.md) continue ;; esac
       if [ -f "$RULES_TARGET/$rule_name" ]; then
-        rm -f "$RULES_TARGET/$rule_name" && echo "  RULE: removed $rule_name" || true
+        if rm -f "$RULES_TARGET/$rule_name"; then
+          echo "  RULE: removed $rule_name"
+        fi
       fi
     done
   fi

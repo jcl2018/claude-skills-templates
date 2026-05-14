@@ -7,6 +7,7 @@ steps (scaffold/implement/qa work-item, personal-workflow/company-workflow valid
 are invoked transitively by the orchestrators — do not route to them directly.
 
 - "check installed skills", "skill system health", "skills status" -> /CJ_system-health
-- "ship feature", "ship the whole feature", "design doc to production", "end-to-end ship", "full pipeline from design" -> /CJ_ship-feature
-- "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline" -> /CJ_personal-pipeline (v1.16.0+: auto-decision is the only mode; legacy `--auto` flag accepted as silent no-op for backwards compat)
+- "ship feature", "ship the whole feature", "design doc to production", "end-to-end ship", "full pipeline from design", "ship the whole pipeline", "run personal pipeline", "scaffold + implement + qa from a design doc", "auto pipeline", "fire and forget pipeline" -> /CJ_run <design-doc-path>
+- "resume work-item", "continue work-item", "what's left on this work-item", "finish this work-item" -> /CJ_run <work-item-dir> (NOTE: Branch(f) phase-detection placeholder until S000039 lands; prints next-step guidance and exits)
+- "resume current branch", "what's next on this branch", "auto resume", "pick up where I left off" -> /CJ_run (no args; Branch(g) scans for in-progress user-stories and hands off to Branch(f) — see note above)
 - "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest

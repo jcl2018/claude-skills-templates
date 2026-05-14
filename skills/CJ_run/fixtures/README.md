@@ -1,4 +1,4 @@
-# /CJ_ship-feature fixtures
+# /CJ_run fixtures
 
 End-to-end wrapper from APPROVED design doc to verified deploy. Fixtures
 document manual smoke scenarios — automated runners are deferred (full
@@ -19,15 +19,15 @@ Manual workflow (no auto-runner in v1):
 
 ```bash
 # Pre-flight smoke (refuses cleanly on bad input)
-/CJ_ship-feature ./skills/CJ_ship-feature/fixtures/synthetic-approved-design.md
+/CJ_run ./skills/CJ_run/fixtures/synthetic-approved-design.md
 # Should immediately fail: "design doc must be under ~/.gstack/projects/"
 
 # Real smoke (in a scratch repo, not claude-skills-templates itself —
 # you don't want /ship trying to ship a fixture):
-cp skills/CJ_ship-feature/fixtures/synthetic-approved-design.md \
+cp skills/CJ_run/fixtures/synthetic-approved-design.md \
    ~/.gstack/projects/scratch/test-design-$(date +%s).md
 cd /path/to/scratch/repo
-/CJ_ship-feature ~/.gstack/projects/scratch/test-design-*.md
+/CJ_run ~/.gstack/projects/scratch/test-design-*.md
 # Stop manually before /ship creates a real PR (Ctrl-C after /autoplan finishes)
 ```
 
