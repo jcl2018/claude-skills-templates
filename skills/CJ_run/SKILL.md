@@ -53,7 +53,8 @@ if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/CJ_run/run.md" ]; then
 fi
 
 # Verify upstream skills exist
-# - CJ_personal-pipeline: dispatched as Agent subagent with --suppress-final-gate
+# - CJ_personal-pipeline: invoked inline via Skill tool with --suppress-final-gate
+#   (NOT Agent — see run.md "Pipeline End-State Reading" for the depth-2 nesting constraint)
 # - autoplan / ship / land-and-deploy: invoked inline via Skill tool
 for _UPSTREAM in CJ_personal-pipeline; do
   if [ ! -f "$HOME/.claude/skills/$_UPSTREAM/SKILL.md" ] && [ ! -f "$_REPO_ROOT/skills/$_UPSTREAM/SKILL.md" ]; then
@@ -104,7 +105,7 @@ Per phase for design-doc mode (Branch c):
 
 1. **Pre-flight** (orchestrator) — validate the design doc exists, is under `~/.gstack/projects/`, and has `Status: APPROVED`. Set up shared decision-log path.
 2. **Phase 1 — /autoplan** (Skill, inline) — review the design doc via /autoplan's CEO + design + eng + DX review chain. /autoplan's native final-approval AUQ is **GATE #1**.
-3. **Phase 2 — /CJ_personal-pipeline** (Agent subagent, `--suppress-final-gate`) — scaffold → impl → QA. 8.5 + 9.2 AUQs suppressed; decisions logged to wrapper-specified path.
+3. **Phase 2 — /CJ_personal-pipeline** (Skill, inline, `--suppress-final-gate`) — scaffold → impl → QA. 8.5 + 9.2 AUQs suppressed; decisions logged to wrapper-specified path. Inline (not Agent) because the pipeline itself spawns Agent subagents per phase, and Claude Code's harness does not support depth-2 Agent nesting (see run.md "Pipeline End-State Reading").
 4. **Phase 3 — /ship** (Skill, inline) — diff review, version bump confirm, PR creation. /ship's native diff-review AUQ is **GATE #2**.
 5. **Phase 4 — /land-and-deploy** (Skill, inline) — merge PR, verify deploy. Auto-passes on green canary; alerts on red.
 6. **Final summary + telemetry** — write to `~/.gstack/analytics/CJ_run.jsonl`. Sunset checkpoint on invocation 6, then every 5.
@@ -198,7 +199,7 @@ subagent dispatch with suppress-final-gate, multi-story shape detection, /ship i
 | /ship aborted | "Wrapper halted at /ship review. Commits at {branch} not yet pushed as PR. Pipeline decision log: {path}." | Manually invoke /ship later; commits already exist |
 | /land-and-deploy halted | "Wrapper halted at /land-and-deploy. {error}." | Fix root cause; manually invoke /land-and-deploy |
 | Canary red post-deploy | "Canary red — see report at {path}. No auto-rollback." | Manual: rollback OR fix-forward |
-| Subagent crash mid-pipeline | "CJ_personal-pipeline subagent crashed (no RESULT line). end_state=subagent_crashed." | Re-invoke; pipeline branch (a) skip path resumes from work-item dir on disk |
+| Pipeline crash mid-run | "CJ_personal-pipeline crashed (no PIPELINE COMPLETE line). end_state=subagent_crashed." | Re-invoke; pipeline branch (a) skip path resumes from work-item dir on disk |
 
 ## Sunset Criterion
 
