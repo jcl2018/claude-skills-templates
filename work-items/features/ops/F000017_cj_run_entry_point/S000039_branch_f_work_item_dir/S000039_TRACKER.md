@@ -113,3 +113,5 @@ blocked_by: "F000016"
 
 - 2026-05-13 [decision] Group all Branch(f) modes (impl_qa_ship, qa_ship, ship, open_pr, already_shipped, pr_unknown_state) into one story rather than split. Rationale: all six modes share the same gate-detection scaffolding; splitting would duplicate the code.
 - 2026-05-13 [decision] `blocked_by: "F000016"` — strictly only impl_qa_ship mode depends on F000016, but the story ships as a unit. If F000016 is delayed, S000039 could partial-ship with impl_qa_ship marked as error; documented as a fallback in DESIGN.
+- 2026-05-13 [gates-update] Phase 3: /ship — PR #99,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #99,PRs section: linked PR #99 (MERGED).
+- 2026-05-14 [impl-finding] PR #99 land-and-deploy hook auto-marked Phase 3 ship/deploy/smoke gates on this tracker, but PR #99 shipped only the Branch(f) placeholder stub (part of S000038), not S000039's actual phase-detection implementation. Reverted: unchecked Phase 3 gates; removed stale PR #99 reference from PRs section.

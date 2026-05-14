@@ -155,31 +155,56 @@ Parse the user's argument:
 # Step 9.2's AUQs are suppressed (decision log still written, telemetry still
 # written). Used by /CJ_run and any future wrapper consuming this
 # pipeline as a subagent. See "Suppression Contract" below.
+# --work-item-dir <path> is the alternate input mode: skip scaffold, run
+# impl+QA on a pre-staged work-item dir. Used by /CJ_run Branch (b)/(f)
+# to dispatch per-child runs without a design doc. Look-ahead consumes the
+# next arg as the path value.
 SUPPRESS_FINAL_GATE=""
+WORK_ITEM_DIR_OVERRIDE=""
 ARGS=()
+_next_is_work_item_dir=0
 for arg in "$@"; do
+  if [ "$_next_is_work_item_dir" = "1" ]; then
+    WORK_ITEM_DIR_OVERRIDE="$arg"
+    _next_is_work_item_dir=0
+    continue
+  fi
   case "$arg" in
     --auto|--manual) ;;  # accept and discard for backwards compat
     --suppress-final-gate) SUPPRESS_FINAL_GATE=1 ;;
+    --work-item-dir) _next_is_work_item_dir=1 ;;
     *) ARGS+=("$arg") ;;
   esac
 done
 DESIGN_DOC="${ARGS[0]:-}"
 
-[ -n "$DESIGN_DOC" ] || { echo "Error: design-doc path required"; exit 1; }
-[ -f "$DESIGN_DOC" ] || { echo "Error: design doc not found at $DESIGN_DOC"; exit 1; }
+if [ -n "$WORK_ITEM_DIR_OVERRIDE" ]; then
+  # --work-item-dir mode: validate dir + TRACKER, leave DESIGN_DOC empty
+  [ -d "$WORK_ITEM_DIR_OVERRIDE" ] || { echo "Error: --work-item-dir path not found at $WORK_ITEM_DIR_OVERRIDE"; exit 1; }
+  _TRACKER_CHECK=$(find "$WORK_ITEM_DIR_OVERRIDE" -maxdepth 1 \( -name "*_TRACKER.md" -o -name "TRACKER.md" \) 2>/dev/null | head -1)
+  [ -n "$_TRACKER_CHECK" ] || { echo "Error: $WORK_ITEM_DIR_OVERRIDE is not a work-item directory (no TRACKER.md)"; exit 1; }
+  WORK_ITEM_DIR=$(realpath "$WORK_ITEM_DIR_OVERRIDE")
+  DESIGN_DOC=""
+  # Refuse extra positional args in --work-item-dir mode
+  [ "${#ARGS[@]}" -eq 0 ] || { echo "Error: --work-item-dir mode takes no positional args (got: ${ARGS[*]})"; exit 1; }
+else
+  # design-doc mode (existing behavior)
+  [ -n "$DESIGN_DOC" ] || { echo "Error: design-doc path required (or use --work-item-dir <path>)"; exit 1; }
+  [ -f "$DESIGN_DOC" ] || { echo "Error: design doc not found at $DESIGN_DOC"; exit 1; }
 
-# Must be under ~/.gstack/projects/ (the canonical /office-hours output location)
-case "$DESIGN_DOC" in
-  "$HOME/.gstack/projects/"*) ;;
-  *) echo "Error: design doc must be under ~/.gstack/projects/ (got: $DESIGN_DOC)"; exit 1 ;;
-esac
+  # Must be under ~/.gstack/projects/ (the canonical /office-hours output location)
+  case "$DESIGN_DOC" in
+    "$HOME/.gstack/projects/"*) ;;
+    *) echo "Error: design doc must be under ~/.gstack/projects/ (got: $DESIGN_DOC)"; exit 1 ;;
+  esac
 
-# Refuse on multiple positional args (one design doc per run)
-[ "${#ARGS[@]}" -le 1 ] || { echo "Error: only one design-doc path accepted"; exit 1; }
+  # Refuse on multiple positional args (one design doc per run)
+  [ "${#ARGS[@]}" -le 1 ] || { echo "Error: only one design-doc path accepted"; exit 1; }
+fi
 ```
 
-Capture an absolute path: `DESIGN_DOC=$(realpath "$DESIGN_DOC")`.
+Capture an absolute path (design-doc mode only — in `--work-item-dir` mode, `WORK_ITEM_DIR` is already realpath'd in the validation block above):
+`if [ -z "$WORK_ITEM_DIR_OVERRIDE" ]; then DESIGN_DOC=$(realpath "$DESIGN_DOC"); fi`.
 
 Generate a run ID: `RUN_ID=$(date +%Y%m%d-%H%M%S)-$$`.
 
@@ -212,6 +237,24 @@ Decisions are appended (run_id-tagged); no per-run init / truncation. Step 8.5
 filters by `run_id` to scope to this run.
 
 ## Step 2: Pre-Scaffold Idempotency Check
+
+### Branch (e): `--work-item-dir` mode override (check FIRST)
+
+If `$WORK_ITEM_DIR_OVERRIDE` is set (from Step 1's `--work-item-dir` flag), the
+work-item dir is already staged on disk (typically by a wrapper skill like
+`/CJ_run` that pre-scaffolded children). Skip footer search and Phase 1
+entirely — there is no design doc to read and no scaffold subagent to dispatch.
+
+- Skip the footer regex match (no `$DESIGN_DOC` to read).
+- Skip Step 3 (Phase 1 dispatch) entirely.
+- Append a journal entry to the work-item's tracker (`$WORK_ITEM_DIR/<TRACKER>.md`):
+  `[orchestrator] --work-item-dir mode: using pre-staged dir at $WORK_ITEM_DIR; scaffold skipped.`
+- Continue to Step 4 (post-scaffold gate). Step 4 sub-step 1 (footer write-back confirm) is skipped in this mode — see carve-out in Step 4 below. Sub-steps 2–4 (boundary check, multi-story guard, shape confirm) run normally.
+
+Otherwise (`$WORK_ITEM_DIR_OVERRIDE` empty → design-doc mode), continue with the
+footer regex match below.
+
+---
 
 Read the source design doc. Search for footer line matching the regex:
 
@@ -316,7 +359,7 @@ Capture stdout/stderr to `SCAFFOLD_OUTPUT`. Parse with `parse_result`. Branch:
 
 The orchestrator runs these checks (NOT the subagent):
 
-1. **Footer write-back confirm.** Re-read `$DESIGN_DOC`. Confirm the footer is now present and matches `WORK_ITEM_DIR`. If absent, halt with `[gate-red]` (partial-write halt — scaffold's Step 12 didn't run cleanly).
+1. **Footer write-back confirm.** *Skipped when `$WORK_ITEM_DIR_OVERRIDE` is set (Step 2 Branch (e)) — there is no `$DESIGN_DOC` to re-read in `--work-item-dir` mode.* Otherwise: re-read `$DESIGN_DOC`. Confirm the footer is now present and matches `WORK_ITEM_DIR`. If absent, halt with `[gate-red]` (partial-write halt — scaffold's Step 12 didn't run cleanly).
 2. **`/CJ_personal-workflow check "$WORK_ITEM_DIR"`** in Tier 1 Directory Mode. Refuse on red. (Defense-in-depth: scaffold's own Step 9 check should already have run, but the orchestrator does not trust upstream skill self-checks.)
 3. **Multi-story feature halt.** If `$WORK_ITEM_DIR` is a feature with ≥1 user-story child dir:
    ```
@@ -623,14 +666,15 @@ TELEMETRY=~/.gstack/analytics/CJ_CJ_personal-pipeline.jsonl
 # form. Falls back to a sanitized echo if jq is missing (shouldn't happen
 # in this workbench — jq is a declared dependency).
 if [ -n "$SUPPRESS_FINAL_GATE" ]; then _MODE="auto-suppressed"; else _MODE="auto"; fi
+if [ -n "$WORK_ITEM_DIR_OVERRIDE" ]; then _WORK_ITEM_DIR_MODE=true; else _WORK_ITEM_DIR_MODE=false; fi
 if command -v jq >/dev/null 2>&1; then
-  jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg mode "$_MODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,mode:$mode,ts:$ts}' >> "$TELEMETRY"
+  jq -nc --arg run_id "$RUN_ID" --arg design_doc "$DESIGN_DOC" --arg end_state "$END_STATE" --arg mode "$_MODE" --argjson work_item_dir_mode "$_WORK_ITEM_DIR_MODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{run_id:$run_id,design_doc:$design_doc,end_state:$end_state,mode:$mode,work_item_dir_mode:$work_item_dir_mode,ts:$ts}' >> "$TELEMETRY"
 else
   # Fallback: strip backslashes + double-quotes from the design-doc path.
   # Lossy but never produces invalid JSON.
   _SAFE_DOC=$(printf '%s' "$DESIGN_DOC" | tr -d '\\"')
-  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"end_state\":\"$END_STATE\",\"mode\":\"$_MODE\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> "$TELEMETRY"
+  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"end_state\":\"$END_STATE\",\"mode\":\"$_MODE\",\"work_item_dir_mode\":$_WORK_ITEM_DIR_MODE,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> "$TELEMETRY"
 fi
 ```
 
@@ -683,11 +727,16 @@ NOT auto-delete — destructive actions require explicit user execution.
 
 ### 9.3 Print summary
 
+The orchestrator-model substitutes `$DESIGN_DOC` for its actual value when
+printing the block below. In `--work-item-dir` mode `$DESIGN_DOC` is empty;
+print the literal string `(work-item-dir mode — no design doc)` on the
+`Design:` line instead of an empty value (avoids a blank-looking summary).
+
 ```
 PIPELINE COMPLETE: end_state=$END_STATE  mode=$_MODE
 
 Run ID:    $RUN_ID
-Design:    $DESIGN_DOC
+Design:    $DESIGN_DOC   # if $DESIGN_DOC empty → "(work-item-dir mode — no design doc)"
 Work item: $WORK_ITEM_DIR
 Files:     <FILES_CHANGED from Phase 2>
 Smoke:     <SMOKE from Phase 3>

@@ -171,7 +171,7 @@
   },
   {
     "name": "CJ_personal-pipeline",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "INTERNAL -- invoked by /CJ_run. Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
     "source": "local",
     "depends": {

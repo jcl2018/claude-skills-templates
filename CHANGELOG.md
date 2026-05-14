@@ -3,6 +3,38 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.1.0] - 2026-05-14
+
+### Added
+
+- **`/CJ_personal-pipeline --work-item-dir <path>` flag (S000036).** Pipeline now
+  accepts a pre-staged work-item directory as an alternative to a design-doc path.
+  In this mode, Step 1 validates the dir contains `*_TRACKER.md`, Step 2 fires a
+  new Branch (e) that skips footer search + Phase 1 scaffold entirely, Step 4
+  sub-step 1 (footer write-back confirm) is carved out, Step 9.1 telemetry adds
+  `work_item_dir_mode: true`, and Step 9.3 summary handles empty DESIGN_DOC. Used
+  by `/CJ_run` Branch (b) multi-story auto-iterate (S000037) and Branch (f)
+  phase-detection dispatch (S000039) to dispatch per-child pipeline runs without
+  a design doc. The flag is type-agnostic (works on user-story / defect / task
+  dirs). Combines cleanly with `--suppress-final-gate` in either order.
+- `skills/CJ_personal-pipeline/SKILL.md` Usage section updated with both input
+  modes (design-doc + work-item-dir) and version bumped to 1.1.0.
+- `skills-catalog.json`: CJ_personal-pipeline version 1.0.0 → 1.1.0 (drift
+  reconciliation; SKILL.md was stale at 0.1.0).
+
+### Fixed
+
+- **Tracker corruption from PR #99's land-and-deploy hook (S036/S037/S039).**
+  When PR #99 (S000038 rename) merged, the land-and-deploy hook auto-marked
+  Phase 3 ship/deploy/smoke gates on three sibling trackers (S000036, S000037,
+  S000039) that were on the same feature branch but whose implementation wasn't
+  in that PR. Reverted: unchecked Phase 3 gates in all three trackers; removed
+  stale PR #99 references from their PRs sections; documented the correction
+  via `[impl-finding]` journal entries. S036 also marked its Phase 1
+  "Tasks broken down" gate as `[x] N/A — atomic story` per the office-hours
+  premise.
+- `work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/S000036_pipeline_work_item_dir_flag/S000036_TEST-SPEC.md`: smoke test S4 expected version reconciled to `1.1.0` to match implementation reality (SPEC's nominal `0.2.0` was based on the stale SKILL.md baseline).
+
 ## [3.0.0] - 2026-05-13
 
 ### Changed (BREAKING)
