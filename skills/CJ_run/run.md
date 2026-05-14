@@ -26,7 +26,7 @@ Design-doc mode (Branch c) flow:
     ↓ produces APPROVED design doc
 /CJ_run <design-doc-path>
     ├── Phase 1: /autoplan          (Skill, inline)  [GATE #1: final-approval AUQ]
-    ├── Phase 2: CJ_personal-pipeline (Agent subagent, --suppress-final-gate)
+    ├── Phase 2: CJ_personal-pipeline (Skill, inline, --suppress-final-gate)
     │              └── scaffold → impl → QA (8.5 + 9.2 AUQs suppressed)
     ├── Phase 3: /ship               (Skill, inline)  [GATE #2: diff-review AUQ]
     └── Phase 4: /land-and-deploy    (Skill, inline)  [auto on green; alert on red]
@@ -43,32 +43,38 @@ steps below.
 
 ---
 
-## Subagent Return Contract (Phase 2 only)
+## Pipeline End-State Reading
 
-The Phase 2 subagent dispatch (CJ_personal-pipeline) must end its final
-assistant message with a line of the form:
+All four phases (`/autoplan`, `/CJ_personal-pipeline`, `/ship`, `/land-and-deploy`)
+run inline via the **Skill** tool. Their output is observable directly in the
+orchestrator's conversation context — no RESULT line contract needed.
+
+**Why inline (not Agent) for `/CJ_personal-pipeline`:** The pipeline itself
+dispatches scaffold/impl/QA as Agent subagents (pipeline.md Steps 3, 5.3, 6).
+Claude Code's harness does not surface the Agent/Task tool inside a subagent
+context — depth-2 Agent nesting fails with the inner Agent call returning
+`subagent_crashed`. The 2026-05-13 production runs (`run_id 20260513-175750-46376`
+and `20260513-192851-14512`) crashed at exactly this site; the inner subagent
+self-diagnosed: *"Agent/Task tool unavailable in this subagent context —
+Claude Code 2.x recursive-dispatch limitation."* Invoking the pipeline inline
+keeps its Agent dispatches at depth 1 (orchestrator → Agent), which works.
+
+**Reading pipeline end-state.** When `/CJ_personal-pipeline` finishes, it
+prints (per pipeline.md Step 9.3):
 
 ```
-RESULT: PIPELINE_END_STATE=<green|halted_at_gate|user_aborted|subagent_crashed>; WORK_ITEM_DIR=<absolute_path>
+PIPELINE COMPLETE: end_state=<green|halted_at_gate|user_aborted|subagent_crashed>  mode=<auto|auto-suppressed>
+
+Run ID:    <RUN_ID>
+Design:    <DESIGN_DOC or "(work-item-dir mode — no design doc)">
+Work item: <WORK_ITEM_DIR>
+...
 ```
 
-Parse with the lenient parser (mirrors CJ_personal-pipeline's parse_result):
-
-```bash
-parse_result() {
-  local output="$1"
-  echo "$output" \
-    | grep -E 'RESULT: [A-Z_]+=' \
-    | tail -1 \
-    | sed -E 's/^[[:space:]>]*//;s/```//g;s/~~~//g'
-}
-```
-
-If `parse_result` returns empty: subagent did not emit a RESULT line at all →
-halt with `end_state=subagent_crashed` and exit.
-
-Phases 1, 3, 4 run inline (via Skill tool) and do NOT need a RESULT contract —
-their state is observable directly in the orchestrator's conversation context.
+The orchestrator reads `end_state` and `Work item:` from its conversation
+context after the Skill call returns. If the pipeline never prints
+`PIPELINE COMPLETE` (e.g., it raised an unhandled error mid-phase), treat as
+`end_state=subagent_crashed` with empty `WORK_ITEM_DIR`.
 
 ---
 
@@ -261,7 +267,7 @@ across orchestrator Bash calls, so the model carries `$MODE`, `$WORK_ITEM_DIR`,
 
 | MODE | Action |
 |---|---|
-| `impl_qa_ship` | Dispatch `CJ_personal-pipeline` via **Agent** tool (subagent_type: general-purpose) with prompt: `Invoke CJ_personal-pipeline --work-item-dir "<WORK_ITEM_DIR>" --suppress-final-gate. Return the RESULT line.` After Agent returns: parse `PIPELINE_END_STATE`. On green, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. Each step inherits the orchestrator's AUQ flow (Gate #2 at /ship review). |
+| `impl_qa_ship` | Invoke `/CJ_personal-pipeline --work-item-dir "<WORK_ITEM_DIR>" --suppress-final-gate` via **Skill** tool (inline — see "Pipeline End-State Reading" for the depth-2 Agent rationale). After the pipeline finishes: read `end_state` from the `PIPELINE COMPLETE:` line in context. On `end_state=green`, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. Each step inherits the orchestrator's AUQ flow (Gate #2 at /ship review). |
 | `qa_ship` | Invoke `/CJ_qa-work-item <WORK_ITEM_DIR>` via **Skill** tool. On green QA exit, invoke `/ship` via Skill, then `/land-and-deploy` via Skill. |
 | `ship` | Invoke `/ship` via **Skill** tool. On success, invoke `/land-and-deploy` via Skill. |
 | `open_pr` | Print: `PR already open at $PR_URL. Run /land-and-deploy to merge.` Set `END_STATE=open_pr`. Write telemetry. Exit 0. |
@@ -419,7 +425,7 @@ header before invoking).
 
 ---
 
-## Step 3: Phase 2 — `CJ_personal-pipeline` (Agent subagent, suppress-final-gate)
+## Step 3: Phase 2 — `CJ_personal-pipeline` (Skill, inline, suppress-final-gate)
 
 First source the state file to recover the design-doc path:
 
@@ -427,54 +433,51 @@ First source the state file to recover the design-doc path:
 source "$STATE_FILE"
 ```
 
-Then spawn an Agent subagent via the Agent tool with `subagent_type: "general-purpose"`.
-The subagent invokes `/CJ_personal-pipeline` with `--suppress-final-gate`. The pipeline
-writes its decision log to its standalone path (`~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl`)
-— wrapper does NOT redirect via env var (env vars don't propagate across Skill-tool
-boundaries cleanly; F2 fix in PR2 review).
+Then invoke `/CJ_personal-pipeline` **inline via the Skill tool** with arguments
+`--suppress-final-gate "<DESIGN_DOC>"` (substitute `$DESIGN_DOC` literally —
+bash variables don't cross orchestrator-model tool calls; the slash-command
+invocation carries the literal path). Inline invocation is required: the
+pipeline dispatches its own scaffold/impl/QA Agent subagents internally, and
+the harness does not support depth-2 Agent nesting. See "Pipeline End-State
+Reading" above for the failure mode and the 2026-05-13 production crash logs.
 
-The pipeline's Step 1 will emit a soft-warning to stderr about co-mingling decisions
-with standalone-run history. That's accepted v1 behavior — Step 6.3 of the wrapper
-filters by run_id when reading the audit.
+The pipeline writes its decision log to its standalone path
+(`~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl`) — wrapper
+does NOT redirect via env var (env vars don't propagate across Skill-tool
+boundaries cleanly; F2 fix in PR2 review). The pipeline's Step 1 will emit a
+soft-warning to stderr about co-mingling decisions with standalone-run
+history. That's accepted v1 behavior — Step 6.3 of the wrapper filters by
+run_id when reading the audit.
 
-**Subagent prompt template** (substitute `$DESIGN_DOC` literally at dispatch time —
-bash variables don't cross orchestrator-model Bash calls; the prompt template carries
-the literal path):
+**Behavior contract** (what the pipeline does inline):
 
+1. Runs its full lifecycle (Phase 1 scaffold → Phase 2 impl → Phase 3 QA + post-phase gates).
+2. Under `--suppress-final-gate`, SKIPS Step 8.5's AUQ and Step 9.2's sunset AUQ.
+3. Tracker journal records `[auto-pipeline-clean]` (zero-decision run) or
+   `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved` (non-zero).
+4. Prints `PIPELINE COMPLETE: end_state=<X>  mode=auto-suppressed` plus a
+   `Work item: <path>` line as its final block (pipeline.md Step 9.3).
+
+**After the Skill call returns**, read from the orchestrator's conversation
+context:
+
+- `PIPELINE_END_STATE` ← the `end_state=<X>` value from the `PIPELINE COMPLETE:` line.
+  Possible values: `green`, `halted_at_gate`, `user_aborted` (defensive — should not
+  fire under `--suppress-final-gate`), `subagent_crashed`.
+- `WORK_ITEM_DIR` ← the absolute path from the `Work item: <path>` line.
+
+If the pipeline never printed `PIPELINE COMPLETE` (unhandled error mid-phase),
+treat as `PIPELINE_END_STATE=subagent_crashed` with empty `WORK_ITEM_DIR`.
+
+Persist both values to the state file for the post-pipeline branches below:
+
+```bash
+PIPELINE_END_STATE="<read from context>"
+WORK_ITEM_DIR="<read from context>"
+write_state
 ```
-ROLE: pipeline runner for /CJ_run wrapper.
-TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end state.
 
-STEPS:
-1. Invoke the slash command (via the Skill tool):
-     /CJ_personal-pipeline --suppress-final-gate "<literal $DESIGN_DOC path>"
-2. The pipeline runs its full lifecycle (Phase 1 scaffold → Phase 2 impl → Phase 3 QA + post-phase gates).
-   It will SKIP Step 8.5's AUQ and Step 9.2's sunset AUQ per the --suppress-final-gate contract.
-   Its tracker journal will record [auto-pipeline-clean] (zero-decision run) or
-   [auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved (non-zero).
-3. At pipeline completion, the pipeline prints a "PIPELINE COMPLETE: end_state=<X>" line as its final output (Step 9.3 of pipeline.md).
-4. Read that end_state value. Map it to the wrapper's RESULT contract:
-     pipeline's end_state=green                 → PIPELINE_END_STATE=green
-     pipeline's end_state=halted_at_gate         → PIPELINE_END_STATE=halted_at_gate
-     pipeline's end_state=user_aborted           → PIPELINE_END_STATE=user_aborted (shouldn't fire under --suppress-final-gate; defensive)
-     pipeline's end_state=subagent_crashed       → PIPELINE_END_STATE=subagent_crashed
-5. Also extract the work-item directory path from the pipeline's "Work item: <path>" output line.
-
-RETURN CONTRACT — end your FINAL assistant message with this EXACT line on its own:
-  RESULT: PIPELINE_END_STATE=<value>; WORK_ITEM_DIR=<absolute_path>
-
-Example (literal, this is the expected format):
-  RESULT: PIPELINE_END_STATE=green; WORK_ITEM_DIR=/Users/chjiang/Documents/projects/claude-skills-templates/work-items/features/F000016_example/
-
-No prose, no markdown wrapping, no code fence around the RESULT line itself.
-If pipeline crashed and you cannot read end_state, emit:
-  RESULT: PIPELINE_END_STATE=subagent_crashed; WORK_ITEM_DIR=
-(empty WORK_ITEM_DIR is acceptable when scaffold didn't complete.)
-```
-
-After the Agent tool returns, the subagent's full output is in `$SUBAGENT_OUTPUT`. The lenient parser from the Subagent Return Contract section finds the RESULT line.
-
-Capture stdout/stderr to `PIPELINE_OUTPUT`. Parse with `parse_result`. Branch:
+Then branch:
 
 ### Branch (a): green + single-story shape
 
@@ -530,10 +533,12 @@ echo "Branch(b) multi-story: $FEATURE_NAME has $CHILDREN_TOTAL children"
 for c in "${CHILDREN[@]}"; do echo "  - $(basename "$c")"; done
 ```
 
-**v1 guard** — if more than 3 children, AskUserQuestion before proceeding. Inline
-Skills for `/ship` + `/land-and-deploy` accumulate ~3K tokens per child; 4+ children
-risk context overflow for the orchestrator. v2 will dispatch each child as an Agent
-subagent to amortize.
+**v1 guard** — if more than 3 children, AskUserQuestion before proceeding. Each
+child now runs the entire pipeline + `/ship` + `/land-and-deploy` inline (the
+pipeline cannot be Agent-dispatched due to depth-2 nesting — see "Pipeline
+End-State Reading"), so 4+ children risk context overflow for the orchestrator.
+The user can split the run by re-invoking `/CJ_run` after the first batch
+completes — pipeline idempotency will skip already-shipped children.
 
 ```
 If $CHILDREN_TOTAL > 3:
@@ -590,27 +595,34 @@ for CHILD_DIR in "${CHILDREN[@]}"; do
   git add "$CHILD_REL"
   git commit -m "scaffold: ${CHILD_NAME} (from ${FEATURE_NAME} feature scaffold)" --no-verify 2>&1 | tail -2
 
-  # Pipeline dispatch via Agent (fresh-context subagent).
-  # Set up per-run decision log to avoid co-mingling in standalone log.
-  CHILD_DECISION_LOG="/tmp/cj-run-${RUN_ID}-${CHILD_NAME}-decisions.jsonl"
-  echo "  Dispatching pipeline for $CHILD_NAME (--work-item-dir, --suppress-final-gate)..."
-  echo "  Pipeline decision log: $CHILD_DECISION_LOG"
+  # Pipeline runs inline via Skill (NOT Agent) — see "Pipeline End-State
+  # Reading" for the depth-2 nesting rationale. Decision log goes to the
+  # pipeline's standalone path; per-child separation is recovered post-hoc
+  # via run_id + child_name filtering (env-var redirection doesn't survive
+  # Skill-tool boundaries, same as Step 3).
+  echo "  Invoking pipeline for $CHILD_NAME (--work-item-dir, --suppress-final-gate)..."
+  echo "  Decisions: ~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl (filter run_id=$RUN_ID, child=$CHILD_NAME)"
 done
 ```
 
-After the bash loop block, the orchestrator-model dispatches the pipeline via
-the **Agent** tool (one subagent per child), then `/ship` + `/land-and-deploy`
-via **Skill** tool. The dispatch prose:
+After the bash loop block, the orchestrator-model invokes the pipeline via the
+**Skill** tool (inline, one invocation per child), then `/ship` +
+`/land-and-deploy` via **Skill** tool. The dispatch prose:
 
 > **For each child in `CHILDREN` (continuing the loop above):**
 >
-> 1. Dispatch CJ_personal-pipeline as Agent subagent (general-purpose) with prompt:
->    `Invoke /CJ_personal-pipeline --work-item-dir "<CHILD_DIR>" --suppress-final-gate. Return the RESULT line verbatim.`
->    Set env `GSTACK_PIPELINE_DECISION_LOG_PATH=<CHILD_DECISION_LOG>` so the
->    pipeline's auto-decisions log per-child, not into the global log.
+> 1. Invoke `/CJ_personal-pipeline --work-item-dir "<CHILD_DIR>" --suppress-final-gate`
+>    via the **Skill** tool (inline — depth-2 Agent nesting is unsupported;
+>    see "Pipeline End-State Reading"). The pipeline writes its decision log
+>    to the standalone path. Per-child separation is achieved by filtering
+>    that log by `run_id=$RUN_ID` plus the child's work-item path at
+>    finalization time (Step 6.3); do NOT attempt env-var redirection — Skill
+>    boundaries don't propagate it, same constraint as Step 3.
 >
-> 2. Parse the Agent's RESULT line for `PIPELINE_END_STATE` (using the same
->    `parse_result` pattern as Step 3 Branch (a)).
+> 2. After the pipeline finishes, read `PIPELINE_END_STATE` from the
+>    `PIPELINE COMPLETE: end_state=<X>` line in the orchestrator's context
+>    (same pattern as Step 3). Missing `PIPELINE COMPLETE` line →
+>    `PIPELINE_END_STATE=subagent_crashed`.
 >
 > 3. **If `PIPELINE_END_STATE=green`:** invoke `/ship` via **Skill** tool
 >    (Gate #2 fires — diff review AUQ scoped to this child's PR). On `/ship`
@@ -632,7 +644,7 @@ via **Skill** tool. The dispatch prose:
 >    break
 >    ```
 >
-> 5. **If subagent crashes (no RESULT line):** halt the loop with
+> 5. **If pipeline crashed (no `PIPELINE COMPLETE` line):** halt the loop with
 >    `END_STATE="subagent_crashed"`; same cleanup as failure path.
 
 **Post-loop finalization:**
@@ -667,24 +679,25 @@ the pipeline_end_state value:
 ```bash
 source "$STATE_FILE"
 END_STATE="halted_at_pipeline"
-WORK_ITEM_DIR="<value parsed from RESULT line>"
+WORK_ITEM_DIR="<value read from PIPELINE COMPLETE 'Work item:' line>"
 write_state
 # PROCEED TO STEP 6 — finalizer prints "Wrapper halted at CJ_personal-pipeline.
 # Pipeline end_state: <PIPELINE_END_STATE>" + tracker path + pipeline decision
 # log location; exits non-zero via Step 7.1.
 ```
 
-### Branch (d): empty / no RESULT
+### Branch (d): pipeline crashed (no `PIPELINE COMPLETE` line in context)
 
-`parse_result` returned empty (subagent crashed without emitting RESULT line).
+The pipeline never printed its Step 9.3 summary block — unhandled error
+mid-phase (typically a scaffold/impl/QA inner-Agent failure).
 
 ```bash
 source "$STATE_FILE"
 END_STATE="subagent_crashed"
 # WORK_ITEM_DIR may have been created before crash but we don't know — leave as ""
 write_state
-# PROCEED TO STEP 6 — finalizer prints "CJ_personal-pipeline subagent crashed
-# (no RESULT line emitted). Re-invoke /CJ_run; pipeline's Branch (a)
+# PROCEED TO STEP 6 — finalizer prints "CJ_personal-pipeline crashed
+# (no PIPELINE COMPLETE line). Re-invoke /CJ_run; pipeline's Branch (a)
 # idempotency will resume from disk state if the work-item dir was created."
 ```
 
@@ -1109,8 +1122,15 @@ written to `$PIPELINE_DECISION_LOG` and surfaced in the Step 6 final-summary tai
 - /autoplan inline load: ~3-5K tokens for autoplan SKILL.md + sub-skill chain.
 - /ship inline load: ~3K tokens for ship SKILL.md.
 - /land-and-deploy inline load: ~1K tokens.
-- CJ_personal-pipeline subagent: own fresh context, returns ~200 tokens (RESULT line + journal pointer).
+- CJ_personal-pipeline inline load: ~5-8K tokens for pipeline SKILL.md +
+  orchestration prose. The pipeline's own scaffold/impl/QA Agent dispatches
+  run in fresh subagent contexts (orchestrator only sees their ~200-token RESULT
+  lines), so the pipeline's runtime context cost to the wrapper is bounded by
+  pipeline.md size, not by phase work.
 
-Wrapper context grows by ~7-9K tokens across phases. If the wrapper hits
-compaction mid-run on a real first try, refactor /autoplan to subagent dispatch
-in v1.1 (requires gstack-side accommodation for AUQ relay, out of scope for v1).
+Wrapper context grows by ~12-17K tokens across phases. Depth-2 Agent nesting
+is unsupported by the Claude Code harness (see "Pipeline End-State Reading"),
+so subagent-dispatching the pipeline as a context-amortization strategy is
+not available. If the wrapper hits compaction mid-run, the only viable
+mitigation is to split work across re-invocations (idempotency resumes from
+disk state).

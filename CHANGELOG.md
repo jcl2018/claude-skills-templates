@@ -3,6 +3,47 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.3.3] - 2026-05-13
+
+### Fixed
+
+- **`/CJ_run` no longer crashes mid-pipeline with `end_state=subagent_crashed`.**
+  The wrapper was dispatching `/CJ_personal-pipeline` as an Agent subagent at
+  three sites in `skills/CJ_run/run.md` (Step 1.1.dispatch Branch f
+  `impl_qa_ship`, Step 3 Branch c full pipeline, Step 5 Branch b multi-story
+  per-child loop). The pipeline itself spawns Agent subagents per phase
+  (scaffold/impl/QA), producing a depth-2 Agent dispatch chain that Claude
+  Code's harness does not support — the Agent/Task tool is not surfaced
+  inside a subagent context, so the inner Agent calls returned `subagent_crashed`
+  before Phase 1 scaffold could run. Two production runs hit this on
+  2026-05-13 (run ids `20260513-175750-46376` and `20260513-192851-14512`);
+  the inner subagent self-diagnosed *"Agent/Task tool unavailable in this
+  subagent context — Claude Code 2.x recursive-dispatch limitation."*
+
+  Fix: invoke `/CJ_personal-pipeline` inline via the Skill tool at all three
+  sites — the same pattern already used (and proven working) for `/autoplan`,
+  `/ship`, and `/land-and-deploy`. The pipeline's own scaffold/impl/QA Agent
+  dispatches now sit at depth 1 (orchestrator → Agent), which the harness
+  supports. Read `end_state` from the pipeline's `PIPELINE COMPLETE:` summary
+  line in conversation context rather than from the old subagent RESULT-line
+  contract. Restored side benefit: AskUserQuestion is now reachable inside
+  pipeline halt points (Step 5.2 sensitive-surface, Step 5.3 escalation
+  retry), since the pipeline runs at orchestrator scope.
+
+  Also fixes Step 5 multi-story Branch(b) instruction that asked the
+  orchestrator to set `GSTACK_PIPELINE_DECISION_LOG_PATH=<CHILD_DECISION_LOG>`
+  per child for per-child decision log separation — env vars don't propagate
+  across Skill-tool boundaries (Step 3 already documents this), so the
+  redirection silently failed under Agent dispatch and would still silently
+  fail under inline invocation. Per-child separation is now achieved via
+  `run_id`+`child_name` post-hoc filtering of the standalone decision log.
+
+  Documentation updates: `skills/CJ_run/SKILL.md` overview + error-table
+  + path-resolution comment now describe Skill-tool inline invocation;
+  `skills/CJ_personal-pipeline/pipeline.md` Suppression Contract section
+  updated to explain why the wrapper must invoke inline (not Agent) and
+  links to the run.md "Pipeline End-State Reading" section.
+
 ## [3.3.2] - 2026-05-13
 
 ### Fixed

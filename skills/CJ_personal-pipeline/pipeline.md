@@ -776,12 +776,12 @@ the orchestrator (Step 5.2) or escalated via `RESULT: ESCALATION_NEEDED=...`
 
 ### Suppression Contract (wrapper-invoked path)
 
-When `/CJ_personal-pipeline` is invoked with `--suppress-final-gate` (typically by a wrapper skill like `/CJ_run` that runs the pipeline as an Agent subagent and consumes the decision log itself):
+When `/CJ_personal-pipeline` is invoked with `--suppress-final-gate` (typically by a wrapper skill like `/CJ_run` that runs the pipeline inline via Skill tool and consumes the decision log itself):
 
 - Step 8.5's AUQ is skipped. Tracker journal records `[auto-pipeline-clean]` (empty-state: zero Taste, zero User-Challenge-Approved — matches 8.5.2's standalone semantics) OR `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved; decisions at $DECISION_LOG` (non-empty). `END_STATE=green` (provided no halt fired earlier).
 - Step 9.2's sunset-checkpoint AUQ is skipped; telemetry write (Step 9.1) is unchanged so counts stay accurate; wrapper owns sunset cadence.
 - Decision log path defaults to standalone unless the caller also sets `GSTACK_PIPELINE_DECISION_LOG_PATH` to override. The pair is the wrapper contract; using the flag without the env var emits a stderr warning at Step 1 and is supported but not recommended (would mingle suppressed decisions with standalone-run history).
-- Rationale: subagents cannot reach AskUserQuestion (S000026 spike); a Step 8.5 or 9.2 AUQ from inside a wrapper-dispatched subagent would silently fail. The flag makes that unreachability explicit and lets the wrapper handle decision surfacing itself (typically via `/ship`'s diff review).
+- Rationale: at the wrapper layer (orchestrator scope), AskUserQuestion is available. The flag lets the wrapper take over the final-gate decision surfacing (typically via `/ship`'s diff review), rather than the pipeline asking twice. Note: `/CJ_run` must invoke this pipeline inline (Skill tool, not Agent) because the pipeline itself spawns Agent subagents per phase, and Claude Code's harness does not support depth-2 Agent nesting — see `skills/CJ_run/run.md` "Pipeline End-State Reading" for the failure mode.
 
 ---
 
