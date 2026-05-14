@@ -3,6 +3,27 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.3.0] - 2026-05-14
+
+### Added
+
+- **`/CJ_run` Branch(b): multi-story auto-iterate loop (S000037).** Replaces the
+  prior halt-with-manual-instructions behavior. When the pipeline returns
+  `green` on a multi-story feature scaffold, Branch(b) now iterates each
+  child user-story sequentially:
+  - **Enumeration:** `find $WORK_ITEM_DIR -maxdepth 1 -mindepth 1 -type d -name 'S[0-9]*' | sort`
+  - **v1 guard:** AskUserQuestion if more than 3 children (inline Skills accumulate ~3K tokens per child; v2 will subagent-dispatch).
+  - **Resume guard:** `gh pr list --state merged --search 'head:${FEATURE_NAME}--${CHILD_NAME}-'` skips already-merged children on re-run.
+  - **Per-child git setup:** branch off `origin/<base>` (timestamp-suffixed: `${FEATURE_NAME}--${CHILD_NAME}-YYYYMMDD-HHMMSS`), sparse-copy scaffold from feature branch, commit.
+  - **Pipeline dispatch:** Agent subagent runs `/CJ_personal-pipeline --work-item-dir <child> --suppress-final-gate`. Per-child decision log via `GSTACK_PIPELINE_DECISION_LOG_PATH`.
+  - **Ship + deploy:** on green, `/ship` + `/land-and-deploy` via Skill (inline; Gate #2 fires per child).
+  - **Failure halt:** repo restored to feature branch; state written; loop breaks; remaining children listed.
+- State file extended: `CHILDREN_TOTAL`, `CHILDREN_DONE`, `CHILDREN_FAILED`, `CHILD_PR_URLS` (per-run accumulator). `write_state()` helper updated.
+- Step 6.1 telemetry: renamed `multi_story_scaffold_only` → `multi_story_mode` (boolean); added `multi_story_children_shipped` (count). Sunset trip-wire and PRIOR_5 summary jq selectors check both old and new field names for backward compatibility with pre-v3.3.0 log entries.
+- Step 6.2 green summary: new multi-story block shows `children_shipped=N/M` and lists per-child PR URLs.
+- `skills/CJ_run/SKILL.md`: version 0.3.0 → 0.4.0.
+- `skills-catalog.json`: CJ_run version 0.3.0 → 0.4.0.
+
 ## [3.2.0] - 2026-05-14
 
 ### Added
