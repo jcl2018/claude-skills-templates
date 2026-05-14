@@ -3,6 +3,60 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.4.0] - 2026-05-13
+
+### Added
+
+- **`/CJ_run` Phase 4 now passes `--suppress-readiness-gate` to `/land-and-deploy`
+  (CJ_run v0.4.0 → v0.5.0).** End-to-end pipeline runs (design-doc mode, Branch
+  c) on an all-green pipeline now surface only the two existing wrapper-AUQ
+  gates (`/autoplan` final approval + `/ship` diff review); `/land-and-deploy`'s
+  pre-merge Step 3.5a-bis (stale-review offer) and Step 3.5e (readiness gate)
+  are suppressed under the flag. Mirrors the proven `--suppress-final-gate`
+  pattern that `/CJ_personal-pipeline` already uses internally for its Step 8.5
+  + 9.2 AUQs. Hard stops (CI red, merge conflict, free-test regression at
+  Step 3.5b, deploy workflow failure, canary red) remain unaffected — they
+  remain pre-3.5 STOPs or post-3.5 AUQs and still halt `/CJ_run` cleanly via
+  the existing `halted_at_deploy` branch.
+
+- **Branch(f) `open_pr` mode auto-continues into `/land-and-deploy`.** Previously
+  the `open_pr` handler in `skills/CJ_run/run.md` printed `PR already open at
+  $PR_URL. Run /land-and-deploy to merge.` and exited 0 — a dead-end that broke
+  the "let it run to the end" promise for the resume-from-PR-open path. Now the
+  handler parses `PR_NUM` inline (verbatim duplicate of Step 5's parsing block
+  — `${PR_URL##*/}` → `gh pr list --head ...` fallback → `""` on failure) and
+  dispatches `/land-and-deploy --suppress-readiness-gate #<PR_NUM>` via the
+  Skill tool. Step 5's verdict-handling branches (green → `END_STATE=green`;
+  canary-revert → `deploy_red`; halted pre-merge → `halted_at_deploy`) all
+  apply, and the telemetry write happens at Step 6 instead of an early exit 0.
+
+### Forward-Compat Notes
+
+- **Order-of-operations between gstack and workbench is symmetric.** The flag
+  itself ships in a separate gstack PR (`skills/land-and-deploy/SKILL.md`,
+  owned by the user by hand). If the workbench lands first, gstack's loose
+  arg parser (case-statement that warns-and-continues on unknown flags)
+  silently ignores the flag — legacy AUQs fire, no regression. If gstack
+  lands first, the workbench's flag default is "off" until v0.5.0 ships
+  here — also no regression. Users see no breakage in either order.
+
+- **Direct `/land-and-deploy` callers are unaffected.** Suppression is opt-in
+  via the flag — users invoking `/land-and-deploy` outside of `/CJ_run` still
+  get today's readiness gate as their final sanity check (gstack-side).
+
+### Out of Scope (deferred follow-ups)
+
+- The gstack PR adding the `--suppress-readiness-gate` flag to
+  `/land-and-deploy` itself. Owned by the user; out-of-scope for this
+  workbench's CJ_personal-pipeline.
+- Suppression of `/land-and-deploy` Step 5 deploy-strategy AUQ (fires when no
+  platform config is detected and no production URL was passed). Different
+  semantic change with its own blast radius; cleaner fix is to populate
+  `## Deploy Configuration` in CLAUDE.md per `/land-and-deploy`'s detection
+  logic. Follow-up TODO.
+- Step 1.5 first-run dry-run AUQ. One-time setup gate, already CONFIRMED for
+  this workbench; not per-invocation. Leave as-is.
+
 ## [3.3.2] - 2026-05-13
 
 ### Fixed
