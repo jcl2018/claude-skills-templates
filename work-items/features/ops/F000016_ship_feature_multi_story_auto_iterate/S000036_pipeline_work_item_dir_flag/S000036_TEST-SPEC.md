@@ -17,7 +17,7 @@ reviewers: []
 | S1 | core | AC-1 | pipeline.md contains `--work-item-dir` in arg parser | Flag is wired into the parser | `grep -c '\-\-work-item-dir' skills/CJ_personal-pipeline/pipeline.md` → ≥3 |
 | S2 | core | AC-2 | pipeline.md contains Branch (e) text | Branch (e) is present in Step 2 | `grep -c 'Branch (e)' skills/CJ_personal-pipeline/pipeline.md` → ≥1 |
 | S3 | core | AC-4 | SKILL.md usage section mentions --work-item-dir | Usage docs updated | `grep -c '\-\-work-item-dir' skills/CJ_personal-pipeline/SKILL.md` → ≥1 |
-| S4 | core | AC-5 | skills-catalog.json CJ_personal-pipeline version is 0.2.0 | Version bumped | `jq -r '.[] | select(.name=="CJ_personal-pipeline") | .version' skills-catalog.json` → `0.2.0` |
+| S4 | core | AC-5 | skills-catalog.json CJ_personal-pipeline version is 1.1.0 | Version bumped (minor, for new flag). SPEC's nominal 0.2.0 reconciled to 1.1.0 during impl — catalog baseline was 1.0.0 (drift from SKILL.md's stale 0.1.0). | `jq -r '.[] | select(.name=="CJ_personal-pipeline") | .version' skills-catalog.json` → `1.1.0` |
 | S5 | core | AC-1 | validate.sh passes after changes | No structural drift introduced | `./scripts/validate.sh 2>&1 | tail -5` → exits 0 |
 
 ## E2E Tests

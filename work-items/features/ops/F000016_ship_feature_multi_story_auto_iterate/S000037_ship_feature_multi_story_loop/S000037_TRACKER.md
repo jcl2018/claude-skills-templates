@@ -31,7 +31,7 @@ blocked_by: "S000036"
 - [x] Working branch created (`branch` field populated)
 - [x] DESIGN + SPEC + TEST-SPEC scaffolded
 - [x] Acceptance criteria defined
-- [ ] Tasks broken down (or N/A — atomic story)
+- [x] Tasks broken down (N/A — atomic story)
 
 ### Phase 2: Implement
 
@@ -110,3 +110,6 @@ blocked_by: "S000036"
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+- 2026-05-13 [gates-update] Phase 3: /ship — PR #99,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #99,PRs section: linked PR #99 (MERGED).
+- 2026-05-14 [impl-finding] PR #99 land-and-deploy hook auto-marked Phase 3 ship/deploy/smoke gates on this tracker, but PR #99 shipped S000038 only — S000037 implementation was never in that PR. Reverted: unchecked Phase 3 gates; removed stale PR #99 reference from PRs section.
+- 2026-05-14 [impl-decision] Marked Phase 1 `Tasks broken down (N/A — atomic story)` as [x]. S000037 is atomic per parent F000016 scaffold; confirmed in /office-hours session 2026-05-13 (premise P4).

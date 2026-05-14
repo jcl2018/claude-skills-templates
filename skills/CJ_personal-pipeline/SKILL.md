@@ -1,7 +1,7 @@
 ---
 name: CJ_personal-pipeline
 description: "INTERNAL — invoked by /CJ_run. Do not call directly. Single orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Takes a design-doc path, dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). One keystroke for the full CJ_personal-workflow phase 2-4 loop. Halt-on-red default; idempotent; sunset criterion built in."
-version: 0.1.0
+version: 1.1.0
 allowed-tools:
   - Bash
   - Read
@@ -103,21 +103,40 @@ For the full step-by-step logic, see [pipeline.md](pipeline.md).
 
 ## Usage
 
-```
-/CJ_personal-pipeline <design-doc-path>
-```
-
-Example:
+Two input modes:
 
 ```
+/CJ_personal-pipeline <design-doc-path>              # design-doc mode (full scaffold → impl → QA)
+/CJ_personal-pipeline --work-item-dir <path>         # work-item-dir mode (skip scaffold; impl → QA only)
+```
+
+Examples:
+
+```
+# Design-doc mode (existing): full pipeline on an APPROVED design doc.
 /CJ_personal-pipeline ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260509-135305.md
+
+# Work-item-dir mode (v1.1.0+): impl + QA on a pre-staged work-item dir.
+# Used by /CJ_run Branch (b)/(f) to dispatch per-child runs without a design doc.
+/CJ_personal-pipeline --work-item-dir work-items/features/ops/F000016_.../S000036_...
 ```
 
-Positional arg: `<design-doc-path>`. Sunset behavior is automatic on the
-6th invocation. To force re-running through the full pipeline on a re-scaffolded
-work-item, delete the design-doc's `Status: SCAFFOLDED → ...` footer before
-re-invoking. The flags `--auto` and `--manual` are accepted and silently
-discarded for backwards compatibility with pre-v1.16.0 invocations.
+**Design-doc mode** takes a positional `<design-doc-path>` arg. The path must be
+under `~/.gstack/projects/` and the doc must contain `Status: APPROVED`.
+
+**Work-item-dir mode** (`--work-item-dir <path>`) takes a directory containing
+a `*_TRACKER.md`. The pipeline skips Step 2's footer search and Step 3's Phase 1
+(scaffold subagent) entirely — the work-item is already staged. Steps 4-9 run
+normally (impl → QA → telemetry). The flag is type-agnostic (works on
+user-story / defect / task dirs).
+
+Sunset behavior is automatic on the 6th invocation. To force re-running through
+the full pipeline on a re-scaffolded work-item, delete the design-doc's
+`Status: SCAFFOLDED → ...` footer before re-invoking. The flags `--auto` and
+`--manual` are accepted and silently discarded for backwards compatibility with
+pre-v1.16.0 invocations. The `--suppress-final-gate` flag (typically combined
+with `--work-item-dir` by wrapper skills like `/CJ_run`) suppresses Step 8.5 and
+Step 9.2's interactive AUQs without affecting decision-log or telemetry writes.
 
 ## Routing
 
