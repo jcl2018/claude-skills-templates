@@ -108,9 +108,14 @@ exist; threshold TBD).
 - **/CJ_run bypass.** /CJ_run Branch(f) explicitly rejects `type: task`
   (run.md:214). /CJ_goal follows that guidance and chains /CJ_personal-pipeline
   + /ship + /land-and-deploy directly.
-- **Workbench-only scope.** Only the `claude-skills-templates` repo's
-  `TODOS.md` is the source. Generalizing to downstream repos is a v2 question
-  per `[[feedback_workbench_scope]]`.
+- **Workbench is the source-of-truth, but the skill is portable.** v1 was
+  developed and tested in the `claude-skills-templates` workbench — `TODOS.md`
+  source convention lives here and gets curated here. The skill itself works
+  in any repo with a `TODOS.md` and a `work-items/` tree: the post-scaffold
+  workbench-coupled `validate.sh` check was removed from `scripts/goal.sh`
+  (T000028 / Approach D), and `/CJ_personal-pipeline` Step 6 silently skips
+  `validate.sh` when the file is absent or non-executable. Downstream
+  `/loop /CJ_goal` drains are supported as of T000028.
 - **ID-picker source-of-truth.** v1 copy-pastes /CJ_scaffold-work-item Step 5's
   two-source picker block into `scripts/goal.sh`. v1.1 will extract to
   `scripts/cj-id-picker.sh` (Open Q #1 in source design).

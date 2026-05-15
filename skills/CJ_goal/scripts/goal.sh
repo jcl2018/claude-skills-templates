@@ -438,20 +438,32 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # We rewrite the file in one awk pass: when we hit `## Insights`, print it
   # plus the body content; otherwise pass through unchanged. Then append the
   # footer with `cat >>`.
+  #
+  # T000028: surgical awk newline fix. awk -v body=...  does not tolerate embedded
+  # newlines in the value — it emits `awk: newline in string` and truncates the
+  # body. We write the body to a tmpfile and stream it via getline instead of
+  # interpolating it into the awk source via -v. RESOLVED_BODY is NOT mutated
+  # (it is used in 2 other places: FIRST_SENTENCE derivation at ~line 485 and
+  # the sensitive-surface scan at ~line 289-290 — a global sanitize would silently
+  # change which TODOs trip Gate 4).
   TRACKER_TMP=$(mktemp)
-  awk -v body="$RESOLVED_BODY" '
+  BODY_TMP=$(mktemp)
+  printf '%s' "$RESOLVED_BODY" > "$BODY_TMP"
+  awk -v body_file="$BODY_TMP" '
     /^## Insights[[:space:]]*$/ {
       print $0
       print ""
       print "<!-- Auto-injected from TODOS.md body by /CJ_goal -->"
       print ""
-      print body
+      while ((getline line < body_file) > 0) print line
+      close(body_file)
       print ""
       injected = 1
       next
     }
     { print }
   ' "$TRACKER_OUT" > "$TRACKER_TMP" && mv "$TRACKER_TMP" "$TRACKER_OUT"
+  rm -f "$BODY_TMP"
   printf '\n<!-- Source: TODOS.md ### %s -->\n' "$NAKED_HEADING" >> "$TRACKER_OUT"
 
   # Initial Todos placeholder → a concrete starter row. The template ships with
@@ -520,12 +532,12 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     { print }
   ' "$TEST_PLAN_OUT" > "$TEST_TMP" && mv "$TEST_TMP" "$TEST_PLAN_OUT"
 
-  # ---- Boundary check via /CJ_personal-workflow check on the scaffolded dir.
-  # The skill is markdown-defined (not a CLI); validate.sh covers the bulk of
-  # the structural invariants. Run validate.sh and treat exit != 0 as a halt.
-  if ! ./scripts/validate.sh >/dev/null 2>&1; then
-    halt "halted_at_scaffold" "validate.sh refused after scaffold writes" "$NAKED_HEADING" "$NEW_ID"
-  fi
+  # Post-scaffold boundary check is handled downstream by /CJ_personal-pipeline
+  # Step 6: portable `/CJ_personal-workflow check` (works in any repo) + the
+  # workbench-only `scripts/validate.sh` re-run (silently skipped when absent
+  # or non-executable). See T000028 / Approach D — the original validate.sh
+  # call here was workbench-coupled (exit 127 in downstream repos) and was
+  # duplicate work in the workbench (pipeline Step 6 re-runs it seconds later).
 fi
 
 # At this point either $WORK_ITEM_DIR (new scaffold) or $EXISTING_WORK_ITEM_DIR

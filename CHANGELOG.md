@@ -3,6 +3,21 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.5] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_goal` works in downstream repos (T000028, Approach D).** The post-scaffold boundary check in `scripts/goal.sh` previously ran `./scripts/validate.sh` unconditionally — every downstream repo without `validate.sh` halted with `halted_at_scaffold` (exit 127), making `/loop /CJ_goal` drain unusable outside the workbench. Two-location fix:
+  - Deleted the workbench-coupled `validate.sh` call at `scripts/goal.sh:526` entirely. The original call was both downstream-broken AND duplicate work — `/CJ_personal-pipeline` Step 6 re-runs the same check seconds later in the dispatch chain.
+  - Updated `skills/CJ_personal-pipeline/pipeline.md` Step 6 to describe `scripts/validate.sh` as "workbench-only — skipped silently when absent or non-executable." Workbench behavior preserved bit-identical; downstream repos pass through `/CJ_personal-workflow check` (portable) and skip `validate.sh` (workbench-coupled).
+  - Surgical fix to `goal.sh`'s `awk -v body=...` block that emitted `awk: newline in string` warnings when a TODO body contained newlines. Uses a tmpfile + `getline` rather than interpolating the body via `-v`. `RESOLVED_BODY` is explicitly NOT mutated (used in 3 places including the sensitive-surface scan at `~line 289-290`).
+  - Updated `skills/CJ_goal/SKILL.md` "Workbench-only scope" Note to reflect that the skill is portable; workbench is the development/curation surface, not a scope restriction.
+
+### Notes
+
+- Autoplan CEO review caught the half-fix premise in the original design: `/CJ_personal-pipeline/pipeline.md:528` ALSO calls `scripts/validate.sh`. Approach A (guard goal.sh only) would have shipped a fix that broke at the very next pipeline step in downstream repos. Approach D (delete goal.sh's call + guard pipeline.md's) is the two-location fix that actually solves the user's downstream `/loop /CJ_goal` drain.
+- Two v2 follow-up TODOs logged: replace `pipeline.md:528` with a handoff to `/CJ_personal-workflow check` (Approach B), and ship `validate.sh` (or a scaffold-only subset) to downstream via `skills-deploy install` (Approach E).
+
 ## [3.5.4] - 2026-05-15
 
 ### Fixed

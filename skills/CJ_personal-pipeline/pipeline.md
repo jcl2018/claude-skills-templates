@@ -525,7 +525,7 @@ Capture output, parse with `parse_result`, branch:
 Orchestrator runs (NOT the subagent):
 
 1. **`/CJ_personal-workflow check "$WORK_ITEM_DIR"`** — refuse on red.
-2. **`scripts/validate.sh`** — capture stdout+stderr; on exit != 0, write the failure to the tracker journal as:
+2. **`scripts/validate.sh`** (workbench-only — skipped silently when the file is absent or non-executable; the orchestrator-model checks `[ -x ./scripts/validate.sh ]` before invoking, and continues to Step 7 without journaling when the file is missing): capture stdout+stderr; on exit != 0, write the failure to the tracker journal as:
    ```
    [gate-red] post-implement validate.sh failed (exit $E):
    <first 20 lines of output>

@@ -139,6 +139,46 @@ Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to det
 
 **Reference:** downstream session that surfaced this was `~/projects/portfolio` branch `claude/modest-sutherland-5026e9`.
 
+### `/CJ_goal` sensitive-surface auto-decline under `/loop` always stops the loop (P3, S)
+Observed 2026-05-15 in `/loop /CJ_goal` session that shipped T000024-T000027 (PRs #111-#114). At iteration 8 the script picked TODO `validate.sh structural check via graph JSON (P2, M)`, whose body mentions `scripts/validate.sh` three times (the file the fix touches). `scripts/goal.sh` hit the sensitive-surface regex match, found no interactive AUQ tool available under `/loop` context, and auto-declined — emitting `end_state=halted_at_sensitive_surface_user_declined`. Per the design spec, that end_state is in the STOP set ("user explicitly paused at AUQ — intent is to stop"), so the loop halted with 9 more eligible TODOs in the queue.
+
+The design's STOP rationale assumed a user-driven AUQ decline. Under `/loop` there is no user — the script must auto-decide, and "auto-decline" is the safe default for trust-boundary work. But mapping that auto-default to the same end_state as an explicit-user-pause conflates two very different signals and prematurely terminates the loop.
+
+**Fix sketch (pick one):**
+1. **Distinguish the two halt classes.** Introduce `halted_at_sensitive_surface_auto_declined` (loop continues; row added to skip-list) for the no-AUQ-available auto-decline path, and keep `halted_at_sensitive_surface_user_declined` (loop STOPS) only for the interactive path where a real user chose halt. This matches how `halted_at_preflight` is already in the continue set — sensitive-surface auto-decline is structurally similar.
+2. **Pre-filter sensitive-surface TODOs at candidate-selection.** Pair with the `[[/CJ_suggest pre-filter against /CJ_goal preflight criteria]]` TODO above: extend the pre-filter set to also exclude TODO bodies that match the sensitive-surface regex. /loop never even attempts these — single-shot `/CJ_goal "<fragment>"` still works because the user is interactive.
+3. **Document and accept.** Add an explicit note in SKILL.md that `/loop /CJ_goal` stops at the first sensitive-surface TODO, and recommend manually adding such headings to the skip-list before `/loop` invocation.
+
+**When:** before the next /loop /CJ_goal session that needs to drain a backlog containing any sensitive-surface-touching rows. The current workaround is to manually edit `/tmp/cj-goal-skip-${RUN_ID}.txt` before re-invoking, which is fine for one-off but doesn't scale.
+
+**Reference:** observed live in `/loop /CJ_goal` session 2026-05-15 ~00:00 UTC after iter 7 shipped PR #114.
+
+### `/CJ_goal` skip-list file occasionally resets between invocations under `/loop` (P3, S)
+Observed 2026-05-15 in same `/loop` session. The per-session skip-list at `/tmp/cj-goal-skip-${RUN_ID}.txt` is supposed to accumulate skipped TODOs across iterations (so /CJ_suggest's post-filter can advance past the queue). Iterations 1-5 wrote to the file correctly (~95 bytes, 2 entries). Iteration 6, with the same `LOOP_SESSION_RUN_ID` env var, saw the file reset to ~47 bytes (1 entry — just the iter-6-skipped row). The user manually re-seeded the file before iter 7 to recover.
+
+Root cause unknown from outside the script. The `>>` append in `scripts/goal.sh:92` shouldn't truncate. Suspects: (a) a code path that recreates the file with `>` instead of `>>`; (b) the pipeline subagent that ran iter 5 used a different RUN_ID internally and wrote elsewhere, leaving the loop-session file un-updated; (c) macOS tmpfile reaping at HH:00 / HH:30 (unlikely on this cadence); (d) `git stash pop` side-effect somehow (mechanism unclear).
+
+**Fix sketch:** instrument `scripts/goal.sh` with an explicit "before-iter skip-file snapshot" log line (`echo "[CJ_goal] skip-file size: $(wc -c < $SKIP_FILE) bytes ($N entries)"` at preflight start). Run a `/loop /CJ_goal` smoke session and grep the logs for size deltas across iterations. Once the truncation event is reproduced, the offending code path will be obvious.
+
+**Workaround:** under `/loop`, manually re-seed the skip-list file before each invocation. Won't scale past v1.
+
+**Reference:** observed live in `/loop /CJ_goal` session 2026-05-15 between iter 5 (PR #113 ship) and iter 6 (P1 re-skip).
+
+### `/CJ_suggest` top-5 limit can exhaust `/CJ_goal` queue when many top ranks are skip-listed (P3, S)
+Observed 2026-05-15 in `/loop /CJ_goal` iter 10. The no-args path of `/CJ_goal` reads `/CJ_suggest` top-1 (with skip-list post-filter applied). `/CJ_suggest` hard-caps output at top-5. When 5+ of those top ranks are in the per-session skip-list — e.g. 2 P1 size-cap rows + 1 sensitive-surface row + 3 meta-`/CJ_goal` polish TODOs all rank above the eligible P4 candidates — the post-filter returns empty and `/CJ_goal` halts at `halted_at_resolve` (terminal STOP per design), even though TODOS.md contains other eligible rows below the top-5 cutoff.
+
+**Repro:** seed `/tmp/cj-goal-skip-*.txt` with the current top-5 of `/CJ_suggest` output; invoke `/CJ_goal` no-args; observe immediate `halted_at_resolve` despite TODOS.md having ~8 more rows that are `/CJ_goal`-eligible (small size, P2-P4, non-sensitive).
+
+**Fix sketch:** two options. (1) Expand `/CJ_suggest` to take an optional `--limit N` flag and have `/CJ_goal` request a deeper window (e.g. top-15) when the post-filter empties the top-5. (2) `/CJ_goal` falls back to scanning TODOS.md directly when `/CJ_suggest` post-filter is empty — applies its own preflight filters in-band rather than relying on /CJ_suggest's ranking. Option 1 is cleaner (single source of ranking truth); option 2 is faster to ship (no /CJ_suggest change).
+
+**Reference:** observed live in `/loop /CJ_goal` session 2026-05-15 iter 10; PRs #110-#114 shipped in same session; skip-list contained 6 entries when the queue exhausted. Compounds with the prior 3 v1.1 polish items above (sensitive-surface auto-decline, skip-list reset, no `/CJ_suggest` pre-filter against preflight) — together they form a coherent v1.1 polish bundle.
+
+### v2: replace pipeline.md:528 validate.sh call with handoff to `/CJ_personal-workflow check` on the scaffolded dir (P3, S)
+Approach B follow-up from T000028 / Approach D ship. Today `skills/CJ_personal-pipeline/pipeline.md` Step 6 runs `scripts/validate.sh` as a workbench-only check (skipped downstream when absent). The contract-strict version replaces the validate.sh call with a structured handoff block that invokes `/CJ_personal-workflow check "$WORK_ITEM_DIR"` via the Skill tool — same pattern as the dispatch handoff in `skills/CJ_goal/scripts/goal.sh`. Portable by construction (the check skill is markdown-defined and deployed globally), removes the workbench-coupling root cause instead of guarding around it. **When:** if downstream scaffold drift surfaces past the current pipeline gates; v1 (T000028) is fine until then.
+
+### v2: ship `scripts/validate.sh` (or a scaffold-only subset) via `skills-deploy install` for downstream repos (P3, S)
+Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CEO review: the cleanest path to "portable" isn't to skip validate.sh downstream, it's to make validate.sh ship with the skill bundle so downstream repos get the structural checks for free. Two flavors to explore: (a) ship the full `validate.sh` (depends on a per-repo skill-catalog being present — currently workbench-only); (b) extract a scaffold-only subset (`validate-work-item <dir>` that runs just the per-work-item structural checks, no skill-catalog/manifest/copilot dependencies) and ship that. Path (b) is the cleaner downstream contract. **When:** if downstream Phase 1 scaffolds start failing in ways the current skip-when-absent guard hides; v1 (T000028) is fine until then.
+
 ## Deferred work
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED

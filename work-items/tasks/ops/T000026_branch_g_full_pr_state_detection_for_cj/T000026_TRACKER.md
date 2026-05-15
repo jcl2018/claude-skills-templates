@@ -60,8 +60,8 @@ blocked_by: ""
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -80,6 +80,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #113: v3.5.3 fix: T000026 /CJ_run Branch(g) full PR-state dedup (TODOS:123) [via /CJ_goal]](https://github.com/jcl2018/claude-skills-templates/pull/113) — MERGED
 
 ## Files
 
@@ -117,3 +119,4 @@ Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to det
 - 2026-05-15T06:51:21Z [qa-smoke-summary] green: 0/0 non-manual rows green (1 manual row pending)
 - 2026-05-15T06:51:21Z [qa-pass] T000026: smoke verdict green (0 non-manual rows; 1 manual row pending operator verification). validate.sh clean (0 errors / 0 warnings). bash -n on modified Step 1.0.g block: OK. Implementation matches TODO body (3-part fix sketch: a/b/c).
 - 2026-05-15T06:51:48Z [auto-final-gate-suppressed] 0 mechanical, 0 taste, 1 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl
+- 2026-05-14 [gates-update] Phase 3: /ship — PR #113,/land-and-deploy — PR merged,PRs section: linked PR #113 (MERGED).
