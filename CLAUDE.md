@@ -237,3 +237,55 @@ _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null
 
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
+
+## TODOS.md hygiene conventions
+
+`TODOS.md` is the workbench's active backlog. `/CJ_suggest` ranks rows from it for
+`/CJ_goal` and `/loop /CJ_goal`. Two known auto-marking gaps require explicit
+agent action — get either wrong and `/loop /CJ_goal` will keep re-picking
+already-addressed rows, burning iterations on idempotent skips.
+
+### When TODOS rows get auto-marked DONE
+
+`/ship` Step 14 (TODOS.md auto-update) reads the diff + commit history of the
+PR being shipped and marks completed rows automatically. Works correctly for the
+common case: a `/CJ_goal`-shipped PR with `[via /CJ_goal]` in the commit message
+and `Closes TODOS:NNN` in the body. Self-marks the row in the same PR's diff.
+Five recent PRs (#108, #111, #112, #113, #116) all auto-marked their TODOs
+without operator intervention.
+
+### Edge case 1: partial closes need explicit `PARTIAL` annotation
+
+When a PR addresses only part of a multi-item TODO (commit message says
+"(TODOS:NNN partial)"), `/ship` Step 14 conservatively skips the auto-mark
+because its confidence threshold isn't met. This is correct behavior — a partial
+fix shouldn't claim full closure. Operator action: hand-edit the row to add a
+PARTIAL annotation matching the existing convention at TODOS.md line 73:
+
+```markdown
+### ~~Original heading (Pn, Sz)~~ PARTIAL — sub-item (X) closed by T000NNN (vX.Y.Z, PR #NNN): one-line description of what shipped. **Remaining:** sub-items (Y), (Z) — what still needs to ship.
+```
+
+The `~~strikethrough~~` is required so `/CJ_suggest` excludes the row. Without
+it, `/loop /CJ_goal` will keep ranking the row as active and burning iterations
+to discover the work is already partly done. Example: TODOS:108 (T000027 / PR
+#114) — addressed sub-item (b) only; (a)/(c)/(d) deferred.
+
+### Edge case 2: multi-PR bundles via `/CJ_run` need a post-bundle cleanup PR
+
+`/CJ_run`'s Branch (b) auto-iterate ships per-child PRs against `origin/main`
+without bundling them in a single `/ship` invocation. `/ship` Step 14 sees only
+each child's narrow diff and has no cross-PR view of which TODOs the bundle as
+a whole closes. Result: TODOS rows that the bundle addresses end up unmarked
+even after every child has merged. Operator action after the last child PR
+merges: ship a small `chore: TODOS.md post-bundle cleanup for F000NNN` PR that
+hand-edits the addressed rows to add `~~strikethrough~~ DONE — closed by
+S000NNN (vX.Y.Z, PR #NNN)` annotations. Example: PR #119 (v3.6.2) cleaned up
+TODOS:142 + :167 after PR #117 + #118 shipped the F000020 polish bundle.
+
+### When in doubt
+
+Before invoking `/loop /CJ_goal`, scan `TODOS.md` for active-looking rows whose
+T-IDs / PR numbers match recent merged commits. Any unstrikethrough'd row whose
+work has already shipped is a hygiene debt that will steal a `/loop` iteration.
+Cleanup PRs are cheap (single-file edit, no code, ~5 min through `/ship`).
