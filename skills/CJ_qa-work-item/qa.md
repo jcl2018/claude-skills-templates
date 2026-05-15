@@ -206,9 +206,20 @@ attempting to execute ambiguous prose.
 
 ### Edge cases (all types)
 
-- **Test rows empty (only placeholder rows):** log `INFO: {test_rows_source} has no
-  populated test rows; treating as vacuous PASS.` Skip to Step 9 (gate
-  transition / [qa-pass]).
+- **Test rows empty (only placeholder rows) — HALT (all types: defect, task, user-story).**
+  Applies uniformly across all work-item types — the refuse-on-placeholder gate
+  does NOT exempt user-story; an unpopulated TEST-SPEC is just as vacuous as an
+  unpopulated test-plan. Refuse to write `[qa-pass]`. Write a `[qa-refused]`
+  journal entry to `$TRACKER` of the form:
+  `[qa-refused] {test_rows_source} has only placeholder rows; populate the
+  test-plan with real verification steps, then re-run /CJ_qa-work-item.`
+  Skip Steps 5-9 entirely. Return refuse-RESULT
+  `RESULT: SMOKE=red; E2E=red; PHASE2_GATES=partial` so the orchestrator's
+  Step 7 interprets this as halt-at-gate. Surface to the user the message:
+  `populate the test-plan, then re-run` along with the affected work-item
+  path. Rationale: a placeholder-only test-plan trivially passes a smoke filter
+  and falsely trips the `[qa-pass]` gate; the refuse gate forces real test
+  coverage before Phase 2 / Phase 3 gates can transition.
 - **Smoke empty, E2E populated** (user-story only): log `INFO: no smoke rows; proceeding to
   E2E directly.` Skip to Step 7.
 - **Smoke populated, E2E empty:** run smoke (Steps 5-6); skip Step 7;
@@ -670,10 +681,11 @@ If smoke was empty (E2E only, green):
 - {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): no smoke rows + green E2E. Phase 2 gates transitioned.
 ```
 
-If both empty (vacuous PASS from Step 4):
-```
-- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): vacuous PASS (no smoke or E2E rows in TEST-SPEC). Phase 2 gates transitioned.
-```
+If both smoke and E2E rows are empty (only placeholder rows): Step 4's edge-case
+HALT fires BEFORE reaching Step 9 — no `[qa-pass]` entry is written. The
+tracker receives a `[qa-refused]` entry instead. This template intentionally
+has no entry shape here; the refuse-RESULT path returns
+`SMOKE=red; E2E=red; PHASE2_GATES=partial` and the orchestrator halts at gate.
 
 For defect:
 ```
