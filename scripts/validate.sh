@@ -649,6 +649,26 @@ else
   [ "$found_rules" -eq 0 ] && pass "rules/ directory is empty (no rules to deploy)"
 fi
 
+# Error check 12: pipeline.md Step 6 guard present
+# T000029: enforces the workbench-coupling boundary at pipeline.md:528.
+# If a future skill-author deletes the guard, CI fails — preventing silent
+# regression of T000028 / Approach D's downstream-portability fix.
+echo ""
+echo "=== Check 12: pipeline.md Step 6 guard present ==="
+PIPELINE_MD="skills/CJ_personal-pipeline/pipeline.md"
+if [ -f "$PIPELINE_MD" ]; then
+  if grep -qF '[ -x ./scripts/validate.sh ]' "$PIPELINE_MD"; then
+    echo "  PASS: pipeline.md contains the validate.sh presence guard"
+  else
+    echo "  FAIL: pipeline.md missing '[ -x ./scripts/validate.sh ]' guard token"
+    echo "        This guard is the workbench-coupling boundary (T000028, Approach D)."
+    echo "        Deleting it would regress downstream /CJ_goal portability."
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  echo "  WARN: pipeline.md not found at $PIPELINE_MD (skipping check)"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

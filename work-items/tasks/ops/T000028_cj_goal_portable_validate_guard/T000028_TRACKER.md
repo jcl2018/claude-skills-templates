@@ -60,8 +60,8 @@ blocked_by: ""
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -83,6 +83,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #115: v3.5.5 fix: T000028 /CJ_goal portability — delete goal.sh:526 + guard pipeline.md:528 (Approach D)](https://github.com/jcl2018/claude-skills-templates/pull/115) — MERGED
 
 ## Files
 
@@ -138,3 +140,4 @@ The user tagged 40 portfolio TODOs with `(Pn, X)` for `/loop /CJ_goal` to drain.
 - 2026-05-15 [qa-smoke-summary] green: 4/4 non-manual rows green (2 manual rows pending: row 1 workbench-validate-fail and row 3 downstream-drain — both require post-deploy verification)
 - 2026-05-15 [qa-pass] T000028 (task): green smoke from test-plan rows (6 rows + 1 bonus, 4 automated green, 2 manual_pending). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
 - 2026-05-15T17:25:00Z [auto-final-gate-suppressed] 1 mechanical, 0 taste, 3 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl
+- 2026-05-15 [gates-update] Phase 3: /ship — PR #115,/land-and-deploy — PR merged,PRs section: linked PR #115 (MERGED).
