@@ -9,6 +9,7 @@ parent: "{PARENT_ID}"
 repo: "{REPO_PATH}"
 branch: "{BRANCH_NAME}"
 blocked_by: ""
+# pr: ""  # optional; populate with PR URL (e.g. https://github.com/org/repo/pull/123) for explicit PR-state lookups. The `## PRs` section below is the canonical home for PR links; this frontmatter field is a machine-readable shortcut consumed by /CJ_run Branch(f)/(g) gh pr view dedup. Either convention is accepted.
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to

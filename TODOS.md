@@ -120,7 +120,7 @@ Deferred during autoplan review for the multi-story auto-iterate feature (branch
 - **Dependency-aware batching** (Codex CEO) — `--work-item-dir` sequentially respects `S[0-9]*` sort order; `blocked_by` preflight halt is the safety net. Full dependency-aware scheduler deferred.
 **Reference:** autoplan review 2026-05-13 on branch claude/awesome-pasteur-36565c.
 
-### Branch(g) full PR-state detection for `/CJ_run` (P2, M)
+### ~~Branch(g) full PR-state detection for `/CJ_run` (P2, M)~~ DONE — closed by T000026 (v3.5.3)
 Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to determine "in-progress" — it doesn't call `gh pr view` because the user-story TRACKER template has no `pr:` frontmatter field (PR links live in a Markdown `## PRs` section). This works correctly for the common case (gates accurately reflect ship state), but a tracker with `[x]` gates that was force-merged or manually edited could slip past. **Fix sketch:** (a) extend `tracker-user-story.md` with an optional `pr:` frontmatter field plus a section parser that recognizes both styles; (b) call `gh pr view "$PR_URL" --json state` with a cache to avoid N round-trips per candidate; (c) gate Branch(g) on `MERGED` state for explicit deduplication. **When:** when a false positive surfaces in real use; for now the gate-state filter catches all known shipped work-items. **Reference:** pre-landing review on F000017 S000038 (2026-05-13).
 
 ## Deferred work
