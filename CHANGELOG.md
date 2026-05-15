@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.3] - 2026-05-15
+
+### Added
+
+- **`## TODOS.md hygiene conventions` section in CLAUDE.md.** Documents two known auto-marking gaps that operators must handle by hand: (1) partial closes need explicit `~~strikethrough~~ PARTIAL — sub-item (X) closed by ...` annotations because `/ship` Step 14's auto-marker conservatively skips them; (2) multi-PR bundles via `/CJ_run` Branch (b) need a small post-bundle `chore: TODOS.md post-bundle cleanup` PR because `/ship` only sees each child's narrow diff and can't auto-mark cross-PR closures. Both gaps were diagnosed via `/investigate` after observing `/loop /CJ_goal` repeatedly picking already-addressed rows in this session — the iron law (no fix without root cause) revealed there's no `/CJ_goal` bug, just a documentation + convention gap.
+
+### Changed
+
+- **TODOS:108 marked PARTIAL.** `Pre-ship vs post-ship AC categorization for /CJ_qa-work-item` — sub-item (b) closed by T000027 (v3.5.4, PR #114): qa.md Step 4 filters post-ship E2E rows out of subagent dispatch with `[qa-e2e-deferred]` journal entry. Remaining sub-items (a) `phase: post-ship` TEST-SPEC field, (c) Phase 3 `Post-ship ACs verified` gate, (d) `/CJ_personal-workflow check --update` post-merge inference are deferred until the next work-item with structurally post-ship ACs hits the QA flow.
+
+### Notes
+
+- Pure docs PR — no code changes. Unblocks `/loop /CJ_goal` iterations that were burning cycles re-picking TODOS:108 (the `IDEMPOTENT_SKIP=1` route would dispatch a no-op chain). Future operators following the new conventions in CLAUDE.md should not recreate the gap.
+
 ## [3.6.2] - 2026-05-15
 
 ### Changed
