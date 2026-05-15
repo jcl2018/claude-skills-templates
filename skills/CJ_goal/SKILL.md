@@ -1,7 +1,7 @@
 ---
 name: CJ_goal
 description: "Auto-resolve a TODO from TODOS.md into a shipped PR. Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns 'fix this TODO' into a merged PR. Workbench-only; halt-on-red preserved end-to-end."
-version: 1.0.0
+version: 1.1.0
 allowed-tools:
   - Bash
   - Read
@@ -44,9 +44,13 @@ is reuse.
 - Idempotency hit (T-tracker already exists for this heading)
 
 **Loop semantics.** `/loop /CJ_goal` continues on `end_state ∈ {green,
-idempotent_skip, halted_at_preflight}`. Substantive halts
-(`halted_at_pipeline_*`, `halted_at_ship`, `halted_at_deploy`,
-`halted_at_sensitive_surface_user_declined`, `halted_at_resolve`,
+idempotent_skip, halted_at_preflight, halted_at_sensitive_surface_auto_declined}`.
+The sensitive-surface auto-default joins `halted_at_preflight` in the continue
+set because under bash there is no AUQ tool — the gate fires regardless of
+whether a human is present, so `/loop` should defer the row (skip-list) and
+keep iterating. Substantive halts (`halted_at_pipeline_*`, `halted_at_ship`,
+`halted_at_deploy`, `halted_at_sensitive_surface_user_declined` (reserved for
+future interactive AUQ; not emitted in v1.1), `halted_at_resolve`,
 `halted_at_scaffold`, `halted_at_todos_md`) stop the loop. Per-session
 skip-list at `/tmp/cj-goal-skip-${RUN_ID}.txt` prevents re-hitting
 already-skipped TODOs within a `/loop` session.
@@ -81,7 +85,8 @@ or invoke `bash skills/CJ_goal/scripts/goal.sh` directly while testing.
 | `idempotent_skip` | Tracker existed; dispatched chain | continue |
 | `halted_at_preflight` | Benign per-TODO halt (suffix / size / body-too-short / design-keyword) | continue (skip-list) |
 | `halted_at_resolve` | No actionable TODOs from /CJ_suggest, or T-ID/fragment didn't match | STOP |
-| `halted_at_sensitive_surface_user_declined` | User chose "halt" at sensitive-surface AUQ | STOP |
+| `halted_at_sensitive_surface_auto_declined` | Bash auto-default at sensitive-surface gate (no AUQ tool reachable; honest disposition name). Mirrors `halted_at_preflight` semantics for `/loop` continuity. | continue (skip-list) |
+| `halted_at_sensitive_surface_user_declined` | (reserved for future interactive AUQ; not emitted in v1.1) Human at the AUQ explicitly declined the sensitive-surface gate. | STOP |
 | `halted_at_scaffold` | /CJ_personal-workflow check refused the scaffolded dir | STOP |
 | `halted_at_pipeline_implement` / `halted_at_pipeline_qa` | /CJ_personal-pipeline returned non-green | STOP |
 | `halted_at_ship` | /ship Gate #2 declined or pre-landing review red | STOP |

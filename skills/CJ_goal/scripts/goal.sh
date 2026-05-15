@@ -84,17 +84,24 @@ halt() {
     green|idempotent_skip)
       exit 0
       ;;
-    halted_at_preflight)
+    halted_at_preflight|halted_at_sensitive_surface_auto_declined)
       # Skip-list mechanic for /loop: append heading and exit 0 so /loop
       # continues to next iteration. Caller's /loop reads stdout for the
       # skipped: line.
+      #
+      # `halted_at_sensitive_surface_auto_declined` shares this branch because
+      # under bash there is no AUQ tool — the gate auto-defaults regardless of
+      # whether a human is present, so `/loop` should defer the row (skip-list)
+      # and continue iterating, same as preflight rejections. The
+      # `_user_declined` variant is reserved for the future interactive AUQ at
+      # the orchestrator layer (it remains STOP via the default branch below).
       if [ -n "$todo_heading" ]; then
         echo "$todo_heading" >> "$SKIP_FILE"
         echo "skipped: $todo_heading (${reason:-preflight})"
       fi
       # exit non-zero so single-shot callers see the halt, but /loop is
-      # documented to continue on this end_state. Per design Loop continue
-      # set: halted_at_preflight is a continue class.
+      # documented to continue on these end_states. Per design Loop continue
+      # set: halted_at_preflight + halted_at_sensitive_surface_auto_declined.
       exit 2
       ;;
     *)
@@ -300,7 +307,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     # the surface match and the user re-runs with a sensitive-surface-aware
     # entry point (manual scaffold).
     echo "[CJ_goal] sensitive surface in TODO body: $SENSITIVE_MATCH" >&2
-    halt "halted_at_sensitive_surface_user_declined" "TODO touches sensitive surface(s): $SENSITIVE_MATCH — manual scaffold recommended" "$NAKED_HEADING"
+    halt "halted_at_sensitive_surface_auto_declined" "TODO touches sensitive surface(s): $SENSITIVE_MATCH — manual scaffold recommended" "$NAKED_HEADING"
   fi
 
   # Gate 5: design-needed keywords.
