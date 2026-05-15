@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.1] - 2026-05-15
+
+### Changed
+
+- **`/CJ_goal` halt-class semantic rename: `halted_at_sensitive_surface_user_declined` → `halted_at_sensitive_surface_auto_declined` (S000043, F000020 polish bundle WI-B).** `goal.sh:296` (now line 310) emits the renamed end_state at the bash auto-default site. The `halt()` case ladder adds it to the **continue** branch (mirrors `halted_at_preflight` skip-list-and-exit-2 mechanic). Under bash there is no AUQ tool — the gate auto-defaults regardless of whether a human is present, so the prior `_user_declined` name was a misnomer and the STOP halt-class lied: under `/loop /CJ_goal` no human declined; the script just couldn't ask.
+- **`/loop /CJ_goal` now continues past sensitive-surface rows instead of halting.** Defense-in-depth alignment for v3.6.0's queue-layer pre-filter: even on bypass paths (interactive `/CJ_goal "fragment"` from inside /loop, regex update drift) where a sensitive-surface row reaches the gate, the loop defers the row to the skip-list and iterates. The gate's purpose (human review before sensitive change ships) is preserved — the next interactive `/CJ_goal` invocation re-surfaces the row and the human can choose then.
+- **`halted_at_sensitive_surface_user_declined` reserved for future interactive AUQ.** Halt-class table keeps the slot with a "(reserved for future interactive AUQ; not emitted in v1.1)" annotation. STOP loop behavior preserved for when an orchestrator-layer AUQ ships and a real human can decline. Contract change for telemetry consumers grepping for `_user_declined`: 0 events from v3.6.1 onwards (script no longer emits it). Update queries to grep both names if you need the union.
+
+### Notes
+
+- Second child PR of the F000020 v1.1 polish bundle. WI-A shipped as v3.6.0 (queue-layer pre-filter); WI-C (skip-list reset RCA + instrumentation, defect type) follows as v3.6.2.
+- /autoplan skipped per user choice (workbench polish, design doc comprehensive). Pipeline subagent: 3 files modified, smoke + validate.sh PASS, 1 mechanical + 2 user-challenge-approved decisions logged.
+- `skills-catalog.json` bumps `CJ_goal` 1.0.0 → 1.1.0 reflecting the semantic rename.
+
 ## [3.6.0] - 2026-05-15
 
 ### Added
