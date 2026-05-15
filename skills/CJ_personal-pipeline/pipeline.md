@@ -361,6 +361,16 @@ The orchestrator runs these checks (NOT the subagent):
 
 1. **Footer write-back confirm.** *Skipped when `$WORK_ITEM_DIR_OVERRIDE` is set (Step 2 Branch (e)) — there is no `$DESIGN_DOC` to re-read in `--work-item-dir` mode.* Otherwise: re-read `$DESIGN_DOC`. Confirm the footer is now present and matches `WORK_ITEM_DIR`. If absent, halt with `[gate-red]` (partial-write halt — scaffold's Step 12 didn't run cleanly).
 2. **`/CJ_personal-workflow check "$WORK_ITEM_DIR"`** in Tier 1 Directory Mode. Refuse on red. (Defense-in-depth: scaffold's own Step 9 check should already have run, but the orchestrator does not trust upstream skill self-checks.)
+
+   **Sub-step 2 trailer — load `TRACKER` + `WORK_ITEM_TYPE` (D000019).** The orchestrator-model carries these as prose state and re-asserts them in each fresh Bash block (model-state, not shell-state — bash variables don't persist across orchestrator-model Bash calls). Step 5.1 (type-aware input selection), Step 7 (type-aware halt), and Step 8 (journal grep) all depend on these variables; the canonical load form is the same wherever they're consumed:
+
+   ```bash
+   TRACKER=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_TRACKER.md" -o -name "TRACKER.md" \) 2>/dev/null | head -1)
+   WORK_ITEM_TYPE=$(tr -d '\r' < "$TRACKER" | awk '/^---$/{n++; next} n==1 && /^type:/' | head -1 | sed 's/^type:[[:space:]]*//' | sed 's/[[:space:]]*#.*$//' | tr -d '"' | tr -d "'" | awk '{$1=$1; print}')
+   ```
+
+   The frontmatter-anchored awk (`/^---$/{n++; next} n==1 && /^type:/`) restricts the match to the YAML frontmatter between the first two `---` lines — avoids false matches on `type:` mentions in tracker prose / code blocks. The trailing `sed`+`awk` strip comments and whitespace (handles `type: defect  # legacy`, CRLF, quoted/unquoted values).
+
 3. **Multi-story feature halt.** If `$WORK_ITEM_DIR` is a feature with ≥1 user-story child dir:
    ```
    Halt (v1 scope): feature-shaped work-item with N children.
@@ -398,16 +408,53 @@ Locate the SPEC artifact:
 SPEC=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_SPEC.md" -o -name "SPEC.md" \) 2>/dev/null | head -1)
 ```
 
-If `SPEC` is empty (defect/task work-items have no SPEC), skip pre-scan; the
-implement subagent's per-type read covers the equivalent (test-plan rows for
-defect/task have no embedded sensitive-surface fork the way SPEC does).
-
-Otherwise, scan the SPEC for two AUQ triggers:
-
-**Sensitive-surface paths** (in `### Components Affected` table or `## Files`):
+**Type-aware input artifact selection (D000019 Edit #2b).** Defects have RCA + test-plan (no SPEC); tasks have TRACKER + test-plan (no SPEC); user-stories scan SPEC (current behavior). Re-asserts `TRACKER` + `WORK_ITEM_TYPE` per Step 4 sub-step 2 trailer's load form — bash variables don't persist across orchestrator-model Bash calls, so the model carries the load as prose state and re-emits it here.
 
 ```bash
-SENSITIVE_PATHS=$(grep -E '(skills-catalog\.json|personal-artifact-manifests\.json|company-artifact-manifests\.json|templates/(personal|company)-workflow/|scripts/(validate|test|test-deploy)\.sh|\.git/hooks/)' "$SPEC" || true)
+# Edit #0 re-assertion (orchestrator-model carries prose state across bash blocks).
+TRACKER=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_TRACKER.md" -o -name "TRACKER.md" \) 2>/dev/null | head -1)
+WORK_ITEM_TYPE=$(tr -d '\r' < "$TRACKER" | awk '/^---$/{n++; next} n==1 && /^type:/' | head -1 | sed 's/^type:[[:space:]]*//' | sed 's/[[:space:]]*#.*$//' | tr -d '"' | tr -d "'" | awk '{$1=$1; print}')
+
+# Type-aware input artifact selection for sensitive-surface scan.
+# NOTE: find -name ... -o -name ... requires explicit \( ... \) grouping —
+# POSIX find's -o has lower precedence than implicit -a, so without parens
+# the second predicate ignores -maxdepth and recurses. Same pattern as the
+# SPEC find above. Edit #0's TRACKER find already does this correctly.
+SCAN_INPUTS=""
+if [ -n "$SPEC" ]; then SCAN_INPUTS="$SCAN_INPUTS $SPEC"; fi   # user-story
+case "$WORK_ITEM_TYPE" in
+  defect)
+    RCA=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_RCA.md" -o -name "RCA.md" \) 2>/dev/null | head -1)
+    TEST_PLAN=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "test-plan.md" -o -name "*-test-plan.md" \) 2>/dev/null | head -1)
+    [ -n "$RCA" ] && SCAN_INPUTS="$SCAN_INPUTS $RCA"
+    [ -n "$TEST_PLAN" ] && SCAN_INPUTS="$SCAN_INPUTS $TEST_PLAN"
+    ;;
+  task)
+    TEST_PLAN=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "test-plan.md" -o -name "*-test-plan.md" \) 2>/dev/null | head -1)
+    [ -n "$TEST_PLAN" ] && SCAN_INPUTS="$SCAN_INPUTS $TEST_PLAN"
+    [ -n "$TRACKER" ] && SCAN_INPUTS="$SCAN_INPUTS $TRACKER"
+    ;;
+esac
+if [ -z "$SCAN_INPUTS" ]; then
+  echo "[step-5.1] no scannable artifacts for type=$WORK_ITEM_TYPE; pre-scan skipped"
+fi
+```
+
+Then scan the selected inputs for two AUQ triggers:
+
+**Sensitive-surface paths** (D000019 Edit #2a — broadened regex includes `skills/[^/]+/scripts/[^/]+` to match any file under a skill's scripts/ dir, not just `.sh`. Trust boundary is the directory, not the extension. Acceptable over-match: README.md under scripts/ would trip — false positive ack'd as security-gate trade-off):
+
+```bash
+# Empty-input guard (D000019 F3 fix): grep with zero file args reads stdin, not a no-op.
+# When SCAN_INPUTS is empty (e.g., defect/task with no RCA/test-plan/TRACKER) we MUST
+# skip the grep entirely; otherwise grep blocks on stdin or scans untrusted piped data.
+# The [-z $SCAN_INPUTS] diagnostic above is the user-facing notice for that path.
+# $SCAN_INPUTS is unquoted intentionally on the grep call — it expands into multiple file args.
+if [ -z "${SCAN_INPUTS// /}" ]; then
+  SENSITIVE_PATHS=""
+else
+  SENSITIVE_PATHS=$(grep -E '(skills-catalog\.json|personal-artifact-manifests\.json|company-artifact-manifests\.json|templates/(personal|company)-workflow/|scripts/(validate|test|test-deploy)\.sh|\.git/hooks/|skills/[^/]+/scripts/[^/]+)' $SCAN_INPUTS 2>/dev/null || true)
+fi
 ```
 
 **Taste-fork rows** in `## Tradeoffs` table where the `Chosen` column has
@@ -508,6 +555,15 @@ RETURN CONTRACT: end your final assistant message with a line in this exact form
   RESULT: SMOKE=<green|red>; E2E=<green|red|ambiguous>; PHASE2_GATES=<green|partial|red>
 The line must be on its own. No prose after it.
 
+For type=defect|task, emit `E2E=ambiguous` (smoke is the verification layer;
+`ambiguous` means "not applicable for this type" — `/CJ_qa-work-item`'s inner
+E2E subagent only dispatches for user-stories, per qa.md line 179). The
+orchestrator's Step 7 type-aware halt rule (D000019 Edit #1) interprets
+`ambiguous` correctly for defect/task and continues to Step 8 silently when
+SMOKE + PHASE2_GATES are both green. Do NOT emit `E2E=green` for defect/task
+— that would falsely claim user-story-shape E2E coverage which qa.md does
+not provide for those types.
+
 WORK_ITEM_DIR: <absolute path>
 ```
 
@@ -516,10 +572,18 @@ WORK_ITEM_DIR: <absolute path>
 cap from `/CJ_qa-work-item`'s qa.md applies; the orchestrator gives the outer
 subagent up to ~10 min wall-clock to complete (smoke + E2E together).
 
+Re-assert `TRACKER` + `WORK_ITEM_TYPE` before parsing (D000019 Edit #0 — bash variables don't persist across orchestrator-model Bash calls; the load is the same form as Step 4 sub-step 2's trailer):
+
+```bash
+TRACKER=$(find "$WORK_ITEM_DIR" -maxdepth 1 \( -name "*_TRACKER.md" -o -name "TRACKER.md" \) 2>/dev/null | head -1)
+WORK_ITEM_TYPE=$(tr -d '\r' < "$TRACKER" | awk '/^---$/{n++; next} n==1 && /^type:/' | head -1 | sed 's/^type:[[:space:]]*//' | sed 's/[[:space:]]*#.*$//' | tr -d '"' | tr -d "'" | awk '{$1=$1; print}')
+```
+
 Parse with `parse_result`. Branch:
 
 - `SMOKE=green; E2E=green; PHASE2_GATES=green`: continue to Step 8 (gate green path).
-- Any red/ambiguous: classify as **User Challenge — Halt-at-Gate** (see Step 8 for the full classification + log line); halt with `[gate-red]` and `end_state=halted_at_gate`. Step 8.5 never fires for these runs.
+- **Type-aware green path (D000019 Edit #1).** If `"$WORK_ITEM_TYPE" = "defect"` OR `"$WORK_ITEM_TYPE" = "task"` AND `SMOKE=green` AND `PHASE2_GATES=green` AND `E2E=ambiguous`: continue silently to Step 8 (same green path as the user-story-green branch above). Rationale: defect/task QA cannot structurally emit `E2E=green` — `/CJ_qa-work-item`'s inner E2E subagent only dispatches for user-stories; `E2E=ambiguous` for those types means "n/a for this type", not "uncertain test result" (qa.md line 179: defect/task have no E2E; line 643: `[qa-pass]` is smoke-based for those types). No taste decision logged; no journal entry; the existing tracker-side `[qa-pass]` and `[qa-smoke-summary] green` already record the meaningful state.
+- Any other red/ambiguous: classify as **User Challenge — Halt-at-Gate** (see Step 8 for the full classification + log line); halt with `[gate-red]` and `end_state=halted_at_gate`. Step 8.5 never fires for these runs. Note: `PHASE2_GATES=partial` remains a halt path regardless of type — `partial` is a separate user_challenge that the type-aware branch above does NOT cover (strict `PHASE2_GATES=green` required for the silent-green path).
 - empty / no RESULT: halt with `[subagent-crash]`; halt-regardless category (do NOT log to `$DECISION_LOG`); `end_state=subagent_crashed`.
 
 ## Step 8: Post-QA Gate
@@ -819,6 +883,7 @@ The Step 5.1 regex matches these surface families:
 | Templates | `templates/CJ_personal-workflow/*` / `templates/CJ_company-workflow/*` | Source-of-truth for required sections + frontmatter |
 | Validators | `scripts/validate.sh` / `scripts/test.sh` / `scripts/test-deploy.sh` | Gate-keeper logic; subtle changes here can mask drift |
 | Git hooks | `.git/hooks/*` | Local enforcement layer; sandbox escape risk |
+| Skill scripts | `skills/*/scripts/*` | Any new file under a skill's scripts/ dir — executable code dispatched by skill routing; trust-boundary surface. Includes .sh, .bash, .py, extensionless executables, helpers, READMEs (over-match acceptable for security gate). |
 
 Extending the surface list: add a new alternation to the `grep -E` pattern in
 Step 5.1, then add a row here for documentation. Keep this list narrow —
