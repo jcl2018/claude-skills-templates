@@ -240,5 +240,36 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "CJ_goal",
+    "version": "1.0.0",
+    "description": "Auto-resolve a TODO from TODOS.md into a shipped PR. Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns fix-this-TODO into a merged PR. Workbench-only; halt-on-red preserved end-to-end.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_suggest",
+        "CJ_personal-pipeline",
+        "CJ_personal-workflow",
+        "CJ_scaffold-work-item"
+      ],
+      "tools": [
+        "bash",
+        "awk",
+        "find",
+        "grep",
+        "sed",
+        "jq",
+        "git",
+        "gh"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_goal/SKILL.md",
+      "skills/CJ_goal/scripts/goal.sh"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]

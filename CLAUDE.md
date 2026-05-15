@@ -18,6 +18,13 @@ cd claude-skills-templates
 Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 `./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
+The CJ_ skill family in this workbench includes top-level pipelines (/CJ_run,
+/CJ_personal-pipeline), workflow validators (/CJ_personal-workflow,
+/CJ_company-workflow), per-phase skills (/CJ_scaffold-work-item,
+/CJ_implement-from-spec, /CJ_qa-work-item), and standalone utilities
+(/CJ_system-health, /CJ_suggest, /CJ_goal). /CJ_goal bridges TODOS.md rows to
+the shipping pipeline in one keystroke — see `skills/CJ_goal/SKILL.md`.
+
 ## CI/CD merge convention
 
 This repo uses **squash merges**. When `/ship` or `/land-and-deploy` reaches the

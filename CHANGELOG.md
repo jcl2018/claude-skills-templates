@@ -3,6 +3,23 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.0] - 2026-05-14
+
+### Added
+
+- **`/CJ_goal` — auto-resolve TODOs that other tasks drop into TODOS.md (F000019, S000041).**
+  New top-level skill that bridges a TODOS.md row → green PR via the existing implement-QA-ship-deploy chain. Takes optional `/CJ_goal <T-ID>` for exact-tracker lookup, `/CJ_goal "<fragment>"` for fuzzy heading match, `/CJ_goal --dry-run` for preview, or no args (consumes /CJ_suggest top-1). All non-trivial logic lives in `skills/CJ_goal/scripts/goal.sh` (#!/usr/bin/env bash shebang per D000017 lesson).
+
+  Pipeline: resolve TODO → pre-flight gates (suffix-parse for P0-P4 + S/M/L/XL; priority/size cap refuses P1 + L/XL; body-too-vague halt <50 chars; sensitive-surface AUQ on body regex match; design-needed keyword halt; idempotency via traceability footer grep) → auto-scaffold T-task (TRACKER + test-plan from `templates/CJ_personal-workflow/`) → boundary check via `/CJ_personal-workflow check` → direct dispatch chain (`/CJ_personal-pipeline --work-item-dir --suppress-final-gate` via Agent subagent → `/ship` → `/land-and-deploy --suppress-readiness-gate`) → hash-verify TODOS.md DONE-mark write → telemetry.
+
+  **Substrate dependencies (all shipped today):** v3.4.1 (D000019) type-aware Step 7 halt + Step 5.1 input selection; v3.4.2 (T000022) implement-chmod-+x; v3.4.3 (T000023) refuse-on-vacuous-PASS. Without these, /CJ_goal would have shipped vacuous green PRs.
+
+  **`/loop /CJ_goal` semantics (Theme B):** continue set = `{green, idempotent_skip, halted_at_preflight}`. Benign per-TODO halts skip-and-continue via per-session skip-list (`/tmp/cj-goal-skip-${RUN_ID}.txt`, post-filtered into /CJ_suggest output via `grep -vFxf`). Substantive halts (`halted_at_ship`, `halted_at_pipeline_*`, `halted_at_deploy`, `halted_at_scaffold`, `halted_at_sensitive_surface_user_declined`, `halted_at_todos_md`) stop the loop for human review. Best fit: 1-5 small TODOs per focused session (one /ship Gate #2 diff-review pause per TODO is intentional friction — upstream gstack constraint).
+
+  **Eval coverage:** 7 preflight-halt fixtures at `tests/eval/CJ_goal/halt-*/`. Green-path eval deferred per per-case $0.50 budget cap (matches /CJ_personal-pipeline precedent).
+
+  Provenance: 4 autoplan rounds (8 design patches, /CJ_goal-internal Theme B + per-session-skip-list + footer Themes Resolution), 3 substrate PRs (v3.4.1/.2/.3), single F-feature with one user-story child (S000041_skill_skeleton).
+
 ## [3.4.3] - 2026-05-14
 
 ### Fixed
