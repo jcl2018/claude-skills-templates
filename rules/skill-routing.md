@@ -11,3 +11,5 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "resume work-item", "continue work-item", "what's left on this work-item", "finish this work-item" -> /CJ_run <work-item-dir> (NOTE: Branch(f) phase-detection placeholder until S000039 lands; prints next-step guidance and exits)
 - "resume current branch", "what's next on this branch", "auto resume", "pick up where I left off" -> /CJ_run (no args; Branch(g) scans for in-progress user-stories and hands off to Branch(f) — see note above)
 - "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest
+- "fix this TODO", "auto-resolve TODOs", "clear the TODO backlog", "ship the next TODO", "close TODOs from TODOS.md", "auto-ship TODOs", "resolve a TODO end-to-end" -> /CJ_goal [<T-ID> | "<fragment>"]
+- "fix TODO backlog continuously", "loop through TODOs", "auto-clear TODOs" -> /loop /CJ_goal

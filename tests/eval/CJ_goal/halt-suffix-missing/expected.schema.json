@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "halt-suffix-missing expected output",
+  "description": "Asserts that /CJ_goal halts a TODO with missing priority/size suffix at preflight.",
+  "type": "object",
+  "required": ["halt_class", "halt_reason_contains"],
+  "additionalProperties": true,
+  "properties": {
+    "halt_class": {
+      "type": "string",
+      "const": "halted_at_preflight"
+    },
+    "halt_reason_contains": {
+      "type": "string",
+      "pattern": "suffix|priority|size"
+    }
+  }
+}
