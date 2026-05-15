@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.4.2] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_implement-from-spec` now sets the executable bit on new shell scripts (TODOS:97, T000022).**
+  When the implement subagent writes a new `.sh` file via the `Write` tool, the file lands at mode 644 (non-executable) by default. Downstream consumers (skills-deploy install smoke checks, test-plan rows asserting "executable bit set", /ship Step 9 pre-landing review) flag the discrepancy. On D000017 (PR #84), the implement subagent shipped `skills/CJ_suggest/scripts/suggest.sh` at mode 644; /ship Step 9 caught it as a `[LOW] AUTO-FIX` and `chmod +x`d the file pre-commit. **Fix:** post-write `chmod +x` sub-step added to `skills/CJ_implement-from-spec/implement.md` Step 9, applied to files matching `*.sh`, `*.bash`, or no-extension files whose first line is a `#!` shebang. Step 11 boundary check left advisory in v1 (any miss still surfaces at /ship Step 9 per D000017 precedent).
+
+- **First real validation of v3.4.1's pipeline substrate fix end-to-end.**
+  T000022 (this PR) is the first task-type work-item to ship via `/CJ_personal-pipeline --work-item-dir` → `/ship` → `/land-and-deploy` since v3.4.1's type-aware Step 7 + Step 5.1 fixes. The pipeline reached `end_state=green` without taste-override on `RESULT: SMOKE=green; E2E=ambiguous; PHASE2_GATES=green` — the failure mode that previously halted D000017 (taste-override workaround) and T000020 (strict halt). Validates the substrate fix in production conditions.
+
 ## [3.4.1] - 2026-05-14
 
 ### Fixed

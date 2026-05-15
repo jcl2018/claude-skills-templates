@@ -424,6 +424,60 @@ them when CLAUDE.md or recent commits document them.
 tracker (Step 10). If a write fails partway through, the tracker still reflects
 "not yet implemented" — the next run resumes safely (partial-run recovery, Step 3).
 
+**Post-write executable-bit fix (T000022 / TODOS:97 / D000017 follow-up).**
+After writing all files in this step, ensure newly-written shell scripts have
+the executable bit set. The `Write` tool lands files at mode 644 by default —
+without this fix, `.sh` files ship non-executable and downstream consumers
+(skills-deploy install smoke checks, test-plan rows asserting "executable bit
+set", `/ship` Step 9 pre-landing review) flag the discrepancy. On D000017
+(PR #84) the implement subagent shipped `skills/CJ_suggest/scripts/suggest.sh`
+at mode 644; `/ship` Step 9 caught it as a `[LOW] AUTO-FIX` and `chmod +x`d
+the file pre-commit. The implement subagent should have done that itself —
+that is what this step fixes.
+
+For each file written or modified in this step, apply `chmod +x` if the path
+matches the shell-script heuristic:
+
+- `*.sh` (POSIX shell scripts)
+- `*.bash` (bash scripts)
+- No-extension files whose first line begins with the `#!` shebang marker
+  (e.g. `#!/usr/bin/env bash`, `#!/bin/sh`, `#!/usr/bin/env python3` — any
+  shebang script regardless of interpreter)
+
+Reference snippet (run once after the Step 9 write loop completes; the
+orchestrator-model substitutes the actual written-file list for `$WRITTEN_FILES`):
+
+```bash
+for _f in $WRITTEN_FILES; do
+  case "$_f" in
+    *.sh|*.bash)
+      chmod +x "$_f"
+      ;;
+    *)
+      # No-extension file with a shebang first line: still executable code.
+      if [ -f "$_f" ] && [ -z "${_f##*.*}" = "" ] && head -c2 "$_f" 2>/dev/null | grep -q '^#!'; then
+        chmod +x "$_f"
+      elif [ -f "$_f" ] && ! printf '%s' "$_f" | grep -q '\.'; then
+        # Extension-less file: check shebang heuristic
+        if head -c2 "$_f" 2>/dev/null | grep -q '^#!'; then
+          chmod +x "$_f"
+        fi
+      fi
+      ;;
+  esac
+done
+```
+
+Edits that touch existing executable files preserve the bit (Edit doesn't
+reset mode); the heuristic targets the NEW-file write path where mode 644
+is the default. Pre-existing non-executable shell scripts under the modified
+set will gain the bit as a beneficial side-effect — acceptable per D000017
+rationale (a `.sh` file that is not executable is almost certainly a bug).
+
+Belt-and-suspenders verification at Step 11 boundary block is advisory in v1
+(any miss would surface at `/ship` Step 9 pre-landing review, which is the
+current safety net) — record-keeping only; no enforcement.
+
 ## Step 10: Update Tracker
 
 Append journal entries to the TRACKER's `## Journal` section. Use these prefixes:
