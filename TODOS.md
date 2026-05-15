@@ -139,7 +139,7 @@ Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to det
 
 **Reference:** downstream session that surfaced this was `~/projects/portfolio` branch `claude/modest-sutherland-5026e9`.
 
-### `/CJ_goal` sensitive-surface auto-decline under `/loop` always stops the loop (P3, S)
+### ~~`/CJ_goal` sensitive-surface auto-decline under `/loop` always stops the loop (P3, S)~~ DONE — closed by S000043 (v3.6.1, PR #118) via halt-class semantic rename `_user_declined` → `_auto_declined` + add to continue set
 Observed 2026-05-15 in `/loop /CJ_goal` session that shipped T000024-T000027 (PRs #111-#114). At iteration 8 the script picked TODO `validate.sh structural check via graph JSON (P2, M)`, whose body mentions `scripts/validate.sh` three times (the file the fix touches). `scripts/goal.sh` hit the sensitive-surface regex match, found no interactive AUQ tool available under `/loop` context, and auto-declined — emitting `end_state=halted_at_sensitive_surface_user_declined`. Per the design spec, that end_state is in the STOP set ("user explicitly paused at AUQ — intent is to stop"), so the loop halted with 9 more eligible TODOs in the queue.
 
 The design's STOP rationale assumed a user-driven AUQ decline. Under `/loop` there is no user — the script must auto-decide, and "auto-decline" is the safe default for trust-boundary work. But mapping that auto-default to the same end_state as an explicit-user-pause conflates two very different signals and prematurely terminates the loop.
@@ -164,7 +164,7 @@ Root cause unknown from outside the script. The `>>` append in `scripts/goal.sh:
 
 **Reference:** observed live in `/loop /CJ_goal` session 2026-05-15 between iter 5 (PR #113 ship) and iter 6 (P1 re-skip).
 
-### `/CJ_suggest` top-5 limit can exhaust `/CJ_goal` queue when many top ranks are skip-listed (P3, S)
+### ~~`/CJ_suggest` top-5 limit can exhaust `/CJ_goal` queue when many top ranks are skip-listed (P3, S)~~ DONE — closed by S000042 (v3.6.0, PR #117) via `--for-skill cj-goal --limit 15` flags on /CJ_suggest (also closes the embedded "no /CJ_suggest pre-filter against preflight" sub-item from this row's body)
 Observed 2026-05-15 in `/loop /CJ_goal` iter 10. The no-args path of `/CJ_goal` reads `/CJ_suggest` top-1 (with skip-list post-filter applied). `/CJ_suggest` hard-caps output at top-5. When 5+ of those top ranks are in the per-session skip-list — e.g. 2 P1 size-cap rows + 1 sensitive-surface row + 3 meta-`/CJ_goal` polish TODOs all rank above the eligible P4 candidates — the post-filter returns empty and `/CJ_goal` halts at `halted_at_resolve` (terminal STOP per design), even though TODOS.md contains other eligible rows below the top-5 cutoff.
 
 **Repro:** seed `/tmp/cj-goal-skip-*.txt` with the current top-5 of `/CJ_suggest` output; invoke `/CJ_goal` no-args; observe immediate `halted_at_resolve` despite TODOS.md having ~8 more rows that are `/CJ_goal`-eligible (small size, P2-P4, non-sensitive).

@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.2] - 2026-05-15
+
+### Changed
+
+- **TODOS.md post-bundle cleanup for F000020.** Marked two rows DONE with strikethrough + close-by annotations: the `/CJ_suggest` top-5 limit row (closed by S000042 / v3.6.0 / PR #117 — covers both queue depth and the "no /CJ_suggest pre-filter against preflight" sub-item embedded in the body) and the `/CJ_goal` sensitive-surface auto-decline row (closed by S000043 / v3.6.1 / PR #118 — halt-class semantic rename + continue-set add). The skip-list reset row stays open (D000020 / WI-C — RCA-driven, ships as v3.6.3 once the instrumentation reproduces the truncation event in a real /loop session).
+
+### Notes
+
+- Pure docs change, surfaced when a `/loop /CJ_goal` smoke run picked TODOS:167 first iteration — the row was already addressed by v3.6.0 but `/CJ_suggest`'s ranker still saw it as active (no strikethrough). Marking the rows here unblocks future `/loop /CJ_goal` drains in the workbench so they don't burn iterations re-confirming already-shipped work.
+
 ## [3.6.1] - 2026-05-15
 
 ### Changed
