@@ -60,8 +60,8 @@ blocked_by: ""
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
-- [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -80,6 +80,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #114: v3.5.4 fix: T000027 /CJ_qa-work-item filters post-ship E2E rows (TODOS:108 partial) [via /CJ_goal]](https://github.com/jcl2018/claude-skills-templates/pull/114) — MERGED
 
 ## Files
 
@@ -112,3 +114,4 @@ When a work-item's acceptance criteria include rows that are structurally only v
 - 2026-05-15 [qa-smoke-summary] green: 0/0 non-manual rows green (1 manual rows pending)
 - 2026-05-15 [qa-pass] T000027 (task): green smoke from test-plan rows (1 rows, all manual_pending). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
 - 2026-05-15T07:07:28Z [auto-final-gate-suppressed] 1 mechanical, 2 taste, 1 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl
+- 2026-05-15 [gates-update] Phase 3: /ship — PR #114,/land-and-deploy — PR merged,PRs section: linked PR #114 (MERGED).
