@@ -176,6 +176,71 @@ Filter out template-placeholder rows. A row is a placeholder if its `#`
 column is literally `S{n}` or `E{n}` (curly-brace style), or if the
 `Script/Command` column matches the regex `^(TBD|—|N/A)$`.
 
+#### Step 4.user-story — Post-ship E2E filter (T000027)
+
+After placeholder filtering, partition `E2E_ROWS` by post-ship tag. A row
+is **post-ship** if its `Tag` column contains the literal token `post-ship`
+(case-sensitive, word-boundary anchored; the token may be combined with
+other tag values, e.g., `core post-ship` or `post-ship usability`).
+
+Post-ship rows describe acceptance criteria that are **structurally only
+verifiable after the PR merges to main** (e.g., `gh workflow run` against
+a CI workflow file whose remote ref doesn't exist on `origin/main` until
+the PR ships; `gh release` checks; production-URL canary smoke). Running
+the E2E subagent against these rows forces an `ambiguous → user adjudicates
+treat-as-green` loop on a structurally predetermined answer, which both
+wastes the AUQ and falsely transitions Phase 2 QA-owned gates on rows
+that are not actually verified pre-ship.
+
+Concretely:
+
+```
+# Partition E2E_ROWS by post-ship tag.
+# Rows whose Tag column contains the literal token `post-ship`
+# (word-boundary anchored, to avoid matching 'pre-post-ship' or similar)
+# move to E2E_ROWS_POST_SHIP; the rest stay in E2E_ROWS for the normal
+# Step 4.5 classifier.
+E2E_ROWS_POST_SHIP=()
+for row in E2E_ROWS:
+    if row.Tag matches /\bpost-ship\b/:
+        E2E_ROWS_POST_SHIP.append(row)
+        remove row from E2E_ROWS
+```
+
+For each row in `E2E_ROWS_POST_SHIP`, append a `[qa-e2e-deferred]` journal
+entry to the TRACKER's `## Journal` section BEFORE running Step 4.5's
+classifier and BEFORE the Step 6.5 run-start marker. The deferred entries
+name the row and its AC so the audit trail makes the deferral explicit:
+
+```
+- {YYYY-MM-DD} [qa-e2e-deferred] {E#} ({AC}): post-ship — verification deferred to post-merge (Tag contains 'post-ship'); not run pre-ship
+```
+
+The filter is applied BEFORE Step 4.5's tool-need classifier so the
+post-ship rows never enter the subagent/parent-inline partition. The
+resulting `E2E_ROWS` (after the filter) is the input the Step 4.5
+classifier and downstream Steps 7 / 7.5 / 8 operate on. Post-ship rows
+are tracked only via the `[qa-e2e-deferred]` journal entries — they do
+NOT contribute to Step 8's `E2E_VERDICT` aggregation.
+
+**Edge case — all E2E rows are post-ship:** if `E2E_ROWS` is empty
+after the post-ship filter AND `E2E_ROWS_POST_SHIP` is non-empty, treat
+the same as the existing "E2E empty" edge case (no E2E phase; smoke is
+the verification layer; `[qa-pass]` records the no-E2E-rows variant) —
+the post-ship rows already have `[qa-e2e-deferred]` audit entries that
+preserve their pre-ship status. The Step 4 "Test rows empty (only
+placeholder rows) — HALT" gate does NOT fire here: real post-ship rows
+were present, just deferred; this is a valid pre-ship state, not a
+vacuous test-plan. Phase 2 QA-owned gates may transition on smoke-green
+alone in this case; the post-ship ACs remain visibly un-verified in the
+journal until a post-merge verification path records them (out of scope
+for v1; see T000027 follow-up for tracker-gate + post-merge inference).
+
+**Edge case — type = defect or task:** post-ship filtering does NOT
+apply. Defect/task test-plan rows are smoke-equivalent in v1; there is
+no E2E phase to partition. The filter is a no-op for those types; the
+existing Step 4.defect / Step 4.task path runs unchanged.
+
 ### Step 4.defect / Step 4.task
 
 Read `$TEST_PLAN`. Parse the relevant section:
@@ -226,6 +291,12 @@ attempting to execute ambiguous prose.
   proceed to gate transition only if smoke green.
 - **For defect/task: E2E always empty** (skipped per type dispatch); proceed
   to gate transition / [qa-pass] after Step 6 if smoke green.
+- **Post-ship E2E rows (user-story only):** rows whose Tag contains
+  `post-ship` are filtered out BEFORE Step 4.5's classifier and recorded
+  as `[qa-e2e-deferred]`. See Step 4.user-story → Post-ship E2E filter
+  for the full semantics. If the post-ship filter leaves `E2E_ROWS`
+  empty, the "Smoke populated, E2E empty" edge case above applies (smoke
+  is the verification layer; `[qa-pass]` records the no-E2E variant).
 
 ### Step 4.5: E2E Row Tool-Need Classifier (user-story only)
 
@@ -588,7 +659,11 @@ Compute aggregate `E2E_VERDICT` from the union of per-row verdicts:
   `deferred-to-manual` and `exceeded 5-minute soft cap`)
 
 Append a summary journal entry. The summary includes the source split so
-the user sees what the subagent vs parent-inline contributed:
+the user sees what the subagent vs parent-inline contributed. The
+`{N_DEFERRED}` count covers both parent-inline-cap deferrals AND
+T000027 post-ship deferrals (`[qa-e2e-deferred]` entries written at
+Step 4.user-story → Post-ship E2E filter) — both shapes represent E2E
+rows that exist but did not run pre-ship for structural reasons:
 
 ```
 - {YYYY-MM-DD} [qa-e2e-summary] {E2E_VERDICT} ({SUBAGENT_DURATION_S}s subagent; {N_PARENT} rows parent-inline; {N_DEFERRED} deferred): {SUBAGENT_SUMMARY verbatim}
@@ -676,6 +751,12 @@ If E2E was empty (vacuous green path):
 - {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): green smoke + no E2E rows. Phase 2 gates transitioned.
 ```
 
+If E2E was empty because ALL E2E rows were post-ship (T000027 — filtered
+out at Step 4.user-story → Post-ship E2E filter):
+```
+- {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): green smoke + {N} E2E row(s) deferred to post-merge (all post-ship). Phase 2 gates transitioned; post-ship ACs awaiting post-merge verification (see [qa-e2e-deferred] entries above).
+```
+
 If smoke was empty (E2E only, green):
 ```
 - {YYYY-MM-DD} [qa-pass] {WORK_ITEM_ID} (user-story): no smoke rows + green E2E. Phase 2 gates transitioned.
@@ -731,6 +812,7 @@ QA COMPLETE: {WORK_ITEM_ID}
 
 Smoke:    {SMOKE_VERDICT} ({N_green}/{N_total_non_manual}, {N_manual} manual)
 E2E:      {E2E_VERDICT} ({SUBAGENT_DURATION_S}s)
+Deferred: {N_DEFERRED} (post-ship: {N_POST_SHIP}, parent-inline-cap: {N_CAP})
 Phase 2:  {gates transitioned | unchanged}
 
 Tracker:  {TRACKER}
@@ -738,6 +820,11 @@ Next:
   /CJ_personal-workflow check {WORK_ITEM_DIR}    # verify
   /ship                                        # if all Phase 2 green (user-story) or commit gate satisfied (defect/task)
 ```
+
+The `Deferred:` line is omitted if `N_DEFERRED == 0` (no post-ship rows
+and no parent-inline cap deferrals — the common case). When non-zero, it
+makes post-ship rows visible to the user so they remember to verify
+those ACs after merge.
 
 Last line in the chat is the tracker path, formatted for copy-paste.
 
@@ -831,6 +918,45 @@ subagent cannot handle (interactive / recursive). Contract:
   Step 8 only aggregates entries appearing AFTER the latest marker. This
   prevents prior-run entries (including pre-D000018 entries without source
   tags) from polluting the verdict on re-runs.
+
+## Post-Ship E2E Filter Contract (T000027)
+
+Step 4.user-story → Post-ship E2E filter is the v1 narrow-scope landing
+of T000027 (pre-ship vs post-ship AC categorization). Contract:
+
+- Trigger: row's Tag column contains the literal token `post-ship`
+  (case-sensitive, word-boundary anchored). Combinable with other tag
+  values (e.g., `core post-ship`, `post-ship usability`).
+- Filter site: applied AFTER placeholder filtering and BEFORE Step 4.5's
+  tool-need classifier. Post-ship rows never enter the subagent /
+  parent-inline partition. The post-filter `E2E_ROWS` is what Step 4.5
+  classifies.
+- Audit entry: each post-ship row gets a `[qa-e2e-deferred]` journal
+  entry naming the row + its AC + the reason ('post-ship — verification
+  deferred to post-merge'). Entries are written BEFORE the Step 6.5
+  run-start marker so Step 8's aggregator does NOT include them in
+  `E2E_VERDICT` math.
+- Verdict impact: post-ship rows do NOT contribute to `E2E_VERDICT`.
+  They are tracked only via `[qa-e2e-deferred]` entries. Step 8's
+  `[qa-e2e-summary]`'s `{N_DEFERRED}` count includes them alongside
+  parent-inline-cap deferrals — the two shapes are unioned in the
+  count because both represent E2E rows that exist but did not run
+  pre-ship.
+- Gate transition: if smoke is green AND the post-filter `E2E_ROWS` is
+  empty (all E2E rows were post-ship), Phase 2 QA-owned gates transition
+  on smoke-green alone — the `[qa-pass]` entry uses the "all post-ship"
+  variant to make the partial verification state explicit. If the
+  post-filter `E2E_ROWS` is non-empty, the normal subagent + parent-inline
+  flow runs; the `[qa-pass]` shape depends on the verdict of the
+  non-post-ship rows.
+- Type scope: user-story only. Defect/task have no E2E phase in v1; the
+  filter is a no-op for those types.
+- Out of scope for v1 (deferred to follow-up): (c) dedicated Phase 3
+  tracker gate `Post-ship ACs verified`; (d) `/CJ_personal-workflow check
+  --update`'s post-merge inference to mark that gate from
+  `[qa-e2e-deferred]` + post-`gh workflow run` journal entries. The TODO
+  body (TODOS.md:108) explicitly recommends shipping (a)+(b) in v1 and
+  deferring (c)+(d).
 
 ## Spec Deviations
 
