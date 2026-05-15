@@ -459,8 +459,22 @@ do_install() {
     col_ver=$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")
   fi
 
+  # Resolve the manifest `source` to the MAIN repo toplevel (T000025).
+  # `$REPO_ROOT` (line 7) is `dirname(script)/..`, which under `.claude/worktrees/<name>/`
+  # points at the ephemeral worktree. Once the worktree is removed, `skills-deploy doctor`
+  # reports `FAIL: source path '<dead-worktree>' no longer exists`, and update-check's
+  # `git pull --ff-only` fallback silently breaks. `git rev-parse --path-format=absolute
+  # --git-common-dir` resolves the main repo's `.git` dir regardless of which worktree
+  # the script ran from; its parent is the main toplevel. Fallback to `$REPO_ROOT` if
+  # the git call fails (e.g. when the repo is unusual or in a non-worktree context).
+  local main_toplevel
+  main_toplevel=$(dirname "$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null) || true
+  if [ -z "$main_toplevel" ] || [ ! -d "$main_toplevel" ]; then
+    main_toplevel="$REPO_ROOT"
+  fi
+
   # Write manifest
-  echo "$manifest" | jq --arg s "$REPO_ROOT" --arg r "jcl2018/claude-skills-templates" \
+  echo "$manifest" | jq --arg s "$main_toplevel" --arg r "jcl2018/claude-skills-templates" \
     --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
     --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg cv "$col_ver" \
