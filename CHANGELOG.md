@@ -3,6 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.4] - 2026-05-15
+
+### Added
+
+- **Two new TODOS rows logging /CJ_goal preflight gaps** surfaced by `/loop /CJ_goal` iter 3 after the v3.6.x bundle + hygiene cleanup landed:
+  - **Design-needed regex gap** — `goal.sh` line ~300 catches `needs design`, `investigate`, `spike`, `unclear`, `need to decide`, `TBD` but misses `/office-hours from`, `Re-do`, `re-ground`. T000031 (P2/M, body says step 1 is `/office-hours from a new worktree`) auto-dispatched without halting at preflight. Fix sketch: extend regex.
+  - **Sensitive-surface markdown gap** — regex at `goal.sh:289` catches `skills/*/scripts/` but not `skills/*/*.md`. Editing `pipeline.md` or `SKILL.md` is just as load-bearing as editing scripts. Fix sketch: add `skills/[^/]+/(SKILL|pipeline)\.md|skills/[^/]+/[a-z-]+\.md`.
+- Both rows tagged P3/S; suggested as a paired `/CJ_goal preflight v1.2 polish` PR when next prioritized. Reference annotations link them to this iteration's findings so future operators have the full diagnostic chain.
+
+### Notes
+
+- Pure docs PR — no code changes. The two gaps are observed-but-not-yet-fixed; this PR captures them as TODOS so they don't get lost. Demonstrates the new TODOS hygiene conventions from v3.6.3 in practice: when /loop surfaces a real finding, log it as a TODO with full context (what was picked, what tripped, why preflight didn't fire, fix sketch), then stop the loop and ship the discovery.
+
 ## [3.6.3] - 2026-05-15
 
 ### Added
