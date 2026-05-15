@@ -175,8 +175,15 @@ if [ -z "$ARG" ]; then
   # contains the heading title (without `### ` prefix). Skip-list filter:
   # exclude any heading present in $SKIP_FILE (per-session continue mechanic
   # for /loop /CJ_goal).
+  #
+  # S000042 (CJ_suggest v1.1.0): pass --for-skill cj-goal --limit 15 so
+  # /CJ_suggest pre-filters rows that would trip /CJ_goal preflight (P1, size
+  # L|XL, sensitive-surface, design-needed) AT RANKING TIME and returns up to
+  # 15 rows instead of the default 5. Defense-in-depth: /CJ_goal's own
+  # preflight (gates 1-5 below) still runs after this — the pre-filter is an
+  # optimization, not a replacement.
   SUGGEST_OUTPUT=""
-  if SUGGEST_OUTPUT=$(bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh" 2>&1); then
+  if SUGGEST_OUTPUT=$(bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh" --for-skill cj-goal --limit 15 2>&1); then
     :
   else
     halt "halted_at_resolve" "no actionable items from /CJ_suggest"
