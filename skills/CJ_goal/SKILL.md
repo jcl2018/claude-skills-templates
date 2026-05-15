@@ -39,8 +39,8 @@ is reuse.
 - Body too vague (< 50 chars)
 - Missing `(P[1-4], [SMLX]+)` suffix on heading
 - Priority P1 OR size in {L, XL} (run /office-hours instead)
-- Sensitive surface AUQ (catalog/manifest/validator/skill-script/git-hook/templates)
-- Design-needed keyword (`needs design` / `investigate` / `spike` / etc.)
+- Sensitive surface AUQ (catalog / manifest / validator / `skills/*/scripts/` / `skills/*/*.md` / git-hook / templates) — v1.2 (S000044) added markdown skill files (SKILL.md, pipeline.md, etc.) since editing them is just as load-bearing as editing scripts
+- Design-needed keyword (`needs design` / `investigate` / `spike` / `redesign` / `re-do` / `re-ground` / `rewrite` / `rescope` / `/office-hours` / etc.) — v1.2 (S000044) added the re-design-rework signals after T000031 ("Re-do brief-mode for /CJ_personal-pipeline", body step 1: "/office-hours from a new worktree") slipped past the original `investigate|spike|...` regex
 - Idempotency hit (T-tracker already exists for this heading)
 
 **Loop semantics.** `/loop /CJ_goal` continues on `end_state ∈ {green,

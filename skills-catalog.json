@@ -243,7 +243,7 @@
   },
   {
     "name": "CJ_goal",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Auto-resolve a TODO from TODOS.md into a shipped PR. Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns fix-this-TODO into a merged PR. Workbench-only; halt-on-red preserved end-to-end.",
     "source": "local",
     "depends": {
