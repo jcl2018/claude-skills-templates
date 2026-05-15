@@ -87,6 +87,82 @@ Read `$_PW_SKILL_DIR/WORKFLOW.md` for hierarchy + scaffolding rules. Pay attenti
 
 ## Step 5: Generate ID
 
+### Step 5.0: Idempotency pre-check (existing-ID detection)
+
+Before generating a fresh ID, check whether this design doc has already been
+scaffolded. Two probes (either match → reuse the existing ID and skip the
+fresh-ID generation below):
+
+**Probe A — read the design-doc footer.** Step 12 writes a footer of the form
+`**Status: SCAFFOLDED → \`<path>\` on YYYY-MM-DD-HH-MM-SS**` to the source
+design doc. If the footer is present and the captured `<path>` exists on disk,
+extract the ID from the path's basename (e.g. `F000010_personal_workflow/` →
+`F000010`).
+
+```bash
+EXISTING_ID=""
+EXISTING_PATH=""
+# Match the footer regex; capture the path between backticks (Step 12's form).
+FOOTER_LINE=$(grep -E '^\*\*Status: SCAFFOLDED → ' "$DESIGN_DOC_PATH" | tail -1)
+if [ -n "$FOOTER_LINE" ]; then
+  EXISTING_PATH=$(printf '%s\n' "$FOOTER_LINE" | sed -E 's/^\*\*Status: SCAFFOLDED → `?([^`]+)`?( on .*)?$/\1/' | sed -E 's/\*\*$//')
+  if [ -n "$EXISTING_PATH" ] && [ -d "$EXISTING_PATH" ]; then
+    # Extract ID from the basename: ${PREFIX}NNNNNN_...
+    EXISTING_ID=$(basename "$EXISTING_PATH" | sed -E "s/^(${PREFIX}[0-9]{6})_.*/\1/")
+    # Sanity check: basename matches the expected prefix
+    case "$EXISTING_ID" in
+      ${PREFIX}[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+      *) EXISTING_ID="" ;;  # path doesn't match expected shape; ignore
+    esac
+  fi
+fi
+```
+
+**Probe B — grep tracker frontmatter for a reference to this design doc.**
+Covers the case where Step 12's footer was hand-stripped or never written
+(partial-write recovery). Search `work-items/*/TRACKER.md` files for a tracker
+whose frontmatter or body references this design-doc path. Use the absolute
+path to avoid cwd ambiguity.
+
+```bash
+if [ -z "$EXISTING_ID" ]; then
+  _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$_REPO_ROOT" ]; then
+    # Recurse through any feature/child nesting depth.
+    REF_TRACKER=$(find "$_REPO_ROOT/work-items" -name "*_TRACKER.md" 2>/dev/null \
+      | xargs grep -l "$DESIGN_DOC_PATH" 2>/dev/null \
+      | head -1)
+    if [ -n "$REF_TRACKER" ]; then
+      EXISTING_PATH=$(dirname "$REF_TRACKER")
+      EXISTING_ID=$(basename "$REF_TRACKER" | sed -E "s/^(${PREFIX}[0-9]{6})_.*/\1/")
+      case "$EXISTING_ID" in
+        ${PREFIX}[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+        *) EXISTING_ID="" ;;
+      esac
+    fi
+  fi
+fi
+```
+
+**On match (either probe):** set `NEW_ID=$EXISTING_ID`, set the target path to
+`$EXISTING_PATH`, and skip the fresh-ID generation block below. Step 9's
+boundary check will inspect the existing dir; if it's compliantly scaffolded,
+the check returns PASS and the scaffold exits as a NO-OP (idempotent re-run).
+If the existing dir has drift, Step 9 surfaces the violations via AskUserQuestion
+as designed.
+
+```bash
+if [ -n "$EXISTING_ID" ]; then
+  NEW_ID="$EXISTING_ID"
+  TARGET_PATH="$EXISTING_PATH"
+  echo "INFO: design doc already scaffolded → ${NEW_ID} at ${TARGET_PATH}. Reusing existing ID; Step 9 will handle idempotency."
+  # Skip Step 5.1 (fresh-ID generation); jump to Step 6 (slug derivation still runs
+  # for completeness, but Step 9's boundary check is the gate).
+fi
+```
+
+### Step 5.1: Fresh-ID generation (only when 5.0 did not match)
+
 Scan local work-items AND open PRs for the highest existing ID matching the type prefix. The two-source check prevents ID collisions when parallel worktrees scaffold from the same baseline (e.g. main at S000028 → both worktrees grab S000029) before either has merged.
 
 ```bash
