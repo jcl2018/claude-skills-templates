@@ -3,6 +3,43 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.4.1] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_personal-pipeline` Step 7 strict halt-on-ambiguous now type-aware (TODOS:94, D000019).**
+  Previously, Step 7's "Any red/ambiguous → halt-at-gate" rule made `end_state=green` structurally
+  unreachable for `defect` and `task` work-items: `/CJ_qa-work-item`'s inner E2E subagent only
+  dispatches for user-stories, so `E2E=ambiguous` from a defect/task QA always means "n/a for this
+  type" — but the strict rule treated it as "uncertain test result" and halted. Verified failure
+  modes: D000017 (defect, taste-override workaround) and T000020 (task, strict-halt). New
+  type-aware branch in Step 7: if `WORK_ITEM_TYPE in {defect, task}` AND `SMOKE=green` AND
+  `PHASE2_GATES=green` AND `E2E=ambiguous`, continue silently to Step 8 (same path as the
+  user-story green branch). User-story type-strict behavior preserved unchanged. Step 7 dispatch
+  prompt also tightened to make defect/task E2E=ambiguous semantics explicit (NOT rewritten as
+  E2E=green — preserves qa.md's "n/a for type" contract at line 179).
+
+- **`/CJ_personal-pipeline` Step 5.1 sensitive-surface scan now type-aware (TODOS:91, D000019).**
+  The scan previously only matched `skills/[^/]+/scripts/[^/]+\.sh` against `$SPEC`, but defects
+  and tasks have no SPEC (RCA + test-plan for defects; TRACKER + test-plan for tasks). D000017
+  shipped a new `skills/CJ_suggest/scripts/suggest.sh` past this gap — only caught by codex
+  adversarial review at `/ship` Step 11. Two fixes: (a) Step 5.1 regex broadened from
+  `skills/[^/]+/scripts/[^/]+\.sh` to `skills/[^/]+/scripts/[^/]+` (any file under scripts/,
+  including `.bash`, `.py`, extensionless executables — trust boundary is the directory, not the
+  extension); (b) input artifact selection is now type-aware (defects scan RCA + test-plan; tasks
+  scan TRACKER + test-plan; user-stories continue to scan SPEC). New row added to the
+  Sensitive-Surface Pre-Scan Reference table.
+
+- **`/CJ_personal-pipeline` `WORK_ITEM_TYPE` + `TRACKER` now loaded as orchestrator-side bash variables.**
+  Prerequisite for the Step 5.1 / Step 7 / Step 8 type-aware fixes. The orchestrator-model carries
+  these as prose state and re-asserts them in each fresh Bash block (bash variables don't persist
+  across orchestrator-model Bash calls). Frontmatter-anchored awk parser (`/^---$/{n++; next}
+  n==1 && /^type:/`) restricts the match to the YAML frontmatter between the first two `---`
+  lines, avoiding false matches on `type:` mentions in tracker prose / code blocks. CRLF-safe
+  via `tr -d '\r'` (handles Windows-line-ending trackers). Empty-`$SCAN_INPUTS` guard at the
+  Step 5.1 grep prevents the security gate from silently bypassing on defect/task work-items
+  missing both RCA/test-plan/TRACKER.
+
 ## [3.4.0] - 2026-05-13
 
 ### Added
