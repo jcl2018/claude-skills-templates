@@ -3,6 +3,14 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.3] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_run` Branch(g) now dedups against PR state (T000026, TODOS:123).**
+  Branch(g)'s candidate filter previously used TRACKER Phase 1/2/3 gate states alone — a tracker with `[x]` gates that was force-merged or hand-edited could slip past as a "false-in-progress" candidate. **Fix:** added per-invocation parallel-array PR-state cache (Bash 3.2 compatible) calling `gh pr view "$PR_URL" --json state -q .state`. Candidates whose PR state is `MERGED` are excluded; default-permissive on lookup failure (offline / unauthenticated / `UNKNOWN` → include the candidate, preserving prior behavior). `templates/CJ_personal-workflow/tracker-user-story.md` got an optional `pr:` frontmatter field (commented, backwards-compatible) so the parser can find PR URLs without scanning the markdown `## PRs` section.
+  Third PR auto-scaffolded by `/CJ_goal` in this session (T000024 → v3.5.1; T000025 → v3.5.2; this PR → v3.5.3).
+
 ## [3.5.2] - 2026-05-14
 
 ### Fixed

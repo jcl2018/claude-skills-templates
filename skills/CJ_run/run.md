@@ -103,7 +103,7 @@ fi
 echo "INPUT_MODE: $INPUT_MODE"
 ```
 
-### Step 1.0.g: Branch(g) — no-arg branch scan (S000038)
+### Step 1.0.g: Branch(g) — no-arg branch scan (S000038, T000026)
 
 Runs when `INPUT_MODE = no-arg`. Scans `work-items/` for in-progress user-story
 TRACKERs on the current worktree. Scope: user-story TRACKERs only (gate strings
@@ -116,6 +116,22 @@ Gate strings are verbatim from `templates/CJ_personal-workflow/tracker-user-stor
 Phase 2 Gates: `Todos section reflects remaining work`. If those strings change in
 the template, this scan breaks silently — keep an eye on template drift.
 
+**PR-state dedup (T000026):** After the gate-state filter, each remaining
+candidate is checked against its PR state via `gh pr view --json state` and
+excluded if `MERGED`. PR URLs are read from either the optional `pr:` frontmatter
+field (machine-readable shortcut) OR the canonical `## PRs` section markdown
+links — same dual-convention pattern Branch(f) uses at line ~225. The dedup
+exists to catch the edge case where a tracker was force-merged or hand-edited
+past the gate-state filter (e.g. Phase 3 `/ship` / `/land-and-deploy` gates
+left unchecked even though the PR is merged); without it, Branch(g) would
+auto-resume a work-item that's actually shipped. `gh pr view` is best-effort
+— offline / unauthenticated / unknown-state responses fall back to "include
+the candidate" (default-permissive on lookup failure; the operator gets to
+choose at the multi-candidate AUQ rather than getting a silent exclusion).
+Results are cached in an associative array keyed by PR URL to avoid N
+round-trips when the same URL appears across multiple candidates (rare but
+cheap to memoize).
+
 ```bash
 if [ "$INPUT_MODE" = "no-arg" ]; then
   REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -123,6 +139,27 @@ if [ "$INPUT_MODE" = "no-arg" ]; then
     echo "No work-items/ found. Run /office-hours or /CJ_scaffold-work-item first."
     exit 0
   fi
+
+  # PR-state cache (T000026): keyed by PR URL → state string (MERGED/OPEN/DRAFT/UNKNOWN).
+  # Bash 3.2 compatible: simple parallel-array memo (no associative arrays).
+  PR_CACHE_URLS=()
+  PR_CACHE_STATES=()
+  pr_cache_lookup() {
+    local url="$1"
+    local i=0
+    while [ "$i" -lt "${#PR_CACHE_URLS[@]}" ]; do
+      if [ "${PR_CACHE_URLS[$i]}" = "$url" ]; then
+        echo "${PR_CACHE_STATES[$i]}"
+        return 0
+      fi
+      i=$((i + 1))
+    done
+    return 1
+  }
+  pr_cache_store() {
+    PR_CACHE_URLS+=("$1")
+    PR_CACHE_STATES+=("$2")
+  }
 
   CANDIDATES=()
   while IFS= read -r f; do
@@ -148,6 +185,29 @@ if [ "$INPUT_MODE" = "no-arg" ]; then
     if [ "$P1_TOTAL" = "$P1_DONE" ] && [ "$P1_TOTAL" -gt 0 ] \
        && [ "$P2_IMPL" = "0" ] && [ "$P2_FILES" = "0" ] \
        && [ "$P2_AC" = "0" ] && [ "$P3_SHIP" = "0" ] && [ "$P3_DEPLOY" = "0" ]; then
+      # PR-state dedup (T000026): explicit MERGED check.
+      # PR URL: check frontmatter `pr:`/`PR:` field first (machine-readable shortcut),
+      # then ## PRs section markdown links (canonical). Mirrors Branch(f) at line ~225.
+      C_PR_URL=$(grep -E "^pr: |^PR: " "$f" 2>/dev/null | head -1 | sed -E 's/^[pP][rR]: *//' | tr -d '"' | tr -d ' ')
+      if [ -z "$C_PR_URL" ]; then
+        C_PR_URL=$(awk '/^## PRs/,/^## [^P]/' "$f" 2>/dev/null | grep -oE 'https?://[^ )]+/pull/[0-9]+' | head -1)
+      fi
+      if [ -n "$C_PR_URL" ]; then
+        # Cache lookup; populate on miss via `gh pr view`. Best-effort: any failure
+        # path (offline, unauthenticated, unknown URL) yields UNKNOWN → include
+        # the candidate (default-permissive).
+        C_PR_STATE=$(pr_cache_lookup "$C_PR_URL")
+        if [ -z "$C_PR_STATE" ]; then
+          C_PR_STATE=$(gh pr view "$C_PR_URL" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+          pr_cache_store "$C_PR_URL" "$C_PR_STATE"
+        fi
+        if [ "$C_PR_STATE" = "MERGED" ]; then
+          # PR is merged but tracker gates weren't transitioned → force-merged or
+          # hand-edited. Exclude. Print an audit line so the operator sees why.
+          echo "BRANCH_G_EXCLUDE: $f (PR $C_PR_URL is MERGED but tracker gates open)"
+          continue
+        fi
+      fi
       CANDIDATES+=("$f")
     fi
   done < <(find "$REPO_ROOT/work-items" -name "*_TRACKER.md" 2>/dev/null)
