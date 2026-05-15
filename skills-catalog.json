@@ -219,8 +219,8 @@
   },
   {
     "name": "CJ_suggest",
-    "version": "1.0.0",
-    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter.",
+    "version": "1.1.0",
+    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal.",
     "source": "local",
     "depends": {
       "skills": [],

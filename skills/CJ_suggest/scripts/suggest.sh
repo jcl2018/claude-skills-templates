@@ -20,6 +20,78 @@ cd "$REPO_ROOT"
 TODOS="TODOS.md"
 WORKITEMS_DIR="work-items"
 
+# ---- Argument parsing (S000042: --for-skill / --limit) ----------------------
+#
+# `--for-skill <name>` activates a named-skill predicate block applied at
+# ranking time to exclude rows that the named skill would pre-reject. Today
+# the only supported name is `cj-goal`; future consumers add named blocks.
+# Predicates mirror /CJ_goal preflight gates 3-5 in goal.sh:262-303 (gate 1's
+# body-too-vague is excluded — vagueness is a body-content judgement that
+# /CJ_suggest applies generically via the recency penalty; gate 2's missing
+# (Pn,X) suffix is already handled by suggest.sh's default-P4/M fallback).
+#
+# `--limit N` extends the top-N output cap beyond the default 5. Default 5
+# preserves byte-identical output for un-flagged callers (interactive
+# /suggest users); /CJ_goal opts in explicitly via `--limit 15`.
+#
+# Bash 3.2 compat: no associative arrays in this block; positional flags
+# parsed via case statement with explicit shift.
+FOR_SKILL=""
+LIMIT=5
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --for-skill)
+      if [ $# -lt 2 ]; then
+        echo "Error: --for-skill requires a value (e.g. --for-skill cj-goal)" >&2
+        exit 1
+      fi
+      FOR_SKILL="$2"
+      shift 2
+      ;;
+    --limit)
+      if [ $# -lt 2 ]; then
+        echo "Error: --limit requires a numeric value (e.g. --limit 15)" >&2
+        exit 1
+      fi
+      case "$2" in
+        ''|*[!0-9]*)
+          echo "Error: --limit value must be a positive integer (got: $2)" >&2
+          exit 1
+          ;;
+      esac
+      LIMIT="$2"
+      shift 2
+      ;;
+    *)
+      echo "Error: unrecognized argument: $1" >&2
+      echo "Usage: /CJ_suggest [--for-skill <name>] [--limit N]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Validate --for-skill value (only cj-goal is implemented in v1).
+if [ -n "$FOR_SKILL" ] && [ "$FOR_SKILL" != "cj-goal" ]; then
+  echo "Error: --for-skill value '$FOR_SKILL' not supported (v1 supports: cj-goal)" >&2
+  exit 1
+fi
+
+# extract_body: pull the body for a `### heading` from TODOS.md — all lines
+# after this heading up to the next `### `, the next `## `, or EOF. Mirrors
+# /CJ_goal goal.sh:152-160 (single source of truth lives there; this is the
+# body-content twin needed by --for-skill cj-goal predicates 4-5).
+# Tolerates missing TODOS.md (caller already errored) and empty heading.
+extract_body() {
+  local heading_line="$1"
+  [ -z "$heading_line" ] && return 0
+  awk -v heading="$heading_line" '
+    $0 == heading { capture = 1; next }
+    capture && /^### / { exit }
+    capture && /^## / { exit }
+    capture { print }
+  ' "$TODOS"
+}
+
 # ---- Edge case: missing TODOS.md ----
 if [ ! -f "$TODOS" ]; then
   echo "Error: $TODOS not found in $REPO_ROOT. /suggest requires a TODOS.md at the repo root." >&2
@@ -235,7 +307,10 @@ while IFS= read -r heading; do
     why_parts="-"
   fi
 
-  printf '%d\t%s\t%s\t%s\t%s\t%s\n' "$score" "$title" "$pri" "$size" "$status" "$why_parts" >> "$SCORED"
+  # Extra column 7: the raw heading line — needed downstream by --for-skill
+  # predicate body lookup (extract_body). Persisted only when --for-skill is
+  # active; otherwise an empty column (still output for schema stability).
+  printf '%d\t%s\t%s\t%s\t%s\t%s\t%s\n' "$score" "$title" "$pri" "$size" "$status" "$why_parts" "$heading" >> "$SCORED"
 done <<< "$ACTIVE_HEADINGS"
 
 if [ ! -s "$SCORED" ]; then
@@ -243,21 +318,96 @@ if [ ! -s "$SCORED" ]; then
   exit 0
 fi
 
+# ---- Step 5.5: Apply --for-skill predicate block (S000042) ------------------
+#
+# When --for-skill is active, filter $SCORED to exclude rows that the named
+# skill would pre-reject. For cj-goal this mirrors goal.sh:262-303 gates 3-5:
+#   - Gate 3: priority is P1   → exclude
+#   - Gate 3: size is L or XL  → exclude
+#   - Gate 4: body matches sensitive-surface regex → exclude
+#   - Gate 5: body matches design-needed keyword   → exclude
+#
+# Per-row exclusion log line: `[CJ_suggest] excluded: <heading-or-id> reason=<criterion>`
+# emitted to stderr (P1 observability requirement). Heading-or-id is the
+# extracted T-ID when present, else the title.
+#
+# Sensitive-surface regex is copied VERBATIM from goal.sh:289 (drift between
+# the two would defeat the purpose). When the regex needs to evolve, edit
+# both call sites in the same PR — D000017's lessons apply.
+if [ -n "$FOR_SKILL" ]; then
+  FILTERED=$(mktemp)
+  trap 'rm -f "$TRACKER_INDEX" "$SCORED" "$FILTERED"' EXIT
+  while IFS=$'\t' read -r f_score f_title f_pri f_size f_status f_why f_heading; do
+    [ -z "$f_title" ] && continue
+    reason=""
+    # Gate 3a: P1 priority
+    if [ "$f_pri" = "P1" ]; then
+      reason="P1"
+    fi
+    # Gate 3b: size L or XL (suggest.sh's size parser only emits S|M|L today;
+    # XL is documented as future-compat — goal.sh accepts L|XL).
+    if [ -z "$reason" ]; then
+      case "$f_size" in
+        L|XL) reason="size $f_size" ;;
+      esac
+    fi
+    # Gate 4 + Gate 5 require the body. Only call extract_body if no faster
+    # gate already excluded the row.
+    if [ -z "$reason" ]; then
+      body=$(extract_body "$f_heading")
+      if [ -n "$body" ]; then
+        # Gate 4: sensitive-surface regex (VERBATIM from goal.sh:289).
+        if echo "$body" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|\.git/hooks/|templates/CJ_personal-workflow/'; then
+          sm=$(echo "$body" | grep -oE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/[^[:space:]]*|\.git/hooks/[^[:space:]]*|templates/CJ_personal-workflow/[^[:space:]]*' | head -1)
+          reason="sensitive-surface ($sm)"
+        fi
+      fi
+    fi
+    if [ -z "$reason" ]; then
+      if [ -n "$body" ] && echo "$body" | grep -qiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD)\b'; then
+        kw=$(echo "$body" | grep -oiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD)\b' | head -1)
+        reason="design-needed ($kw)"
+      fi
+    fi
+
+    if [ -n "$reason" ]; then
+      # Recover T-ID-or-title for the log line. Heading shape: `### Title (Pn, X)`
+      # may contain a T-ID anywhere in the title; grep extracts the first match.
+      log_label=$(echo "$f_heading" | grep -oE '\b[FSTD][0-9]{6}\b' | head -n1 || true)
+      [ -z "$log_label" ] && log_label="$f_title"
+      echo "[CJ_suggest] excluded: $log_label reason=$reason" >&2
+      continue
+    fi
+    # Row passes all predicates — keep it.
+    printf '%d\t%s\t%s\t%s\t%s\t%s\t%s\n' "$f_score" "$f_title" "$f_pri" "$f_size" "$f_status" "$f_why" "$f_heading" >> "$FILTERED"
+  done < "$SCORED"
+  # Swap SCORED to point at the filtered file for downstream consumption.
+  SCORED="$FILTERED"
+fi
+
+if [ ! -s "$SCORED" ]; then
+  echo "No actionable items."
+  exit 0
+fi
+
 # ---- Step 6: Sort desc by score, tiebreak ascending alphabetic by title.
-# Take top 5. Render as markdown table.
+# Take top $LIMIT (default 5). Render as markdown table.
 #
 # `|| true` guards against SIGPIPE/EPIPE on `sort | head` under
-# `set -euo pipefail`: when `head` exits after 5 lines, sort can take SIGPIPE
+# `set -euo pipefail`: when `head` exits after N lines, sort can take SIGPIPE
 # and exit non-zero on a closed pipe, aborting the script. For today's data
 # sizes (10-50 active items) sort buffers all output and the pipe never
 # closes mid-write, so this is forward-compat. (codex adversarial review on
 # D000017 PR #TBD.)
-TOP5=$(sort -t$'\t' -k1,1nr -k2,2 "$SCORED" | head -n 5 || true)
+TOP5=$(sort -t$'\t' -k1,1nr -k2,2 "$SCORED" | head -n "$LIMIT" || true)
 
 echo "| Rank | Title | Pri | Size | Status | Why |"
 echo "|------|-------|-----|------|--------|-----|"
 rank=1
-while IFS=$'\t' read -r score title pri size status why; do
+# 7th column (raw heading) is the S000042 addition — read into _heading and
+# discard. Without an explicit 7th read variable, `set -r` would glue it onto
+# the last variable ($why), corrupting the rendered Why column.
+while IFS=$'\t' read -r score title pri size status why _heading; do
   [ -z "$title" ] && continue
   # Escape `|` in the title cell to keep markdown table valid.
   # Status/why columns are built from constrained inputs (YAML enum + numeric)

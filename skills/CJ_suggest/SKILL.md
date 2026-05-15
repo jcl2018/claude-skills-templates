@@ -1,7 +1,7 @@
 ---
 name: CJ_suggest
-description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter."
-version: 1.0.0
+description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal."
+version: 1.1.0
 allowed-tools:
   - Bash
   - Read
@@ -48,6 +48,27 @@ Edge cases (design premise #8):
 - No trackers found → degrade to TODOS-only ranking (no recency penalty;
   every row treated as unblocked).
 
+## Flags (S000042 v1.1.0)
+
+`/CJ_suggest` accepts two opt-in flags for downstream-skill integration:
+
+- `--for-skill <name>` — apply a named skill's preflight predicate block at
+  ranking time. Rows the named skill would pre-reject are excluded from
+  output; one stderr log line per exclusion (`[CJ_suggest] excluded: <id-or-title> reason=<criterion>`).
+  v1 supports `cj-goal` only. The cj-goal block mirrors `/CJ_goal`'s
+  preflight gates 3-5 (priority P1, size L|XL, sensitive-surface regex on
+  body, design-needed keyword on body); gate 1's body-too-vague is omitted
+  (vagueness is generic and already handled via the recency penalty), and
+  gate 2's missing-suffix is already handled by suggest.sh's default-P4/M
+  fallback. Future consumers add new named blocks.
+- `--limit N` — extend the top-N output cap beyond the default 5. Default
+  preserves byte-identical output for un-flagged callers (interactive
+  /suggest users); `/CJ_goal` opts in via `--limit 15`.
+
+The two flags compose: `--for-skill cj-goal --limit 15` is the canonical
+`/CJ_goal` invocation (filtered + extended candidate window so /loop /CJ_goal
+sessions don't starve when the default top-5 is fully skip-listed).
+
 ## Routing
 
 Run the bash script below from the repo root and print its stdout verbatim.
@@ -58,7 +79,11 @@ zsh treats `status`/`pipestatus`/`LINENO` as read-only, fatal when assigned
 inside an eval'd bash-shaped block).
 
 ```bash
+# Default — interactive top-5
 bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh"
+
+# Filtered + extended — for /CJ_goal callers
+bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh" --for-skill cj-goal --limit 15
 ```
 
 Resolution rationale: the script always runs from the deployed location at

@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.0] - 2026-05-15
+
+### Added
+
+- **`/CJ_suggest --for-skill cj-goal` flag (S000042, F000020 polish bundle WI-A).** New flag teaches `/CJ_suggest` to apply `/CJ_goal`'s preflight predicates at ranking time — excludes rows that match priority P1, size L|XL, sensitive-surface regex (`skills-catalog.json | manifest | validate.sh | skills/*/scripts/ | git-hooks | templates/CJ_personal-workflow/`), or design-needed keyword. Rows /CJ_goal would reject 100% of the time never enter the candidate window, so `/loop /CJ_goal` doesn't waste cycles scaffolding-to-bail. Predicates mirror `goal.sh` gates 3-5 verbatim — drift between the two would defeat the purpose; if you change one, change the other.
+- **`/CJ_suggest --limit N` flag (S000042).** Extends the top-N output cap (default still 5 for un-flagged callers — no behavior change for interactive `/suggest` users). Lets downstream consumers like `/CJ_goal` request a deeper queue. Per-row `[CJ_suggest] excluded:` stderr log for excluded rows aids debugging.
+- **`/CJ_goal` no-args path now invokes `/CJ_suggest --for-skill cj-goal --limit 15`.** One-line update at `goal.sh:186`. Defense-in-depth: /CJ_goal's own preflight (gates 1-5) still runs after this — the pre-filter is an optimization, not a replacement. /loop /CJ_goal's "grind through the backlog" use case becomes structurally coherent: legitimate skip-list churn no longer starves the queue against the prior top-5 cap, and sensitive-surface rows defer to the next interactive `/CJ_goal` invocation rather than halting the loop.
+
+### Notes
+
+- First child PR of the F000020 v1.1 polish bundle (3 work-items: WI-A here, WI-B halt-class semantic rename to ship as v3.6.1, WI-C skip-list reset RCA + instrumentation as v3.6.2 defect). Bundle scope + rationale documented in `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260515-125052.md`.
+- /autoplan was skipped per user choice (workbench polish, design doc already comprehensive). Pre-landing review condensed to inline structural check; impl + QA via /CJ_personal-pipeline subagent (9/9 smoke tests green, including AC#3 invocation verify; unflagged `/CJ_suggest` regression preserved byte-identical).
+- `skills-catalog.json` bumps `CJ_suggest` 1.0.0 → 1.1.0 reflecting the additive flag surface.
+
 ## [3.5.6] - 2026-05-14
 
 ### Added

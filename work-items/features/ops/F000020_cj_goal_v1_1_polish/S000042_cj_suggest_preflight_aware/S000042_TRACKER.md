@@ -47,10 +47,10 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -94,6 +94,7 @@ blocked_by: ""
 <!-- Chronological entries with dates and commit SHAs. -->
 
 - 2026-05-15: Created. WI-A from F000020 design. Approach D (pre-filter at /CJ_suggest layer); subsumes design bugs #1, #3, #4.
+- 2026-05-15: Phase 2 implemented. suggest.sh: --for-skill cj-goal + --limit N flags, body-extract function, predicate filter (gates 3-5 mirror goal.sh:262-303 verbatim), per-row [CJ_suggest] excluded stderr log; goal.sh:179 invocation passes --for-skill cj-goal --limit 15; SKILL.md + skills-catalog.json bumped to v1.1.0. Smoke: unflagged byte-identical regression preserved; flagged path excludes 5 rows (P1×2, sensitive-surface×1, design-needed×2) and surfaces 7 candidates from previously truncated top-5.
 
 ## PRs
 
@@ -121,3 +122,7 @@ blocked_by: ""
 - [decision] 2026-05-15: Approach D selected for keystone bug (#1 sensitive-surface STOP) over A/B/C alone. D handles #1, #3, #4 with one structural change; A/B/C only handle #1.
 - [decision] 2026-05-15: `--limit N` default kept at 5 (no behavior change for un-flagged callers); /CJ_goal explicitly passes 15.
 - [decision] 2026-05-15: `--for-skill cj-goal` flag lives on /CJ_suggest routing, not /CJ_goal-side wrapper. Acceptable coupling; revisit if 3rd consumer with conflicting criteria appears.
+- [orchestrator] 2026-05-15: --work-item-dir mode: using pre-staged dir at /Users/chjiang/Documents/projects/claude-skills-templates/work-items/features/ops/F000020_cj_goal_v1_1_polish/S000042_cj_suggest_preflight_aware; scaffold skipped. RUN_ID=20260515-135129-21576
+- [qa-smoke-summary] 2026-05-15: green — S1/S2/S3/S4/S5 PASS plus 3 negative-arg-validation cases plus AC#3 invocation verify (9/9). Pre-ship E2E E1 verified inline; E2/E3/E4 deferred to post-ship per TEST-SPEC E3 `core post-ship` tag.
+- [qa-pass] 2026-05-15: smoke green; pre-ship AC #1/#2/#3/#5 verified; AC #4 = post-ship E2E (E3) — deferred. RUN_ID=20260515-135129-21576
+- [auto-final-gate-suppressed] 2026-05-15: 1 mechanical, 0 taste, 2 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl (filter run_id=20260515-135129-21576). END_STATE=green.
