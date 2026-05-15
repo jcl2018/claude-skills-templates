@@ -36,7 +36,10 @@ reviewers: []
 |---|-----|-----|-------|-------------------|----------------|
 | S1 | {tag} | AC-{n} | {description} | {what passes/fails} | `{command}` |
 
-<!-- Tag vocabulary: core, resilience, observability, usability, security, integration -->
+<!-- Tag vocabulary: core, resilience, observability, usability, security, integration.
+     Modifiers (can combine with any tag): post-ship (see E2E Tests section
+     below for semantics — applies to E2E rows only; smoke rows do not support
+     post-ship deferral). -->
 
 ## E2E Tests
 
@@ -44,7 +47,17 @@ reviewers: []
      You drive the feature as a real user would and observe the outcome.
      Soft cap: 5 rows. Each row should be one user-visible scenario,
      not one branch in the code. AC column maps each row to a SPEC
-     acceptance criterion. -->
+     acceptance criterion.
+
+     Post-ship rows: if a row is structurally only verifiable AFTER the PR
+     merges to main (e.g., `gh workflow run` against a CI workflow that
+     doesn't exist on remote refs until merge), add the literal token
+     `post-ship` to the row's Tag column (e.g., Tag = `core post-ship`
+     or just `post-ship`). /CJ_qa-work-item Step 4 will filter these rows
+     out of the E2E subagent dispatch and record a [qa-e2e-deferred] journal
+     entry naming the row + its AC instead of forcing a pretend-green
+     adjudication. Verification of post-ship rows happens after merge (via
+     manual `gh workflow run` or via post-merge tooling). -->
 
 | # | Tag | AC | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
 |---|-----|-----|----------|------------------------------|------------------|--------|

@@ -3,6 +3,14 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.4] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_qa-work-item` filters post-ship E2E rows out of subagent dispatch (T000027, TODOS:108).**
+  Previously, when TEST-SPEC E2E rows were structurally only verifiable post-ship (e.g., S000025 ACs 2/3/4/7 needed `gh workflow run eval-nightly.yml` against merged main), the QA subagent returned `ambiguous` for those rows, the user adjudicated "treat as green," and Phase 2 QA-owned gates flipped to `[x]` even though those ACs weren't actually verified. **v1 narrow fix (a+b only, c+d deferred per TODO body's recommended narrowing):** (a) extends the E2E Tests `Tag` column semantics in `doc-TEST-SPEC.md` to recognize literal token `post-ship`; (b) qa.md Step 4 now filters `post-ship`-tagged rows out of the E2E subagent dispatch and writes a `[qa-e2e-deferred]` journal entry naming the rows + their ACs. **Schema taste decision:** reuse existing Tag column (literal `post-ship` token) instead of a new column or section header — no migration to existing TEST-SPECs, opt-in per row, matches the existing `e2e-parent` Tag-override pattern. **Deferred to follow-up TODO:** (c) dedicated Phase 3 gate `Post-ship ACs verified` on tracker templates; (d) `/CJ_personal-workflow check --update` inference from `[qa-e2e-deferred]` journal entries.
+  Fourth PR auto-scaffolded by `/CJ_goal` (T000024 → T000025 → T000026 → T000027).
+
 ## [3.5.3] - 2026-05-14
 
 ### Fixed

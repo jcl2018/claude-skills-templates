@@ -123,6 +123,22 @@ Deferred during autoplan review for the multi-story auto-iterate feature (branch
 ### ~~Branch(g) full PR-state detection for `/CJ_run` (P2, M)~~ DONE — closed by T000026 (v3.5.3)
 Branch(g)'s current candidate filter uses TRACKER Phase 1/2/3 gate states to determine "in-progress" — it doesn't call `gh pr view` because the user-story TRACKER template has no `pr:` frontmatter field (PR links live in a Markdown `## PRs` section). This works correctly for the common case (gates accurately reflect ship state), but a tracker with `[x]` gates that was force-merged or manually edited could slip past. **Fix sketch:** (a) extend `tracker-user-story.md` with an optional `pr:` frontmatter field plus a section parser that recognizes both styles; (b) call `gh pr view "$PR_URL" --json state` with a cache to avoid N round-trips per candidate; (c) gate Branch(g) on `MERGED` state for explicit deduplication. **When:** when a false positive surfaces in real use; for now the gate-state filter catches all known shipped work-items. **Reference:** pre-landing review on F000017 S000038 (2026-05-13).
 
+### /CJ_goal not portable beyond claude-skills-templates — hardcoded `./scripts/validate.sh` always halts at scaffold (P3, S)
+`scripts/goal.sh` line 526 runs `./scripts/validate.sh` from the repo root as the post-scaffold boundary check. Any repo without `scripts/validate.sh` returns 127 (command-not-found), `halt halted_at_scaffold` fires, and `/CJ_goal` cannot progress past Phase 1 for any TODO that reaches the scaffold step. Preflight gates work fine in any repo (TODOS.md-only reads), so the failure mode is silent until a TODO actually passes preflight.
+
+**Observed:** 2026-05-14 in `~/projects/portfolio` (downstream private repo). User had tagged 40 TODOs with `(Pn, X)` so `/loop /CJ_goal` could drain. First non-skipped tick scaffolded `work-items/tasks/ops/T000006_document_all_auto_run_services_launchd/` (tracker + test-plan written), then halted on the validate step. The scaffolded tracker was structurally fine — the halt fired purely because `./scripts/validate.sh` exited 127.
+
+**Tension with current routing.** SKILL.md "Notes" already says "Workbench-only scope. Only the claude-skills-templates repo's TODOS.md is the source. Generalizing to downstream repos is a v2 question per `[[feedback_workbench_scope]]`." But the routing rules in `~/.claude/rules/skill-routing.md` route `/CJ_goal` for "fix this TODO" / "auto-resolve TODOs" / "loop through TODOs" in *any* repo. The two pieces of guidance disagree, and a downstream user invoking `/loop /CJ_goal` silently inherits the breakage.
+
+**Cosmetic side issue (same flow):** goal.sh's awk parse of `/CJ_suggest`'s table emits `awk: newline in string` warnings when a TODO body cell contains a newline. A truncated `**What:** Create a docs/services.md ... Current services:` chunk leaks into adjacent table cells, so the scaffolded `test-plan.md` Steps column ends up containing body fragments. Doesn't change the halt outcome but produces a malformed test-plan if/when the validator gate ever passes.
+
+**Possible fixes (pick one):**
+1. **No-op when validate.sh is missing.** `[ -x ./scripts/validate.sh ] && { ./scripts/validate.sh >/dev/null 2>&1 || halt halted_at_scaffold "validate.sh refused after scaffold writes" "$NAKED_HEADING" "$NEW_ID"; }`. Smallest diff; preserves workbench behavior; lets downstream repos run `/CJ_goal` without retrofitting a validator. Risk: a downstream scaffold that *should* be structurally invalid would ship anyway.
+2. **Feature-flag the validator** behind a marker file (e.g. `.cj-goal-workbench`) so workbench keeps strict checks and downstream opts in.
+3. **Document the workbench-only scope harder** and remove `/CJ_goal` from the global routing rules so it doesn't get suggested in downstream repos. No code change; resolves the silent-failure issue at the routing layer.
+
+**Reference:** downstream session that surfaced this was `~/projects/portfolio` branch `claude/modest-sutherland-5026e9`.
+
 ## Deferred work
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED
