@@ -3,6 +3,15 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.4.3] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_qa-work-item` refuses vacuous-PASS on placeholder-only test plans (T000023, Theme C from /CJ_goal autoplan).**
+  Previously `qa.md` Step 4 "Edge cases" treated test plans with only placeholder rows (filtered out as `#=1 AND Steps={steps}`) as vacuous PASS — logged `INFO: ... treating as vacuous PASS`, wrote `[qa-pass]` to the tracker, and skipped to Step 9 gate transition. Result: any work-item scaffolded from the `doc-test-plan.md` template and left unpopulated would silently pass QA. /CJ_goal's autoplan flagged this as one of the load-bearing Theme C blockers — under `/loop /CJ_goal`, an auto-scaffolded task with an unpopulated test-plan would have shipped a green PR with zero real tests run.
+  **Fix:** the edge case now HALTs (all types — defect, task, user-story). Returns refuse-RESULT `SMOKE=red; E2E=red; PHASE2_GATES=partial` (orchestrator's Step 7 interprets as halt-at-gate). Writes `[qa-refused]` journal entry naming the affected work-item. Refuses to write `[qa-pass]`. Surfaces "populate the test-plan, then re-run" message. Stale `[qa-pass] ... vacuous PASS` journal template at Step 9 reconciled.
+  Closes /CJ_goal autoplan Theme C blocker. /CJ_goal's design can now ship with a placeholder test-plan generator AND know that QA will refuse the gate until real test cases land.
+
 ## [3.4.2] - 2026-05-14
 
 ### Fixed
