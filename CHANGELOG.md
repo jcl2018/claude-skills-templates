@@ -3,6 +3,15 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.1] - 2026-05-14
+
+### Fixed
+
+- **`/CJ_scaffold-work-item` Step 5 idempotency hole (T000024, TODOS:67).**
+  Step 5 of `skills/CJ_scaffold-work-item/scaffold.md` previously generated a fresh ID every time, then relied on Step 9's boundary check to detect duplication — but Step 9 uses `TARGET_PATH` derived from the freshly-generated `NEW_ID`, so the existing scaffold dir was never inspected. Re-running scaffold on an existing design doc would write a duplicate work-item alongside the original.
+  **Fix:** new Step 5.0 idempotency pre-check before fresh-ID generation. Two probes: (A) read the source design doc's `**Status: SCAFFOLDED → <path>**` footer that Step 12 writes; (B) grep `work-items/**/TRACKER.md` for trackers referencing this design-doc path. On match, set `NEW_ID = existing ID` and `TARGET_PATH = existing path` so Step 9 boundary-check NO-OPs as designed. Step 5 fresh-ID generation renumbered to 5.1.
+  **/CJ_goal first real-run validation:** this PR is the third task-type work-item shipped via /CJ_personal-pipeline direct dispatch in the same session as v3.4.1-3.5.0 (T000022 chmod+x, T000023 refuse-vacuous-PASS). T000024 is `/CJ_goal`'s first auto-scaffolded green run — proves the full chain (TODOS.md row → preflight → scaffold → pipeline → ship → deploy) works end-to-end.
+
 ## [3.5.0] - 2026-05-14
 
 ### Added
