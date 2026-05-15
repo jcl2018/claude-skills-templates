@@ -3,6 +3,21 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.6] - 2026-05-14
+
+### Added
+
+- **CI-enforced workbench-coupling boundary at `pipeline.md:528` (T000029, Approach F+I).** `scripts/validate.sh` gains a new "Error check 12: pipeline.md Step 6 guard present" that greps `skills/CJ_personal-pipeline/pipeline.md` for the literal token `[ -x ./scripts/validate.sh ]`. If a future skill-author edits Step 6 and accidentally removes the guard, CI fails with a pointer back to T000028 / Approach D — preventing silent regression of the downstream `/CJ_goal` portability fix. The pipeline.md prose is unchanged; the executable invariant in `validate.sh` is now the contract.
+
+### Changed
+
+- **`TODOS.md`** — retired both v2 follow-up entries logged in PR #115 (Approach B handoff, Approach E ship-validate-subset). After closer inspection of `scripts/validate.sh` coverage (11 workbench-wide invariants — catalog, copilot-mirror, work-copilot bundle, manifest, VERSION sanity, rules deploy) vs `skills/CJ_personal-workflow/check.md` (per-work-item structural via templates+manifest), neither approach delivers meaningful improvement over v1 (T000028 / Approach D). Both retirements include a "reopen if downstream acquires per-repo catalog/manifest surfaces" caveat. The genuine v2 opportunity (executable enforcement) landed as Error check 12.
+
+### Notes
+
+- Autoplan CEO review caught Approach G (markdown 2a/2b restructure of pipeline.md Step 6) as "aesthetic theater without enforcement" — splitting a parenthetical into a numbered sub-step makes future deletion slightly harder but provides zero structural protection. Pivoted to F+I, which puts the guard inside the workbench's own validate-everything-on-every-PR loop.
+- v3.5.6 is contract enforcement, not a feature. Workbench gets one more PASS line on every /ship CI run; downstream is unaffected (validate.sh doesn't run downstream because it doesn't ship there).
+
 ## [3.5.5] - 2026-05-14
 
 ### Fixed
