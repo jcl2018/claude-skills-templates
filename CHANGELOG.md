@@ -3,6 +3,15 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.5.2] - 2026-05-14
+
+### Fixed
+
+- **`skills-deploy install` no longer pins manifest `source` to a worktree path (T000025, TODOS:111).**
+  Previously, `scripts/skills-deploy install` recorded `manifest.source` (in `~/.claude/.skills-templates.json`) as the running clone's `REPO_ROOT` — computed from the script's own path. When invoked from `.claude/worktrees/<name>/scripts/skills-deploy`, the manifest got pinned to that ephemeral worktree path. Once the worktree was removed (Conductor cleanup, `git worktree remove`), `skills-deploy doctor` reported `FAIL: source path '<dead-worktree>' no longer exists` for every skill, and update-check's inline `git pull --ff-only` fallback silently broke.
+  **Fix:** resolve `manifest.source` to the main repo toplevel via `git rev-parse --path-format=absolute --git-common-dir` (its parent is the canonical toplevel regardless of which worktree the script ran from). Falls back to `$REPO_ROOT` if the git call fails (non-worktree contexts).
+  This is the fourth task-type work-item shipped via direct dispatch in this session (T000022, T000023, T000024 prior) — and the **second auto-scaffolded by `/CJ_goal`** (T000024 was first).
+
 ## [3.5.1] - 2026-05-14
 
 ### Fixed
