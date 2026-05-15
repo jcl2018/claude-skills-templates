@@ -299,9 +299,14 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   esac
 
   # Gate 4: sensitive-surface scan (body regex). On match, AUQ default = halt.
+  # v1.2 (S000044, v3.6.5): added `skills/[^/]+/.+\.md` to catch markdown skill
+  # definition files (SKILL.md, pipeline.md, scaffold.md, implement.md, etc.)
+  # which are just as load-bearing as scripts under skills/*/scripts/. Surfaced
+  # by /loop /CJ_goal iter 3 on 2026-05-15 — T000031 picked /CJ_personal-pipeline
+  # work which lives in pipeline.md (no scripts/ subdir) and didn't trip the gate.
   SENSITIVE_MATCH=""
-  if echo "$RESOLVED_BODY" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|\.git/hooks/|templates/CJ_personal-workflow/'; then
-    SENSITIVE_MATCH=$(echo "$RESOLVED_BODY" | grep -oE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/[^[:space:]]*|\.git/hooks/[^[:space:]]*|templates/CJ_personal-workflow/[^[:space:]]*' | head -3 | tr '\n' ' ')
+  if echo "$RESOLVED_BODY" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|skills/[^/]+/.+\.md|\.git/hooks/|templates/CJ_personal-workflow/'; then
+    SENSITIVE_MATCH=$(echo "$RESOLVED_BODY" | grep -oE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/[^[:space:]]*|skills/[^/]+/[^[:space:]]+\.md|\.git/hooks/[^[:space:]]*|templates/CJ_personal-workflow/[^[:space:]]*' | head -3 | tr '\n' ' ')
     # bash-script context: pure-stdin AUQ is unavailable. Default to halt
     # (the secure choice). If the harness wants to override, --dry-run shows
     # the surface match and the user re-runs with a sensitive-surface-aware
@@ -311,8 +316,16 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   fi
 
   # Gate 5: design-needed keywords.
-  if echo "$RESOLVED_BODY" | grep -qiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD)\b'; then
-    KW=$(echo "$RESOLVED_BODY" | grep -oiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD)\b' | head -1)
+  # v1.2 (S000044, v3.6.5): added `redesign|re-?do|re-?ground|rewrite|rescope`
+  # plus the literal `/office-hours` command reference to catch "this needs
+  # design rework, not implementation" signals. T000031 ("Re-do brief-mode for
+  # /CJ_personal-pipeline") had step (1) literally say `/office-hours from a
+  # new worktree` but slipped past the original regex (only caught bare-word
+  # `investigate|spike|unclear|...`). Surfaced by /loop /CJ_goal iter 3 on
+  # 2026-05-15. NB: re-?do matches `redo|re-do` not `rename|refactor` (keeps
+  # scope to genuine re-design signals).
+  if echo "$RESOLVED_BODY" | grep -qiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD|redesign|re-?do|re-?ground|rewrite|rescope)\b|/office-hours\b'; then
+    KW=$(echo "$RESOLVED_BODY" | grep -oiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD|redesign|re-?do|re-?ground|rewrite|rescope)\b|/office-hours\b' | head -1)
     halt "halted_at_preflight" "needs design (matched: $KW)" "$NAKED_HEADING"
   fi
 

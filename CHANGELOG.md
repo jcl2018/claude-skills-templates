@@ -3,6 +3,28 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.6.5] - 2026-05-15
+
+### Changed
+
+- **`/CJ_goal` preflight v1.2 polish — Gate 4 + Gate 5 regex extensions (S000044).** Both regex gaps surfaced by `/loop /CJ_goal` iter 3 on 2026-05-15 (logged as TODOs in v3.6.4) are closed in this PR.
+  - **Gate 4 (sensitive-surface body scan)** at `goal.sh:303-304` now matches `skills/[^/]+/.+\.md` in addition to `skills/[^/]+/scripts/`. Catches markdown skill definition files (`SKILL.md`, `pipeline.md`, `scaffold.md`, `implement.md`, `qa.md`, etc.) which are just as load-bearing as scripts. Fixes the gap where T000031 (targeting `/CJ_personal-pipeline` — entirely markdown, no `scripts/` subdir) didn't trip the gate.
+  - **Gate 5 (design-needed keyword scan)** at `goal.sh:319-322` now matches `redesign|re-?do|re-?ground|rewrite|rescope` and the literal `/office-hours` command reference, in addition to the original `needs design|figure out|investigate|spike|unclear|need to decide|TBD`. Catches "this needs design rework, not implementation" signals like T000031's body step (1): "`/office-hours` from a new worktree with the closed-PR design as starting context." `re-?do` matches `redo`/`re-do` only, not `rename`/`refactor` (preserves scope to genuine re-design signals).
+
+### Verification
+
+Both extensions tested live against TODOS.md before commit:
+- `bash skills/CJ_goal/scripts/goal.sh "Re-do brief-mode" --dry-run` → halts at Gate 5 with `needs design (matched: /office-hours)` (was: dispatched to scaffold).
+- `bash skills/CJ_goal/scripts/goal.sh --dry-run` (no args, picks the v3.6.4 sensitive-surface gap row) → halts at Gate 4 with `TODO touches sensitive surface(s): skills/CJ_personal-pipeline/pipeline.md skills/*/SKILL.md...` (was: dispatched to scaffold).
+
+`./scripts/test.sh`: 0 failures, RESULT: PASS. Regex extensions are pure additions — no regression risk for previously-eligible rows.
+
+### Notes
+
+- `skills-catalog.json` bumps `CJ_goal` 1.1.0 → 1.2.0 (semantic — preflight rules expanded; downstream `/loop /CJ_goal` consumers should re-deploy via `./scripts/skills-deploy install`).
+- TODOS:156 + :158 (the two gap rows logged in v3.6.4 #121) marked DONE in this PR.
+- F000020 v1.1 polish bundle's last child (D000020 — skip-list reset RCA + instrumentation defect) still pending; expected as v3.6.6 once the instrumentation reproduces the truncation event.
+
 ## [3.6.4] - 2026-05-15
 
 ### Added
