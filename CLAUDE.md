@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 3 custom skills (CJ_personal-workflow, CJ_company-workflow, CJ_system-health), a template library for doc-first development, a standalone GitHub Copilot bundle (`work-copilot/`) mirroring CJ_company-workflow validation for non-Claude machines, and tooling to validate, test, and distribute skills.
+A skill development workbench for Claude Code. Contains 2 custom skills (CJ_personal-workflow, CJ_system-health), a template library for doc-first development, a self-contained GitHub Copilot bundle (`work-copilot/`) carrying the work-item template + validation set for non-Claude machines, and tooling to validate, test, and distribute skills.
 
 ## Quick start
 
@@ -19,11 +19,11 @@ Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 `./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
 The CJ_ skill family in this workbench includes top-level pipelines (/CJ_goal_run,
-/CJ_personal-pipeline), workflow validators (/CJ_personal-workflow,
-/CJ_company-workflow), per-phase skills (/CJ_scaffold-work-item,
-/CJ_implement-from-spec, /CJ_qa-work-item), and standalone utilities
-(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix). /CJ_goal_todo_fix bridges TODOS.md rows to
-the shipping pipeline in one keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
+/CJ_personal-pipeline), workflow validator (/CJ_personal-workflow), per-phase
+skills (/CJ_scaffold-work-item, /CJ_implement-from-spec, /CJ_qa-work-item), and
+standalone utilities (/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix).
+/CJ_goal_todo_fix bridges TODOS.md rows to the shipping pipeline in one
+keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
 Legacy aliases /CJ_run and /CJ_goal remain through v4.x (deprecation banner + delegation;
 removed in v5.0.0).
 
@@ -88,9 +88,9 @@ to gstack.
 
 Each workflow skill owns its own templates and artifact manifest:
 - **CJ_personal-workflow**: `templates/CJ_personal-workflow/` + `skills/CJ_personal-workflow/personal-artifact-manifests.json`
-- **CJ_company-workflow** (deprecated, source-of-truth for `work-copilot/`): `deprecated/CJ_company-workflow/templates/` + `deprecated/CJ_company-workflow/company-artifact-manifests.json`
+- **work-copilot/** (Copilot consumer bundle, not a Claude skill): `work-copilot/templates/` + `work-copilot/copilot-artifact-manifests.json` + `work-copilot/WORKFLOW.md` are the canonical source. Deployed to non-Claude target repos via `scripts/copilot-deploy.py`.
 
-Scaffolding conventions live in each skill's WORKFLOW.md. Invoke the skill to access them.
+Scaffolding conventions live in each skill's WORKFLOW.md (or `work-copilot/WORKFLOW.md` for the Copilot bundle). Invoke the skill to access them.
 
 ## Conventions
 
@@ -102,11 +102,10 @@ skills/{skill-name}/
 ```
 
 ### Template naming
-Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills):
+Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills, when any exist):
 - `templates/CJ_personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
-- `deprecated/CJ_company-workflow/templates/` — company work item templates (tracker-*.md, doc-*.md). Deprecated skill; source-of-truth for the `work-copilot/` byte-mirror, kept in-tree but skipped by `skills-deploy install` unless `--include-deprecated` is passed.
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
-- `work-copilot/` — GitHub Copilot bundle byte-mirrored from upstream. Templates (`work-copilot/templates/*.md`) mirror `deprecated/CJ_company-workflow/templates/*.md`; `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/` mirror their `deprecated/CJ_company-workflow/` counterparts. `validate.sh` Error check 10 (`MIRROR_SPECS` array) enforces byte-identity sync across all 7 mirror entries. Adding a new mirror dir is one new line in the `MIRROR_SPECS` array. Bundle-only files with no upstream counterpart (e.g. F000015 pipeline prompts like `prompts/qa.prompt.md`) are covered by `validate.sh` Error check 10b (`EXPECTED_BUNDLE_FILES` array) — distinct from 10 because it catches "file deleted / never shipped" drift, not byte-identity drift. Extend the array by one line as each F000015 child story ships.
+- `work-copilot/` — Self-contained GitHub Copilot bundle deployed via `scripts/copilot-deploy.py` to non-Claude target repos. Carries its own templates (`work-copilot/templates/*.md`), WORKFLOW.md, reference/, philosophy/, examples/, fixtures/, copilot-artifact-manifests.json, prompts/, and domain/ — no upstream sync. `validate.sh` Error check 10 (`EXPECTED_BUNDLE_FILES` array, 61 entries) enforces every required bundle file is present. Add a new bundle file by appending one entry to that array.
 
 ### Deprecated skills convention
 Skills with `status: deprecated` in `skills-catalog.json` live under `deprecated/{name}/` instead of `skills/{name}/`. The catalog is the source of truth for paths — consumer scripts (`skills-deploy`, `validate.sh`, `test.sh`) derive `dirname(files[0])` for the source root and an optional `templates_source` field for the templates source. Future relocations are a one-line catalog change. See `deprecated/README.md` for what belongs there and what doesn't.
