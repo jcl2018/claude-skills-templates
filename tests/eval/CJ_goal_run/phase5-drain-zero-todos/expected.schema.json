@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "phase5-drain-zero-todos expected output",
+  "description": "Asserts that /CJ_goal_run Phase 5 silently skips and emits green when no new TODOs were added by the merged PR (S000045 AC-2).",
+  "type": "object",
+  "required": ["new_todos_count", "drained_count", "end_state", "no_drain_flag", "auq_surfaced"],
+  "additionalProperties": true,
+  "properties": {
+    "new_todos_count": {
+      "type": "integer",
+      "const": 0
+    },
+    "drained_count": {
+      "type": "integer",
+      "const": 0
+    },
+    "end_state": {
+      "type": "string",
+      "const": "green"
+    },
+    "no_drain_flag": {
+      "type": "boolean",
+      "const": false
+    },
+    "auq_surfaced": {
+      "type": "boolean",
+      "const": false
+    }
+  }
+}

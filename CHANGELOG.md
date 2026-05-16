@@ -3,6 +3,31 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.0] - 2026-05-15
+
+### Added
+
+- **Phase 5 TODO drain in `/CJ_goal_run` (F000021 / S000045).** Post-`/land-and-deploy`, the orchestrator diffs `TODOS.md` additions in the merged PR (`git diff <PR-base>..HEAD -- TODOS.md`), counts new `^### ` headings → `new_todos_count`. If 0: emit `end_state: green` silently. If >0: AUQ "Drain N new TODOs?" with cap=5 recommendation (yes if N ≤ 5, no otherwise). On yes: per-TODO loop invoking `/CJ_goal_todo_fix` as a subroutine; halt-on-red emits `drained_partial`, all green emits `drained_complete`. Closes the new-debt loop in the same pipeline invocation; the operator no longer needs to manually invoke `/loop /CJ_goal_todo_fix` after every feature ships.
+- **`--no-drain` escape-hatch flag** on `/CJ_goal_run`. Strips at any arg position, bypasses Phase 5 entirely (no diff, no AUQ, no loop), records `no_drain_flag: true` in telemetry. Use when this run's new TODOs need different reviewers / timing / deferral.
+- **New `end_state` values** in `~/.gstack/analytics/CJ_goal_run.jsonl`: `drained_complete`, `drained_partial`. Both exit 0 (the feature shipped green; Phase 5 is post-deploy forward-iteration, not a halt condition). Sunset trip-wire excludes both — they are Phase 5 outcomes, not orchestration brittleness.
+- **Extended telemetry schema**: new fields `new_todos_count` (int), `drained_count` (int), `drained_pr_urls` (array of strings), `no_drain_flag` (bool). Backward-compatible — `jq` filters that select only `end_state` / `multi_story_mode` keep working; new fields are additive.
+
+### Changed
+
+- `skills/CJ_goal_run/SKILL.md` bumped to v1.1.0 (additive: Phase 5 docs, `--no-drain` flag, extended error table with `drained_*` halt classes). `skills-catalog.json` `CJ_goal_run` entry bumped 1.0.0 → 1.1.0.
+- `skills/CJ_goal_run/run.md`: Step 1 gains `--no-drain` pre-pass + extended state-file schema; Step 5 Branch (a) flows into new Step 5.5 (Phase 5) before Step 6; Step 6.1 telemetry write emits the new schema fields via jq + bare-shell fallback; Step 6.2 summary prints Phase 5 outcomes; Step 7.1 exit code maps `drained_complete` / `drained_partial` to 0.
+
+### Migration notes
+
+- **For operators:** no migration required. Existing `/CJ_goal_run <design-doc>` invocations are unchanged on the happy path (the new Phase 5 fires only on green deploys, and silently no-ops when 0 new TODOs are added). On runs that add TODOs, an AUQ surfaces — answer "no" to preserve pre-v4.1.0 behavior, or pass `--no-drain` to skip Phase 5 entirely.
+- **For sunset trip-wire / retro tooling:** `drained_complete` and `drained_partial` are normal exit values for green runs. Filters that gated on `end_state == "green"` should be widened to `end_state in ["green", "drained_complete", "drained_partial"]` for "successful run" counts. The brittleness trip-wire in Step 7 is unchanged (the regex never matched the new classes).
+- **For downstream consumers of `CJ_goal_run.jsonl`:** the JSON line is forward-compatible. Older parsers that select specific keys keep working; the new fields are additive.
+
+### Follow-up work (F000021 family — remaining)
+
+- **S000046** — native drain semantics + drain-one-todo.sh script (extracts the Phase 5 inner loop into a shared helper so `/CJ_goal_run` Phase 5 and `/CJ_goal_todo_fix` native-drain mode share a single code path).
+- **S000047** — `--quiet` schedule-friendly flag.
+
 ## [4.0.0] - 2026-05-15
 
 ### Changed (BREAKING — slash-command surface rename)

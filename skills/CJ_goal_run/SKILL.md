@@ -1,7 +1,7 @@
 ---
 name: CJ_goal_run
 description: "Unified pipeline entry point (formerly /CJ_run; renamed v4.0.0). Accepts (a) an APPROVED /office-hours design doc → full pipeline (autoplan → scaffold → impl → QA → PR → deploy), (b) a work-item directory → Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, or (c) no argument → Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Phase 4 invokes /land-and-deploy with --suppress-readiness-gate (opt-in upstream flag mirroring CJ_personal-pipeline's --suppress-final-gate pattern) so green end-to-end runs surface only the autoplan + /ship AUQs; red signals (CI, merge conflict, free-test regression, deploy/canary failure) still halt. Branch(f) open_pr mode auto-continues into /land-and-deploy with the same flag + inline-parsed PR_NUM (verbatim duplicate of Step 5's parsing block). Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation."
-version: 1.0.0
+version: 1.1.0
 allowed-tools:
   - Bash
   - Read
@@ -107,7 +107,8 @@ Per phase for design-doc mode (Branch c):
 3. **Phase 2 — /CJ_personal-pipeline** (Agent subagent, `--suppress-final-gate`) — scaffold → impl → QA. 8.5 + 9.2 AUQs suppressed; decisions logged to wrapper-specified path.
 4. **Phase 3 — /ship** (Skill, inline) — diff review, version bump confirm, PR creation. /ship's native diff-review AUQ is **GATE #2**.
 5. **Phase 4 — /land-and-deploy** (Skill, inline, `--suppress-readiness-gate`) — merge PR, verify deploy. AUQ-free on green (Step 3.5a-bis stale-review offer + Step 3.5e readiness gate suppressed); alerts on red (CI, merge conflict, free-test regression at Step 3.5b, deploy failure, canary). Forward-compat: if gstack doesn't recognize the flag yet, it's silently ignored — legacy AUQs fire, no regression.
-6. **Final summary + telemetry** — write to `~/.gstack/analytics/CJ_goal_run.jsonl` (with fallback-read of legacy `CJ_run.jsonl` during v4.x). Sunset checkpoint on invocation 6, then every 5.
+6. **Phase 5 — TODO drain** (orchestrator, post-deploy, S000045) — diff TODOS.md additions in the merged PR; count new `^### ` headings → `new_todos_count`. If `0`: emit green silently. If `>0`: AUQ "Drain N new TODOs?" (recommended yes if N ≤ cap=5, no otherwise). On yes: per-TODO loop (cap=5) invoking `/CJ_goal_todo_fix` as subroutine; halt-on-red emits `drained_partial`, all green emits `drained_complete`. Bypass via `--no-drain` flag. Fires only on Step 5 Branch (a) (green deploy); skipped on `deploy_red` / `halted_at_deploy`.
+7. **Final summary + telemetry** — write to `~/.gstack/analytics/CJ_goal_run.jsonl` (with fallback-read of legacy `CJ_run.jsonl` during v4.x). Telemetry schema (v4.1.0+) includes `new_todos_count`, `drained_count`, `drained_pr_urls` (array), `no_drain_flag`. Sunset checkpoint on invocation 6, then every 5.
 
 For Branch(f) (work-item-dir input): reads TRACKER phase state and dispatches to
 the right sub-pipeline (CJ_personal-pipeline `--work-item-dir`, /CJ_qa-work-item,
@@ -126,15 +127,21 @@ suppress-final-gate path. See `run.md` for the full step-by-step logic.
 
 Sunset criterion baked in: the skill writes one telemetry line per invocation
 to `~/.gstack/analytics/CJ_goal_run.jsonl` (legacy `CJ_run.jsonl` is fallback-read during v4.x; writes go to the new path only) with `{run_id, design_doc, work_item,
-pr_url, end_state, multi_story_scaffold_only, ts}` where `end_state ∈ {green,
-halted_at_autoplan, halted_at_pipeline, halted_at_ship, halted_at_deploy,
-deploy_red, subagent_crashed}`. On the 6th invocation, the orchestrator
-AskUserQuestions for keep/delete based on a brittleness trip-wire (≥3 of 5
-prior runs in `halted_at_(autoplan|pipeline|deploy)` or `subagent_crashed` →
-recommend delete). Excluded from the count: `green` (happy path), `halted_at_ship`
-(review caught a real issue — gate doing its job), `deploy_red` (production
-state, not wrapper brittleness), and any line with `multi_story_scaffold_only: true`
-(correct halt at scaffold gate per design).
+pr_url, end_state, multi_story_mode, multi_story_children_shipped,
+new_todos_count, drained_count, drained_pr_urls, no_drain_flag, ts}`
+where `end_state ∈ {green, halted_at_autoplan, halted_at_pipeline,
+halted_at_ship, halted_at_deploy, deploy_red, subagent_crashed,
+drained_complete, drained_partial, already_shipped}`. Phase 5-specific
+end_states (`drained_*`) are normal exit values for green runs that
+chose to drain; they are NOT brittleness signals. On the 6th invocation,
+the orchestrator AskUserQuestions for keep/delete based on a brittleness
+trip-wire (≥3 of 5 prior runs in `halted_at_(autoplan|pipeline|deploy)`
+or `subagent_crashed` → recommend delete). Excluded from the count:
+`green` (happy path), `drained_complete` / `drained_partial` (Phase 5
+outcomes, not brittleness), `halted_at_ship` (review caught a real
+issue — gate doing its job), `deploy_red` (production state, not wrapper
+brittleness), and any line with `multi_story_mode: true` / legacy
+`multi_story_scaffold_only: true` (correct halt at scaffold gate per design).
 
 For the full step-by-step logic, see [run.md](run.md).
 
@@ -144,6 +151,11 @@ For the full step-by-step logic, see [run.md](run.md).
 /CJ_goal_run <design-doc-path>      # Branches (a/b/c/d)
 /CJ_goal_run <work-item-dir>        # Branch (f)
 /CJ_goal_run                        # Branch (g)
+
+# Phase 5 escape hatch (v4.1.0+, S000045): bypass post-deploy TODO drain.
+/CJ_goal_run <design-doc-path> --no-drain
+/CJ_goal_run <work-item-dir> --no-drain
+/CJ_goal_run --no-drain
 ```
 
 Examples:
@@ -157,7 +169,16 @@ Examples:
 
 # No-arg: scan current branch and auto-resume the single in-progress user-story
 /CJ_goal_run
+
+# --no-drain: ship the feature PR but skip Phase 5 (operator drains debt manually later)
+/CJ_goal_run ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260515-000000.md --no-drain
 ```
+
+**Phase 5 flag**: `--no-drain` is accepted at any position in the arg list
+and stripped before input-shape detection. It bypasses Phase 5 entirely
+(no diff, no AUQ, no drain loop); telemetry records `no_drain_flag: true`
+for observability. Use when the operator knows the new TODOs from this run
+need different reviewers, different timing, or out-of-scope deferral.
 
 For design-doc input: the path MUST be under `~/.gstack/projects/` and the design doc
 MUST contain `Status: APPROVED` somewhere in its body. For work-item-dir input: the
@@ -199,6 +220,10 @@ subagent dispatch with suppress-final-gate, multi-story shape detection, /ship i
 | /land-and-deploy halted | "Wrapper halted at /land-and-deploy. {error}." | Fix root cause; manually invoke /land-and-deploy |
 | Canary red post-deploy | "Canary red — see report at {path}. No auto-rollback." | Manual: rollback OR fix-forward |
 | Subagent crash mid-pipeline | "CJ_personal-pipeline subagent crashed (no RESULT line). end_state=subagent_crashed." | Re-invoke; pipeline branch (a) skip path resumes from work-item dir on disk |
+| Phase 5: no new TODOs (silent skip) | "Phase 5: no new TODOs detected. Done." (informational; not an error) | None — telemetry records `new_todos_count: 0`, `end_state: green` |
+| Phase 5: --no-drain bypass | "Phase 5: --no-drain flag set; skipping drain phase." (informational) | None — telemetry records `no_drain_flag: true`, `end_state: green` |
+| Phase 5: drained_complete | All targeted drain children shipped green. | None — telemetry records `drained_count`, `drained_pr_urls`, `end_state: drained_complete` |
+| Phase 5: drained_partial | Drain loop halted mid-iteration on a child red, OR cap reached with deferred rest. | Resume: `/loop /CJ_goal_todo_fix` or manual `/CJ_goal_todo_fix <heading>` per remaining TODOS.md row |
 
 ## Sunset Criterion
 
