@@ -253,3 +253,11 @@ Simplified by collection versioning. Use `collection-version.sh bump patch`.
 **Suggested change:** Wrap subagent prompt sections (role, task, constraints, inputs, return contract) in named XML tags so subagents parse mixed instructions plus variable inputs unambiguously.
 <!-- source-quote: "XML tags help Claude parse complex prompts unambiguously, especially when your prompt mixes instructions, context, examples, and variable inputs." -->
 <!-- impr-sig=6b0a15bea5c5e84d impr-conf=7/10 -->
+### Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)<!--impr-draft-->
+
+**Source:** https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+**Verdict:** conflict
+**Affected skills:** skills/CJ_goal_run/SKILL.md, skills/CJ_goal_todo_fix/SKILL.md, skills/CJ_personal-pipeline/SKILL.md, skills/CJ_qa-work-item/SKILL.md, skills/CJ_implement-from-spec/SKILL.md
+**Suggested change:** Rewrite each affected SKILL.md description to lead with what+when in 1-2 sentences and move version-rename history, flag mechanics, and changelog detail into the SKILL.md body or an old-patterns section.
+<!-- source-quote: "The description is critical for skill selection: Claude uses it to choose the right Skill from potentially 100+ available Skills." -->
+<!-- impr-sig=432d0480aa0d58e5 impr-conf=8/10 -->
