@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.4.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_suggest` skips `<!--impr-draft-->` headings (S000049, follow-on to F000022).** One-line `awk` filter extension in `suggest.sh` active-band scan (both `CJ_personal-workflow` and domain-grouped TODOS conventions). Without this, draft rows emitted by `/CJ_improve-queue evaluate` rank in `/CJ_suggest`'s top-N alongside real backlog — defeating the invisible-marker promotion gate from F000022. Mirrors the existing strikethrough skip pattern. Verified with a fixture TODOS containing a draft row + two real rows: draft is filtered, real rows rank.
+
 ## [4.4.1] - 2026-05-15
 
 ### Changed
