@@ -21,6 +21,16 @@ After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY f
 
 **Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
 
+### `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
+Phase 7 of F000024 v1.0 ships untested against a real defect — the machine handoff convention (orchestrator dispatches `/investigate` with a prompt instructing it to emit `DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON` sentinels) was designed but not yet observed in the wild. First time someone runs `/CJ_goal_investigate D000NNN` on a real defect is when we learn whether `/investigate` actually emits the sentinel block. Two possible outcomes:
+
+1. **Sentinel emitted as expected** → contract holds, mark Phase 7 done in F000024_TRACKER.md, log a learning at confidence 9 with the verbatim output for future ref.
+2. **Free-text DEBUG REPORT instead of JSON** → orchestrator's fallback regex parser kicks in (per design doc Phase 1 fallback). Document the actual format in DESIGN.md, write a free-text-to-JSON regex shim, ship as v0.1.1. Optionally upstream a feature request to `/investigate` for first-class `--output-json` flag.
+
+**Pick the defect carefully:** scaffolded legacy `work-items/defects/<domain>/D000NNN_<slug>/` layout only (v1.0 scope), root cause should be diff-traceable (not architectural), <5 files in expected blast radius (avoid the `[investigate-blast-radius]` halt). Good candidates from the existing backlog: low-stakes defects with clear repro steps. Skip anything where the fix has already shipped via other paths.
+
+**Reference:** F000024 design doc "Next Steps" Phase 7; `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`.
+
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
 `CJ_*`: `CJ_personal-workflow`, `CJ_system-health`, `CJ_scaffold-work-item`,
