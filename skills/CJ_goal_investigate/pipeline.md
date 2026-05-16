@@ -113,9 +113,19 @@ Compute the four state signals (R, F, P, M) and pick the resume row:
 
 ```bash
 # R: RCA populated? (file exists AND Root Cause section has prose beyond the TODO placeholder)
+#
+# D000020 fix: the previous `/^## Root Cause/,/^## /` awk range is degenerate —
+# the start pattern AND the end pattern both match the "## Root Cause" header
+# line, so awk captures exactly one line (the header itself). Use a stateful
+# flag instead: enter the block at "## Root Cause", exit at the next `## `
+# heading (excluding "## Root Cause" itself).
 R=0
 if [ -f "$RCA_PATH" ]; then
-  ROOT_CAUSE_BODY=$(awk '/^## Root Cause/,/^## /' "$RCA_PATH" | sed '1d;$d' | grep -v '^[[:space:]]*$' | grep -v '<!-- TODO' || true)
+  ROOT_CAUSE_BODY=$(awk '
+    /^## Root Cause/ { in_rc=1; next }
+    in_rc && /^## / { in_rc=0 }
+    in_rc { print }
+  ' "$RCA_PATH" | grep -v '^[[:space:]]*$' | grep -v '<!-- TODO' || true)
   [ -n "$ROOT_CAUSE_BODY" ] && R=1
 fi
 
@@ -141,16 +151,23 @@ fi
 echo "Idempotency state: R=$R F=$F P=$P M=$M"
 
 # Pick resume row
-if [ "$R" = 0 ] && [ "$F" = 1 ]; then
-  RESUME_ROW=5  # anomaly
+#
+# D000020 fix: check M=1 (terminal "already shipped" state) FIRST, before the
+# R=0+F=1 anomaly check. Previously the order let a fully-shipped defect with
+# under-detected RCA (Bug A above, before its fix) fall through to Row 5
+# anomaly when it should be Row 4 no-op. Even with Bug A's awk fixed, the
+# defense-in-depth ordering protects against future RCA-detection edge cases:
+# a merged PR is a terminal state and always wins.
+if [ "$M" = 1 ]; then
+  RESUME_ROW=4  # no-op: PR merged
+elif [ "$R" = 0 ] && [ "$F" = 1 ]; then
+  RESUME_ROW=5  # anomaly: fix in tree but RCA missing AND PR not merged
 elif [ "$R" = 0 ] && [ "$F" = 0 ]; then
   RESUME_ROW=1  # fresh
-elif [ "$R" = 1 ] && [ "$F" = 1 ] && [ "$P" = 0 ] && [ "$M" = 0 ]; then
+elif [ "$R" = 1 ] && [ "$F" = 1 ] && [ "$P" = 0 ]; then
   RESUME_ROW=2  # skip /investigate; chain QA→ship→deploy
-elif [ "$R" = 1 ] && [ "$F" = 1 ] && [ "$P" = 1 ] && [ "$M" = 0 ]; then
+elif [ "$R" = 1 ] && [ "$F" = 1 ] && [ "$P" = 1 ]; then
   RESUME_ROW=3  # skip through /ship; chain /land-and-deploy
-elif [ "$R" = 1 ] && [ "$F" = 1 ] && [ "$M" = 1 ]; then
-  RESUME_ROW=4  # no-op
 else
   # Defensive: any other combination → treat as fresh and log a warning
   RESUME_ROW=1

@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.2] - 2026-05-16
+
+### Fixed
+
+- **D000020: `/CJ_goal_investigate` idempotency table — two edge cases break Row 4 detection on shipped defects.** Two independent bugs in `skills/CJ_goal_investigate/pipeline.md` Step 3, both surfaced by the first `--dry-run` dogfood invocation against an already-shipped defect (D000017_cj_suggest_zsh_crash, PR #114 merged):
+  - **Bug A (~8 lines)**: `R` (RCA-populated) detection used `awk '/^## Root Cause/,/^## /'`, a degenerate range expression where the start AND end patterns both match the literal `## Root Cause` heading line. awk captured exactly one line (the header); downstream `sed '1d;$d'` stripped it, leaving empty content. Result: `R=0` regardless of how much prose the section contained. Fix: replace the range with a stateful flag that enters at `## Root Cause` (via `next`) and exits at the next `## ` heading.
+  - **Bug B (~5 lines)**: Resume-row dispatch evaluated `R=0 && F=1` (Row 5 anomaly) before `M=1` (Row 4 no-op, terminal). A fully-shipped defect with under-detected RCA fell into Row 5 manual-review halt instead of the Row 4 idempotent no-op. Fix: hoist the `M=1` terminal-state check to the top of the dispatch — a merged PR is a terminal signal that wins over any other interpretation, providing defense-in-depth against future RCA-detection edge cases.
+
+  Verified by re-running the dry-run logic on D000017: pre-fix `R=0 F=1 P=0 M=1 → Row 5`; post-fix `R=1 F=1 P=0 M=1 → Row 4`. Rows 1–3 and 5 unaffected; Row 4 now correctly fires on terminal states.
+
+  **Dogfood meta-finding:** The TODOS row for `/CJ_goal_investigate first-defect dogfood validation` (P2, S) expected the dogfood to test the `DEBUG_REPORT_BEGIN_JSON ... END_JSON` sentinel-emission contract from `/investigate`. Instead, the first 30 seconds of dry-run preflight surfaced two pre-existing skill bugs. Sentinel-emission test deferred until D000020 lands and a non-merged defect is picked for the next dogfood.
+
 ## [4.6.1] - 2026-05-15
 
 ### Removed
