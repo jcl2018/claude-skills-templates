@@ -3,6 +3,125 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.3] - 2026-05-16
+
+### Fixed
+
+- **D000020: `/CJ_goal_investigate` idempotency table — two edge cases break Row 4 detection on shipped defects.** Two independent bugs in `skills/CJ_goal_investigate/pipeline.md` Step 3, both surfaced by the first `--dry-run` dogfood invocation against an already-shipped defect (D000017_cj_suggest_zsh_crash, PR #114 merged):
+  - **Bug A (~8 lines)**: `R` (RCA-populated) detection used `awk '/^## Root Cause/,/^## /'`, a degenerate range expression where the start AND end patterns both match the literal `## Root Cause` heading line. awk captured exactly one line (the header); downstream `sed '1d;$d'` stripped it, leaving empty content. Result: `R=0` regardless of how much prose the section contained. Fix: replace the range with a stateful flag that enters at `## Root Cause` (via `next`) and exits at the next `## ` heading.
+  - **Bug B (~5 lines)**: Resume-row dispatch evaluated `R=0 && F=1` (Row 5 anomaly) before `M=1` (Row 4 no-op, terminal). A fully-shipped defect with under-detected RCA fell into Row 5 manual-review halt instead of the Row 4 idempotent no-op. Fix: hoist the `M=1` terminal-state check to the top of the dispatch — a merged PR is a terminal signal that wins over any other interpretation, providing defense-in-depth against future RCA-detection edge cases.
+
+  Verified by re-running the dry-run logic on D000017: pre-fix `R=0 F=1 P=0 M=1 → Row 5`; post-fix `R=1 F=1 P=0 M=1 → Row 4`. Rows 1–3 and 5 unaffected; Row 4 now correctly fires on terminal states.
+
+  **Dogfood meta-finding:** The TODOS row for `/CJ_goal_investigate first-defect dogfood validation` (P2, S) expected the dogfood to test the `DEBUG_REPORT_BEGIN_JSON ... END_JSON` sentinel-emission contract from `/investigate`. Instead, the first 30 seconds of dry-run preflight surfaced two pre-existing skill bugs. Sentinel-emission test deferred until D000020 lands and a non-merged defect is picked for the next dogfood.
+
+## [4.6.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` no longer corrupts TODOS.md's end-of-file newline on
+  every row append.** The append path captured the row block via command
+  substitution (`$(build_row ...)`), which strips trailing newlines, then wrote
+  it with `printf '%s'` (no newline) — so each `audit` / `evaluate` / `research`
+  append left TODOS.md ending without a terminating `\n` (not POSIX-clean). All
+  three modes funnel through one write path (`cmd_apply` → `atomic_append`); the
+  fix re-adds exactly one trailing newline there (`printf '%s\n'`), so appended
+  rows are separated by a single blank line and the file always ends with
+  exactly one `\n`. Consecutive appends no longer drop or double the EOF
+  newline. The earlier manual `printf '\n' >> TODOS.md` (commit 8c2ee8f) only
+  patched one artifact; this fixes the source. Added a `scripts/test.sh`
+  regression test (isolated temp git repo, novel + conflict fixtures) asserting
+  the post-append TODOS.md ends with exactly one `\n` across two consecutive
+  appends.
+
+## [4.6.1] - 2026-05-15
+
+### Removed
+
+- **S000053 (F000023 phase 2): delete the deprecated `CJ_company-workflow` skill.** Completes F000023 retirement. The byte-mirror relationship was inverted in S000052 (v4.5.5); S000053 deletes the now-orphaned source. Total: 53 files in `deprecated/CJ_company-workflow/` gone (SKILL.md, WORKFLOW.md, bin/, templates/, reference/, philosophy/, examples/, fixtures/, company-artifact-manifests.json).
+- **Catalog entry**: `CJ_company-workflow` removed from `skills-catalog.json`. The `templates_source` field handler in `scripts/skills-deploy` stays for future deprecated skills.
+- **`scripts/test.sh` CJ_company-workflow blocks (~1042 lines)**: COMPANY_PATH / COMPANY_TPL var declarations, knowledge-helpers (T000006), AI_KNOWLEDGE_DIR resolution (T000004), Knowledge Loading / On-Demand Matching test blocks, deprecated SKILL.md content checks (D000006, D000007), deprecated tracker template gates, WORKFLOW.md subsection checks. All tested gone implementation details; surgical edits preserved CJ_personal-workflow halves of shared-scope blocks.
+- **`scripts/test-deploy.sh` Tests 13–15 + 17–19 (subdir behaviors)**: deleted the CJ_company-workflow-specific subdirectory symlink tests. Test 16 (no-subdirs case for CJ_system-health) preserved as regression coverage.
+- **`template-registry.json`**: `sets.CJ_company-workflow` entry removed.
+- **`CLAUDE.md`**: "What this repo is" updated (2 custom skills now), "Skill routing" paragraph updated, "Work item templates" rewritten with `work-copilot/` as canonical, "Template naming" rewritten (no more byte-mirror language).
+- **`README.md`**: CJ_company-workflow row removed from the Skills table.
+
+### Preserved
+
+- `deprecated/` top-level directory + `deprecated/README.md` kept (convention for future deprecated skills, even when empty of skills).
+- `deprecated/work-items/` (F000007 historical work-item relocation) untouched.
+- `scripts/copilot-deploy.py` and `work-copilot/` bundle untouched. Bundle continues to deploy byte-identical to before. Already-deployed bundles in target repos unaffected.
+
+## [4.6.0] - 2026-05-15
+
+### Added
+
+- **`/CJ_goal_investigate` v0.1.0 (F000024 / S000049): defect-to-shipped-fix pipeline orchestrator.**
+  Third sibling in the `CJ_goal_*` family, alongside `/CJ_goal_run` (user-stories) and
+  `/CJ_goal_todo_fix` (TODOs). Takes a scaffolded defect work-item (legacy
+  `work-items/defects/<domain>/D000NNN_<slug>/` layout in v1.0) and ships a deployed
+  fix end-to-end via `/investigate` (Agent subagent, sentinel-wrapped JSON output) →
+  RCA + test-plan artifact writes → `/CJ_qa-work-item` → `/ship` → `/land-and-deploy`.
+  Iron-Law gate enforced automatically: no fixes ship without a populated root cause.
+  Machine-readable `/investigate` handoff (`DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON`)
+  eliminates free-text parser brittleness. 9-state halt-on-red taxonomy with
+  `next_action=` / `resume_cmd=` / `raw_output_path=` journal entries. 5-row
+  idempotency resume table for mid-chain re-entry. `--dry-run` previews chain plan +
+  write paths without mutation. Workbench-only; drain mode / family-drain lock /
+  sunset criterion / freestanding defect convention all deferred to v1.1. Catalog
+  entry status `experimental`. Routing rule added to `rules/skill-routing.md`.
+  Files: `skills/CJ_goal_investigate/{SKILL.md, pipeline.md, scripts/test-*.sh}`,
+  `skills-catalog.json` (+1 entry), `rules/skill-routing.md` (+1 rule),
+  `work-items/features/ops/F000024_cj_goal_investigate/` (DESIGN, ROADMAP, TRACKER,
+  S000049 child story with SPEC + DESIGN + TEST-SPEC + TRACKER).
+
+## [4.5.5] - 2026-05-15
+
+### Changed
+
+- **S000052 (F000023 phase 1): invert the work-copilot/ byte-mirror.** `work-copilot/`
+  is now the canonical source-of-truth for the Copilot consumer bundle.
+  `scripts/validate.sh` Error check 10 collapses from ~190 lines of MIRROR_SPECS
+  machinery (array + per-shape dispatch helpers + orphan reporter) into a single
+  existence-check sweep. `EXPECTED_BUNDLE_FILES` grew from 10 entries to 61,
+  covering every file the bundle is required to ship (17 templates, 1 WORKFLOW.md,
+  7 reference, 3 philosophy, 14 examples, 8 fixtures, 1 manifest, plus the 10
+  pre-existing F000015 prompts + domain templates). `validate.sh` size: 684 → 545.
+- **`scripts/test.sh`: delete T000011 MIRROR_SPECS sync-check block.** The seven
+  smoke tests (drift detection, orphan FAIL-vs-WARN policy, manifest schema parity)
+  validated the byte-mirror machinery that S000052 removed; with no mirror there
+  is no drift surface to test. The existence-check that replaces it is exercised
+  directly by every `./scripts/validate.sh` CI run.
+
+### Fixed
+
+- **`scripts/test.sh` zzz-test-scaffold cleanup race.** The integration test that
+  manually creates a `skills/zzz-test-scaffold/` fixture and adds it to the
+  catalog only cleaned up via the EXIT trap, but `scripts/test-deploy.sh` runs
+  earlier in the same script and reads the modified catalog. From a git worktree,
+  `skills-deploy doctor` resolved the source to the main toplevel (per T000025)
+  while the fixture lived in the worktree path, so Test 8 ("Doctor on healthy
+  install") consistently failed with `WARN: zzz-test-scaffold — source directory
+  missing in repo`. Now the fixture is removed inline once the manual-scaffold
+  block completes; the EXIT trap remains as a fallback for unexpected exits.
+
+### Preserved
+
+- `deprecated/CJ_company-workflow/` stays on disk for this phase — it is now
+  structurally orphaned (no script reads it for byte-mirror purposes) but
+  remains intact until S000053 deletes it together with the catalog entry,
+  CJ_company-workflow-specific test.sh assertions, `template-registry.json`
+  entry, and `CLAUDE.md` / `README.md` references.
+- `scripts/copilot-deploy.py`: unchanged. The bundle continues to deploy from
+  `work-copilot/` byte-identical to before. Already-deployed Copilot bundles
+  in target repos are unaffected.
+
+## [4.5.3] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_suggest --for-skill cj-goal` filter: three new heading-level gates (3c/3d/3e)** that catch rows `/CJ_goal_todo_fix` drain mode would halt on at preflight. The drain helper requires `(Pn, X)` suffix with `P != 1` and size `S|M`; rows under date-trigger H2 sections (e.g. `## Scheduled checkpoints`), rows with `YYYY-MM-DD —` heading prefix, and rows carrying terminal-marker literals (`WON'T FIX`, `SUPERSEDED`, `SHIPPED`, `RESOLVED`) all currently leak through and waste drain iterations on `halted_at_preflight`. Gates fire before body extraction (cheap heading-only checks) and emit `[CJ_suggest] excluded: ... reason=...` log lines to stderr matching the existing exclusion-log shape. Workbench TODOs unchanged (no false positives); portfolio-repo fallback-mode TODOs now correctly admit only drainable rows.
+
 ## [4.5.4] - 2026-05-15
 
 ### Changed

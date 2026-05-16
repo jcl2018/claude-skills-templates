@@ -57,10 +57,14 @@ Edge cases (design premise #8):
   output; one stderr log line per exclusion (`[CJ_suggest] excluded: <id-or-title> reason=<criterion>`).
   v1 supports `cj-goal` only. The cj-goal block mirrors `/CJ_goal_todo_fix`'s
   preflight gates 3-5 (priority P1, size L|XL, sensitive-surface regex on
-  body, design-needed keyword on body); gate 1's body-too-vague is omitted
-  (vagueness is generic and already handled via the recency penalty), and
-  gate 2's missing-suffix is already handled by suggest.sh's default-P4/M
-  fallback. Future consumers add new named blocks.
+  body, design-needed keyword on body) and adds three heading-level gates
+  that catch rows drain mode would halt on at preflight: date-trigger H2
+  section (e.g. `## Scheduled checkpoints`), `YYYY-MM-DD —` heading prefix,
+  and terminal-marker literals in the title (`WON'T FIX`, `SUPERSEDED`,
+  `SHIPPED`, `RESOLVED`). Gate 1's body-too-vague is omitted (vagueness is
+  generic and already handled via the recency penalty), and gate 2's
+  missing-suffix is already handled by suggest.sh's default-P4/M fallback.
+  Future consumers add new named blocks.
 - `--limit N` — extend the top-N output cap beyond the default 5. Default
   preserves byte-identical output for un-flagged callers (interactive
   /suggest users); `/CJ_goal_todo_fix` opts in via `--limit 15`.

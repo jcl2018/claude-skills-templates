@@ -89,43 +89,6 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_company-workflow",
-    "version": "5.0.0",
-    "description": "Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "deprecated/CJ_company-workflow/SKILL.md",
-      "deprecated/CJ_company-workflow/WORKFLOW.md",
-      "deprecated/CJ_company-workflow/company-artifact-manifests.json"
-    ],
-    "templates": [
-      "CJ_company-workflow/tracker-feature.md",
-      "CJ_company-workflow/tracker-defect.md",
-      "CJ_company-workflow/tracker-task.md",
-      "CJ_company-workflow/tracker-user-story.md",
-      "CJ_company-workflow/tracker-review.md",
-      "CJ_company-workflow/doc-feature-summary.md",
-      "CJ_company-workflow/doc-PRD.md",
-      "CJ_company-workflow/doc-ARCHITECTURE.md",
-      "CJ_company-workflow/doc-TEST-SPEC.md",
-      "CJ_company-workflow/doc-DESIGN.md",
-      "CJ_company-workflow/doc-milestones.md",
-      "CJ_company-workflow/doc-RCA.md",
-      "CJ_company-workflow/doc-test-plan.md",
-      "CJ_company-workflow/doc-review-notes.md",
-      "CJ_company-workflow/doc-scrum.md",
-      "CJ_company-workflow/doc-pr-description-task.md",
-      "CJ_company-workflow/doc-pr-description-defect.md"
-    ],
-    "status": "deprecated",
-    "templates_source": "deprecated/CJ_company-workflow/templates"
-  },
-  {
     "name": "CJ_qa-work-item",
     "version": "1.0.0",
     "description": "QA a CJ_personal-workflow work-item (user-story, defect, or task) per its test rows. For user-stories: runs Smoke Tests then dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per TEST-SPEC. For defects/tasks: runs test-plan rows as smoke-equivalent (no E2E subagent in v1). Writes findings to tracker journal; transitions Phase 2 qa-owned gates for user-stories; records [qa-pass] for defects/tasks. Idempotent (re-run on green work-item is NO-OP). Boundary check refuses on incomplete Phase 2.",
@@ -335,6 +298,39 @@
     "files": [
       "skills/CJ_improve-queue/SKILL.md",
       "skills/CJ_improve-queue/scripts/improve_queue.sh"
+    ],
+    "templates": [],
+    "status": "experimental"
+  },
+  {
+    "name": "CJ_goal_investigate",
+    "version": "1.0.0",
+    "description": "Defect-to-shipped-fix orchestrator (v1.0 single-defect mode). Resolves a defect work-item by D-ID or fragment, dispatches /investigate as an Agent subagent with sentinel-wrapped JSON output, parses the response through a 9-state halt-on-red taxonomy, writes RCA + test-plan artifacts, and chains /CJ_qa-work-item → /ship → /land-and-deploy --suppress-readiness-gate. Iron-Law gate enforced for free; DONE_WITH_CONCERNS halts pre-ship at [investigate-unverified]. 5-row idempotency resume table; --dry-run preview. Workbench-only. Drain mode, --quiet, family-drain lock, sunset criterion, freestanding defect convention all deferred to v1.1+.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_qa-work-item",
+        "CJ_personal-workflow"
+      ],
+      "tools": [
+        "bash",
+        "awk",
+        "grep",
+        "sed",
+        "jq",
+        "git",
+        "gh",
+        "find"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_goal_investigate/SKILL.md",
+      "skills/CJ_goal_investigate/pipeline.md",
+      "skills/CJ_goal_investigate/scripts/test-rca-mapping.sh",
+      "skills/CJ_goal_investigate/scripts/test-resume-table.sh",
+      "skills/CJ_goal_investigate/scripts/test-dry-run.sh",
+      "skills/CJ_goal_investigate/scripts/test-halt-journal.sh"
     ],
     "templates": [],
     "status": "experimental"
