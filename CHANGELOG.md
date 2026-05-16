@@ -3,6 +3,34 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.2.0] - 2026-05-15
+
+### Added
+
+- **Native drain mode in `/CJ_goal_todo_fix` (F000021 / S000046).** Default invocation (no positional arg) now enumerates easy-fix TODOs via `/CJ_suggest --for-skill cj-goal` and drains up to `--max-drain N` (default 10) end-to-end through `/CJ_personal-pipeline` + `/ship` + `/land-and-deploy`. No `/loop` wrapper needed; cron- and `/schedule`-eligible. Single-TODO mode (T-ID or fragment arg) preserved unchanged; `--dry-run` works in both modes.
+- **`--max-drain N` flag** on `/CJ_goal_todo_fix` (default 10; `--max-drain=N` form also accepted; `N=0` errors with hint to use `--dry-run` for preview).
+- **`scripts/drain-one-todo.sh` shared helper** under `skills/CJ_goal_todo_fix/scripts/`. Per-TODO inner loop with lockfile acquire/release, `todo_fix.sh` delegation, and `CJ_GOAL_HANDOFF` emission. Called by BOTH `/CJ_goal_todo_fix` Phase 2 (drain mode) AND `/CJ_goal_run` Phase 5 (post-deploy TODO drain) — one source of truth for the per-TODO chain. Subcommands: `acquire`, `release`, `dispatch`. Shellcheck-clean.
+- **Shared cross-skill lockfile** at `/tmp/cj-goal-active-headings-$(date +%Y%m%d).txt`. Per-day TTL (self-cleaning; no GC). Prevents `/CJ_goal_run` Phase 5 and `/CJ_goal_todo_fix` Phase 2 from double-scaffolding the same heading when run concurrently. Loser-of-race emits `STATUS=lock_skip` and continues with the next eligible TODO.
+- **New `end_state` values** in `~/.gstack/analytics/CJ_goal_todo_fix.jsonl`: `nothing_to_drain` (Phase 1 returns empty — cron-friendly success, exit 0), `drain_handoff_pending` (Phase 1 enumeration complete; orchestrator drives Phase 2). Plus orchestrator-emitted `drained_complete` / `drained_partial` matching the schema added in v4.1.0 for `/CJ_goal_run`.
+- **Telemetry fallback-read of legacy `CJ_goal.jsonl`** (pre-rename file). Sunset-trip-wire consumers MUST merge both paths via the new `telemetry_invocation_count` helper in `scripts/todo_fix.sh` so the v4.0.0 rename window doesn't reset the trip-wire counter. Current-run writes continue to go only to the new path.
+
+### Changed
+
+- `skills/CJ_goal_todo_fix/SKILL.md` bumped to v2.1.0 (additive: drain mode flow, `--max-drain` flag, lockfile mechanics, new end_state classes, telemetry fallback-read pattern). `skills-catalog.json` `CJ_goal_todo_fix` entry bumped 2.0.0 → 2.1.0; `files` list adds `scripts/drain-one-todo.sh`; `tools` list adds `shasum`.
+- `skills/CJ_goal_todo_fix/scripts/todo_fix.sh`: replaced positional-only arg parsing with a flag-aware loop; added Phase 1/3 drain block emitting `CJ_GOAL_DRAIN_HANDOFF` for orchestrator consumption; `halt()` treats `nothing_to_drain` as exit 0 (cron success); added `telemetry_invocation_count()` for merged-file reads.
+- `skills/CJ_goal_run/run.md` Step 5.5.4: per-TODO inner-loop comment block refactored to describe the new helper invocation contract (`drain-one-todo.sh dispatch ... + release`). No behavioral change for `/CJ_goal_run` orchestrators — the Skill-tool chain still runs at the orchestrator layer; the helper owns lockfile + preflight delegation.
+
+### Migration notes
+
+- **For operators:** `/CJ_goal_todo_fix` (no args) now enters drain mode. Previously this would `/CJ_suggest` top-1 then fix that one TODO. Behavior diff: instead of one PR per invocation, expect up to 10 (default cap). To preserve the v2.0.0 single-shot habit pattern, pass `--max-drain 1`. Single-TODO modes (`T000NNN` or fragment) are unchanged.
+- **For `/loop /CJ_goal_todo_fix` users:** the wrapper is now redundant for backlog drain — native drain mode replaces it. Existing `/loop` invocations still work (each iteration drains up to N, then exits cleanly with one of `drained_complete` / `drained_partial` / `nothing_to_drain` — all loop-continue end_states).
+- **For cron / `/schedule` consumers:** `nothing_to_drain` exits 0 so scheduled drains don't alert on empty backlogs. Distinguish via the telemetry `end_state` field.
+- **For downstream consumers of `CJ_goal_todo_fix.jsonl`:** the JSON line schema is unchanged for per-TODO writes. New end_state strings (`nothing_to_drain`, `drain_handoff_pending`) are additive; filters that gated on `end_state == "green"` should be widened to `end_state in ["green", "drained_complete", "drained_partial", "nothing_to_drain"]` for "successful run" counts.
+
+### Follow-up work (F000021 family — remaining)
+
+- **S000047** — `--quiet` schedule-friendly flag (suppresses summary output for cron consumers).
+
 ## [4.1.0] - 2026-05-15
 
 ### Added

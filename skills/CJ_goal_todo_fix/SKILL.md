@@ -1,7 +1,7 @@
 ---
 name: CJ_goal_todo_fix
-description: "Auto-resolve a TODO from TODOS.md into a shipped PR (formerly /CJ_goal; renamed v4.0.0). Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns 'fix this TODO' into a merged PR. Workbench-only; halt-on-red preserved end-to-end."
-version: 2.0.0
+description: "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews. Workbench-only; halt-on-red preserved end-to-end."
+version: 2.1.0
 allowed-tools:
   - Bash
   - Read
@@ -12,8 +12,15 @@ allowed-tools:
 
 ## Overview
 
-`/CJ_goal_todo_fix` takes a TODO (resolved by no-args /CJ_suggest top-1, T-ID, or
-heading fragment) and produces a green PR via the existing pipeline:
+`/CJ_goal_todo_fix` has two modes:
+
+- **Drain mode (default, no args; v4.2.0+).** Enumerates easy-fix TODOs via
+  `/CJ_suggest --for-skill cj-goal`, then drains up to `--max-drain N`
+  (default 10) end-to-end. One keystroke; no `/loop` wrapper needed.
+- **Single-TODO mode (T-ID or fragment).** Fixes exactly one TODO. The
+  battle-tested v1.1 behavior; preserved unchanged.
+
+Per-TODO chain (both modes share this):
 
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold → /CJ_personal-pipeline
@@ -23,17 +30,42 @@ TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold → /CJ_persona
 Net new logic vs the upstream pipeline: pre-flight gate stack, TODOS.md parser
 (handles both `## Active work` and domain-grouped shapes), T-task scaffold
 writes (TRACKER + test-plan), direct-dispatch chain, per-session skip-list
-mechanic, hash-verify TODOS.md DONE-mark, and telemetry. Everything else
-is reuse.
+mechanic, hash-verify TODOS.md DONE-mark, shared lockfile (cross-skill drain
+race protection), and telemetry. Everything else is reuse.
 
 **Input shapes:**
-- `/CJ_goal_todo_fix` — no args; reads /CJ_suggest top-1; fixes it.
-- `/CJ_goal_todo_fix T000022` — exact T-ID lookup; if tracker exists, dispatch existing
-  work-item; otherwise halt.
-- `/CJ_goal_todo_fix "fragment"` — fuzzy match against active TODOS.md headings; halt
-  on multi-match with disambiguation AUQ.
-- `/CJ_goal_todo_fix --dry-run` — show resolved TODO + planned T-ID + planned
-  work-item-dir + planned dispatch, no writes.
+- `/CJ_goal_todo_fix` — no args; drain mode; enumerates via /CJ_suggest and drains up to `--max-drain` (default 10).
+- `/CJ_goal_todo_fix --max-drain N` — drain mode; cap at N. `N=0` errors (use `--dry-run` for preview).
+- `/CJ_goal_todo_fix T000022` — single-TODO mode (exact T-ID lookup).
+- `/CJ_goal_todo_fix "fragment"` — single-TODO mode (fuzzy match against active headings).
+- `/CJ_goal_todo_fix --dry-run` — preview without writes. Combines with all input shapes
+  (`--dry-run T000022`, `--dry-run --max-drain 3`, etc.).
+
+**Drain mode flow (v4.2.0):**
+
+```
+Phase 1: Enumerate easy-fix TODOs (delegate to /CJ_suggest --for-skill cj-goal --limit 2*max)
+Phase 2: Drain loop (cap = --max-drain)
+  For each TODO up to cap:
+    drain-one-todo.sh dispatch <heading> <session_id>
+      ├── acquire shared lockfile entry (cross-skill race protection)
+      ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
+      ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
+      └── orchestrator drives /CJ_personal-pipeline → /ship → /land-and-deploy
+    Halt-on-red → STOP, drained_partial
+Phase 3: Summary + telemetry
+  "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."
+```
+
+**Shared lockfile** (resilience):
+
+```
+/tmp/cj-goal-active-headings-$(date +%Y%m%d).txt   # per-day TTL, self-cleaning
+```
+
+Both `/CJ_goal_run` Phase 5 and `/CJ_goal_todo_fix` Phase 2 acquire a
+lockfile entry before scaffolding. Loser of a cross-skill race emits
+`STATUS=lock_skip` and continues with the next eligible TODO.
 
 **Pre-flight gates (halt the run; under `/loop /CJ_goal_todo_fix` skip-and-continue):**
 - Body too vague (< 50 chars)
@@ -77,7 +109,9 @@ writes to the same. Workbench developers iterating on the script must
 `./scripts/skills-deploy install` to sync changes (the existing convention)
 or invoke `bash skills/CJ_goal_todo_fix/scripts/todo_fix.sh` directly while testing.
 
-## Halt classes
+## Halt classes / end states
+
+Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 
 | Class | Meaning | Loop behavior |
 |-------|---------|---------------|
@@ -89,25 +123,49 @@ or invoke `bash skills/CJ_goal_todo_fix/scripts/todo_fix.sh` directly while test
 | `halted_at_sensitive_surface_user_declined` | (reserved for future interactive AUQ; not emitted in v1.1) Human at the AUQ explicitly declined the sensitive-surface gate. | STOP |
 | `halted_at_scaffold` | /CJ_personal-workflow check refused the scaffolded dir | STOP |
 | `halted_at_pipeline_implement` / `halted_at_pipeline_qa` | /CJ_personal-pipeline returned non-green | STOP |
-
 | `halted_at_ship` | /ship Gate #2 declined or pre-landing review red | STOP |
 | `halted_at_deploy` | /land-and-deploy red (CI / merge / canary / regression) | STOP |
 | `halted_at_todos_md` | Post-ship hash collision; PR merged but TODOS.md write failed; manual reconcile | STOP |
 
+Drain-mode-specific end states (v4.2.0+):
+
+| Class | Meaning | Exit code |
+|-------|---------|-----------|
+| `nothing_to_drain` | Phase 1 returned empty (no actionable TODOs OR all candidates skipped). "No work today." Cron-friendly success. | 0 |
+| `drain_handoff_pending` | Phase 1 enumerated N headings; orchestrator drives the per-TODO chain. Transitional state — emitted before the Phase 2 loop runs. | 0 |
+| `drained_complete` | Phase 2 drained all attempted TODOs green. (Emitted by orchestrator at Phase 3, not by todo_fix.sh directly.) | 0 |
+| `drained_partial` | Phase 2 halt-on-red or cap-reached with remaining work. | 0 |
+
+`nothing_to_drain` exits 0 so `cron` / `/schedule` jobs don't alert on empty
+backlogs. Distinguish via the telemetry `end_state` field.
+
 ## Telemetry
 
-Each invocation appends one JSONL line to `~/.gstack/analytics/CJ_goal_todo_fix.jsonl`:
+**Primary write target.** Each invocation appends one JSONL line to
+`~/.gstack/analytics/CJ_goal_todo_fix.jsonl`:
 
 ```json
 {"ts":"...","todo_heading":"...","t_id":"T000NNN","end_state":"green",
  "pr_url":"https://...","duration_s":123,"parent_skill":"CJ_goal_todo_fix"}
 ```
 
+**Fallback read (v4.2.0+).** Sunset-trip-wire consumers MUST also read
+`~/.gstack/analytics/CJ_goal.jsonl` (the pre-rename path) so historical
+invocations across the v4.0.0 rename window are not lost. The
+`telemetry_invocation_count` helper in `scripts/todo_fix.sh` performs the
+merged read; current-run writes go only to the new path.
+
 Used for v1.1 sunset trip-wire calibration (deferred until 8+ real invocations
 exist; threshold TBD).
 
 ## Notes
 
+- **Shared drain helper (v4.2.0+).** `scripts/drain-one-todo.sh` is the
+  per-TODO inner loop, called by BOTH `/CJ_goal_todo_fix` Phase 2 (drain
+  mode) AND `/CJ_goal_run` Phase 5 (post-deploy TODO drain). One source of
+  truth for: shared lockfile acquire/release, todo_fix.sh delegation, and
+  the CJ_GOAL_HANDOFF block contract that lets the orchestrator drive
+  `/CJ_personal-pipeline` + `/ship` + `/land-and-deploy` via the Skill tool.
 - **Script-extracted (D000017 pattern).** All load-bearing logic lives in
   `scripts/todo_fix.sh` with a `#!/usr/bin/env bash` shebang. Inline bash blocks
   inside SKILL.md routing crash under zsh (`status=` is read-only).

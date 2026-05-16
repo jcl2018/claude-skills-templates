@@ -97,6 +97,8 @@ blocked_by: "S000044"
 
 ## PRs
 
+- [PR #124: v4.1.0 feat: S000045 /CJ_goal_run Phase 5 TODO drain + --no-drain flag](https://github.com/jcl2018/claude-skills-templates/pull/124) — MERGED
+
 ## Files
 
 - skills/CJ_goal_run/run.md (Phase 5 section added — Step 5.5 with sub-steps 5.5.0 through 5.5.5; --no-drain pre-pass in Step 1.0; state file schema extended; Step 5 Branch (a) now flows into Phase 5; Step 6.1 telemetry write extended; Step 6.2 summary prints Phase 5 outcomes; Step 7.1 exit code maps drained_complete / drained_partial to 0)
@@ -126,3 +128,4 @@ blocked_by: "S000044"
 - [smoke-pass] 2026-05-15: TEST-SPEC Smoke Tests S1-S5 all pass. S1 (diff parser correctness): `printf '+### new TODO\n+- not a heading\n' | grep -cE '^\+### '` → 1 (correct). S2 (N==0 silent-skip branch): grep finds `new_todos_count` + silent-skip language in run.md. S3 (--no-drain): grep finds `no-drain` in run.md. S4 (telemetry schema): grep finds `drained_count` in both SKILL.md + run.md. S5 (Phase 5 section structural): `awk '/^## Step 5\.5/,/^## Step 6/'` returns 245 lines (well > 20).
 - [validate-pass] 2026-05-15: `./scripts/validate.sh` exits 0 (Errors: 0, Warnings: 0).
 - [test-pass] 2026-05-15: `./scripts/test.sh` exits 0 (Failures: 0).
+- 2026-05-15 [gates-update] Phase 3: PRs section: linked PR #124 (MERGED).

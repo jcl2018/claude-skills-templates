@@ -35,6 +35,31 @@ if [ -f "$TODOS" ]; then
   PRE_HASH=$(shasum -a 256 "$TODOS" | awk '{print $1}')
 fi
 
+# Telemetry path migration (S000046, v4.2.0):
+#   Primary write target:     ~/.gstack/analytics/CJ_goal_todo_fix.jsonl
+#   Fallback read (legacy):   ~/.gstack/analytics/CJ_goal.jsonl  (pre-rename)
+#
+# Sunset-trip-wire consumers MUST read both files and merge (older invocations
+# pre-date the v4.0.0 rename window). telemetry_invocation_count below is the
+# shared reader; the current run's write goes only to the new path.
+TELEMETRY_LEGACY="$HOME/.gstack/analytics/CJ_goal.jsonl"  # fallback-read only
+
+# Count invocation lines across both telemetry files (post-rename + legacy).
+# Used by sunset trip-wire calibration so the v4.0.0 rename doesn't reset the
+# trip-wire window. Read-only; never writes to either file.
+# shellcheck disable=SC2329  # intentionally exposed for external sunset consumers
+telemetry_invocation_count() {
+  local n_new=0
+  local n_old=0
+  if [ -f "$TELEMETRY" ]; then
+    n_new=$(wc -l < "$TELEMETRY" | tr -d ' ')
+  fi
+  if [ -f "$TELEMETRY_LEGACY" ]; then
+    n_old=$(wc -l < "$TELEMETRY_LEGACY" | tr -d ' ')
+  fi
+  echo $((n_new + n_old))
+}
+
 # Telemetry writer. Called from every exit path; idempotent within a run.
 TELEMETRY_WRITTEN=0
 write_telemetry() {
@@ -81,7 +106,9 @@ halt() {
   echo "[CJ_goal_todo_fix] end_state=$end_state${reason:+ — $reason}"
   write_telemetry "$end_state" "$todo_heading" "$t_id" "$pr_url"
   case "$end_state" in
-    green|idempotent_skip)
+    green|idempotent_skip|nothing_to_drain)
+      # nothing_to_drain (S000046) is cron-friendly success — "no work today".
+      # Exit 0 so scheduled drains don't alert on empty backlogs.
       exit 0
       ;;
     halted_at_preflight|halted_at_sensitive_surface_auto_declined)
@@ -111,23 +138,63 @@ halt() {
 }
 
 # ---- Input parsing ------------------------------------------------------------
+#
+# Recognized flags/args (any order, no required positional):
+#   --dry-run            preview-only; no writes
+#   --max-drain N        cap for native drain mode (default 10; 0 → error, use --dry-run)
+#   <T000NNN>            single-TODO mode by exact T-ID
+#   <fragment>           single-TODO mode by fuzzy heading match
+#   (no args, no flags)  native drain mode — drain up to --max-drain easy-fix TODOs
 
-ARG="${1:-}"
+ARG=""
 DRY_RUN=0
-if [ "$ARG" = "--dry-run" ]; then
-  DRY_RUN=1
-  ARG=""
-fi
-# Handle "--dry-run <thing>" or "<thing> --dry-run"
-if [ "${2:-}" = "--dry-run" ]; then
-  DRY_RUN=1
-fi
-case "${1:-}" in
-  --dry-run)
-    DRY_RUN=1
-    ARG="${2:-}"
+MAX_DRAIN=10        # native-drain cap (S000046 default)
+_next_is_max_drain=0
+for tok in "$@"; do
+  if [ "$_next_is_max_drain" = "1" ]; then
+    MAX_DRAIN="$tok"
+    _next_is_max_drain=0
+    continue
+  fi
+  case "$tok" in
+    --dry-run)    DRY_RUN=1 ;;
+    --max-drain)  _next_is_max_drain=1 ;;
+    --max-drain=*) MAX_DRAIN="${tok#--max-drain=}" ;;
+    --*)
+      echo "Error: unknown flag '$tok'" >&2
+      exit 1
+      ;;
+    *)
+      if [ -z "$ARG" ]; then
+        ARG="$tok"
+      else
+        echo "Error: only one positional arg (T-ID or fragment) accepted (got extra: '$tok')" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+# Validate MAX_DRAIN.
+case "$MAX_DRAIN" in
+  ''|*[!0-9]*)
+    echo "Error: --max-drain must be a non-negative integer (got: '$MAX_DRAIN')" >&2
+    exit 1
     ;;
 esac
+if [ "$MAX_DRAIN" -eq 0 ]; then
+  echo "Error: --max-drain 0 has no effect; use --dry-run for preview instead." >&2
+  exit 1
+fi
+
+# Determine mode: drain (default, no arg) vs single-TODO (T-ID or fragment).
+# DRAIN_MODE=1 enters Phase 1/2/3 below; DRAIN_MODE=0 keeps the existing
+# single-TODO v1.1 flow downstream (preserves all halt classes + behaviors).
+if [ -z "$ARG" ]; then
+  DRAIN_MODE=1
+else
+  DRAIN_MODE=0
+fi
 
 # ---- TODOS.md parser ----------------------------------------------------------
 
@@ -165,6 +232,146 @@ extract_body() {
     capture { print }
   ' "$TODOS"
 }
+
+# ---- Native drain mode (S000046) ---------------------------------------------
+#
+# When invoked with no positional arg, /CJ_goal_todo_fix enumerates easy-fix
+# TODOs via /CJ_suggest --for-skill cj-goal, filters against the per-session
+# skip-list and the cross-skill shared lockfile, then emits a
+# CJ_GOAL_DRAIN_HANDOFF block listing up to $MAX_DRAIN headings.
+#
+# The orchestrator parses the block and invokes drain-one-todo.sh per heading,
+# which in turn delegates to this same todo_fix.sh in single-TODO mode (the
+# T-ID or fragment path below). This keeps the per-TODO chain logic in one
+# place — drain mode is purely a Phase 1 enumeration + Phase 3 summary
+# wrapper.
+#
+# Halt classes used here:
+#   nothing_to_drain — Phase 1 returns empty (cron-friendly; exit 0)
+#   halted_at_resolve — /CJ_suggest itself returned no actionable items
+#
+# Phase 2 itself runs at the orchestrator layer (Skill chain dispatch); this
+# script emits the handoff block and exits 0.
+
+if [ "$DRAIN_MODE" = "1" ]; then
+  echo "[CJ_goal_todo_fix] drain mode: max=$MAX_DRAIN dry_run=$DRY_RUN" >&2
+
+  # Phase 1: enumerate via /CJ_suggest. Pass --for-skill cj-goal so the
+  # preflight-aware ranker (S000042, v3.6.0+) pre-filters P1/L/XL/sensitive/
+  # design-keyword rows. Request 2x the cap so we have headroom for lockfile
+  # skips and skip-list overlaps.
+  SUGGEST_LIMIT=$(( MAX_DRAIN * 2 ))
+  [ "$SUGGEST_LIMIT" -lt 5 ] && SUGGEST_LIMIT=5
+  SUGGEST_BIN=""
+  for p in \
+    "$REPO_ROOT/skills/CJ_suggest/scripts/suggest.sh" \
+    "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh"; do
+    if [ -x "$p" ]; then SUGGEST_BIN="$p"; break; fi
+  done
+  if [ -z "$SUGGEST_BIN" ]; then
+    halt "halted_at_resolve" "/CJ_suggest script not found (workbench or ~/.claude)"
+  fi
+
+  SUGGEST_OUTPUT=""
+  if SUGGEST_OUTPUT=$(bash "$SUGGEST_BIN" --for-skill cj-goal --limit "$SUGGEST_LIMIT" 2>&1); then
+    :
+  else
+    halt "halted_at_resolve" "/CJ_suggest failed: $SUGGEST_OUTPUT"
+  fi
+
+  if [ -z "$SUGGEST_OUTPUT" ] || echo "$SUGGEST_OUTPUT" | grep -q '^No actionable items\.'; then
+    # Empty Phase 1 — distinct end_state for cron consumers.
+    echo "No easy-fix TODOs available."
+    halt "nothing_to_drain" "/CJ_suggest returned no actionable items"
+  fi
+
+  # Parse candidate titles from /CJ_suggest table (column 2).
+  CANDIDATES_FILE=$(mktemp)
+  trap 'rm -f "$CANDIDATES_FILE"' EXIT
+  echo "$SUGGEST_OUTPUT" \
+    | awk -F'|' '/^\| [0-9]+ \|/ {
+        title=$3; gsub(/^[[:space:]]+|[[:space:]]+$/, "", title); print title
+      }' > "$CANDIDATES_FILE"
+
+  ACTIVE_HEADINGS=$(parse_active_headings)
+
+  # Build the drain list: walk candidates in rank order; for each, recover
+  # the full `### Heading (Pn, X)` line; skip if in this-session skip-list
+  # or in the cross-skill lockfile.
+  DRAIN_LOCK_HELPER=""
+  for p in \
+    "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh" \
+    "$HOME/.claude/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"; do
+    if [ -x "$p" ]; then DRAIN_LOCK_HELPER="$p"; break; fi
+  done
+  # (DRAIN_LOCK_HELPER may be empty in dry-run; that's OK — we skip the
+  # lockfile peek in that case.)
+
+  DRAIN_LIST_FILE=$(mktemp)
+  trap 'rm -f "$CANDIDATES_FILE" "$DRAIN_LIST_FILE"' EXIT
+  DRAIN_COUNT=0
+  while IFS= read -r cand_title; do
+    [ -z "$cand_title" ] && continue
+    [ "$DRAIN_COUNT" -ge "$MAX_DRAIN" ] && break
+    full_heading=$(echo "$ACTIVE_HEADINGS" | grep -F -- "$cand_title" | head -1 || true)
+    [ -z "$full_heading" ] && continue
+    # Strip leading `### ` literal. Bash's ${var#### } is parsed as ${var##}
+    # (greedy strip matching empty pattern) — must quote the pattern to make it
+    # literal. Confirmed via printf-od trace 2026-05-15 (S000046 dev).
+    naked_heading="${full_heading#"### "}"
+
+    # Skip if in this-session skip-list.
+    if [ -f "$SKIP_FILE" ] && grep -Fxq "$naked_heading" "$SKIP_FILE"; then
+      continue
+    fi
+
+    # Skip if currently locked by another session (cross-skill lockfile).
+    if [ -n "$DRAIN_LOCK_HELPER" ] && [ "$DRY_RUN" -eq 0 ]; then
+      H_HASH=$(printf '%s' "$naked_heading" | awk '{$1=$1; print}' | shasum -a 256 | awk '{print $1}')
+      DAILY_LOCKFILE="/tmp/cj-goal-active-headings-$(date +%Y%m%d).txt"
+      if [ -f "$DAILY_LOCKFILE" ] && grep -q "^${H_HASH}	" "$DAILY_LOCKFILE"; then
+        continue
+      fi
+    fi
+
+    echo "$naked_heading" >> "$DRAIN_LIST_FILE"
+    DRAIN_COUNT=$((DRAIN_COUNT + 1))
+  done < "$CANDIDATES_FILE"
+
+  if [ "$DRAIN_COUNT" -eq 0 ]; then
+    echo "No easy-fix TODOs available."
+    halt "nothing_to_drain" "all candidates filtered by skip-list / lockfile"
+  fi
+
+  # Dry-run: print the planned list and exit without invoking drain helper.
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "DRY RUN — no writes will happen."
+    echo ""
+    echo "Would drain $DRAIN_COUNT TODOs (cap=$MAX_DRAIN):"
+    nl -w2 -s'. ' < "$DRAIN_LIST_FILE"
+    echo ""
+    echo "Run without --dry-run to execute."
+    write_telemetry "dry_run" "" ""
+    exit 0
+  fi
+
+  # Live mode: emit DRAIN_HANDOFF block. Orchestrator parses, then invokes
+  # drain-one-todo.sh per heading, capturing PR URLs and halt-on-red status.
+  echo "CJ_GOAL_DRAIN_HANDOFF_BEGIN"
+  echo "MAX_DRAIN=$MAX_DRAIN"
+  echo "DRAIN_COUNT=$DRAIN_COUNT"
+  echo "SESSION_ID=$RUN_ID"
+  echo "HEADINGS:"
+  cat "$DRAIN_LIST_FILE"
+  echo "DISPATCH: invoke drain-one-todo.sh dispatch \"<heading>\" \"$RUN_ID\" per HEADING (halt-on-red)"
+  echo "CJ_GOAL_DRAIN_HANDOFF_END"
+
+  # Telemetry for the drain enumeration. End_state=drain_handoff_pending; the
+  # orchestrator that drives the drain writes a follow-up telemetry line per
+  # child (via this same script's single-TODO path) plus a final summary line.
+  write_telemetry "drain_handoff_pending" "" ""
+  exit 0
+fi
 
 # ---- TODO resolution ----------------------------------------------------------
 
