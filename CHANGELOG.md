@@ -3,6 +3,13 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.3] - 2026-05-15
+
+### Changed
+
+- **5 SKILL.md descriptions shortened (closes TODOS row "Adopt concise discovery-focused descriptions from anthropic-docs").** `CJ_goal_run`, `CJ_goal_todo_fix`, `CJ_personal-pipeline`, `CJ_qa-work-item`, `CJ_implement-from-spec` frontmatter `description` fields now follow Anthropic skill-authoring best practices: 1-3 sentences leading with what+when, embedded version-rename history and flag mechanics moved to the SKILL.md body. Improves Claude's skill-selector discrimination across 100+ skills.
+- **`/CJ_improve-queue` Step 3 subagent prompt template wrapped in XML tags (PARTIAL closure of TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** `<role>`, `<task>`, `<constraints>`, `<return-contract>`, `<inputs>` sections replace plain-text `ROLE:` / `TASK:` / `CONSTRAINTS:` headers, per Anthropic prompt-engineering guidance. Remaining: wrap subagent prompts in `CJ_personal-pipeline/pipeline.md`, `CJ_qa-work-item/qa.md`, and `CJ_goal_run/run.md` — each load-bearing enough to warrant its own focused PR. Tracked as the residual half of the original TODOS row.
+
 ## [4.5.2] - 2026-05-15
 
 ### Fixed

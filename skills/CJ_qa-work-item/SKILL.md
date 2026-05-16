@@ -1,6 +1,6 @@
 ---
 name: CJ_qa-work-item
-description: "QA a CJ_personal-workflow work-item (user-story, defect, or task) per its test rows. For user-stories: runs Smoke Tests then dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per TEST-SPEC. For defects/tasks: runs test-plan rows as smoke-equivalent (no E2E subagent in v1). Writes findings to tracker journal; transitions Phase 2 qa-owned gates for user-stories; records [qa-pass] for defects/tasks. Idempotent (re-run on green work-item is NO-OP). Boundary check refuses on incomplete Phase 2."
+description: "QA a CJ_personal-workflow work-item against its test rows. User-stories get smoke tests + a fresh-context E2E subagent per TEST-SPEC; defects and tasks run their test-plan rows as smoke-equivalent. Writes findings to tracker journal, transitions Phase 2 QA-owned gates, refuses on incomplete Phase 2. Idempotent. Use when: 'QA this work-item', 'run tests on the work-item', 'verify the work-item'."
 version: 1.0.0
 allowed-tools:
   - Bash

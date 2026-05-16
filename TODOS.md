@@ -181,7 +181,7 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 
 **RETIRED:** T000029 / v3.5.6 — after closer inspection of validate.sh coverage (11 workbench-wide invariants) vs /CJ_personal-workflow check (per-work-item structural via templates+manifest), neither approach delivers meaningful improvement over v1 (T000028 / Approach D). Reopen if downstream acquires per-repo catalog/manifest surfaces.
 
-### Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)
+### ~~Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)~~ PARTIAL — closed for /CJ_improve-queue Step 3 only (v4.5.3, this PR). **Remaining:** wrap subagent prompt templates in `skills/CJ_personal-pipeline/pipeline.md`, `skills/CJ_qa-work-item/qa.md`, and `skills/CJ_goal_run/run.md` (deferred — load-bearing files, each warrants its own focused PR).
 
 **Source:** https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
 **Verdict:** novel
@@ -190,7 +190,7 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 <!-- source-quote: "XML tags help Claude parse complex prompts unambiguously, especially when your prompt mixes instructions, context, examples, and variable inputs." -->
 <!-- impr-sig=6b0a15bea5c5e84d impr-conf=7/10 -->
 
-### Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)
+### ~~Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)~~ DONE — closed by v4.5.3, this PR. Shortened 5 SKILL.md descriptions (CJ_goal_run, CJ_goal_todo_fix, CJ_personal-pipeline, CJ_qa-work-item, CJ_implement-from-spec) to 1-3 sentence what+when handles; moved version-rename history and flag mechanics out of the discovery surface.
 
 **Source:** https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
 **Verdict:** conflict
