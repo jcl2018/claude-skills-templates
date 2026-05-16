@@ -29,6 +29,14 @@ Follow-up deferred at /CJ_goal_run GATE #2 during PR #150 (D000021, v4.6.5). PR 
 **Route:** `/CJ_scaffold-work-item` (next free D-ID — scan local + open PRs + origin/main; D000020 already collided once this cycle) → `/CJ_goal_run <work-item-dir>`.
 **Reference:** PR #150 CHANGELOG v4.6.5 entry; design doc `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-stoic-swartz-eb489a-design-20260515-231745.md`; D000021 work-item.
 
+### Add worktree-default preamble to `/CJ_goal_investigate` (P3, S)
+Deferred follow-up from F000025 (auto-worktree default for CJ_goal_*). F000025 scoped to `/CJ_goal_run` + `/CJ_goal_todo_fix` because workbench `main` has no `skills/CJ_goal_investigate/` directory — the skill's source-of-truth lives on the unmerged `immutable-watching-sparrow` worktree (branch `add-fid-collision-detection-todo`). Once that parent worktree lands on main, mirror the wiring:
+- Copy `skills/CJ_goal_run/SKILL.md`'s "Default-worktree" block into `skills/CJ_goal_investigate/SKILL.md` before its Path Resolution block; switch `--caller run` → `--caller investigate` (helper maps to branch prefix `cj-inv`).
+- Add a `scripts/test.sh` regression assertion mirroring the two existing F000025 grep blocks (one `grep -q 'cj-worktree-init.sh --caller investigate' "$REPO_ROOT/skills/CJ_goal_investigate/SKILL.md"` near the F000025 block).
+- Run `bash tests/cj-worktree-init.test.sh` — no new helper test case needed (Case 1's branch-prefix assertion is parameterized by caller; pattern already covers `cj-inv-`).
+**Route:** `/CJ_goal_todo_fix "worktree-default preamble"` once the parent worktree merges — small, well-scoped, copy-paste-grade.
+**Reference:** F000025 design doc `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-feat-default-worktree-design-20260516-121928.md` Open Q5 + Dependencies section; `work-items/features/ops/F000025_default_worktree_for_cj_goal/`.
+
 ### ~~`/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)~~ DONE
 Closed by T000032 (v4.6.4, PR #148). Added Source 3 to `skills/CJ_scaffold-work-item/scaffold.md` Step 5.1 ID picker: `git fetch origin main --quiet || true` then `git ls-tree -r --name-only origin/main work-items/` parsed for `${PREFIX}NNNNNN_*_TRACKER.md` basenames; ORIGIN_MAX joins LOCAL_MAX + PR_MAX in the HIGHEST computation. Applied uniformly to F/S/T/D prefixes. Same diff also fixed a latent regex bug in Source 2 (PR-claim scan): the basename pattern required an intermediate slug between the ID and `_TRACKER` but actual basenames are `F000024_TRACKER.md` with no slug — silently matched nothing for every PR scanned until now. `(_[^/]*)?` optional-slug correction restored detection.
 
