@@ -21,6 +21,12 @@ After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY f
 
 **Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
 
+### test-deploy.sh Test 8 fails: skills-deploy doctor not "healthy" post-v4.6.0 (P0, M)
+`./scripts/test.sh` → `./scripts/test-deploy.sh` Test 8 ("Doctor on healthy install") fails (`FAIL: Doctor did not report healthy`), so `test.sh` ends `RESULT: FAIL` (1 failure). Reproduces on pristine `origin/main` at v4.6.0 (PR #140, F000024 `CJ_goal_investigate`) with unrelated changes stashed — **pre-existing, NOT introduced by the EOF-newline bugfix (v4.6.1)**. `skills-deploy doctor` emits non-healthy lines that Test 8 greps for: (1) `WARN: installed version (4.6.0) differs from current (4.5.5)` — the harness/global `~/.claude` collection-version notion is stale vs the VERSION file; (2) `WARN: CJ_goal_investigate — source directory missing in repo` for the freshly-merged experimental skill in the temp install; (3) stale update-check cache (`Cached local: 4.4.2 / remote: 4.5.1`).
+**Repro:** `./scripts/test-deploy.sh; echo $?` → rc=1; assertion at "Test 8: Doctor on healthy install".
+**Likely fix area:** `scripts/skills-deploy` doctor health gate + `scripts/test-deploy.sh` Test 8 expectation — Test 8 should run doctor against an isolated manifest so stale global update-check / collection-version state can't bleed into a temp-dir install's output, AND/OR decide whether v4.6.0's catalog+doctor wiring for the `experimental` `CJ_goal_investigate` skill is incomplete (doctor shouldn't WARN "source directory missing" when the catalog `files[0]` dir exists in-repo).
+**Found:** during /ship of the /CJ_improve-queue EOF-newline fix (v4.6.1); triaged pre-existing, operator chose ship + file P0.
+
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
 `CJ_*`: `CJ_personal-workflow`, `CJ_system-health`, `CJ_scaffold-work-item`,

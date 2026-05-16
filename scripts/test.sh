@@ -1900,6 +1900,56 @@ else
   echo "  SKIP: python3 not available, skipping S000010 install tests"
 fi
 
+# ---------- CJ_improve-queue: append path keeps TODOS.md POSIX-clean ----------
+# Regression guard: build_row()'s output is captured via $(...), which strips
+# the trailing newline; atomic_append must re-add exactly one so TODOS.md ends
+# with a single \n after every append. All three modes (audit/evaluate/research)
+# funnel through cmd_apply -> atomic_append, so this one path covers them all.
+# A prior fix (commit 8c2ee8f) only patched the artifact, not the source — this
+# test fails if the EOF newline regresses (dropped) or doubles (trailing blank
+# line), on the FIRST append and on a SECOND consecutive append.
+echo ""
+echo "Checking CJ_improve-queue append path keeps TODOS.md POSIX-clean..."
+_IQ_SCRIPT="$REPO_ROOT/skills/CJ_improve-queue/scripts/improve_queue.sh"
+_IQ_FIX="$REPO_ROOT/tests/fixtures/CJ_improve-queue"
+if [ -x "$_IQ_SCRIPT" ] && [ -f "$_IQ_FIX/sample-verdict-novel.json" ] && [ -f "$_IQ_FIX/sample-verdict-conflict.json" ]; then
+  _IQ_TMP=$(mktemp -d -t improve-queue-eof.XXXXXX)
+  (
+    cd "$_IQ_TMP"
+    git init -q
+    git config user.email test@test.local
+    git config user.name test
+    printf '# TODOS\n\n- existing row\n' > TODOS.md
+    git add TODOS.md && git commit -qm init
+  ) >/dev/null 2>&1
+
+  # assert TODOS.md ends with exactly one LF: last 2 bytes hex = "XX0a", XX != 0a.
+  _iq_assert_single_lf() {  # $1=file  $2=label
+    local l2
+    l2=$(tail -c 2 "$1" | xxd -p | tr -d '\n')
+    case "$l2" in
+      0a0a) fail_test "$2: TODOS.md EOF has a trailing blank line (double \\n, last2=[$l2])" ;;
+      *0a)  ok "$2: TODOS.md ends with exactly one trailing newline" ;;
+      *)    fail_test "$2: TODOS.md missing trailing newline (last2=[$l2])" ;;
+    esac
+  }
+
+  # 1st append (novel verdict).
+  cat "$_IQ_FIX/sample-verdict-novel.json" | ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply ) >/dev/null 2>&1
+  _iq_assert_single_lf "$_IQ_TMP/TODOS.md" "CJ_improve-queue 1st append"
+
+  # Commit row1, then 2nd append (conflict verdict — distinct signature, so it
+  # appends rather than NO-OPs). Proves the fix recurs cleanly across appends.
+  ( cd "$_IQ_TMP" && git add -A && git commit -qm row1 ) >/dev/null 2>&1
+  cat "$_IQ_FIX/sample-verdict-conflict.json" | ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply ) >/dev/null 2>&1
+  _iq_assert_single_lf "$_IQ_TMP/TODOS.md" "CJ_improve-queue 2nd append"
+
+  unset -f _iq_assert_single_lf
+  rm -rf "$_IQ_TMP" /tmp/cj-improve-queue-lock
+else
+  echo "  SKIP: CJ_improve-queue script or fixtures missing, skipping EOF regression test"
+fi
+
 # T000011 MIRROR_SPECS sync-check block deleted in S000052 (F000023).
 # The validate.sh Error check 10 MIRROR_SPECS machinery this block tested
 # (drift detection, orphan FAIL-vs-WARN policy, manifest schema parity) was
