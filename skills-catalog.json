@@ -150,7 +150,7 @@
   {
     "name": "CJ_implement-from-spec",
     "version": "1.0.0",
-    "description": "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (≤2 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
+    "description": "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (\u22642 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
     "source": "local",
     "depends": {
       "skills": [
@@ -172,7 +172,7 @@
   {
     "name": "CJ_personal-pipeline",
     "version": "1.1.0",
-    "description": "INTERNAL -- invoked by /CJ_run. Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
+    "description": "INTERNAL -- invoked by /CJ_goal_run. Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
     "source": "local",
     "depends": {
       "skills": [
@@ -195,9 +195,9 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_run",
-    "version": "0.5.0",
-    "description": "Unified pipeline entry point. Accepts (a) an APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy), (b) a work-item directory -> Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, (c) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Phase 4 invokes /land-and-deploy with --suppress-readiness-gate (opt-in upstream flag mirroring CJ_personal-pipeline's --suppress-final-gate pattern) so green end-to-end runs surface only the autoplan + /ship AUQs; red signals (CI, merge conflict, free-test regression, deploy/canary failure) still halt. Branch(f) open_pr mode auto-continues into /land-and-deploy with the same flag + inline-parsed PR_NUM. Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
+    "name": "CJ_goal_run",
+    "version": "1.0.0",
+    "description": "Unified pipeline entry point (formerly /CJ_run; renamed v4.0.0). Accepts (a) an APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy), (b) a work-item directory -> Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, (c) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Phase 4 invokes /land-and-deploy with --suppress-readiness-gate (opt-in upstream flag mirroring CJ_personal-pipeline's --suppress-final-gate pattern) so green end-to-end runs surface only the autoplan + /ship AUQs; red signals (CI, merge conflict, free-test regression, deploy/canary failure) still halt. Branch(f) open_pr mode auto-continues into /land-and-deploy with the same flag + inline-parsed PR_NUM. Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
     "source": "local",
     "depends": {
       "skills": [
@@ -211,16 +211,16 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/CJ_run/SKILL.md",
-      "skills/CJ_run/run.md"
+      "skills/CJ_goal_run/SKILL.md",
+      "skills/CJ_goal_run/run.md"
     ],
     "templates": [],
-    "status": "experimental"
+    "status": "active"
   },
   {
     "name": "CJ_suggest",
     "version": "1.1.0",
-    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal.",
+    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -242,9 +242,9 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_goal",
-    "version": "1.2.0",
-    "description": "Auto-resolve a TODO from TODOS.md into a shipped PR. Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns fix-this-TODO into a merged PR. Workbench-only; halt-on-red preserved end-to-end.",
+    "name": "CJ_goal_todo_fix",
+    "version": "2.0.0",
+    "description": "Auto-resolve a TODO from TODOS.md into a shipped PR (formerly /CJ_goal; renamed v4.0.0). Bridges TODOS.md rows to the existing /CJ_personal-pipeline + /ship + /land-and-deploy chain via an auto-scaffolded T-task work-item. One keystroke turns fix-this-TODO into a merged PR. Workbench-only; halt-on-red preserved end-to-end.",
     "source": "local",
     "depends": {
       "skills": [
@@ -266,8 +266,44 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/CJ_goal/SKILL.md",
-      "skills/CJ_goal/scripts/goal.sh"
+      "skills/CJ_goal_todo_fix/SKILL.md",
+      "skills/CJ_goal_todo_fix/scripts/todo_fix.sh"
+    ],
+    "templates": [],
+    "status": "active"
+  },
+  {
+    "name": "CJ_run",
+    "version": "4.0.0",
+    "description": "DEPRECATED ALIAS \u2014 renamed to /CJ_goal_run in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_run with the same args. Will be removed in v5.0.0.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_goal_run"
+      ],
+      "tools": []
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_run/SKILL.md"
+    ],
+    "templates": [],
+    "status": "experimental"
+  },
+  {
+    "name": "CJ_goal",
+    "version": "4.0.0",
+    "description": "DEPRECATED ALIAS \u2014 renamed to /CJ_goal_todo_fix in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_todo_fix with the same args. Will be removed in v5.0.0.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_goal_todo_fix"
+      ],
+      "tools": []
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_goal/SKILL.md"
     ],
     "templates": [],
     "status": "experimental"

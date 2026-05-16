@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# /CJ_goal — auto-resolve a TODOS.md row into a shipped PR.
+# /CJ_goal_todo_fix — auto-resolve a TODOS.md row into a shipped PR.
 # Source design: ~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-main-design-20260514-162927.md
 # Work-item: work-items/features/ops/F000019_cj_goal_todo_bridge/S000041_skill_skeleton/
 
@@ -13,7 +13,7 @@ _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null
 
 # Repo-root detection. Fail loud if not in a git repo.
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  echo "Error: /CJ_goal must be run inside a git repo (git rev-parse --show-toplevel failed)." >&2
+  echo "Error: /CJ_goal_todo_fix must be run inside a git repo (git rev-parse --show-toplevel failed)." >&2
   exit 1
 }
 cd "$REPO_ROOT"
@@ -25,7 +25,7 @@ WORKITEMS_DIR="work-items"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d-%H%M%S)-$$}"
 START_EPOCH=$(date +%s)
 SKIP_FILE="/tmp/cj-goal-skip-${RUN_ID}.txt"
-TELEMETRY="$HOME/.gstack/analytics/CJ_goal.jsonl"
+TELEMETRY="$HOME/.gstack/analytics/CJ_goal_todo_fix.jsonl"
 mkdir -p "$(dirname "$TELEMETRY")"
 
 # Capture TODOS.md pre-image hash for Step 5 hash-verify (covers the
@@ -57,7 +57,7 @@ write_telemetry() {
       --arg end_state "$end_state" \
       --arg pr_url "$pr_url" \
       --argjson duration_s "$duration_s" \
-      --arg parent_skill "CJ_goal" \
+      --arg parent_skill "CJ_goal_todo_fix" \
       '{ts:$ts,todo_heading:$todo_heading,t_id:$t_id,end_state:$end_state,pr_url:$pr_url,duration_s:$duration_s,parent_skill:$parent_skill}' \
       >> "$TELEMETRY" 2>/dev/null || true
   else
@@ -66,7 +66,7 @@ write_telemetry() {
     _h=$(printf '%s' "$todo_heading" | tr -d '\\"')
     _i=$(printf '%s' "$t_id" | tr -d '\\"')
     _u=$(printf '%s' "$pr_url" | tr -d '\\"')
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"todo_heading\":\"$_h\",\"t_id\":\"$_i\",\"end_state\":\"$end_state\",\"pr_url\":\"$_u\",\"duration_s\":$duration_s,\"parent_skill\":\"CJ_goal\"}" >> "$TELEMETRY" 2>/dev/null || true
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"todo_heading\":\"$_h\",\"t_id\":\"$_i\",\"end_state\":\"$end_state\",\"pr_url\":\"$_u\",\"duration_s\":$duration_s,\"parent_skill\":\"CJ_goal_todo_fix\"}" >> "$TELEMETRY" 2>/dev/null || true
   fi
 }
 
@@ -78,7 +78,7 @@ halt() {
   local todo_heading="${3:-}"
   local t_id="${4:-}"
   local pr_url="${5:-}"
-  echo "[CJ_goal] end_state=$end_state${reason:+ — $reason}"
+  echo "[CJ_goal_todo_fix] end_state=$end_state${reason:+ — $reason}"
   write_telemetry "$end_state" "$todo_heading" "$t_id" "$pr_url"
   case "$end_state" in
     green|idempotent_skip)
@@ -181,12 +181,12 @@ if [ -z "$ARG" ]; then
   # /CJ_suggest is read-only and writes a markdown table to stdout. Column 2
   # contains the heading title (without `### ` prefix). Skip-list filter:
   # exclude any heading present in $SKIP_FILE (per-session continue mechanic
-  # for /loop /CJ_goal).
+  # for /loop /CJ_goal_todo_fix).
   #
   # S000042 (CJ_suggest v1.1.0): pass --for-skill cj-goal --limit 15 so
-  # /CJ_suggest pre-filters rows that would trip /CJ_goal preflight (P1, size
+  # /CJ_suggest pre-filters rows that would trip /CJ_goal_todo_fix preflight (P1, size
   # L|XL, sensitive-surface, design-needed) AT RANKING TIME and returns up to
-  # 15 rows instead of the default 5. Defense-in-depth: /CJ_goal's own
+  # 15 rows instead of the default 5. Defense-in-depth: /CJ_goal_todo_fix's own
   # preflight (gates 1-5 below) still runs after this — the pre-filter is an
   # optimization, not a replacement.
   SUGGEST_OUTPUT=""
@@ -302,7 +302,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # v1.2 (S000044, v3.6.5): added `skills/[^/]+/.+\.md` to catch markdown skill
   # definition files (SKILL.md, pipeline.md, scaffold.md, implement.md, etc.)
   # which are just as load-bearing as scripts under skills/*/scripts/. Surfaced
-  # by /loop /CJ_goal iter 3 on 2026-05-15 — T000031 picked /CJ_personal-pipeline
+  # by /loop /CJ_goal_todo_fix iter 3 on 2026-05-15 — T000031 picked /CJ_personal-pipeline
   # work which lives in pipeline.md (no scripts/ subdir) and didn't trip the gate.
   SENSITIVE_MATCH=""
   if echo "$RESOLVED_BODY" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|skills/[^/]+/.+\.md|\.git/hooks/|templates/CJ_personal-workflow/'; then
@@ -311,7 +311,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     # (the secure choice). If the harness wants to override, --dry-run shows
     # the surface match and the user re-runs with a sensitive-surface-aware
     # entry point (manual scaffold).
-    echo "[CJ_goal] sensitive surface in TODO body: $SENSITIVE_MATCH" >&2
+    echo "[CJ_goal_todo_fix] sensitive surface in TODO body: $SENSITIVE_MATCH" >&2
     halt "halted_at_sensitive_surface_auto_declined" "TODO touches sensitive surface(s): $SENSITIVE_MATCH — manual scaffold recommended" "$NAKED_HEADING"
   fi
 
@@ -321,7 +321,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # design rework, not implementation" signals. T000031 ("Re-do brief-mode for
   # /CJ_personal-pipeline") had step (1) literally say `/office-hours from a
   # new worktree` but slipped past the original regex (only caught bare-word
-  # `investigate|spike|unclear|...`). Surfaced by /loop /CJ_goal iter 3 on
+  # `investigate|spike|unclear|...`). Surfaced by /loop /CJ_goal_todo_fix iter 3 on
   # 2026-05-15. NB: re-?do matches `redo|re-do` not `rename|refactor` (keeps
   # scope to genuine re-design signals).
   if echo "$RESOLVED_BODY" | grep -qiE '\b(needs design|figure out|investigate|spike|unclear|need to decide|TBD|redesign|re-?do|re-?ground|rewrite|rescope)\b|/office-hours\b'; then
@@ -480,7 +480,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     /^## Insights[[:space:]]*$/ {
       print $0
       print ""
-      print "<!-- Auto-injected from TODOS.md body by /CJ_goal -->"
+      print "<!-- Auto-injected from TODOS.md body by /CJ_goal_todo_fix -->"
       print ""
       while ((getline line < body_file) > 0) print line
       close(body_file)
@@ -505,8 +505,8 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # Update Log placeholder line.
   TRACKER_TMP=$(mktemp)
   awk -v t="$TODAY" -v h="$NAKED_HEADING" '
-    /^- \{YYYY-MM-DD\}: Created\./ { print "- " t ": Created. Auto-scaffolded by /CJ_goal from TODOS.md ### " h; next }
-    /^- [0-9]{4}-[0-9]{2}-[0-9]{2}: Created\. \{brief scope from parent work item\}$/ { print "- " t ": Created. Auto-scaffolded by /CJ_goal from TODOS.md ### " h; next }
+    /^- \{YYYY-MM-DD\}: Created\./ { print "- " t ": Created. Auto-scaffolded by /CJ_goal_todo_fix from TODOS.md ### " h; next }
+    /^- [0-9]{4}-[0-9]{2}-[0-9]{2}: Created\. \{brief scope from parent work item\}$/ { print "- " t ": Created. Auto-scaffolded by /CJ_goal_todo_fix from TODOS.md ### " h; next }
     { print }
   ' "$TRACKER_OUT" > "$TRACKER_TMP" && mv "$TRACKER_TMP" "$TRACKER_OUT"
 
@@ -584,12 +584,12 @@ fi
 
 # The actual dispatch must reach /CJ_personal-pipeline + /ship +
 # /land-and-deploy. From inside a bash subshell launched by SKILL.md routing,
-# we cannot synchronously invoke /skill commands. Instead, /CJ_goal prints a
+# we cannot synchronously invoke /skill commands. Instead, /CJ_goal_todo_fix prints a
 # structured handoff block and exits with a marker end_state. The wrapping
-# Claude agent (which loaded /CJ_goal via the Skill tool) reads stdout,
+# Claude agent (which loaded /CJ_goal_todo_fix via the Skill tool) reads stdout,
 # parses the handoff block, and invokes the three sub-skills in sequence.
 #
-# This is the same pattern /CJ_run uses internally for sub-skill chains —
+# This is the same pattern /CJ_goal_run uses internally for sub-skill chains —
 # the orchestration lives at the agent layer, the script emits the directive.
 #
 # Handoff block contract:

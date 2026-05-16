@@ -3,6 +3,38 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.0.0] - 2026-05-15
+
+### Changed (BREAKING — slash-command surface rename)
+
+- **Batched rename of /CJ_run + /CJ_goal into the `_goal_*` family (F000021 / S000044).**
+  - `git mv skills/CJ_run → skills/CJ_goal_run` (unified pipeline entry point).
+  - `git mv skills/CJ_goal → skills/CJ_goal_todo_fix` (auto-resolve a TODO into a shipped PR).
+  - `git mv skills/CJ_goal_todo_fix/scripts/goal.sh → todo_fix.sh` (cosmetic; matches the new skill name).
+  - `skills-catalog.json`: two existing entries renamed (`CJ_run` → `CJ_goal_run` v1.0.0; `CJ_goal` → `CJ_goal_todo_fix` v2.0.0; both `status: active`).
+  - `rules/skill-routing.md`, workbench `CLAUDE.md`, and supporting skill descriptions (`CJ_personal-pipeline`, `CJ_suggest`, template tracker) updated to reference the new names.
+  - Telemetry paths migrated: writes go to `~/.gstack/analytics/CJ_goal_run.jsonl` and `~/.gstack/analytics/CJ_goal_todo_fix.jsonl`. The `/CJ_goal_run` sunset trip-wire fallback-reads the legacy `~/.gstack/analytics/CJ_run.jsonl` during the v4.x grace window so historical invocations are still counted; reads of the legacy `CJ_goal.jsonl` are not currently wired into a sunset path (the canonical `/CJ_goal_todo_fix` skill doesn't yet implement a sunset trip-wire — file is preserved on disk for forward use).
+
+### Added
+
+- **Two new deprecated-alias skills (`skills/CJ_run/SKILL.md`, `skills/CJ_goal/SKILL.md`).** Thin SKILL.md wrappers (no scripts, no run.md) that print a one-line deprecation banner ("renamed to /CJ_goal_run; will be removed in v5.0.0" / "renamed to /CJ_goal_todo_fix; ..."), then delegate to the canonical skill via the Skill tool. Catalog entries marked `status: deprecated`. Soft-cutover so operator muscle memory survives the rename window.
+
+### Migration notes
+
+- **For operators:** `/CJ_run <design-doc-path>` and `/CJ_goal <T-ID>` continue to work during v4.x with the deprecation banner. Update muscle memory at your pace; the aliases are removed in v5.0.0.
+- **For downstream consumers (e.g., jcl2018-portfolio):** pull this workbench, run `./scripts/skills-deploy install`. The catalog now exposes 4 entries in this family (2 canonical + 2 deprecated aliases); `skills-deploy doctor` reports the alias entries as INFO, not WARN. No code-level migration required during v4.x.
+- **For CI / scripted invocations:** prefer the canonical names (`/CJ_goal_run`, `/CJ_goal_todo_fix`) starting today. v5.0.0 will remove the alias dirs and catalog entries.
+
+### Why a major bump for a rename
+
+The slash-command surface is a public contract. Renaming it is breaking-by-name even when semantics are preserved by aliases, so semver compliance requires a major bump (3.x → 4.x). No semantic changes ship in this version; the only operator-visible delta is the new canonical names.
+
+### Follow-up work (F000021 family)
+
+- **S000045** — Phase 5 drain in /CJ_goal_run (forward-iterate /loop /CJ_goal_todo_fix after Phase 4 completes).
+- **S000046** — native drain semantics + drain-one-todo.sh script.
+- **S000047** — `--quiet` schedule-friendly flag.
+
 ## [3.6.5] - 2026-05-15
 
 ### Changed
