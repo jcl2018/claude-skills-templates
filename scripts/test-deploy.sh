@@ -575,6 +575,58 @@ fi
 unset SKILLS_TEMPLATES_CACHE
 teardown_env
 
+echo "Test U29: install writes manifest.upstream_url from source origin (T000031)"
+setup_env
+"$DEPLOY" install CJ_personal-workflow >/dev/null 2>&1
+upstream=$(jq -r '.upstream_url // empty' "$SKILLS_DEPLOY_MANIFEST")
+expected=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)
+if [ -n "$upstream" ] && [ "$upstream" = "$expected" ]; then
+  ok "upstream_url captured ($upstream)"
+else
+  fail_test "Expected upstream_url=$expected, got: $upstream"
+fi
+teardown_env
+
+echo "Test U30: update-check suppresses banner when origin URL mismatches manifest pin (T000031)"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+# Write manifest with a bogus upstream_url that does NOT match the clone's actual origin
+printf '{"source":"%s","collection_version":"1.0.0","upstream_url":"git@github.com:attacker/evil.git","skills":{},"templates":{}}\n' "$clone" > "$SKILLS_TEMPLATES_MANIFEST"
+out=$("$UPDATE_CHECK" 2>&1)
+banner=$(echo "$out" | grep -c '^SKILLS_UPGRADE_AVAILABLE' || true)
+warn=$(echo "$out" | grep -c 'origin URL mismatch' || true)
+if [ "$banner" = "0" ] && [ "$warn" -ge "1" ]; then
+  ok "Banner suppressed and warning emitted on origin mismatch"
+else
+  fail_test "Expected suppression + warning, got banner=$banner warn=$warn out=$out"
+fi
+teardown_update_env
+
+echo "Test U31: update-check emits banner when origin URL matches manifest pin (T000031)"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+actual_origin=$(git -C "$clone" remote get-url origin 2>/dev/null)
+printf '{"source":"%s","collection_version":"1.0.0","upstream_url":"%s","skills":{},"templates":{}}\n' "$clone" "$actual_origin" > "$SKILLS_TEMPLATES_MANIFEST"
+out=$("$UPDATE_CHECK" 2>&1 | head -1)
+if echo "$out" | grep -q '^SKILLS_UPGRADE_AVAILABLE 1\.0\.0 1\.1\.0$'; then
+  ok "Banner emits normally when origin matches pin"
+else
+  fail_test "Expected SKILLS_UPGRADE_AVAILABLE with matching pin, got: $out"
+fi
+teardown_update_env
+
+echo "Test U32: pre-T000031 manifest (no upstream_url field) still gets banner (backward compat)"
+setup_update_env >/dev/null
+clone=$(make_fake_clone "1.0.0" "1.1.0")
+write_manifest "$clone" "1.0.0"  # legacy helper omits upstream_url
+out=$("$UPDATE_CHECK" 2>&1 | head -1)
+if echo "$out" | grep -q '^SKILLS_UPGRADE_AVAILABLE'; then
+  ok "Pre-T000031 manifest skips pin check (no field → not pinned)"
+else
+  fail_test "Expected banner for legacy manifest, got: $out"
+fi
+teardown_update_env
+
 # === Subdirectory tests ===
 echo ""
 echo "=== Subdirectory deployment tests ==="

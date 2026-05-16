@@ -3,6 +3,112 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.5] - 2026-05-15
+
+### Changed
+
+- **S000052 (F000023 phase 1): invert the work-copilot/ byte-mirror.** `work-copilot/`
+  is now the canonical source-of-truth for the Copilot consumer bundle.
+  `scripts/validate.sh` Error check 10 collapses from ~190 lines of MIRROR_SPECS
+  machinery (array + per-shape dispatch helpers + orphan reporter) into a single
+  existence-check sweep. `EXPECTED_BUNDLE_FILES` grew from 10 entries to 61,
+  covering every file the bundle is required to ship (17 templates, 1 WORKFLOW.md,
+  7 reference, 3 philosophy, 14 examples, 8 fixtures, 1 manifest, plus the 10
+  pre-existing F000015 prompts + domain templates). `validate.sh` size: 684 → 545.
+- **`scripts/test.sh`: delete T000011 MIRROR_SPECS sync-check block.** The seven
+  smoke tests (drift detection, orphan FAIL-vs-WARN policy, manifest schema parity)
+  validated the byte-mirror machinery that S000052 removed; with no mirror there
+  is no drift surface to test. The existence-check that replaces it is exercised
+  directly by every `./scripts/validate.sh` CI run.
+
+### Fixed
+
+- **`scripts/test.sh` zzz-test-scaffold cleanup race.** The integration test that
+  manually creates a `skills/zzz-test-scaffold/` fixture and adds it to the
+  catalog only cleaned up via the EXIT trap, but `scripts/test-deploy.sh` runs
+  earlier in the same script and reads the modified catalog. From a git worktree,
+  `skills-deploy doctor` resolved the source to the main toplevel (per T000025)
+  while the fixture lived in the worktree path, so Test 8 ("Doctor on healthy
+  install") consistently failed with `WARN: zzz-test-scaffold — source directory
+  missing in repo`. Now the fixture is removed inline once the manual-scaffold
+  block completes; the EXIT trap remains as a fallback for unexpected exits.
+
+### Preserved
+
+- `deprecated/CJ_company-workflow/` stays on disk for this phase — it is now
+  structurally orphaned (no script reads it for byte-mirror purposes) but
+  remains intact until S000053 deletes it together with the catalog entry,
+  CJ_company-workflow-specific test.sh assertions, `template-registry.json`
+  entry, and `CLAUDE.md` / `README.md` references.
+- `scripts/copilot-deploy.py`: unchanged. The bundle continues to deploy from
+  `work-copilot/` byte-identical to before. Already-deployed Copilot bundles
+  in target repos are unaffected.
+
+## [4.5.3] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_suggest --for-skill cj-goal` filter: three new heading-level gates (3c/3d/3e)** that catch rows `/CJ_goal_todo_fix` drain mode would halt on at preflight. The drain helper requires `(Pn, X)` suffix with `P != 1` and size `S|M`; rows under date-trigger H2 sections (e.g. `## Scheduled checkpoints`), rows with `YYYY-MM-DD —` heading prefix, and rows carrying terminal-marker literals (`WON'T FIX`, `SUPERSEDED`, `SHIPPED`, `RESOLVED`) all currently leak through and waste drain iterations on `halted_at_preflight`. Gates fire before body extraction (cheap heading-only checks) and emit `[CJ_suggest] excluded: ... reason=...` log lines to stderr matching the existing exclusion-log shape. Workbench TODOs unchanged (no false positives); portfolio-repo fallback-mode TODOs now correctly admit only drainable rows.
+
+## [4.5.4] - 2026-05-15
+
+### Changed
+
+- **All remaining workbench subagent prompt templates wrapped in XML tags (closes TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** Follow-on to v4.5.3 which did `/CJ_improve-queue` Step 3 only. This PR converts the remaining 5 dispatch templates:
+  - `skills/CJ_personal-pipeline/pipeline.md` Step 3 (Phase 1 scaffold subagent), Step 5.3 (implement subagent), Step 7 (Phase 3 QA subagent) — three dispatches that drive the full personal-workflow pipeline.
+  - `skills/CJ_qa-work-item/qa.md` Step 7 (E2E QA engineer subagent) — the leaf-node subagent that verifies E2E acceptance criteria.
+  - `skills/CJ_goal_run/run.md` Step 3 (CJ_personal-pipeline subagent dispatch under --suppress-final-gate) — the top-level pipeline-runner dispatch.
+
+  Each template now uses `<role>` / `<task>` / `<constraints>` / `<return-contract>` / `<inputs>` XML tags per Anthropic prompt-engineering guidance, so subagents parse mixed instructions + variable inputs unambiguously. No behavioral change to the contracts themselves — only the prompt-template structure. Closes the row that opened in v4.4.0 (F000022) and partially closed in v4.5.3.
+
+## [4.5.3] - 2026-05-15
+
+### Changed
+
+- **5 SKILL.md descriptions shortened (closes TODOS row "Adopt concise discovery-focused descriptions from anthropic-docs").** `CJ_goal_run`, `CJ_goal_todo_fix`, `CJ_personal-pipeline`, `CJ_qa-work-item`, `CJ_implement-from-spec` frontmatter `description` fields now follow Anthropic skill-authoring best practices: 1-3 sentences leading with what+when, embedded version-rename history and flag mechanics moved to the SKILL.md body. Improves Claude's skill-selector discrimination across 100+ skills.
+- **`/CJ_improve-queue` Step 3 subagent prompt template wrapped in XML tags (PARTIAL closure of TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** `<role>`, `<task>`, `<constraints>`, `<return-contract>`, `<inputs>` sections replace plain-text `ROLE:` / `TASK:` / `CONSTRAINTS:` headers, per Anthropic prompt-engineering guidance. Remaining: wrap subagent prompts in `CJ_personal-pipeline/pipeline.md`, `CJ_qa-work-item/qa.md`, and `CJ_goal_run/run.md` — each load-bearing enough to warrant its own focused PR. Tracked as the residual half of the original TODOS row.
+
+## [4.5.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` allowlist subdomain matching (follow-on to v4.5.0).** `is_allowlisted()` in `scripts/improve_queue.sh` used exact-host comparison only, rejecting legitimate Anthropic surfaces like `code.claude.com`, `platform.claude.com`, `docs.claude.com`, `support.claude.com` — all of which are subdomains of the allowlisted `claude.com` host. Found by the Phase 3 research-mode killer test: WebSearch returned 6 valid `*.claude.com` results, all blocked. Fix: add suffix match (`*.h`) alongside exact match in the allowlist loop. Typosquat protection holds (`evilclaude.com` still rejected because the literal `.` is required for suffix match). Verified with both positive (`code.claude.com` accepted) and negative (`evilclaude.com` rejected) smoke tests.
+
+### Added (via Phase 3 research mode)
+
+- **Draft TODO: Adopt XML-tag delimited subagent prompts (novel, conf=7).** Anthropic prompt-engineering docs recommend wrapping prompt sections in named XML tags for unambiguous parsing. Workbench currently uses plain-text `ROLE:`/`TASK:`/`CONSTRAINTS:` section headers in subagent dispatch templates (CJ_personal-pipeline, CJ_improve-queue, CJ_qa-work-item, CJ_goal_run). Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
+- **Draft TODO: Adopt concise discovery-focused descriptions (conflict, conf=8).** Anthropic skill-authoring best practices say the SKILL.md description should be a 1-2 sentence what+when discovery handle. Workbench descriptions for CJ_goal_run, CJ_goal_todo_fix, CJ_personal-pipeline, CJ_qa-work-item, and CJ_implement-from-spec embed version-rename history, flag mechanics, and changelog detail — too long for Claude's skill-selector to discriminate cleanly across 100+ skills. Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
+
+## [4.5.1] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` SKILL.md frontmatter sync (follow-on to v4.5.0).** Frontmatter `description` and `version` fields were stale ("Phase 1 MVP / 0.1.0") even though Phase 2 + Phase 3 sections shipped in the body. The routing layer reads the SKILL.md frontmatter description for skill discovery — without this fix, `/CJ_improve-queue` would not surface for "audit my skills" or "research <topic>" routing phrases. Also adds `WebSearch` to `allowed-tools` so the Phase 3 research flow's WebSearch invocation passes the tool-restriction gate.
+
+## [4.5.0] - 2026-05-15
+
+### Added
+
+- **`/CJ_improve-queue audit` Phase 2 (S000050).** Offline repo self-scan, no network. Two deterministic checks per skill: (1) **stale-skill** — no entry in `~/.gstack/analytics/skill-usage.jsonl` within last 30 days (confidence 6, REVIEW-flagged because analytics naming drift can produce false positives); (2) **missing-frontmatter** — `SKILL.md` lacks `version:` or `allowed-tools:` (confidence 9, deterministic). Each finding goes through the same `cmd_apply` path the evaluate flow uses, with synthetic `repo-audit://<check>/<target>` URLs that sidestep the allowlist gate and produce stable signatures for idempotency. Re-running audit on an unchanged repo is a NO-OP.
+
+- **`/CJ_improve-queue research <topic>` Phase 3 (S000051).** Orchestrator-driven flow (no new bash code) composing Phase 1 primitives. Three steps: (R1) privacy AskUserQuestion gate before sending topic to WebSearch provider (matches `/office-hours` Phase 2.75 convention); (R2) WebSearch capped at 3 results, filtered to allowlist hosts only (`--allow-untrusted-source` NOT respected — trust boundary stays tight); (R3) per-result loop calling existing `evaluate-prepare` + Agent dispatch + `apply`. Aggregates into a single summary line.
+
+### Tested
+
+- **Killer test on 3 real Anthropic docs URLs**: `claude-code/skills` → match (SKILL.md authoring conventions already adopted), `claude-code/hooks-guide` → reject (harness/settings layer, orthogonal to skills), `claude-code/sub-agents` → match (fresh-context dispatch already in CJ_personal-pipeline + CJ_goal_run). No false-positive rows appended; all 3 verdicts correctly classified. Confirms end-to-end: HANDOFF emit, subagent dispatch, WebFetch, JSON verdict parse, apply gates, allowlist all working.
+
+## [4.4.3] - 2026-05-15
+
+### Added
+
+- **Origin URL pinning for the skills-update-check upgrade path (T000031).** `skills-deploy install` now captures `git remote get-url origin` of the source repo at install time and writes it to `manifest.upstream_url` in `~/.claude/.skills-templates.json`. `skills-update-check` reads the pinned URL and, when set, compares it against the source repo's current `origin` URL. On mismatch, the upgrade banner is suppressed and a warning is emitted to stderr telling the user to re-run `skills-deploy install` from a trusted clone to re-pin. Hardening: closes the manifest-tampering window where a writer of `~/.claude/.skills-templates.json` could redirect `git -C "$source" pull --ff-only origin main` to attacker-controlled code. Backward-compatible: pre-T000031 manifests (no `upstream_url` field) skip the check and behave exactly as before. Covered by 4 new tests in `scripts/test-deploy.sh` (U29-U32). Closes TODOS:58.
+
+## [4.4.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_suggest` skips `<!--impr-draft-->` headings (S000049, follow-on to F000022).** One-line `awk` filter extension in `suggest.sh` active-band scan (both `CJ_personal-workflow` and domain-grouped TODOS conventions). Without this, draft rows emitted by `/CJ_improve-queue evaluate` rank in `/CJ_suggest`'s top-N alongside real backlog — defeating the invisible-marker promotion gate from F000022. Mirrors the existing strikethrough skip pattern. Verified with a fixture TODOS containing a draft row + two real rows: draft is filtered, real rows rank.
+
 ## [4.4.1] - 2026-05-15
 
 ### Changed

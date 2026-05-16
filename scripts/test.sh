@@ -245,6 +245,19 @@ else
   fail_test "manually created skill has invalid frontmatter"
 fi
 
+# Step 5 (S000052): inline cleanup of the scaffold-test fixture before any
+# downstream test (e.g. test-deploy.sh) runs. EXIT trap also cleans this up,
+# but that fires after the script finishes — too late for downstream tests
+# that read $CATALOG or scan $SKILLS_DIR. Without inline cleanup, the
+# zzz-test-scaffold catalog entry persists into test-deploy.sh's `install`
+# call, doctor then resolves its source to $main_toplevel (per T000025) which
+# differs from the worktree path where the dir lives, and Test 8 ("Doctor on
+# healthy install") fails with `WARN: zzz-test-scaffold — source directory
+# missing in repo`. Cleaning up inline keeps the EXIT trap as a defense-in-depth
+# fallback for unexpected exits.
+cp "/tmp/catalog-backup-$$" "$CATALOG"
+rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold"
+
 # Template content smoke tests (S000002 TEST-SPEC)
 echo ""
 echo "Checking tracker template content..."
@@ -1887,129 +1900,14 @@ else
   echo "  SKIP: python3 not available, skipping S000010 install tests"
 fi
 
-# ---------- T000011: MIRROR_SPECS sync-check synthetic cases ----------
-# Validates the v2 sync-check behaviors directly: drift detection + orphan
-# FAIL-vs-WARN policy split + manifest schema parity.
+# T000011 MIRROR_SPECS sync-check block deleted in S000052 (F000023).
+# The validate.sh Error check 10 MIRROR_SPECS machinery this block tested
+# (drift detection, orphan FAIL-vs-WARN policy, manifest schema parity) was
+# removed when work-copilot/ became canonical. No mirror = no drift = no
+# corresponding test surface. The existence-check that replaces it is
+# directly exercised by ./scripts/validate.sh on every CI run.
 
-echo ""
-echo "Checking T000011 MIRROR_SPECS sync-check behaviors..."
-
-# Helper: run validate.sh, return exit code; capture output. Block sits inside
-# set +e so non-zero exits (drift / orphan-FAIL cases) are captured, not fatal.
-_run_validate() {
-  ( cd "$REPO_ROOT" && bash scripts/validate.sh 2>&1 )
-}
-
-# Smoke 1 (T000011 case 1, single-file shape, drift): mutate WORKFLOW.md
-# and assert validate.sh exits non-zero with [FAIL] naming the file.
-_t11_orig=$(mktemp -t t11.XXXXXX)
-cp "$REPO_ROOT/work-copilot/WORKFLOW.md" "$_t11_orig"
-echo "drift" >> "$REPO_ROOT/work-copilot/WORKFLOW.md"
-_t11_out=$(_run_validate)
-_t11_rc=$?
-cp "$_t11_orig" "$REPO_ROOT/work-copilot/WORKFLOW.md"
-rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"work-copilot/WORKFLOW.md differs from"*) true;; *) false;; esac; then
-  ok "T000011 case 1 (single-file drift): validate.sh fails, names diverged file"
-else
-  fail_test "T000011 case 1: drift on WORKFLOW.md not detected. rc=$_t11_rc"
-fi
-
-# Smoke 2 (T000011 case 4, flat-glob shape, drift on a guide)
-_t11_orig=$(mktemp -t t11.XXXXXX)
-cp "$REPO_ROOT/work-copilot/reference/guide-task.md" "$_t11_orig"
-echo "drift" >> "$REPO_ROOT/work-copilot/reference/guide-task.md"
-_t11_out=$(_run_validate)
-_t11_rc=$?
-cp "$_t11_orig" "$REPO_ROOT/work-copilot/reference/guide-task.md"
-rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"guide-task.md differs"*) true;; *) false;; esac; then
-  ok "T000011 case 4 (flat-glob drift): validate.sh fails on reference/ drift"
-else
-  fail_test "T000011 case 4: drift on reference/guide-task.md not detected. rc=$_t11_rc"
-fi
-
-# Smoke 3 (T000011 case 7, recursive-glob shape, drift on a nested fixture)
-_t11_orig=$(mktemp -t t11.XXXXXX)
-cp "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md" "$_t11_orig"
-echo "drift" >> "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
-_t11_out=$(_run_validate)
-_t11_rc=$?
-cp "$_t11_orig" "$REPO_ROOT/work-copilot/fixtures/valid-feature-dir/TRACKER.md"
-rm -f "$_t11_orig"
-if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"valid-feature-dir/TRACKER.md differs"*) true;; *) false;; esac; then
-  ok "T000011 case 7 (recursive-glob drift): validate.sh fails on nested fixture drift"
-else
-  fail_test "T000011 case 7: drift on nested fixture not detected. rc=$_t11_rc"
-fi
-
-# Smoke 4 (T000011 case 6 + autoplan D3): orphan in templates/ → WARN only
-echo "stale" > "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
-_t11_out=$(_run_validate)
-_t11_rc=$?
-rm -f "$REPO_ROOT/work-copilot/templates/legacy-tracker.md"
-if [ "$_t11_rc" -eq 0 ] && case "$_t11_out" in *"legacy-tracker.md has no counterpart"*) true;; *) false;; esac; then
-  ok "T000011 case 6 (autoplan D3): orphan in templates/ warns only (v1 backward compat)"
-else
-  fail_test "T000011 case 6: templates/ orphan policy regressed (should WARN, not FAIL)"
-fi
-
-# Smoke 5 (T000011 case 9 + autoplan D3): orphan in reference/ → FAIL
-echo "stale" > "$REPO_ROOT/work-copilot/reference/guide-stale.md"
-_t11_out=$(_run_validate)
-_t11_rc=$?
-rm -f "$REPO_ROOT/work-copilot/reference/guide-stale.md"
-if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"guide-stale.md has no counterpart"*) true;; *) false;; esac; then
-  ok "T000011 case 9 (autoplan D3): orphan in reference/ FAILS (new-mirror policy)"
-else
-  fail_test "T000011 case 9: orphan in reference/ should FAIL (autoplan D3 broken). rc=$_t11_rc"
-fi
-
-# Smoke 6 (autoplan D5): manifest schema parity — schema change FAILS
-if command -v jq >/dev/null 2>&1; then
-  _t11_orig=$(mktemp -t t11.XXXXXX)
-  cp "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json" "$_t11_orig"
-  python3 -c "
-import json, sys
-p = sys.argv[1]
-with open(p) as f: m = json.load(f)
-m['types']['feature']['required'].append({'artifact':'extra','template':'doc-extra.md','filename':'extra.md'})
-with open(p, 'w') as f: json.dump(m, f, indent=2)
-" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
-  _t11_out=$(_run_validate)
-  _t11_rc=$?
-  cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
-  rm -f "$_t11_orig"
-  if [ "$_t11_rc" -ne 0 ] && case "$_t11_out" in *"schema differs"*) true;; *) false;; esac; then
-    ok "autoplan D5: manifest schema-parity rejects schema change"
-  else
-    fail_test "autoplan D5: manifest schema change not detected. rc=$_t11_rc"
-  fi
-
-  # Smoke 7 (autoplan D5): description-only change passes
-  _t11_orig=$(mktemp -t t11.XXXXXX)
-  cp "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json" "$_t11_orig"
-  python3 -c "
-import json, sys
-p = sys.argv[1]
-with open(p) as f: m = json.load(f)
-m['description'] = 'Different prose, same schema'
-with open(p, 'w') as f: json.dump(m, f, indent=2)
-" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
-  _t11_out=$(_run_validate)
-  _t11_rc=$?
-  cp "$_t11_orig" "$REPO_ROOT/work-copilot/copilot-artifact-manifests.json"
-  rm -f "$_t11_orig"
-  if [ "$_t11_rc" -eq 0 ] && case "$_t11_out" in *"schema-parity"*) true;; *) false;; esac; then
-    ok "autoplan D5: description-only divergence passes (field exempt from sync)"
-  else
-    fail_test "autoplan D5: description-only change incorrectly failed. rc=$_t11_rc"
-  fi
-else
-  echo "  SKIP: jq not available, skipping manifest schema-parity tests"
-fi
-
-# Restore errexit after the S000010 + T000011 test block.
+# Restore errexit after the S000010 test block.
 set -e
 
 # Integration: test-deploy.sh end-to-end (D000016)

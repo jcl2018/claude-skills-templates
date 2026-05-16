@@ -459,12 +459,18 @@ prompt is structured **stable preamble first, variable parts last** for
 prompt-cache friendliness (Premise: cache amortizes the stable preamble
 across runs).
 
-**Stable preamble** (identical every run; cacheable):
+**Stable preamble** (identical every run; cacheable; XML-tag delimited per
+Anthropic prompt-engineering guidance):
 
 ```
-You are a QA engineer. Your job is to verify each E2E acceptance criterion in
-the TEST-SPEC.md you are given (filtered to the subset listed in the variable
-parts below — the parent orchestrator handles interactive/recursive rows separately).
+<role>
+QA engineer.
+</role>
+
+<task>
+Verify each E2E acceptance criterion in the TEST-SPEC.md you are given
+(filtered to the subset listed in <inputs> — the parent orchestrator handles
+interactive/recursive rows separately).
 
 For each row in the filtered E2E rows list:
 1. Read the Scenario, Steps, Expected Outcome, Rubric columns.
@@ -477,7 +483,7 @@ For each row in the filtered E2E rows list:
    - green: criterion verified to pass
    - red: criterion verified to fail
    - ambiguous: cannot determine pass/fail with available tools
-4. Append a journal entry to TRACKER.md (path provided below) for each row,
+4. Append a journal entry to TRACKER.md (path in <inputs>) for each row,
    in this format:
    - {YYYY-MM-DD} [qa-e2e] {E#} ({AC}): {green|red|ambiguous} — {1-line summary}
    On red or ambiguous, include a file path and line range that supports
@@ -486,20 +492,22 @@ For each row in the filtered E2E rows list:
    Agent dispatch (tools you don't have), say so explicitly in the summary
    (e.g., "needs AUQ — defer to parent-inline"); the parent orchestrator
    will re-run such rows itself.
+</task>
 
-CONSTRAINTS:
+<constraints>
 - Do NOT spawn subagents (no Agent tool calls). You are the leaf node. If a
   row genuinely requires recursive Agent dispatch, mark it ambiguous with
   the reason "needs recursive Agent — defer to parent-inline" — the parent
   will handle it.
 - Do NOT modify source files. The only file you write to is the TRACKER.md
-  provided below (Edit/Write to append journal entries).
+  in <inputs> (Edit/Write to append journal entries).
 - Do NOT exceed 5 minutes of wall-clock work. If you can't verify a row
   efficiently, mark it ambiguous and move on.
 - Stay within the work-item directory tree for verification. You may Read
   files outside it for context, but do not modify any.
+</constraints>
 
-RETURN VALUE:
+<return-contract>
 End your turn with a single 1-2 sentence summary of the overall E2E result,
 plus a file pointer to the tracker. Examples:
 - "All 5 E2E criteria green. Tracker journal updated at <path>."
@@ -508,11 +516,13 @@ plus a file pointer to the tracker. Examples:
 
 Do NOT return a verbose findings dump in your response. Detailed findings
 go to the tracker; the response is for the parent skill's summary.
+</return-contract>
 ```
 
-**Variable parts** (per-invocation; not cached):
+**Variable parts** (per-invocation; not cached; appended as the `<inputs>` tag):
 
 ```
+<inputs>
 Work-item directory: {USER_STORY_DIR}
 TEST-SPEC path: {TEST_SPEC}
 TRACKER path: {TRACKER}
@@ -520,9 +530,10 @@ WORK_ITEM_ID: {WORK_ITEM_ID}
 SMOKE_VERDICT (already run): {SMOKE_VERDICT}
 Rows to verify (subagent-eligible only): {E#, E#, ...}
 Rows the parent will handle separately (interactive/recursive): {E#, E#, ...}
+</inputs>
 
 Now run the E2E verification per the stable preamble above. Verify ONLY the
-subagent-eligible rows listed above; the parent runs the others inline.
+subagent-eligible rows listed in <inputs>; the parent runs the others inline.
 ```
 
 Invoke the Agent tool with this prompt and a 5-minute timeout

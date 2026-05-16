@@ -1,11 +1,12 @@
 ---
 name: CJ_improve-queue
-description: "Phase 1 MVP — given a URL to an Anthropic best-practices article, evaluate fit against existing workbench skills via WebFetch + subagent reasoning, then append a draft `<!--impr-draft-->`-marked TODOS.md row that flows through /CJ_suggest -> /CJ_goal_todo_fix -> /ship once the marker is removed. Workbench-only (macOS); allowlist + HTML-comment-wrap defense for WebFetch trust; mkdir-based write lock; atomic mv; backup rotation. Phases 2 (audit) and 3 (research <topic>) deferred."
-version: 0.1.0
+description: "Workbench self-improvement skill. Three modes: (1) evaluate <url> — fetch a Claude best-practices article, classify pattern fit against existing workbench skills via subagent reasoning, append a draft TODOS.md row if novel/conflict. (2) audit — offline repo self-scan for stale skills + missing frontmatter; emits draft rows directly. (3) research <topic> — orchestrator-driven WebSearch + per-result evaluate, with privacy gate. All rows land with `<!--impr-draft-->` markers; /CJ_suggest skips them until promoted. Workbench-only (macOS); domain allowlist + HTML-comment-wrap defense; mkdir-based write lock; atomic mv; backup rotation."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
   - WebFetch
+  - WebSearch
   - Agent
 ---
 
@@ -82,46 +83,55 @@ Extract the JSON line between the BEGIN/END markers. The JSON has these keys:
 ## Step 3: Dispatch the Agent subagent
 
 Spawn an Agent subagent with `subagent_type: general-purpose`. The prompt
-template (stable preamble first, variable tail last):
+template uses XML-tag delimited sections so the subagent can parse
+instructions, constraints, and variable inputs unambiguously (per Anthropic
+prompt-engineering best practices). Substitute `<CANONICAL_URL>` and
+`<JSON_ARRAY_FROM_HANDOFF>` in the `<inputs>` block from the parsed HANDOFF;
+leave the other XML tags as literals:
 
 ```
-ROLE: pattern-fit evaluator for Anthropic best-practices articles.
+<role>
+Pattern-fit evaluator for Anthropic best-practices articles.
+</role>
 
-TASK:
-  1. WebFetch the canonical URL below.
-  2. Read each in-scope SKILL.md listed below.
-  3. Classify the article's primary pattern against the workbench's existing
-     skills. Pick exactly one verdict:
-       - "match"        — pattern is already adopted by ≥1 skill (cite which).
-       - "conflict"     — pattern conflicts with how a skill solves the same
-                          problem today; merits a TODO to reconcile.
-       - "novel"        — pattern is not in the workbench and is a good fit.
-       - "reject"       — pattern is real but not a fit (cite reason).
-       - "fetch_failed" — WebFetch errored or returned non-text content.
-  4. Emit a single JSON object on stdout matching the schema below.
+<task>
+1. WebFetch the canonical URL in <inputs>.
+2. Read each in-scope SKILL.md listed in <inputs>.
+3. Classify the article's primary pattern against the workbench's existing
+   skills. Pick exactly one verdict:
+     - "match"        — pattern is already adopted by ≥1 skill (cite which).
+     - "conflict"     — pattern conflicts with how a skill solves the same
+                        problem today; merits a TODO to reconcile.
+     - "novel"        — pattern is not in the workbench and is a good fit.
+     - "reject"       — pattern is real but not a fit (cite reason).
+     - "fetch_failed" — WebFetch errored or returned non-text content.
+4. Emit a single JSON object on stdout matching the schema in <return-contract>.
+</task>
 
-CONSTRAINTS:
-  - Quote no more than 200 bytes from the article in `source_quote`. Trim
-    aggressively. The string will be wrapped in an HTML comment by the
-    envelope; trust assumption is that it does not contain the literal
-    sequence "-->" (the envelope neutralizes this defensively, but minimize
-    surface).
-  - `pattern_name` is a short noun phrase (e.g., "subagent contract testing",
-    "atomic-mv write discipline"). Avoid jargon-laden multi-clause phrases.
-  - `short_source_name` is a 1-3 word handle for the source (e.g.,
-    "anthropic-docs", "claude-code-blog").
-  - `affected_skills` is an array of paths from the in-scope list (NOT
-    invented paths). For "novel", pick the 1-5 skills where the pattern
-    would best apply. For "conflict", pick the skills that today solve
-    the same problem differently. For "match"/"reject", pick the cited
-    skills (may be empty for "reject").
-  - `suggested_change` is one sentence describing what to do, NO code.
-    If your confidence is < 7, the envelope will prefix it with
-    "REVIEW:" automatically — do NOT add the prefix yourself.
-  - `confidence` is an integer 1-10. Be honest. The envelope uses < 7
-    to mark the row for human review.
+<constraints>
+- Quote no more than 200 bytes from the article in `source_quote`. Trim
+  aggressively. The string will be wrapped in an HTML comment by the
+  envelope; trust assumption is that it does not contain the literal
+  sequence "--&gt;" (the envelope neutralizes this defensively, but minimize
+  surface).
+- `pattern_name` is a short noun phrase (e.g., "subagent contract testing",
+  "atomic-mv write discipline"). Avoid jargon-laden multi-clause phrases.
+- `short_source_name` is a 1-3 word handle for the source (e.g.,
+  "anthropic-docs", "claude-code-blog").
+- `affected_skills` is an array of paths from the in-scope list (NOT
+  invented paths). For "novel", pick the 1-5 skills where the pattern
+  would best apply. For "conflict", pick the skills that today solve
+  the same problem differently. For "match"/"reject", pick the cited
+  skills (may be empty for "reject").
+- `suggested_change` is one sentence describing what to do, NO code.
+  If your confidence is < 7, the envelope will prefix it with
+  "REVIEW:" automatically — do NOT add the prefix yourself.
+- `confidence` is an integer 1-10. Be honest. The envelope uses < 7
+  to mark the row for human review.
+</constraints>
 
-RETURN CONTRACT — emit a single JSON object on stdout, no prose before or after:
+<return-contract>
+Emit a single JSON object on stdout, no prose before or after:
 
 {
   "verdict": "match" | "conflict" | "novel" | "reject" | "fetch_failed",
@@ -134,10 +144,12 @@ RETURN CONTRACT — emit a single JSON object on stdout, no prose before or afte
   "confidence": <integer 1-10>,
   "error": "<only present if verdict=fetch_failed; describe the WebFetch error>"
 }
+</return-contract>
 
-INPUTS (substitute below):
-  canonical_url: <CANONICAL_URL>
-  in_scope_skill_files: <JSON_ARRAY_FROM_HANDOFF>
+<inputs>
+canonical_url: <CANONICAL_URL>
+in_scope_skill_files: <JSON_ARRAY_FROM_HANDOFF>
+</inputs>
 ```
 
 Substitute `<CANONICAL_URL>` and `<JSON_ARRAY_FROM_HANDOFF>` from the parsed
@@ -170,6 +182,66 @@ After `apply` returns, print a one-line summary to the user:
 - On `novel` / `conflict` (row appended): "appended draft row impr-sig=<SIG>; remove `<!--impr-draft-->` from the heading in TODOS.md to promote."
 - On `match` / `reject` (no row appended): "no row appended (verdict=<V>): <reason from stderr>."
 - On `fetch_failed`: "fetch failed: <error>; no row appended."
+
+## Phase 2 (S000050): audit mode
+
+`/CJ_improve-queue audit` runs an offline repo self-scan. No network, no Agent dispatch, no AskUserQuestion. Two deterministic checks per skill under `skills/`:
+
+1. **stale-skill** — `~/.gstack/analytics/skill-usage.jsonl` has no entry for this skill in the last 30 days. Emits a row at confidence 6 (REVIEW-flagged) suggesting retire / polish / document-as-quiet-utility.
+2. **missing-frontmatter** — `SKILL.md` lacks `version:` or `allowed-tools:` field. Emits a row at confidence 9 (deterministic).
+
+Each finding goes through the same `cmd_apply` path the evaluate flow uses — synthetic verdict JSON with `verdict=novel`, `canonical_url=repo-audit://<check>/<target>`. Signatures are unique per (check, target) pair, so re-running audit is idempotent (already-found rows are skipped).
+
+Run from the workbench repo root:
+
+```bash
+bash skills/CJ_improve-queue/scripts/improve_queue.sh audit
+```
+
+Output: `[CJ_improve-queue audit] scanned=N appended=M skipped=K (already in backlog)`. Rows land in `TODOS.md` with `<!--impr-draft-->` markers — `/CJ_suggest` filters them out until you remove the marker to promote.
+
+**Known false positive**: if your analytics file records a skill under a different name (e.g. `/CJ_run` deprecated alias vs `/CJ_goal_run` current), audit will see "never invoked" and flag it stale. Confidence is 6 specifically because of this fuzz — review before promoting.
+
+## Phase 3 (S000051): research <topic> mode
+
+`/CJ_improve-queue research <topic>` is an orchestrator-driven flow (no bash sub-command). The orchestrator (this SKILL.md) does:
+
+### Step R1: Privacy gate
+
+The topic terms get sent to the WebSearch provider. Match `/office-hours`' Phase 2.75 convention: AskUserQuestion before the search.
+
+```
+> "/CJ_improve-queue research" sends '<topic>' to a search provider so it can
+> find articles to evaluate. OK to proceed, or skip and stay private?
+> A) Yes, search away (recommended)
+> B) Skip — keep this session private
+```
+
+If B: stop. No search, no evaluations.
+
+### Step R2: WebSearch
+
+Run WebSearch with the topic, cap at 3 results. Filter to allowlist hosts (`docs.anthropic.com`, `anthropic.com`, `claude.com`, `github.com/anthropics/*`) so the privacy footprint is bounded. If 0 results after filter, stop with `[CJ_improve-queue research] no allowlisted results for "<topic>"`.
+
+### Step R3: Per-result evaluate loop
+
+For each result URL, run the existing Phase 1 evaluate flow:
+
+1. `bash skills/CJ_improve-queue/scripts/improve_queue.sh evaluate-prepare <result_url>` — get HANDOFF.
+2. Dispatch Agent subagent with the standard Phase 1 prompt template.
+3. Pipe verdict to `cmd_apply` via stdin.
+
+No new bash code is needed for Phase 3 — it composes Phase 1 primitives. Aggregate results into a one-line summary:
+
+```
+[CJ_improve-queue research "<topic>"] evaluated=N novel=A conflict=B match=C reject=D fetch_failed=E rows_appended=R
+```
+
+### Phase 3 constraints
+
+- **Allowlist only**: per-result URLs that fall outside the default allowlist are skipped silently. `--allow-untrusted-source` is NOT respected in research mode (privacy + trust boundary stays tight).
+- **No cross-result reasoning**: each URL is evaluated independently. The subagent does not see other results.
+- **Cap at 3**: limit per invocation to keep token cost bounded and avoid TODOS.md noise. User can re-run with a different topic.
 
 ## Test mode (CI / fixtures)
 

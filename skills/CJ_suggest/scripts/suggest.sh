@@ -163,17 +163,22 @@ NO_TRACKERS=0
 #    portable TODOs rank by recency/blocked-status alone.
 #
 # Detection: presence of `## Active work` switches modes.
+#
+# S000049: skip headings containing `<!--impr-draft-->` (rows emitted by
+# /CJ_improve-queue in draft state — invisible-marker convention so promotion
+# is a single search-and-replace, no string-prefix typo footgun). Mirrors the
+# strikethrough skip already in place.
 if grep -q '^## Active work[[:space:]]*$' "$TODOS"; then
   ACTIVE_HEADINGS=$(awk '
     /^## Active work[[:space:]]*$/ {a=1; next}
     /^## / && !/^## Active work[[:space:]]*$/ {a=0}
-    a && /^### [^~]/ { print }
+    a && /^### [^~]/ && !/<!--impr-draft-->/ { print }
   ' "$TODOS")
 else
   ACTIVE_HEADINGS=$(awk '
     /^## (Completed|Done|Archive|Archived|Shipped|Deferred work)[[:space:]]*$/ {a=0; next}
     /^## / {a=1}
-    a && /^### [^~]/ { print }
+    a && /^### [^~]/ && !/<!--impr-draft-->/ { print }
   ' "$TODOS")
 fi
 
@@ -321,11 +326,18 @@ fi
 # ---- Step 5.5: Apply --for-skill predicate block (S000042) ------------------
 #
 # When --for-skill is active, filter $SCORED to exclude rows that the named
-# skill would pre-reject. For cj-goal this mirrors todo_fix.sh:262-303 gates 3-5:
-#   - Gate 3: priority is P1   → exclude
-#   - Gate 3: size is L or XL  → exclude
-#   - Gate 4: body matches sensitive-surface regex → exclude
-#   - Gate 5: body matches design-needed keyword   → exclude
+# skill would pre-reject. For cj-goal this mirrors todo_fix.sh:262-303 gates 3-5
+# plus heading-level pre-rejects that drain mode halts on at preflight:
+#   - Gate 3a: priority is P1                              → exclude
+#   - Gate 3b: size is L or XL                             → exclude
+#   - Gate 3c: parent ## H2 is a date-trigger section
+#              (matches `scheduled|checkpoint`, case-insensitive) → exclude
+#   - Gate 3d: heading title begins with `YYYY-MM-DD —`    → exclude
+#   - Gate 3e: heading title contains terminal-marker
+#              (WON'T FIX / SUPERSEDED / SHIPPED / RESOLVED)  → exclude
+#   - Gate 4:  body matches sensitive-surface regex        → exclude
+#   - Gate 5:  body matches design-needed keyword          → exclude
+# Gates 3c-3e are heading-level (cheap) and fire before body extraction.
 #
 # Per-row exclusion log line: `[CJ_suggest] excluded: <heading-or-id> reason=<criterion>`
 # emitted to stderr (P1 observability requirement). Heading-or-id is the
@@ -350,6 +362,44 @@ if [ -n "$FOR_SKILL" ]; then
       case "$f_size" in
         L|XL) reason="size $f_size" ;;
       esac
+    fi
+    # Gate 3c: heading lives under a date-trigger H2 section (e.g.
+    # `## Scheduled checkpoints`). These rows are calendar-anchored
+    # follow-ups, not drainable next-ups; /CJ_goal_todo_fix would halt at
+    # preflight. Cheap awk pass — find nearest preceding `## ` for $f_heading.
+    # Match H2 lines whose text contains `Scheduled` or `Checkpoint`
+    # (case-insensitive); intentionally narrow to avoid over-filtering
+    # legitimate active sections.
+    if [ -z "$reason" ]; then
+      parent_h2=$(awk -v h="$f_heading" '
+        /^## / { current = $0 }
+        $0 == h { print current; exit }
+      ' "$TODOS")
+      if echo "$parent_h2" | grep -qiE 'scheduled|checkpoint'; then
+        reason="date-trigger section ($(echo "$parent_h2" | sed 's/^## //'))"
+      fi
+    fi
+    # Gate 3d: heading text begins with a `YYYY-MM-DD —` date prefix.
+    # These are explicit future-trigger rows (e.g. `2026-06-13 — D000002
+    # day-30 re-evaluation`) that the drain helper rejects at preflight.
+    # Em-dash, en-dash, and hyphen all accepted as the separator.
+    if [ -z "$reason" ]; then
+      if echo "$f_title" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]+(—|–|-)[[:space:]]'; then
+        reason="date-trigger prefix"
+      fi
+    fi
+    # Gate 3e: heading contains a terminal-marker literal (WON'T FIX /
+    # SUPERSEDED / SHIPPED / RESOLVED). The strikethrough convention
+    # (`~~...~~`) is the canonical "done" signal already filtered at heading
+    # extraction (line 171 / line 177), but un-strikethrough'd rows that
+    # carry a terminal literal in the title are hygiene debt that would
+    # otherwise burn a /CJ_goal_todo_fix iteration. Case-sensitive on the
+    # literal (these are conventionally uppercase in TODOS.md).
+    if [ -z "$reason" ]; then
+      if echo "$f_title" | grep -qE "WON'T FIX|SUPERSEDED|SHIPPED|RESOLVED"; then
+        matched=$(echo "$f_title" | grep -oE "WON'T FIX|SUPERSEDED|SHIPPED|RESOLVED" | head -1)
+        reason="terminal-marker ($matched)"
+      fi
     fi
     # Gate 4 + Gate 5 require the body. Only call extract_body if no faster
     # gate already excluded the row.

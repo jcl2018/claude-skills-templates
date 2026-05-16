@@ -55,8 +55,7 @@ Added invocation of `scripts/test-deploy.sh` to `scripts/test.sh` between the T1
 ### v1.17.0: drop telemetry `mode` field from personal-pipeline JSONL writes (P4, S)
 v1.16.0 (S000029) flipped `/personal-pipeline` to single-mode. The telemetry `mode` field at `~/.gstack/analytics/personal-pipeline.jsonl` now always emits `"auto"` literal (deletion deferred to give external JSONL readers one release of grace). v1.17.0 should drop the field entirely from `skills/personal-pipeline/pipeline.md` Step 9.1 jq emit and the fallback `echo` line, and update the explanatory comment. Sunset trip-wire (Step 9.2) doesn't slice by mode anyway, so deletion is mechanical. **When:** v1.17.0 release window. **Reference:** `work-items/features/personal-workflow/F000014_personal_pipeline_orchestrator/S000029_auto_default/`.
 
-### Origin remote URL pinning for the upgrade path (P4, S)
-The "Upgrade now" body block runs `git -C "$source" pull --ff-only origin main` based on `manifest.source` from `~/.claude/.skills-templates.json`. A user who can write that manifest can redirect upgrades to attacker-controlled code. Mitigation: at install time, store `manifest.upstream_url` (the expected `origin` URL) and have skills-update-check verify `git -C "$source" remote get-url origin` matches before recommending upgrade. Same trust boundary already applies to skills-deploy install, so this is hardening, not a new defense. **Depends on:** any real-world threat scenario where this matters.
+### ~~Origin remote URL pinning for the upgrade path (P4, S)~~ DONE — closed by T000031 (v4.4.3): `skills-deploy install` captures `git remote get-url origin` as `manifest.upstream_url`; `skills-update-check` verifies the pinned URL matches the source repo's current origin before emitting the upgrade banner. Suppresses the banner + warns on mismatch. Backward-compatible (pre-T000031 manifests skip the check).
 
 ### ~~`/personal-pipeline` orchestrator over the 3 pipeline skills (P3, M)~~ DONE
 Closed by F000014 (v1.13.0). Built per Approach B from the 2026-05-08 office-hours session, but with two design adjustments locked by S000026 spike findings: (a) AUQs are pre-collected at the orchestrator before Phase 2 dispatch (subagents have no AskUserQuestion tool in Claude Code 2.1.91 — `RESULT: AUQ_NEEDED` contract was unworkable), (b) RESULT-line parser is lenient (strips markdown blockquote prefixes + code fences, since subagents wrap RESULT inconsistently 60% of trials). Soak gate behavior: orchestrator carries an explicit sunset criterion (mechanical trip-wire on `~/.gstack/analytics/personal-pipeline.jsonl`, ≥3 of 5 `halted_at_gate` recommends delete; AUQ on invocation 6 then every 5). First real run on the Fork-aware update detection task ran end-to-end green during /ship.
@@ -182,6 +181,24 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 
 **RETIRED:** T000029 / v3.5.6 — after closer inspection of validate.sh coverage (11 workbench-wide invariants) vs /CJ_personal-workflow check (per-work-item structural via templates+manifest), neither approach delivers meaningful improvement over v1 (T000028 / Approach D). Reopen if downstream acquires per-repo catalog/manifest surfaces.
 
+### ~~Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)~~ DONE — closed in two PRs: v4.5.3 (/CJ_improve-queue Step 3) and v4.5.4 (pipeline.md scaffold/implement/QA dispatches, qa.md E2E subagent, run.md /CJ_personal-pipeline dispatch). All workbench subagent prompt templates now use `<role>` / `<task>` / `<constraints>` / `<return-contract>` / `<inputs>` XML tags per Anthropic prompt-engineering guidance.
+
+**Source:** https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+**Verdict:** novel
+**Affected skills:** skills/CJ_personal-pipeline/SKILL.md, skills/CJ_improve-queue/SKILL.md, skills/CJ_qa-work-item/SKILL.md, skills/CJ_goal_run/SKILL.md
+**Suggested change:** Wrap subagent prompt sections (role, task, constraints, inputs, return contract) in named XML tags so subagents parse mixed instructions plus variable inputs unambiguously.
+<!-- source-quote: "XML tags help Claude parse complex prompts unambiguously, especially when your prompt mixes instructions, context, examples, and variable inputs." -->
+<!-- impr-sig=6b0a15bea5c5e84d impr-conf=7/10 -->
+
+### ~~Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)~~ DONE — closed by v4.5.3, this PR. Shortened 5 SKILL.md descriptions (CJ_goal_run, CJ_goal_todo_fix, CJ_personal-pipeline, CJ_qa-work-item, CJ_implement-from-spec) to 1-3 sentence what+when handles; moved version-rename history and flag mechanics out of the discovery surface.
+
+**Source:** https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+**Verdict:** conflict
+**Affected skills:** skills/CJ_goal_run/SKILL.md, skills/CJ_goal_todo_fix/SKILL.md, skills/CJ_personal-pipeline/SKILL.md, skills/CJ_qa-work-item/SKILL.md, skills/CJ_implement-from-spec/SKILL.md
+**Suggested change:** Rewrite each affected SKILL.md description to lead with what+when in 1-2 sentences and move version-rename history, flag mechanics, and changelog detail into the SKILL.md body or an old-patterns section.
+<!-- source-quote: "The description is critical for skill selection: Claude uses it to choose the right Skill from potentially 100+ available Skills." -->
+<!-- impr-sig=432d0480aa0d58e5 impr-conf=8/10 -->
+
 ## Deferred work
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED
@@ -245,3 +262,4 @@ Measures whether a skill actually works, not just whether metadata exists.
 ### ~~Batch version mode for multi-skill commits (P3, S)~~ SIMPLIFIED
 Simplified by collection versioning. Use `collection-version.sh bump patch`.
 **Depends on:** collection-version.sh
+
