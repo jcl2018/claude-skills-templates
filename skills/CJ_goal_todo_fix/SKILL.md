@@ -126,6 +126,50 @@ own Phase 3 summary AUQ when set. **Critical: `--quiet` does NOT suppress
 cadence (per F000021 autonomy ceiling). Cron pattern documented in the
 workbench `CLAUDE.md` Schedule-friendly drain section.
 
+## Default-worktree (single-TODO mode only — drain mode handled in drain-one-todo.sh)
+
+Per F000025/S000054: when invoked in **single-TODO mode** (a positional T-ID or
+fragment is present), auto-create `.claude/worktrees/cj-todo-{YYYYMMDD-HHMMSS}-
+{PID}/` on `main` and `cd` into it. **Drain mode** (no positional args or
+`--max-drain N`) skips the preamble entirely — `scripts/drain-one-todo.sh`
+creates one worktree per drained TODO via `--force-create --quiet`. Conductor-
+managed sessions (already inside a worktree) detect + no-op. `--no-worktree`
+opts out; `--quiet` gates the `[worktree]` echo.
+
+```bash
+# Detect single-TODO mode: at least one positional non-flag arg present.
+_HAS_POSITIONAL=0
+for _ARG in "$@"; do
+  case "$_ARG" in
+    --*|-*) ;;
+    *) _HAS_POSITIONAL=1; break ;;
+  esac
+done
+
+if [ "$_HAS_POSITIONAL" = "1" ]; then  # single-TODO mode only
+  _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+  if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-init.sh" ]; then
+    _WT_JSON=$("$_S/scripts/cj-worktree-init.sh" --caller todo "$@" 2>/dev/null)
+    if [ -n "$_WT_JSON" ]; then
+      _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
+      _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
+      _WT_NOTE=$(echo "$_WT_JSON" | jq -r '.note // empty' 2>/dev/null)
+      if [ "$_WT_STATE" = "created" ] || [ "$_WT_STATE" = "detected" ]; then
+        cd "$_WT_PATH" || { echo "[worktree] ERROR: cd $_WT_PATH failed"; exit 1; }
+      elif [ "$_WT_STATE" = "failed" ]; then
+        echo "[worktree] ERROR: $_WT_NOTE"
+        exit 1
+      fi
+      # On opted_out / skipped: no cd, no halt; just continue
+      [ "${QUIET:-0}" != "1" ] && [ -n "$_WT_NOTE" ] && echo "[worktree] $_WT_NOTE"
+    fi
+  else
+    # Visible warning (NOT silent no-op) — per F000025 Decision Audit Trail #11
+    [ "${QUIET:-0}" != "1" ] && echo "[worktree] WARN: helper unreachable; running on current branch"
+  fi
+fi
+```
+
 ## Routing
 
 Run the bash script below from the repo root and pass through the user's

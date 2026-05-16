@@ -193,6 +193,39 @@ case "$SUBCMD" in
       exit 0
     fi
 
+    # F000025/S000054: per-iteration worktree creation.
+    # Each drained TODO gets its own .claude/worktrees/cj-todo-{ts}-{pid}/ so
+    # /ship Gate #2 (one PR per TODO) can run cleanly without branch collision.
+    # --force-create bypasses in-worktree detection (drain typically runs from
+    # inside a Conductor parent worktree). --quiet suppresses the [worktree]
+    # echo so cron output stays empty. Helper resolved via BASH_SOURCE
+    # relative path (Decision Audit Trail #14: DRY — script lives inside
+    # workbench tree, no need for second manifest-resolution layer).
+    _WT_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-init.sh"
+    if [ -x "$_WT_HELPER" ]; then
+      _WT_JSON=$("$_WT_HELPER" --caller todo --force-create --quiet 2>/dev/null || true)
+      if [ -n "$_WT_JSON" ]; then
+        _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
+        _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
+        if [ "$_WT_STATE" = "created" ] && [ -n "$_WT_PATH" ]; then
+          # cd into the per-TODO worktree before delegating to todo_fix.sh so
+          # scaffold writes land in the right tree.
+          cd "$_WT_PATH" || {
+            lock_release "$HEADING" "$SESSION_ID" >/dev/null 2>&1 || true
+            echo "[drain] ERROR: cd $_WT_PATH failed" >&2
+            echo "RESULT: STATUS=halted; STAGE=preflight; HEADING=$HEADING; REASON=worktree-cd-failed"
+            exit 2
+          }
+        fi
+        # state=failed/detected/skipped/opted_out: continue without cd (drain
+        # iteration runs in current tree; matches today's behavior when
+        # helper is unavailable).
+      fi
+    fi
+    # If helper missing entirely: drain iteration proceeds on current branch
+    # (today's behavior preserved; consumer repos without workbench source
+    # silently degrade).
+
     # Lock acquired. Delegate to todo_fix.sh in single-TODO mode.
     # todo_fix.sh handles preflight, scaffold, and emits the
     # CJ_GOAL_HANDOFF_BEGIN/END block that the orchestrator parses to drive

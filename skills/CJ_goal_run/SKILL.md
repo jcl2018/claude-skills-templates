@@ -35,6 +35,41 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /CJ_goal_run requires a git repositor
 
 Same as /CJ_personal-pipeline: if preamble output contains `SKILLS_UPGRADE_AVAILABLE <old> <new>`, follow the upgrade flow defined in `~/.claude/skills/CJ_personal-workflow/SKILL.md`. If `SKILLS_JUST_UPGRADED <from> <to>`, print "claude-skills-templates upgraded to v\<to\> (was v\<from\>)" and continue.
 
+## Default-worktree (BEFORE Path Resolution — variables get re-resolved post-cd)
+
+Per F000025/S000054: when invoked with arguments on `main`, auto-create
+`.claude/worktrees/cj-run-{YYYYMMDD-HHMMSS}-{PID}/` and `cd` into it. Conductor-
+managed sessions (already inside a worktree) detect + no-op. `--no-worktree`
+opts out; `--quiet` gates the `[worktree]` echo and skips on dirty checkout.
+The `[ $# -gt 0 ]` guard preserves Branch (g) no-arg auto-resume semantics
+(no helper invocation when no arg present, so resume runs on current branch).
+
+```bash
+# Default-worktree (BEFORE path resolution — variables get re-resolved post-cd)
+if [ $# -gt 0 ]; then  # Skip helper on no-arg (Branch g auto-resume must run on current branch)
+  _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+  if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-init.sh" ]; then
+    _WT_JSON=$("$_S/scripts/cj-worktree-init.sh" --caller run "$@" 2>/dev/null)
+    if [ -n "$_WT_JSON" ]; then
+      _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
+      _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
+      _WT_NOTE=$(echo "$_WT_JSON" | jq -r '.note // empty' 2>/dev/null)
+      if [ "$_WT_STATE" = "created" ] || [ "$_WT_STATE" = "detected" ]; then
+        cd "$_WT_PATH" || { echo "[worktree] ERROR: cd $_WT_PATH failed"; exit 1; }
+      elif [ "$_WT_STATE" = "failed" ]; then
+        echo "[worktree] ERROR: $_WT_NOTE"
+        exit 1
+      fi
+      # On opted_out / skipped: no cd, no halt; just continue
+      [ "${QUIET:-0}" != "1" ] && [ -n "$_WT_NOTE" ] && echo "[worktree] $_WT_NOTE"
+    fi
+  else
+    # Visible warning (NOT silent no-op) — per F000025 Decision Audit Trail #11
+    [ "${QUIET:-0}" != "1" ] && echo "[worktree] WARN: helper unreachable; running on current branch"
+  fi
+fi
+```
+
 ## Path Resolution
 
 Resolve skill assets using a 2-level fallback chain. This skill depends on
