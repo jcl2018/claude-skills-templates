@@ -1,7 +1,7 @@
 ---
 name: CJ_goal_todo_fix
-description: "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews. Workbench-only; halt-on-red preserved end-to-end."
-version: 2.1.0
+description: "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0; --quiet added v4.3.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews; --quiet suppresses Phase 3 summary AUQ for cron / /schedule consumers (autonomy ceiling preserved — /ship Gate #2 still fires per child). Workbench-only; halt-on-red preserved end-to-end."
+version: 2.2.0
 allowed-tools:
   - Bash
   - Read
@@ -40,6 +40,27 @@ race protection), and telemetry. Everything else is reuse.
 - `/CJ_goal_todo_fix "fragment"` — single-TODO mode (fuzzy match against active headings).
 - `/CJ_goal_todo_fix --dry-run` — preview without writes. Combines with all input shapes
   (`--dry-run T000022`, `--dry-run --max-drain 3`, etc.).
+- `/CJ_goal_todo_fix --quiet` (v4.3.0+) — schedule-friendly mode for cron / `/schedule` consumers.
+  Suppresses the Phase 3 summary AUQ + start-of-run banner; writes a
+  `[scheduled-drain-summary]` journal entry to `~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl`
+  instead. Telemetry gains `scheduled_run: true` for retro attribution.
+  Composes with `--max-drain N` and single-TODO mode. **Does NOT suppress
+  /ship Gate #2** — per F000021 constraint, the autonomy ceiling stays intact:
+  drained PRs queue for human review at the operator's cadence. Halt-on-red
+  entries are unaffected (still written to tracker journals).
+
+**Cron pattern (v4.3.0+):**
+
+```
+/schedule create "/CJ_goal_todo_fix --max-drain 3 --quiet" daily 9am
+```
+
+At 9am every day, drains up to 3 easy-fix TODOs into PRs. No interactive
+prompts surface in the cron output (operator notifications stay clean).
+PRs queue for review; the operator approves them via `gh pr list`
++ /ship Gate #2 at their cadence. **Schedule prepares PRs for review at
+your cadence, NOT autonomous merge** — /ship Gate #2 fires per drained
+TODO regardless of `--quiet`.
 
 **Drain mode flow (v4.2.0):**
 
@@ -90,6 +111,20 @@ already-skipped TODOs within a `/loop` session.
 **Practical fit.** Best for 1-5 small TODOs per session, each with a quick
 /ship Gate #2 diff review. Not for unattended overnight clearance — /ship's
 diff-review fires per TODO that reaches it (upstream gstack constraint).
+For scheduled (cron / `/schedule`) drains, pair with `--quiet` (v4.3.0+):
+PRs queue silently for the operator's next review window.
+
+**`--quiet` mode (v4.3.0+).** Schedule-friendly: suppresses the Phase 3
+summary AUQ + start-of-run banner; emits `scheduled_run: true` in telemetry;
+writes `[scheduled-drain-summary]` journal entries to
+`~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl` instead of surfacing an
+interactive prompt. Halt-on-red entries are unaffected (still written to
+work-item tracker journals; the loop still STOPS on red). The orchestrator
+parses `QUIET=1` from the `CJ_GOAL_DRAIN_HANDOFF` block and suppresses its
+own Phase 3 summary AUQ when set. **Critical: `--quiet` does NOT suppress
+/ship Gate #2** — drained PRs queue for human review at the operator's
+cadence (per F000021 autonomy ceiling). Cron pattern documented in the
+workbench `CLAUDE.md` Schedule-friendly drain section.
 
 ## Routing
 
@@ -146,8 +181,25 @@ backlogs. Distinguish via the telemetry `end_state` field.
 
 ```json
 {"ts":"...","todo_heading":"...","t_id":"T000NNN","end_state":"green",
- "pr_url":"https://...","duration_s":123,"parent_skill":"CJ_goal_todo_fix"}
+ "pr_url":"https://...","duration_s":123,"parent_skill":"CJ_goal_todo_fix",
+ "scheduled_run":false}
 ```
+
+The `scheduled_run` field (v4.3.0+) is `true` when invoked with `--quiet`,
+`false` otherwise. Distinguishes cron-driven drain from operator-driven
+drain for retro tooling — `jq 'select(.scheduled_run == true)'` filters
+to scheduled runs.
+
+**Session log (v4.3.0+).** When `--quiet` is set, `[scheduled-drain-summary]`
+entries are also appended to `~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl`:
+
+```json
+{"ts":"...","run_id":"...","marker":"scheduled-drain-summary",
+ "summary":"nothing_to_drain — /CJ_suggest returned no actionable items"}
+```
+
+This is the post-cron-readable replacement for the suppressed Phase 3
+summary AUQ.
 
 **Fallback read (v4.2.0+).** Sunset-trip-wire consumers MUST also read
 `~/.gstack/analytics/CJ_goal.jsonl` (the pre-rename path) so historical

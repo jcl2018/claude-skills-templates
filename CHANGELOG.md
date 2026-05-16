@@ -3,6 +3,27 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3.0] - 2026-05-15
+
+### Added
+
+- **`--quiet` schedule-friendly flag in `/CJ_goal_todo_fix` (F000021 / S000047).** When set, the script suppresses the Phase 3 summary AUQ + start-of-run banner; instead, `[scheduled-drain-summary]` lines are written to the new session log at `~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl`. Designed for cron / `/schedule` consumers where there's no human at the keyboard to answer AUQs. Composes with `--max-drain N` and single-TODO mode (`T000NNN` or fragment). The `CJ_GOAL_DRAIN_HANDOFF` block now includes a `QUIET=<0|1>` line so the orchestrator that drives the per-TODO chain can suppress its own Phase 3 summary AUQ when set. **Critical constraint: `--quiet` does NOT suppress /ship Gate #2** — drained PRs queue for human review at the operator's cadence (per F000021 autonomy ceiling: "schedule-friendly = PRs queue for review at cadence; NOT auto-merge").
+- **New `scheduled_run` field in `~/.gstack/analytics/CJ_goal_todo_fix.jsonl`.** Always present (`true` when `--quiet`, `false` otherwise) so retro tooling can distinguish cron-driven drain from operator-driven drain via `jq 'select(.scheduled_run == true)'` without conditionals on field presence.
+- **New session log at `~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl`.** Append-only JSONL written when `--quiet` is set. Each line: `{ts, run_id, marker:"scheduled-drain-summary", summary}`. Replaces the suppressed Phase 3 AUQ for post-cron auditability.
+- **Cron-pattern documentation** in workbench `CLAUDE.md` (new "Schedule-friendly drain" section) + `skills/CJ_goal_todo_fix/SKILL.md`. Example: `/schedule create "/CJ_goal_todo_fix --max-drain 3 --quiet" daily 9am`. Doc-only — no schema-binding to the upstream `/schedule` skill.
+
+### Changed
+
+- `skills/CJ_goal_todo_fix/SKILL.md` bumped to v2.2.0 (additive: `--quiet` flag, `scheduled_run` telemetry field, session log path, cron-pattern example, expanded Notes). Frontmatter description updated to mention `--quiet`.
+- `skills/CJ_goal_todo_fix/scripts/todo_fix.sh`: added `--quiet` to the flag-aware arg loop; new `write_scheduled_drain_summary()` helper; `write_telemetry()` now emits `scheduled_run` (true/false); the two `nothing_to_drain` exit paths route through the helper under `--quiet` instead of printing to stdout; `CJ_GOAL_DRAIN_HANDOFF` block gains a `QUIET=...` line. Net script delta: ~50 LOC additive.
+
+### Migration notes
+
+- **For operators:** no migration required. Existing `/CJ_goal_todo_fix` invocations (with or without `--max-drain N` / single-TODO arg / `--dry-run`) are unchanged. Pass `--quiet` to opt into schedule-friendly behavior.
+- **For cron / `/schedule` consumers:** the documented pattern is `/schedule create "/CJ_goal_todo_fix --max-drain N --quiet" <cadence>`. Cron output stays empty when there's nothing to do; `[scheduled-drain-summary]` entries in the session log preserve the fact. Operator reviews PRs via `gh pr list --author @me --state open` at their own cadence.
+- **For downstream consumers of `CJ_goal_todo_fix.jsonl`:** the new `scheduled_run` field is additive (always present from v4.3.0+; absent on pre-v4.3.0 lines). Filters that don't read it keep working; new tooling can `jq 'select(.scheduled_run == true)'` to isolate cron-driven runs.
+- **For `/CJ_personal-pipeline` orchestrators that drive the per-TODO chain:** read the new `QUIET=...` line in the `CJ_GOAL_DRAIN_HANDOFF` block. When `QUIET=1`, suppress the Phase 3 summary AUQ at the orchestrator layer (write to the per-tracker journal entry instead). The orchestrator-side change is opt-in: existing orchestrators that don't read the flag still work — they just emit the AUQ as before, which produces a noisy cron line but no functional regression.
+
 ## [4.2.0] - 2026-05-15
 
 ### Added

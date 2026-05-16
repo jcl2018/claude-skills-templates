@@ -291,3 +291,23 @@ Before invoking `/loop /CJ_goal_todo_fix`, scan `TODOS.md` for active-looking ro
 T-IDs / PR numbers match recent merged commits. Any unstrikethrough'd row whose
 work has already shipped is a hygiene debt that will steal a `/loop` iteration.
 Cleanup PRs are cheap (single-file edit, no code, ~5 min through `/ship`).
+
+## Schedule-friendly drain
+
+`/CJ_goal_todo_fix --quiet` (v4.3.0+) is the cron-eligible mode. It suppresses
+the Phase 3 summary AUQ + start-of-run banner and emits `scheduled_run: true`
+into telemetry; cron output stays empty when there's nothing to report.
+Pair with `/schedule` (upstream gstack) to drain the backlog at a fixed cadence:
+
+```
+/schedule create "/CJ_goal_todo_fix --max-drain 3 --quiet" daily 9am
+```
+
+At 9am every day, drains up to 3 easy-fix TODOs into PRs that queue for review.
+**Caveat: /ship Gate #2 still fires per drained TODO** — schedule prepares PRs
+for review at your cadence, not autonomous merge. Operator approves each child
+PR via `gh pr list` + the diff-review AUQ at their own cadence (the autonomy
+ceiling per F000021). Halt-on-red entries are still written to tracker journals;
+the loop still STOPS on red regardless of `--quiet`. The /schedule integration
+is doc-only — no schema-binding lock-in; the /schedule skill (upstream gstack)
+remains independent and the cron-pattern above is just a copy-paste example.
