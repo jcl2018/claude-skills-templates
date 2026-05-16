@@ -3,6 +3,24 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.4.0] - 2026-05-15
+
+### Added
+
+- **New `/CJ_improve-queue` skill (F000022 / S000048).** Takes a URL to a Claude-best-practice page, dispatches an independent reviewer subagent to compare the article's pattern against the workbench's existing skills, and appends a draft improvement-TODO row to `TODOS.md` for the existing `/CJ_suggest → /CJ_goal_todo_fix → /ship → /land-and-deploy` pipeline to consume. Composes with `/loop /CJ_goal_todo_fix` so the more best-practice URLs you feed it, the more your skill collection auto-aligns to evolving Claude patterns through the same shipping pipeline you already use.
+- **HANDOFF envelope dispatch protocol** mirroring `/CJ_goal_todo_fix`'s proven pattern: bash envelope emits `CJ_IMPROVE_QUEUE_HANDOFF_BEGIN/END` on stdout with the canonical URL + in-scope skill files, orchestrator drives the `Agent` dispatch and pipes the verdict back to `apply` via stdin. No prose-only re-invocation contracts; no `.claude/tmp/` writes.
+- **WebFetch source-domain allowlist** (`docs.anthropic.com`, `anthropic.com`, `claude.com`, `github.com/anthropics/*`) with `--allow-untrusted-source` override flag. Off-allowlist URLs emit a stderr warning and tag the row body as untrusted. Closes the attacker-controlled-URL trust boundary into TODOS.md sensitive-surface preflight.
+- **HTML-comment-wrapped source quotes** in generated rows (`<!-- source-quote: "..." -->`). Renders verbatim attacker content as a markdown comment so `/CJ_goal_todo_fix`'s sensitive-surface regex (`goal.sh:289`) cannot false-match on quoted tokens. The operator-visible `**Affected skills:**` and `**Suggested change:**` fields remain in the subagent's reasoning trust boundary.
+- **Inline `<!--impr-draft-->` draft marker in heading** replaces the original prefix-string convention. Invisible in rendered markdown, opt-out by single token removal. Avoids the `DRAFT—` vs `DRAFT — ` vs `Draft —` prefix-typo footgun. `/CJ_suggest` filters draft-marked headings via a one-line `awk` extension (follow-on S000049).
+- **`mkdir`-based write-lock** at `/tmp/cj-improve-queue-lock/` (no `flock` dependency; macOS doesn't ship GNU flock by default — mirrors `/CJ_goal_todo_fix`'s lockfile pattern). Lock scope: only the TODOS.md write step (sub-second), not the entire fetch+reason flow — parallel `evaluate <urlA> + evaluate <urlB>` run network/reasoning concurrently.
+- **Idempotent per source** via `sha256(canonical_url + pattern_name)[:16]` signature stored in trailing HTML comment. URL canonicalization strips `utm_*`, `source`, `ref`, `fbclid`, `gclid`, `mc_*` query params, fragments, default ports, www-prefix; lowercase host + uppercase percent-encoding.
+- **Test fixtures** at `tests/fixtures/CJ_improve-queue/`: `sample-verdict-novel.json`, `sample-verdict-conflict.json`, `sample-verdict-fetch-failed.json`, `sample-verdict-malformed.json`, and `sample-fetch-anthropic-skills-page.html` — enables deterministic CI verification of the apply step without live WebFetch.
+
+### Changed
+
+- **`skills-catalog.json`**: new `CJ_improve-queue` entry (version 0.1.0, status `experimental`, depends `CJ_suggest`).
+- **`rules/skill-routing.md`**: new routing rules for "evaluate this URL", "is this a good Claude pattern", "should we adopt this".
+
 ## [4.3.0] - 2026-05-15
 
 ### Added
