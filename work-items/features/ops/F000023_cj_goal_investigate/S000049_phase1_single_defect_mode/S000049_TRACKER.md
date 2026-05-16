@@ -142,3 +142,13 @@ blocked_by: ""
 - [decision] 2026-05-15: `[investigate-unverified]` halt is Iron-Law-equivalent — does NOT auto-advance to /ship.
 - [decision] 2026-05-15: `/CJ_implement-from-spec` NOT in chain; `/investigate` Phase 4 writes the fix directly.
 - [decision] 2026-05-15: legacy defect dir convention only (`work-items/defects/<domain>/D000NNN_<slug>/`); freestanding deferred to v1.1.
+
+- 2026-05-16T06:03:47Z [orchestrator] --work-item-dir mode: using pre-staged dir at /Users/chjiang/Documents/projects/claude-skills-templates/.claude/worktrees/immutable-watching-sparrow/work-items/features/ops/F000023_cj_goal_investigate/S000049_phase1_single_defect_mode; scaffold skipped.
+
+- 2026-05-16T06:10:20Z [phase2-implement] CJ_goal_investigate skill scaffolded: SKILL.md + pipeline.md + 4 test scripts; catalog entry added; routing rule added. validate.sh: PASS (0 errors, 0 warnings).
+
+- 2026-05-16T06:10:33Z [phase3-qa-smoke-summary] green — all 5 smoke tests pass: S1 validate.sh (PASS, 0 errors); S2 test-rca-mapping.sh (7 RCA headings in order); S3 test-resume-table.sh (5 rows declared); S4 test-dry-run.sh (no-write contract documented); S5 test-halt-journal.sh (all 9 halt markers + 2 chain halts have required fields).
+- 2026-05-16T06:10:33Z [qa-smoke-summary] green
+- 2026-05-16T06:10:33Z [qa-pass] CJ_goal_investigate v1.0.0 smoke gate green. E2E tests (E1-E5) require live /investigate dispatch and are deferred to Phase 7 dogfood validation (per TRACKER line 88-89). Ready for /ship Gate #2.
+
+- 2026-05-16T06:10:46Z [auto-final-gate-suppressed] 0 mechanical, 0 taste, 2 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl
