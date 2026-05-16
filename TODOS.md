@@ -181,7 +181,7 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 
 **RETIRED:** T000029 / v3.5.6 — after closer inspection of validate.sh coverage (11 workbench-wide invariants) vs /CJ_personal-workflow check (per-work-item structural via templates+manifest), neither approach delivers meaningful improvement over v1 (T000028 / Approach D). Reopen if downstream acquires per-repo catalog/manifest surfaces.
 
-### ~~Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)~~ PARTIAL — closed for /CJ_improve-queue Step 3 only (v4.5.3, this PR). **Remaining:** wrap subagent prompt templates in `skills/CJ_personal-pipeline/pipeline.md`, `skills/CJ_qa-work-item/qa.md`, and `skills/CJ_goal_run/run.md` (deferred — load-bearing files, each warrants its own focused PR).
+### ~~Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)~~ DONE — closed in two PRs: v4.5.3 (/CJ_improve-queue Step 3) and v4.5.4 (pipeline.md scaffold/implement/QA dispatches, qa.md E2E subagent, run.md /CJ_personal-pipeline dispatch). All workbench subagent prompt templates now use `<role>` / `<task>` / `<constraints>` / `<return-contract>` / `<inputs>` XML tags per Anthropic prompt-engineering guidance.
 
 **Source:** https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
 **Verdict:** novel

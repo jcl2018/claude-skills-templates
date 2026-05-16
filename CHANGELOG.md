@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.4] - 2026-05-15
+
+### Changed
+
+- **All remaining workbench subagent prompt templates wrapped in XML tags (closes TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** Follow-on to v4.5.3 which did `/CJ_improve-queue` Step 3 only. This PR converts the remaining 5 dispatch templates:
+  - `skills/CJ_personal-pipeline/pipeline.md` Step 3 (Phase 1 scaffold subagent), Step 5.3 (implement subagent), Step 7 (Phase 3 QA subagent) — three dispatches that drive the full personal-workflow pipeline.
+  - `skills/CJ_qa-work-item/qa.md` Step 7 (E2E QA engineer subagent) — the leaf-node subagent that verifies E2E acceptance criteria.
+  - `skills/CJ_goal_run/run.md` Step 3 (CJ_personal-pipeline subagent dispatch under --suppress-final-gate) — the top-level pipeline-runner dispatch.
+
+  Each template now uses `<role>` / `<task>` / `<constraints>` / `<return-contract>` / `<inputs>` XML tags per Anthropic prompt-engineering guidance, so subagents parse mixed instructions + variable inputs unambiguously. No behavioral change to the contracts themselves — only the prompt-template structure. Closes the row that opened in v4.4.0 (F000022) and partially closed in v4.5.3.
+
 ## [4.5.3] - 2026-05-15
 
 ### Changed
