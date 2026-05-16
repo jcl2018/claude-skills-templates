@@ -54,6 +54,8 @@ If state is OPEN, the merge silently failed. Do NOT delete the remote branch —
 deleting the branch on an open PR auto-closes the PR (we burned ~5 min recovering
 from this exact failure mode on PR #83 / v2.0.4).
 
+**Auto-worktree on main (F000025):** `/CJ_goal_run` and `/CJ_goal_todo_fix` (single-TODO mode) auto-create `.claude/worktrees/cj-{run|todo}-{ts}-{pid}/` when invoked from `main` with arguments — main checkout stays clean and parallel sessions don't collide. Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
+
 **Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
 `.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
 `gh pr merge --delete-branch` does a local `git checkout main` to clean up; in a worktree

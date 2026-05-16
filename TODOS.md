@@ -29,6 +29,14 @@ Follow-up deferred at /CJ_goal_run GATE #2 during PR #150 (D000021, v4.6.5). PR 
 **Route:** `/CJ_scaffold-work-item` (next free D-ID — scan local + open PRs + origin/main; D000020 already collided once this cycle) → `/CJ_goal_run <work-item-dir>`.
 **Reference:** PR #150 CHANGELOG v4.6.5 entry; design doc `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-stoic-swartz-eb489a-design-20260515-231745.md`; D000021 work-item.
 
+### Add worktree-default preamble to `/CJ_goal_investigate` (P3, S)
+Deferred follow-up from F000025 (auto-worktree default for CJ_goal_*). F000025 scoped to `/CJ_goal_run` + `/CJ_goal_todo_fix` because workbench `main` has no `skills/CJ_goal_investigate/` directory — the skill's source-of-truth lives on the unmerged `immutable-watching-sparrow` worktree (branch `add-fid-collision-detection-todo`). Once that parent worktree lands on main, mirror the wiring:
+- Copy `skills/CJ_goal_run/SKILL.md`'s "Default-worktree" block into `skills/CJ_goal_investigate/SKILL.md` before its Path Resolution block; switch `--caller run` → `--caller investigate` (helper maps to branch prefix `cj-inv`).
+- Add a `scripts/test.sh` regression assertion mirroring the two existing F000025 grep blocks (one `grep -q 'cj-worktree-init.sh --caller investigate' "$REPO_ROOT/skills/CJ_goal_investigate/SKILL.md"` near the F000025 block).
+- Run `bash tests/cj-worktree-init.test.sh` — no new helper test case needed (Case 1's branch-prefix assertion is parameterized by caller; pattern already covers `cj-inv-`).
+**Route:** `/CJ_goal_todo_fix "worktree-default preamble"` once the parent worktree merges — small, well-scoped, copy-paste-grade.
+**Reference:** F000025 design doc `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-feat-default-worktree-design-20260516-121928.md` Open Q5 + Dependencies section; `work-items/features/ops/F000025_default_worktree_for_cj_goal/`.
+
 ### ~~`/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)~~ DONE
 Closed by T000032 (v4.6.4, PR #148). Added Source 3 to `skills/CJ_scaffold-work-item/scaffold.md` Step 5.1 ID picker: `git fetch origin main --quiet || true` then `git ls-tree -r --name-only origin/main work-items/` parsed for `${PREFIX}NNNNNN_*_TRACKER.md` basenames; ORIGIN_MAX joins LOCAL_MAX + PR_MAX in the HIGHEST computation. Applied uniformly to F/S/T/D prefixes. Same diff also fixed a latent regex bug in Source 2 (PR-claim scan): the basename pattern required an intermediate slug between the ID and `_TRACKER` but actual basenames are `F000024_TRACKER.md` with no slug — silently matched nothing for every PR scanned until now. `(_[^/]*)?` optional-slug correction restored detection.
 
@@ -234,6 +242,19 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 <!-- impr-sig=432d0480aa0d58e5 impr-conf=8/10 -->
 
 ## Deferred work
+
+### Local: resync `~/.claude/` deployed state on this machine (P4, S) — OPERATOR-MANUAL, not automation-eligible
+Recurring local-env hygiene, NOT a code change and NOT PR-closeable — intentionally
+filed under `## Deferred work` so `/CJ_suggest` excludes it and `/CJ_goal_todo_fix` /
+`/loop` never drain it (placing it in `## Active work` would burn loop iterations
+forever since no PR can mark it done). On this machine the deployed `~/.claude/`
+collection drifted from concurrent multi-session work on 2026-05-15/16 (missing
+`~/.claude/templates/*`, `installed != current` version skew) — this is the local-only
+cause of `test-deploy.sh` Test 8 failing locally while CI stays green (see the
+`test-deploy.sh Test 8` P0 in `## Active work` for the full diagnosis). **Action when
+convenient (no other concurrent sessions mid-flight):** `cd <main-checkout> && ./scripts/skills-deploy install`
+from the main checkout (NOT a worktree — `skills-deploy install` pins manifest source to cwd).
+No completion marker needed; it's a periodic chore, re-run whenever local doctor drifts.
 
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED
 Depends on create-skill.sh which was removed. Skills are now created manually via CLAUDE.md guide.

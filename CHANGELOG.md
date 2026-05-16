@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.7] - 2026-05-16
+
+### Added
+
+- **F000025: `/CJ_goal_run` and `/CJ_goal_todo_fix` auto-create a worktree when invoked from `main`.** Each orchestrator pre-flights via a new helper `scripts/cj-worktree-init.sh` that detects whether the invocation is already inside a git worktree (`--git-dir != --git-common-dir`) and, if not and the caller is on `main`/`master`, creates `.claude/worktrees/cj-{run|todo}-{YYYYMMDD-HHMMSS}-{PID}/` on a fresh branch before any code-changing phase fires. Conductor-spawned sessions are unchanged — detection no-ops them. The user-facing change: typing `/CJ_goal_run <design-doc>` on `main` no longer pollutes the main checkout with mid-pipeline state; main stays clean for `git status` triage and parallel sessions don't collide. `--no-worktree` opts out for explicit current-branch execution; drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh` via `--force-create`. Helper output is single-line JSON parsed with `jq` (never `eval` — autoplan dual-voice eng review flagged eval-of-stdout as the highest-severity finding); `WORKTREE_NOTE` is ASCII-sanitized + 200-char capped before emission. Dirty-checkout halts with a clear "stash/commit or pass --no-worktree" message instead of silently abandoning uncommitted edits. `/CJ_goal_run` skips the helper on no-arg auto-resume (Branch g preserved). `scripts/test.sh` adds two source-level regression grep assertions + invokes the 5-case `tests/cj-worktree-init.test.sh` helper test. `/CJ_goal_investigate` worktree wiring is deferred via a new TODOS.md row (its source-of-truth lives on an unmerged worktree). Surfaced by `/office-hours`; autoplan dual-voice (Claude subagent + Codex) Eng review converged on 12 mechanical implementation fixes (all auto-applied to the design before `/CJ_personal-pipeline` scaffold + impl + QA).
+
 ## [4.6.6] - 2026-05-16
 
 ### Added
