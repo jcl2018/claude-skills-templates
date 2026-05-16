@@ -3,7 +3,14 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.6.3] - 2026-05-16
+## [4.6.4] - 2026-05-16
+
+### Fixed
+
+- **T000032: `/CJ_scaffold-work-item` ID-picker now consults `origin/main` in addition to local work-items and open PRs.** Adds a third source (`git fetch origin main --quiet || true` then `git ls-tree -r --name-only origin/main work-items/`) to Step 5.1's fresh-ID generation. Closes the gap where a sibling PR merges a new F/S/T/D-ID into `origin/main` between this worktree's last fetch and the scaffolder running — Source 1 (local find) sees only the lagging local tree; Source 2 (open PRs) sees only OPEN PRs, not merged ones. The exact footgun shape that forced F000023 → F000024 mid-flight rename across 7 files in PR #140. Fetch fails silently on offline / no-remote / no `origin/main`; existing LOCAL+PR floors are preserved.
+- **Latent regex bug in Source 2 (PR-claim scan) fixed in the same diff.** The basename matcher `${PREFIX}[0-9]{6}_[^/]*_TRACKER\.md$` required a slug between the ID and `_TRACKER` — but actual tracker basenames are `F000024_TRACKER.md` (no intermediate slug). Source 2 had been silently matching nothing for every PR scanned. New pattern `${PREFIX}[0-9]{6}(_[^/]*)?_TRACKER\.md$` makes the slug optional, restoring PR-claim collision detection. Applied to both Source 2 and the new Source 3.
+
+
 
 ### Fixed
 
