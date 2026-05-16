@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.6.2] - 2026-05-16
+## [4.6.3] - 2026-05-16
 
 ### Fixed
 
@@ -14,6 +14,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   Verified by re-running the dry-run logic on D000017: pre-fix `R=0 F=1 P=0 M=1 → Row 5`; post-fix `R=1 F=1 P=0 M=1 → Row 4`. Rows 1–3 and 5 unaffected; Row 4 now correctly fires on terminal states.
 
   **Dogfood meta-finding:** The TODOS row for `/CJ_goal_investigate first-defect dogfood validation` (P2, S) expected the dogfood to test the `DEBUG_REPORT_BEGIN_JSON ... END_JSON` sentinel-emission contract from `/investigate`. Instead, the first 30 seconds of dry-run preflight surfaced two pre-existing skill bugs. Sentinel-emission test deferred until D000020 lands and a non-merged defect is picked for the next dogfood.
+
+## [4.6.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` no longer corrupts TODOS.md's end-of-file newline on
+  every row append.** The append path captured the row block via command
+  substitution (`$(build_row ...)`), which strips trailing newlines, then wrote
+  it with `printf '%s'` (no newline) — so each `audit` / `evaluate` / `research`
+  append left TODOS.md ending without a terminating `\n` (not POSIX-clean). All
+  three modes funnel through one write path (`cmd_apply` → `atomic_append`); the
+  fix re-adds exactly one trailing newline there (`printf '%s\n'`), so appended
+  rows are separated by a single blank line and the file always ends with
+  exactly one `\n`. Consecutive appends no longer drop or double the EOF
+  newline. The earlier manual `printf '\n' >> TODOS.md` (commit 8c2ee8f) only
+  patched one artifact; this fixes the source. Added a `scripts/test.sh`
+  regression test (isolated temp git repo, novel + conflict fixtures) asserting
+  the post-append TODOS.md ends with exactly one `\n` across two consecutive
+  appends.
 
 ## [4.6.1] - 2026-05-15
 

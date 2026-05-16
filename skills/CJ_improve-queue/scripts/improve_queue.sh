@@ -422,8 +422,11 @@ atomic_append() {
   local tmpfile
   tmpfile=$(mktemp "$dir/TODOS.md.XXXXXX")
   # Concatenate existing + new row into the temp, then atomic rename.
+  # `row_block` is captured via $(build_row ...), and command substitution
+  # strips ALL trailing newlines — so the '%s\n' (not '%s') is what keeps
+  # TODOS.md POSIX-clean (exactly one terminating \n) after every append.
   cat "$todos_path" > "$tmpfile"
-  printf '%s' "$row_block" >> "$tmpfile"
+  printf '%s\n' "$row_block" >> "$tmpfile"
   mv "$tmpfile" "$todos_path"
 
   printf '%s' "$backup"

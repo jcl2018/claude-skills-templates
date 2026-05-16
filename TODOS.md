@@ -21,6 +21,12 @@ After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY f
 
 **Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
 
+### test-deploy.sh Test 8 fails: skills-deploy doctor not "healthy" post-v4.6.0 (P0, M)
+`./scripts/test.sh` → `./scripts/test-deploy.sh` Test 8 ("Doctor on healthy install") fails (`FAIL: Doctor did not report healthy`), so `test.sh` ends `RESULT: FAIL` (1 failure). Reproduces on pristine `origin/main` at v4.6.0 (PR #140, F000024 `CJ_goal_investigate`) with unrelated changes stashed — **pre-existing, NOT introduced by the EOF-newline bugfix (v4.6.2)**. `skills-deploy doctor` emits non-healthy lines that Test 8 greps for: (1) `WARN: installed version differs from current` — the harness/global `~/.claude` collection-version notion is stale vs the VERSION file; (2) `WARN: CJ_goal_investigate — source directory missing in repo` for the freshly-merged experimental skill in the temp install; (3) stale update-check cache.
+**Repro:** `./scripts/test-deploy.sh; echo $?` → rc=1; assertion at "Test 8: Doctor on healthy install".
+**Likely fix area:** `scripts/skills-deploy` doctor health gate + `scripts/test-deploy.sh` Test 8 expectation — Test 8 should run doctor against an isolated manifest so stale global update-check / collection-version state can't bleed into a temp-dir install's output, AND/OR decide whether the catalog+doctor wiring for the `experimental` `CJ_goal_investigate` skill is incomplete (doctor shouldn't WARN "source directory missing" when the catalog `files[0]` dir exists in-repo).
+**Found:** during /ship of the /CJ_improve-queue EOF-newline fix (v4.6.2); triaged pre-existing, operator chose ship + file P0.
+
 ### `/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)
 F000023 collision shipped through F000024 (PR #140). Root cause: scaffolder picked F000023 based on the worktree's view of `work-items/features/ops/`, which lagged behind `origin/main` by a few hours. `b0e4f67` (v4.5.2, PR #134) shipped its own `F000023_retire_cj_company_workflow` while the worktree was in flight, but the scaffolder didn't see it. The collision was caught at `/ship` Step 4 (during the post-merge audit), forcing a mid-flight rename (F000023 → F000024) across 7 files in the version-bump commit.
 
