@@ -44,6 +44,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `work-copilot/` byte-identical to before. Already-deployed Copilot bundles
   in target repos are unaffected.
 
+## [4.5.3] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_suggest --for-skill cj-goal` filter: three new heading-level gates (3c/3d/3e)** that catch rows `/CJ_goal_todo_fix` drain mode would halt on at preflight. The drain helper requires `(Pn, X)` suffix with `P != 1` and size `S|M`; rows under date-trigger H2 sections (e.g. `## Scheduled checkpoints`), rows with `YYYY-MM-DD —` heading prefix, and rows carrying terminal-marker literals (`WON'T FIX`, `SUPERSEDED`, `SHIPPED`, `RESOLVED`) all currently leak through and waste drain iterations on `halted_at_preflight`. Gates fire before body extraction (cheap heading-only checks) and emit `[CJ_suggest] excluded: ... reason=...` log lines to stderr matching the existing exclusion-log shape. Workbench TODOs unchanged (no false positives); portfolio-repo fallback-mode TODOs now correctly admit only drainable rows.
+
 ## [4.5.4] - 2026-05-15
 
 ### Changed
