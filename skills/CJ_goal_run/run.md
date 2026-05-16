@@ -81,7 +81,26 @@ orchestrator-model Bash tool calls" problem (the failure mode PR1 caught at v2.1
 
 ### Step 1.0: Input shape detection
 
+Pre-pass for the Phase 5 escape hatch (`--no-drain`). Reuses the same
+"accepted-and-discarded flag" pattern that `/CJ_personal-pipeline` uses for
+`--auto`/`--manual` (see SKILL.md Usage). The flag is recognized at any
+position in the arg list and stripped before input-shape detection; the
+remaining positional arg(s) are passed through unchanged.
+
 ```bash
+# Phase 5 flag parsing: --no-drain skips Phase 5 entirely.
+# Default: NO_DRAIN_FLAG=0 (Phase 5 runs as designed).
+NO_DRAIN_FLAG=0
+_FILTERED_ARGS=()
+for _A in "$@"; do
+  case "$_A" in
+    --no-drain) NO_DRAIN_FLAG=1 ;;
+    *) _FILTERED_ARGS+=("$_A") ;;
+  esac
+done
+# Re-bind positional args to the filtered list (drops --no-drain if present).
+set -- "${_FILTERED_ARGS[@]}"
+
 ARG="${1:-}"
 
 if [ -z "$ARG" ]; then
@@ -101,6 +120,7 @@ else
   exit 1
 fi
 echo "INPUT_MODE: $INPUT_MODE"
+echo "NO_DRAIN_FLAG: $NO_DRAIN_FLAG"
 ```
 
 ### Step 1.0.g: Branch(g) — no-arg branch scan (S000038, T000026)
@@ -430,6 +450,10 @@ CHILDREN_TOTAL=0
 CHILDREN_DONE=0
 CHILDREN_FAILED=""
 CHILD_PR_URLS=""
+NO_DRAIN_FLAG=$NO_DRAIN_FLAG
+NEW_TODOS_COUNT=0
+DRAINED_COUNT=0
+DRAINED_PR_URLS=""
 EOF
 
 echo "STATE_FILE: $STATE_FILE"
@@ -465,6 +489,10 @@ CHILDREN_TOTAL=$CHILDREN_TOTAL
 CHILDREN_DONE=$CHILDREN_DONE
 CHILDREN_FAILED="$CHILDREN_FAILED"
 CHILD_PR_URLS="$CHILD_PR_URLS"
+NO_DRAIN_FLAG=${NO_DRAIN_FLAG:-0}
+NEW_TODOS_COUNT=${NEW_TODOS_COUNT:-0}
+DRAINED_COUNT=${DRAINED_COUNT:-0}
+DRAINED_PR_URLS="$DRAINED_PR_URLS"
 EOF
 }
 # Call write_state after any field update.
@@ -878,7 +906,7 @@ writes its own deploy report. Its terminal verdict is one of:
 `/land-and-deploy` ends with verdict `DEPLOYED AND VERIFIED`,
 `DEPLOYED (UNVERIFIED)`, or `STAGING VERIFIED`. All three count as green.
 
-Set `END_STATE=green`; call `write_state`. Continue to Step 6 (finalize).
+Set `END_STATE=green`; call `write_state`. Continue to **Step 5.5 (Phase 5 TODO drain)** before falling through to Step 6.
 
 ### Branch (b): merge reverted (canary red caused user-revert)
 
@@ -905,7 +933,252 @@ or any other pre-merge halt that did not produce a terminal verdict above.
 
 Set `END_STATE=halted_at_deploy`; call `write_state`. Continue to Step 6
 (finalize). The finalizer's tail names the halt reason from /land-and-deploy's
-diagnostic output.
+diagnostic output. **Phase 5 is skipped on any non-green Step 5 exit** —
+drain only fires after a green deploy.
+
+---
+
+## Step 5.5: Phase 5 — TODO drain (post-deploy forward-iteration)
+
+Reached **only** on Step 5 Branch (a) (green deploy). Skipped on Branches (b) /
+(c) — drain assumes the feature PR landed cleanly. Phase 5 diffs the merged
+PR's TODOS.md additions, counts new top-level headings, and (when warranted)
+forward-iterates the new debt through `/CJ_goal_todo_fix` so the run that
+created the debt closes it.
+
+### Step 5.5.0: Skip-if-flagged
+
+If `NO_DRAIN_FLAG=1` (operator passed `--no-drain` at invocation), record the
+escape hatch and fall through to Step 6 with `END_STATE=green` preserved:
+
+```bash
+source "$STATE_FILE"
+if [ "${NO_DRAIN_FLAG:-0}" = "1" ]; then
+  echo "Phase 5: --no-drain flag set; skipping drain phase."
+  # END_STATE stays "green" from Step 5 Branch (a); telemetry will carry
+  # no_drain_flag=true so the silent-skip path is distinguishable from
+  # "happy path zero TODOs".
+  NEW_TODOS_COUNT=0
+  DRAINED_COUNT=0
+  DRAINED_PR_URLS=""
+  write_state
+  # PROCEED TO STEP 6
+fi
+```
+
+### Step 5.5.1: Diff parser — count new TODO headings
+
+Compute `N` = count of newly-added top-level (`### `) headings in TODOS.md
+between the PR base and HEAD. Uses `gh pr view --json baseRefOid` to resolve
+the PR's base SHA; falls back to `origin/main` if the gh lookup fails
+(best-effort; the count just needs to be a sane non-negative integer for the
+threshold check).
+
+```bash
+source "$STATE_FILE"
+# Only run if we got here on a green deploy (preserves END_STATE=green invariant).
+if [ "$END_STATE" != "green" ] || [ "${NO_DRAIN_FLAG:-0}" = "1" ]; then
+  : # Skip silently; handled by upstream guards / Step 5.5.0
+else
+  # Resolve PR base SHA. PR_NUM is set in Step 5 (or earlier via Branch(f) open_pr).
+  PR_BASE_SHA=""
+  if [ -n "${PR_NUM:-}" ]; then
+    PR_BASE_SHA=$(gh pr view "$PR_NUM" --json baseRefOid -q .baseRefOid 2>/dev/null || echo "")
+  fi
+  # Fallback: origin/main^ (one commit before tip) is a reasonable approximation
+  # for the parent. Better than nothing when gh lookup is offline.
+  if [ -z "$PR_BASE_SHA" ]; then
+    PR_BASE_SHA=$(git rev-parse origin/main 2>/dev/null || echo "HEAD~1")
+  fi
+
+  # Count new top-level headings in TODOS.md. `^\+### ` catches added lines only
+  # (excludes context `^ ` and removed `^\-`). Empty / missing TODOS.md yields 0.
+  if [ -f "TODOS.md" ]; then
+    NEW_TODOS_COUNT=$(git diff "$PR_BASE_SHA"..HEAD -- TODOS.md 2>/dev/null \
+      | grep -cE '^\+### ' || echo 0)
+  else
+    NEW_TODOS_COUNT=0
+  fi
+  NEW_TODOS_COUNT=${NEW_TODOS_COUNT:-0}
+
+  # Capture the actual headings for the show-list AUQ option (Step 5.5.3).
+  # Stored as newline-separated string in a per-run file; the state file
+  # stays shell-safe (no embedded newlines).
+  PHASE5_HEADINGS_FILE="/tmp/cj-run-phase5-headings-$RUN_ID.txt"
+  git diff "$PR_BASE_SHA"..HEAD -- TODOS.md 2>/dev/null \
+    | grep -E '^\+### ' \
+    | sed 's/^\+### //' \
+    > "$PHASE5_HEADINGS_FILE" 2>/dev/null || true
+
+  echo "Phase 5: NEW_TODOS_COUNT=$NEW_TODOS_COUNT (parent=$PR_BASE_SHA)"
+  write_state
+fi
+```
+
+### Step 5.5.2: N == 0 — silent skip
+
+When no new TODOs were added by this run's PR, drain has nothing to do.
+Emit green with `new_todos_count: 0`; do NOT surface an AUQ.
+
+```bash
+source "$STATE_FILE"
+if [ "$END_STATE" = "green" ] && [ "${NO_DRAIN_FLAG:-0}" != "1" ] \
+   && [ "${NEW_TODOS_COUNT:-0}" = "0" ]; then
+  echo "Phase 5: no new TODOs detected. Done."
+  # END_STATE stays "green"; telemetry will carry new_todos_count=0,
+  # drained_count=0, drained_pr_urls=[]. This is the silent-skip path.
+  DRAINED_COUNT=0
+  DRAINED_PR_URLS=""
+  write_state
+  # PROCEED TO STEP 6
+fi
+```
+
+### Step 5.5.3: N > 0 — AUQ with recommendation
+
+When `NEW_TODOS_COUNT > 0`, surface an AUQ asking whether to drain. The
+orchestrator (model) renders the AUQ using `AskUserQuestion`; the bash blocks
+above prepared the heading list at `$PHASE5_HEADINGS_FILE` for the show-list
+option.
+
+**Cap policy**: `cap=5` is hardcoded (greppable / P5-explicit per the design
+tradeoffs table). Recommendation is `yes` iff `N <= cap`; `no` otherwise.
+
+```
+AskUserQuestion:
+  Question: "Phase 5 drain: this run added N new TODOs. Drain them now?"
+  Body:
+    /CJ_goal_run Phase 5 detected $NEW_TODOS_COUNT new TODO heading(s)
+    added to TODOS.md by this run's PR ($PR_URL).
+
+    Cap: 5 TODOs per drain phase (hardcoded). Drain invokes
+    /CJ_goal_todo_fix once per heading, sequentially.
+
+    Recommendation:
+      - yes      (if N <= 5; achievable in one pass)
+      - no       (if N > 5; partial drain is not completeness — defer to
+                  manual /loop /CJ_goal_todo_fix)
+
+  Options (orchestrator presents based on N):
+    [N <= 5]
+      A) Yes, drain all $N TODOs               <-- recommended
+      B) No, skip drain (mark green, defer)
+      C) Show list of headings, then decide
+
+    [N > 5]
+      A) Drain top 5, defer the rest
+      B) No, skip drain (mark green, defer)    <-- recommended
+      C) Show list of headings, then decide
+```
+
+**Show-list flow**: when the operator picks `C`, the orchestrator reads
+`$PHASE5_HEADINGS_FILE`, prints the list with line numbers, then re-renders
+the AUQ with options A/B only (the show-list branch collapses to the binary
+choice on the second round).
+
+**Operator choice → END_STATE branches**:
+- **A (drain)**: continue to Step 5.5.4. `DRAIN_TARGET_COUNT=min(N, 5)`.
+- **B (skip)**: set `END_STATE=green` (unchanged); record `DRAINED_COUNT=0`;
+  flow to Step 6. The new TODOs remain as active rows in TODOS.md (operator
+  manually invokes `/CJ_goal_todo_fix` later or queues via `/loop`).
+
+### Step 5.5.4: Per-TODO drain loop (cap=5)
+
+For each of the first `DRAIN_TARGET_COUNT` headings, invoke `/CJ_goal_todo_fix`
+as a subroutine via the **Skill** tool. Each invocation runs its own
+preflight → scaffold T-task → `/CJ_personal-pipeline` → `/ship` Gate #2 →
+`/land-and-deploy` → TODOS.md DONE-mark sub-flow. Halt-on-red: any child red
+stops the loop; remaining headings are left as active TODOS rows.
+
+```bash
+source "$STATE_FILE"
+# Only enter the loop when the operator picked "drain" (A) above. The
+# orchestrator carries the AUQ answer as prose state; this block is the
+# implementation skeleton, invoked by the orchestrator after Option A.
+DRAIN_CAP=5
+DRAIN_TARGET_COUNT=$NEW_TODOS_COUNT
+if [ "$DRAIN_TARGET_COUNT" -gt "$DRAIN_CAP" ]; then
+  DRAIN_TARGET_COUNT=$DRAIN_CAP
+fi
+echo "Phase 5: draining $DRAIN_TARGET_COUNT of $NEW_TODOS_COUNT TODOs (cap=$DRAIN_CAP)"
+
+# Read headings from the per-run file (first $DRAIN_TARGET_COUNT lines).
+DRAINED_COUNT=0
+DRAINED_PR_URLS=""
+HEADING_IDX=0
+while IFS= read -r heading; do
+  HEADING_IDX=$((HEADING_IDX + 1))
+  if [ "$HEADING_IDX" -gt "$DRAIN_TARGET_COUNT" ]; then
+    break
+  fi
+  echo "Phase 5 child $HEADING_IDX/$DRAIN_TARGET_COUNT: $heading"
+  # Orchestrator step: invoke /CJ_goal_todo_fix via Skill tool with $heading
+  # as the resolver hint. /CJ_goal_todo_fix's own preflight will match the
+  # heading against TODOS.md row, scaffold a T-task, and run its own
+  # full pipeline.
+  #
+  # On child green: extract child PR URL from /CJ_goal_todo_fix's RESULT
+  # tail (final summary block) and append to DRAINED_PR_URLS (space-sep).
+  # On child red: STOP the loop, set END_STATE=drained_partial, break out.
+  #
+  # The orchestrator parses /CJ_goal_todo_fix's printed summary for
+  # `PR:` / `pr_url:` lines (same pattern /ship + /land-and-deploy emit).
+  #
+  # NOTE: v1 calls /CJ_goal_todo_fix as a subroutine via the Skill tool.
+  # S000046 extracts the inner loop into a shared `drain-one-todo.sh`
+  # helper so this Phase 5 loop and /CJ_goal_todo_fix's own native-drain
+  # mode share a single code path. v1 keeps the Skill-tool invocation
+  # for simplicity (DRY now via shared skill, not yet via shared script).
+done < "$PHASE5_HEADINGS_FILE"
+
+# After loop: classify END_STATE.
+# - If DRAINED_COUNT == DRAIN_TARGET_COUNT: drained_complete (all green).
+# - If 0 < DRAINED_COUNT < DRAIN_TARGET_COUNT: drained_partial (mid-loop halt).
+# - If DRAINED_COUNT == 0 and loop entered: drained_partial (first child red).
+#
+# Note: drained_partial covers both halt-on-red and cap-reached cases. When
+# N > 5 and operator picked "Drain top 5, defer rest", the post-loop state
+# is drained_complete (5 of 5 drained) — the deferred rest count is
+# captured separately via NEW_TODOS_COUNT - DRAINED_COUNT in the summary.
+
+if [ "$DRAINED_COUNT" = "$DRAIN_TARGET_COUNT" ]; then
+  END_STATE="drained_complete"
+else
+  END_STATE="drained_partial"
+fi
+write_state
+# Cleanup per-run headings file
+rm -f "$PHASE5_HEADINGS_FILE" 2>/dev/null
+echo "Phase 5 complete: end_state=$END_STATE drained=$DRAINED_COUNT/$DRAIN_TARGET_COUNT"
+```
+
+**Orchestrator contract for the loop**: the bash block above is the skeleton.
+The orchestrator (model) carries `$PHASE5_HEADINGS_FILE` and `$DRAIN_TARGET_COUNT`
+as prose state, and renders one Skill-tool `/CJ_goal_todo_fix <heading>`
+invocation per iteration. After each child:
+1. Parse the child's summary block for the PR URL.
+2. Append to `DRAINED_PR_URLS` (space-separated).
+3. Increment `DRAINED_COUNT`.
+4. Call `write_state` (so a Ctrl-C / crash mid-loop leaves recoverable state).
+5. On child red (any halt class other than `green` / `already_shipped`): STOP
+   the loop, set `END_STATE=drained_partial`, write_state, fall through to
+   Step 6.
+
+After the loop completes (green or red), END_STATE is one of `drained_complete`
+/ `drained_partial`. Proceed to Step 6 (finalize) — Step 6's telemetry write
+already records the new fields via the schema-tolerant jq invocation.
+
+### Step 5.5.5: Halt-on-red — error → drained_partial
+
+If any child `/CJ_goal_todo_fix` invocation halts red, the orchestrator
+short-circuits the loop and sets `END_STATE=drained_partial`. The state file
+captures `DRAINED_COUNT` (how many shipped before the halt) and `DRAINED_PR_URLS`
+(URLs of the successful children). The remaining TODOs stay as active rows in
+TODOS.md and can be picked up by a later `/CJ_goal_todo_fix` or `/loop` run.
+
+This is the standard halt-on-red contract: Phase 5 inherits it from the
+parent /CJ_goal_run skill's "halt-on-red default" rule. No new error
+handling required beyond setting END_STATE before flowing to Step 6.
 
 ---
 
@@ -936,7 +1209,18 @@ fi
 MULTI_STORY_BOOL=$([ "$MULTI_STORY" = "1" ] && echo "true" || echo "false")
 CHILDREN_DONE=${CHILDREN_DONE:-0}
 
+# Phase 5 telemetry fields (S000045). new_todos_count and drained_count are
+# numeric; drained_pr_urls is an array (split from the space-separated state
+# string); no_drain_flag is bool.
+NO_DRAIN_BOOL=$([ "${NO_DRAIN_FLAG:-0}" = "1" ] && echo "true" || echo "false")
+NEW_TODOS_COUNT=${NEW_TODOS_COUNT:-0}
+DRAINED_COUNT=${DRAINED_COUNT:-0}
+
 if command -v jq >/dev/null 2>&1; then
+  # Build drained_pr_urls as a JSON array from the space-separated state.
+  # Empty string yields []. Mapped through jq's `split` for robustness.
+  DRAINED_URLS_JSON=$(printf '%s' "${DRAINED_PR_URLS:-}" \
+    | jq -Rc 'split(" ") | map(select(length > 0))' 2>/dev/null || echo "[]")
   jq -nc \
     --arg run_id "$RUN_ID" \
     --arg design_doc "$DESIGN_DOC" \
@@ -945,8 +1229,12 @@ if command -v jq >/dev/null 2>&1; then
     --arg end_state "$END_STATE" \
     --argjson multi_story_mode "$MULTI_STORY_BOOL" \
     --argjson multi_story_children_shipped "$CHILDREN_DONE" \
+    --argjson new_todos_count "$NEW_TODOS_COUNT" \
+    --argjson drained_count "$DRAINED_COUNT" \
+    --argjson drained_pr_urls "$DRAINED_URLS_JSON" \
+    --argjson no_drain_flag "$NO_DRAIN_BOOL" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_mode:$multi_story_mode,multi_story_children_shipped:$multi_story_children_shipped,ts:$ts}' \
+    '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_mode:$multi_story_mode,multi_story_children_shipped:$multi_story_children_shipped,new_todos_count:$new_todos_count,drained_count:$drained_count,drained_pr_urls:$drained_pr_urls,no_drain_flag:$no_drain_flag,ts:$ts}' \
     >> "$HOME/.gstack/analytics/CJ_goal_run.jsonl"
 else
   # Fallback when jq is missing (workbench declared dep, so unlikely).
@@ -954,7 +1242,23 @@ else
   _SAFE_DOC=$(printf '%s' "$DESIGN_DOC" | tr -d '\\"')
   _SAFE_WORK=$(printf '%s' "${WORK_ITEM_DIR:-}" | tr -d '\\"')
   _SAFE_PR=$(printf '%s' "${PR_URL:-}" | tr -d '\\"')
-  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_mode\":$MULTI_STORY_BOOL,\"multi_story_children_shipped\":$CHILDREN_DONE,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+  # drained_pr_urls: space-separated → "url1","url2","url3" → ["url1","url2","url3"]
+  _DRAINED_ARRAY="[]"
+  if [ -n "${DRAINED_PR_URLS:-}" ]; then
+    _DRAINED_ARRAY="["
+    _FIRST=1
+    for _U in $DRAINED_PR_URLS; do
+      _SAFE_U=$(printf '%s' "$_U" | tr -d '\\"')
+      if [ "$_FIRST" = "1" ]; then
+        _DRAINED_ARRAY="${_DRAINED_ARRAY}\"$_SAFE_U\""
+        _FIRST=0
+      else
+        _DRAINED_ARRAY="${_DRAINED_ARRAY},\"$_SAFE_U\""
+      fi
+    done
+    _DRAINED_ARRAY="${_DRAINED_ARRAY}]"
+  fi
+  echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_mode\":$MULTI_STORY_BOOL,\"multi_story_children_shipped\":$CHILDREN_DONE,\"new_todos_count\":$NEW_TODOS_COUNT,\"drained_count\":$DRAINED_COUNT,\"drained_pr_urls\":$_DRAINED_ARRAY,\"no_drain_flag\":$NO_DRAIN_BOOL,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
     >> "$HOME/.gstack/analytics/CJ_goal_run.jsonl"
 fi
 ```
@@ -984,9 +1288,28 @@ Design:        $DESIGN_DOC
 Work item:     ${WORK_ITEM_DIR:-N/A}
 PR:            ${PR_URL:-N/A}
 Tracker:       ${TRACKER_PATH:-N/A}
+Phase 5:       new_todos=$NEW_TODOS_COUNT  drained=$DRAINED_COUNT  no_drain_flag=${NO_DRAIN_FLAG:-0}
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
 Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
 ```
+
+Else if `END_STATE=drained_complete` or `drained_partial` (Phase 5 outcome):
+
+```
+/CJ_goal_run COMPLETE ($END_STATE)  drained=$DRAINED_COUNT/$NEW_TODOS_COUNT
+
+Run ID:        $RUN_ID
+Design:        $DESIGN_DOC
+Work item:     ${WORK_ITEM_DIR:-N/A}
+Feature PR:    ${PR_URL:-N/A}
+Drain PRs:     ${DRAINED_PR_URLS:-N/A}
+Tracker:       ${TRACKER_PATH:-N/A}
+Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
+Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
+```
+
+For `drained_partial`: include the line
+"Remaining: $((NEW_TODOS_COUNT - DRAINED_COUNT)) TODOs not drained — run /CJ_goal_todo_fix or /loop to clear."
 
 Otherwise (any halt or `deploy_red`):
 
@@ -1180,11 +1503,20 @@ source "$STATE_FILE"
 # Cleanup state file (optional; tmpfiles will eventually reap it)
 rm -f "$STATE_FILE" 2>/dev/null
 
-if [ "$END_STATE" = "green" ]; then
-  exit 0
-else
-  exit 1
-fi
+# green and drained_complete both exit 0 (Phase 5 fully shipped + drained).
+# drained_partial exits 0 too: the feature shipped green, drain ran some
+# children — the per-loop halt-on-red was a within-Phase-5 partial-success
+# (Phase 4 already returned green; we don't want to retroactively poison
+# the run's exit code). The DRAINED_COUNT < NEW_TODOS_COUNT signal lives in
+# telemetry + summary, not exit code.
+case "$END_STATE" in
+  green|drained_complete|drained_partial|already_shipped)
+    exit 0
+    ;;
+  *)
+    exit 1
+    ;;
+esac
 ```
 
 ---
