@@ -190,12 +190,29 @@ cmd_default() {
 
   # Manifest gate: silent exit if not installed via skills-deploy.
   [ -f "$MANIFEST" ] || exit 0
-  local source_path local_version
+  local source_path local_version expected_upstream
   source_path=$(manifest_field "source")
   local_version=$(manifest_field "collection_version")
+  expected_upstream=$(manifest_field "upstream_url")
   [ -n "$source_path" ] || exit 0
   [ -d "$source_path/.git" ] || exit 0
   [ -n "$local_version" ] || exit 0
+
+  # Origin URL pinning (T000031). If the manifest recorded an upstream_url at
+  # install time, verify the source repo's current origin matches before
+  # recommending an upgrade. Mismatch means someone (legitimate remote change,
+  # or attacker) redirected origin since install — suppress the banner and
+  # warn so the user decides whether to re-run `skills-deploy install` to
+  # re-pin or investigate. Pre-T000031 manifests have no upstream_url field;
+  # treat empty as "not pinned" for backward compatibility.
+  if [ -n "$expected_upstream" ]; then
+    local current_upstream
+    current_upstream=$(git -C "$source_path" remote get-url origin 2>/dev/null || true)
+    if [ -n "$current_upstream" ] && [ "$current_upstream" != "$expected_upstream" ]; then
+      echo "WARN: skills-update-check: origin URL mismatch — expected '$expected_upstream', got '$current_upstream'. Suppressing upgrade banner; re-run 'skills-deploy install' from a trusted clone to re-pin." >&2
+      exit 0
+    fi
+  fi
 
   # Cache + snooze + skip gates.
   local cache snooze_until skip_version checked_at remote_version
