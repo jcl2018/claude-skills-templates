@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.6] - 2026-05-16
+
+### Added
+
+- **`/CJ_suggest --include-internal` flag; internal phase-step skill rows are now filtered by default.** The top-5 ranking surface was leaking transitively-invoked phase steps (`CJ_personal-pipeline`, `CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`) and `*-workflow` validators into "what should I work on next" output — work that operators almost never pick as a standalone top-level task. `suggest.sh` now runs a heading + body regex pass against the internal-skill name set (current `CJ_<name>` form plus pre-v4.0 unprefixed `/scaffold-work-item` / `/personal-pipeline` etc. for legacy TODOs), excludes matching rows from the ranked output, and emits one `[CJ_suggest] excluded: <id-or-title> reason=internal-skill (<matched-name>)` stderr line per drop — mirroring the existing `--for-skill` exclusion log format. Pass `--include-internal` to re-surface these rows when you genuinely need to drill into a phase step. Composes cleanly with `--for-skill cj-goal --limit 15` (the `/CJ_goal_todo_fix` canonical invocation): internal-skill filter runs after the skill-aware preflight gates, so both filters stack instead of fighting. Net effect on this repo's TODOS.md today: three `/CJ_personal-pipeline`-flavored rows drop out, top-5 leads with top-level pipeline work (`/CJ_goal_investigate` dogfood, `/CJ_goal` skip-list bug) instead of internal phase-step bugs.
+
 ## [4.6.5] - 2026-05-16
 
 ### Fixed

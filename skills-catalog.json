@@ -182,8 +182,8 @@
   },
   {
     "name": "CJ_suggest",
-    "version": "1.1.0",
-    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix.",
+    "version": "1.2.0",
+    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, CJ_personal-pipeline, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix.",
     "source": "local",
     "depends": {
       "skills": [],
