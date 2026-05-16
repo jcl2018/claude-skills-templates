@@ -623,8 +623,12 @@ echo "Regression test (D000013): setup-hooks.sh installs post-merge auto-sync ho
 # script still emits the right hook content; it does not fire the hook itself
 # (avoids touching .git/hooks/ in CI).
 
-# shellcheck disable=SC2016 # literal $HOOK_DIR is intentional — we're grepping for the exact string in setup-hooks.sh
-if grep -q 'cat > "$HOOK_DIR/post-merge"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+# D000022 re-anchored this guard from the literal 'cat > "$HOOK_DIR/post-merge"'
+# to the install_hook shape: setup-hooks.sh now installs hooks via the
+# clobber-safe install_hook helper, not a bare cat-redirect. Same D000013
+# regression intent (setup-hooks.sh still writes a post-merge hook); new
+# structural token. No SC2016 disable needed — the pattern has no literal $.
+if grep -qE 'install_hook[[:space:]]+post-merge' "$REPO_ROOT/scripts/setup-hooks.sh"; then
   ok "setup-hooks.sh writes a post-merge hook"
 else
   fail_test "setup-hooks.sh missing post-merge hook block (D000013 guard)"
@@ -650,12 +654,41 @@ fi
 # 'setup-hooks.sh' substring — the explanatory comments in setup.sh also
 # contain that string, so a loose grep stays green even if the invocation
 # line is deleted (matches the structural-token style of the D000013 guards
-# above, e.g. 'cat > "$HOOK_DIR/post-merge"').
+# above, e.g. 'install_hook post-merge').
 # shellcheck disable=SC2016 # literal $CLONE_DIR is intentional — grepping for the exact source string in setup.sh
 if grep -qE '"\$CLONE_DIR/scripts/setup-hooks\.sh"' "$REPO_ROOT/scripts/setup.sh"; then
   ok "setup.sh bootstrap invokes setup-hooks.sh (post-merge hook auto-installed on fresh clone)"
 else
   fail_test "setup.sh does not invoke setup-hooks.sh — fresh-clone bootstrap leaves auto-sync hook uninstalled (D000013 bootstrap-wiring guard)"
+fi
+
+# D000022: setup-hooks.sh must not blind-clobber operator/tooling-owned git
+# hooks. Since D000021 wired setup-hooks.sh into setup.sh's always-on update
+# path, an unconditional `cat > "$HOOK_DIR/<hook>"` would silently destroy a
+# customized pre-commit/post-merge (Husky, lefthook, local) with no backup, and
+# a partial write would leave a truncated hook present. The fix installs via a
+# sentinel-aware, atomic install_hook helper. Source-level static checks only —
+# never fires a hook (same CI-safety rationale as the D000013 block above).
+# shellcheck disable=SC2016 # literal $SENTINEL is intentional — grepping for the exact source string in setup-hooks.sh
+if grep -qF '! grep -qF "$SENTINEL"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh checks the workbench sentinel before overwriting an existing hook (D000022 guard)"
+else
+  fail_test "setup-hooks.sh missing sentinel ownership check — operator/tooling hooks can be blind-clobbered (D000022 guard)"
+fi
+
+# shellcheck disable=SC2016 # literal $HOOK_DIR/$tmp/$hook_path are intentional — grepping for the exact source strings in setup-hooks.sh
+if grep -qF 'mktemp "$HOOK_DIR/.${hook_name}.XXXXXX"' "$REPO_ROOT/scripts/setup-hooks.sh" \
+   && grep -qF 'mv "$tmp" "$hook_path"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh stages hooks via mktemp and installs with an atomic mv (D000022 guard)"
+else
+  fail_test "setup-hooks.sh missing atomic mktemp-stage + mv install — a partial write can leave a truncated hook (D000022 guard)"
+fi
+
+# shellcheck disable=SC2016 # literal $hook_path/$backup are intentional — grepping for the exact source string in setup-hooks.sh
+if grep -qF 'cp -p "$hook_path" "$backup"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh backs up a non-workbench hook to <hook>.bak before clobbering (D000022 guard)"
+else
+  fail_test "setup-hooks.sh missing .bak backup of non-workbench hooks — custom hooks lost unrecoverably (D000022 guard)"
 fi
 
 echo ""

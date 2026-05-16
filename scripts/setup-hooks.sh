@@ -20,7 +20,66 @@ if [ ! -d "$HOOK_DIR" ]; then
   exit 1
 fi
 
-cat > "$HOOK_DIR/pre-commit" << 'HOOK'
+# Sentinel embedded in every hook body this script writes (see the heredocs
+# below). Lets install_hook tell a workbench-owned hook from an
+# operator/tooling-owned one (Husky, lefthook, a local debug hook) so a custom
+# hook is never blindly destroyed. grep -F substring match: tolerates the
+# post-merge body's trailing '.' after the sentinel.
+SENTINEL='# Auto-installed by scripts/setup-hooks.sh'
+
+# install_hook <name>   (hook body on stdin)
+# Clobber-safe, atomic install of .git/hooks/<name>:
+#   - Stage the body into a temp file in $HOOK_DIR and chmod +x it BEFORE the
+#     target is touched. The live hook is only ever changed by an atomic mv of
+#     a fully-written file (same dir => same filesystem => rename(2)), so a
+#     mid-write/chmod failure leaves the prior hook intact — never a truncated
+#     or non-executable hook (the prior `cat >` truncated the target up front;
+#     setup.sh's `|| echo WARN >&2` then masked the partial write).
+#   - If an existing hook lacks $SENTINEL it is operator/tooling-owned: back it
+#     up to <hook>.bak (timestamped if .bak exists) and warn, instead of
+#     silently destroying it. If the backup itself fails, abort WITHOUT
+#     clobbering — losing an un-backed custom hook is the one unacceptable
+#     outcome.
+#   - An existing hook that already carries $SENTINEL is our own prior install:
+#     refreshed in place, no backup, so repeated setup.sh runs stay a no-op.
+# Returns non-zero on failure so setup.sh's `|| echo WARN >&2` guard fires.
+install_hook() {
+  hook_name="$1"
+  hook_path="$HOOK_DIR/$hook_name"
+  tmp="$(mktemp "$HOOK_DIR/.${hook_name}.XXXXXX" 2>/dev/null)" || {
+    echo "ERROR: cannot create temp file in $HOOK_DIR for $hook_name hook" >&2
+    return 1
+  }
+  if ! cat > "$tmp"; then
+    rm -f "$tmp"
+    echo "ERROR: failed to write $hook_name hook body" >&2
+    return 1
+  fi
+  if ! chmod +x "$tmp"; then
+    rm -f "$tmp"
+    echo "ERROR: chmod +x failed for $hook_name hook" >&2
+    return 1
+  fi
+  if [ -e "$hook_path" ] && ! grep -qF "$SENTINEL" "$hook_path" 2>/dev/null; then
+    backup="$hook_path.bak"
+    [ -e "$backup" ] && backup="$hook_path.bak.$(date +%Y%m%d%H%M%S)"
+    if ! cp -p "$hook_path" "$backup"; then
+      rm -f "$tmp"
+      echo "ERROR: existing .git/hooks/$hook_name is not workbench-owned and could not be backed up — refusing to overwrite (your custom hook is untouched)" >&2
+      return 1
+    fi
+    echo "WARN: existing .git/hooks/$hook_name is not workbench-owned — backed up to $(basename "$backup") before installing the workbench hook" >&2
+  fi
+  if ! mv "$tmp" "$hook_path"; then
+    rm -f "$tmp"
+    echo "ERROR: failed to install $hook_name hook" >&2
+    return 1
+  fi
+}
+
+rc=0
+
+if install_hook pre-commit << 'HOOK'
 #!/usr/bin/env bash
 # Auto-installed by scripts/setup-hooks.sh
 # Runs repo-wide validation. Per-skill skill-check.sh was retired (see TODOS.md);
@@ -28,12 +87,14 @@ cat > "$HOOK_DIR/pre-commit" << 'HOOK'
 
 ./scripts/validate.sh || exit 1
 HOOK
+then
+  echo "Pre-commit hook installed at .git/hooks/pre-commit"
+  echo "Commits will now run validate.sh."
+else
+  rc=1
+fi
 
-chmod +x "$HOOK_DIR/pre-commit"
-echo "Pre-commit hook installed at .git/hooks/pre-commit"
-echo "Commits will now run validate.sh."
-
-cat > "$HOOK_DIR/post-merge" << 'HOOK'
+if install_hook post-merge << 'HOOK'
 #!/usr/bin/env bash
 # Auto-installed by scripts/setup-hooks.sh.
 # Combined post-merge handler:
@@ -100,8 +161,12 @@ fi
 # Best-effort: always exit 0 to avoid blocking git operations.
 exit 0
 HOOK
+then
+  echo "Post-merge hook installed at .git/hooks/post-merge"
+  echo "  - Pulls that change templates/skills/catalog/rules auto-redeploy ~/.claude/."
+  echo "  - Pulls on main that touch work-items/**/*_TRACKER.md auto-update Phase 3 gates."
+else
+  rc=1
+fi
 
-chmod +x "$HOOK_DIR/post-merge"
-echo "Post-merge hook installed at .git/hooks/post-merge"
-echo "  - Pulls that change templates/skills/catalog/rules auto-redeploy ~/.claude/."
-echo "  - Pulls on main that touch work-items/**/*_TRACKER.md auto-update Phase 3 gates."
+exit $rc
