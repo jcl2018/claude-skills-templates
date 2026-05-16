@@ -171,6 +171,66 @@ After `apply` returns, print a one-line summary to the user:
 - On `match` / `reject` (no row appended): "no row appended (verdict=<V>): <reason from stderr>."
 - On `fetch_failed`: "fetch failed: <error>; no row appended."
 
+## Phase 2 (S000050): audit mode
+
+`/CJ_improve-queue audit` runs an offline repo self-scan. No network, no Agent dispatch, no AskUserQuestion. Two deterministic checks per skill under `skills/`:
+
+1. **stale-skill** — `~/.gstack/analytics/skill-usage.jsonl` has no entry for this skill in the last 30 days. Emits a row at confidence 6 (REVIEW-flagged) suggesting retire / polish / document-as-quiet-utility.
+2. **missing-frontmatter** — `SKILL.md` lacks `version:` or `allowed-tools:` field. Emits a row at confidence 9 (deterministic).
+
+Each finding goes through the same `cmd_apply` path the evaluate flow uses — synthetic verdict JSON with `verdict=novel`, `canonical_url=repo-audit://<check>/<target>`. Signatures are unique per (check, target) pair, so re-running audit is idempotent (already-found rows are skipped).
+
+Run from the workbench repo root:
+
+```bash
+bash skills/CJ_improve-queue/scripts/improve_queue.sh audit
+```
+
+Output: `[CJ_improve-queue audit] scanned=N appended=M skipped=K (already in backlog)`. Rows land in `TODOS.md` with `<!--impr-draft-->` markers — `/CJ_suggest` filters them out until you remove the marker to promote.
+
+**Known false positive**: if your analytics file records a skill under a different name (e.g. `/CJ_run` deprecated alias vs `/CJ_goal_run` current), audit will see "never invoked" and flag it stale. Confidence is 6 specifically because of this fuzz — review before promoting.
+
+## Phase 3 (S000051): research <topic> mode
+
+`/CJ_improve-queue research <topic>` is an orchestrator-driven flow (no bash sub-command). The orchestrator (this SKILL.md) does:
+
+### Step R1: Privacy gate
+
+The topic terms get sent to the WebSearch provider. Match `/office-hours`' Phase 2.75 convention: AskUserQuestion before the search.
+
+```
+> "/CJ_improve-queue research" sends '<topic>' to a search provider so it can
+> find articles to evaluate. OK to proceed, or skip and stay private?
+> A) Yes, search away (recommended)
+> B) Skip — keep this session private
+```
+
+If B: stop. No search, no evaluations.
+
+### Step R2: WebSearch
+
+Run WebSearch with the topic, cap at 3 results. Filter to allowlist hosts (`docs.anthropic.com`, `anthropic.com`, `claude.com`, `github.com/anthropics/*`) so the privacy footprint is bounded. If 0 results after filter, stop with `[CJ_improve-queue research] no allowlisted results for "<topic>"`.
+
+### Step R3: Per-result evaluate loop
+
+For each result URL, run the existing Phase 1 evaluate flow:
+
+1. `bash skills/CJ_improve-queue/scripts/improve_queue.sh evaluate-prepare <result_url>` — get HANDOFF.
+2. Dispatch Agent subagent with the standard Phase 1 prompt template.
+3. Pipe verdict to `cmd_apply` via stdin.
+
+No new bash code is needed for Phase 3 — it composes Phase 1 primitives. Aggregate results into a one-line summary:
+
+```
+[CJ_improve-queue research "<topic>"] evaluated=N novel=A conflict=B match=C reject=D fetch_failed=E rows_appended=R
+```
+
+### Phase 3 constraints
+
+- **Allowlist only**: per-result URLs that fall outside the default allowlist are skipped silently. `--allow-untrusted-source` is NOT respected in research mode (privacy + trust boundary stays tight).
+- **No cross-result reasoning**: each URL is evaluated independently. The subagent does not see other results.
+- **Cap at 3**: limit per invocation to keep token cost bounded and avoid TODOS.md noise. User can re-run with a different topic.
+
 ## Test mode (CI / fixtures)
 
 For deterministic regression testing, set `CJ_IMPROVE_QUEUE_VERDICT_FILE` to a
