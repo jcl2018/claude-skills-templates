@@ -38,6 +38,7 @@ WORKITEMS_DIR="work-items"
 # parsed via case statement with explicit shift.
 FOR_SKILL=""
 LIMIT=5
+INCLUDE_INTERNAL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --for-skill)
@@ -62,13 +63,31 @@ while [ $# -gt 0 ]; do
       LIMIT="$2"
       shift 2
       ;;
+    --include-internal)
+      INCLUDE_INTERNAL=1
+      shift
+      ;;
     *)
       echo "Error: unrecognized argument: $1" >&2
-      echo "Usage: /CJ_suggest [--for-skill <name>] [--limit N]" >&2
+      echo "Usage: /CJ_suggest [--for-skill <name>] [--limit N] [--include-internal]" >&2
       exit 1
       ;;
   esac
 done
+
+# Internal-skill regex: rows whose heading mentions one of these transitively-
+# invoked phase steps are filtered by default. Top-level pipelines
+# (CJ_goal_run, CJ_goal_todo_fix, CJ_goal_investigate, CJ_suggest, CJ_improve-queue,
+# CJ_system-health) are user-facing and never matched here.
+#
+# Matches:
+#   - `CJ_<internal>`     (current naming, with or without leading `/` or backtick)
+#   - `/<legacy-name>`    (pre-v4.0 unprefixed form, only with leading `/` to
+#                          avoid matching random prose like "personal pipeline")
+# Trailing boundary uses a negated character class instead of `\b` for portable
+# BSD-grep behavior. The CJ_-prefixed alternative needs no trailing boundary —
+# `CJ_personal-pipeline` is not a substring of any other current skill name.
+INTERNAL_SKILL_RE='CJ_(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec|personal-pipeline|company-workflow)|/(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec|personal-pipeline)([^a-zA-Z0-9_-]|$)'
 
 # Validate --for-skill value (only cj-goal is implemented in v1).
 if [ -n "$FOR_SKILL" ] && [ "$FOR_SKILL" != "cj-goal" ]; then
@@ -433,6 +452,58 @@ if [ -n "$FOR_SKILL" ]; then
   done < "$SCORED"
   # Swap SCORED to point at the filtered file for downstream consumption.
   SCORED="$FILTERED"
+fi
+
+if [ ! -s "$SCORED" ]; then
+  echo "No actionable items."
+  exit 0
+fi
+
+# ---- Step 5.6: Filter internal-skill rows (default on; --include-internal disables) ----
+#
+# Rationale: /CJ_suggest's job is "what should I work on next" — top-level
+# pipelines (CJ_goal_run, CJ_goal_todo_fix, CJ_goal_investigate) and standalone
+# utilities (CJ_system-health, CJ_improve-queue) are the user-facing surface.
+# Phase-step skills (CJ_scaffold-work-item, CJ_implement-from-spec,
+# CJ_qa-work-item, CJ_personal-pipeline) and validators (CJ_personal-workflow,
+# CJ_company-workflow) are transitively invoked by the orchestrators — their
+# work items usually surface as side effects of fixing the top-level skill,
+# not as standalone next-ups. Filter by default; `--include-internal` for the
+# case where you genuinely need to drill into a phase step.
+#
+# Matches against the raw heading line (column 7), not just the title — catches
+# rows where the internal skill name appears anywhere in the heading.
+if [ "$INCLUDE_INTERNAL" -eq 0 ]; then
+  FILTERED2=$(mktemp)
+  # $SCORED reads as either the original SCORED tempfile or (if --for-skill
+  # ran) the FILTERED tempfile that replaced it. Trap re-evaluates $SCORED at
+  # exit time, so it always cleans up whichever file SCORED currently names.
+  # Pre-existing pattern from Step 5.5.
+  trap 'rm -f "$TRACKER_INDEX" "$SCORED" "$FILTERED2"' EXIT
+  while IFS=$'\t' read -r i_score i_title i_pri i_size i_status i_why i_heading; do
+    [ -z "$i_title" ] && continue
+    matched=""
+    if echo "$i_heading" | grep -qE "$INTERNAL_SKILL_RE"; then
+      matched=$(echo "$i_heading" | grep -oE "$INTERNAL_SKILL_RE" | head -1 | sed -E 's/[^a-zA-Z0-9_/-]+$//')
+    else
+      # Heading didn't match — check body for the same pattern. Catches rows
+      # whose title is generic ("v1.17.0: drop telemetry mode field") but body
+      # references the internal skill explicitly.
+      i_body=$(extract_body "$i_heading")
+      if [ -n "$i_body" ] && echo "$i_body" | grep -qE "$INTERNAL_SKILL_RE"; then
+        matched=$(echo "$i_body" | grep -oE "$INTERNAL_SKILL_RE" | head -1 | sed -E 's/[^a-zA-Z0-9_/-]+$//')
+        matched="$matched (body)"
+      fi
+    fi
+    if [ -n "$matched" ]; then
+      log_label=$(echo "$i_heading" | grep -oE '\b[FSTD][0-9]{6}\b' | head -n1 || true)
+      [ -z "$log_label" ] && log_label="$i_title"
+      echo "[CJ_suggest] excluded: $log_label reason=internal-skill ($matched)" >&2
+      continue
+    fi
+    printf '%d\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i_score" "$i_title" "$i_pri" "$i_size" "$i_status" "$i_why" "$i_heading" >> "$FILTERED2"
+  done < "$SCORED"
+  SCORED="$FILTERED2"
 fi
 
 if [ ! -s "$SCORED" ]; then

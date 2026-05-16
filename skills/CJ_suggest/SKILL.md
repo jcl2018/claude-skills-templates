@@ -1,7 +1,7 @@
 ---
 name: CJ_suggest
-description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix."
-version: 1.1.0
+description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, CJ_personal-pipeline, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix."
+version: 1.2.0
 allowed-tools:
   - Bash
   - Read
@@ -47,6 +47,27 @@ Edge cases (design premise #8):
 - No matching active entries → print `No actionable items.` and exit 0.
 - No trackers found → degrade to TODOS-only ranking (no recency penalty;
   every row treated as unblocked).
+
+## Flags
+
+`--include-internal` (v1.2.0): by default, rows whose heading or body mention
+an internal phase-step skill are excluded from output so the top-5 surfaces
+user-facing top-level work. The filter catches:
+
+- `CJ_personal-workflow`, `CJ_company-workflow` (deprecated validator)
+- `CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`
+- `CJ_personal-pipeline`
+- Pre-v4.0 unprefixed forms with leading slash (`/personal-pipeline`,
+  `/scaffold-work-item`, etc.) for legacy TODOs that predate the rename.
+
+Each excluded row emits one stderr line: `[CJ_suggest] excluded: <id-or-title>
+reason=internal-skill (<matched-name>)`. Pass `--include-internal` to surface
+these rows when you genuinely need to drill into a phase step.
+
+Rationale: top-level pipelines (`/CJ_goal_run`, `/CJ_goal_todo_fix`,
+`/CJ_goal_investigate`) and standalone utilities (`/CJ_system-health`,
+`/CJ_improve-queue`) are the "what should I work on next" surface. Phase-step
+work usually surfaces transitively when the orchestrator gets exercised.
 
 ## Flags (S000042 v1.1.0)
 
