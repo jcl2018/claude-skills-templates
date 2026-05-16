@@ -1,11 +1,11 @@
-# /CJ_run — Orchestration
+# /CJ_goal_run — Orchestration
 
 Unified pipeline entry point with three input shapes:
 
 ```
-/CJ_run <design-doc-path>       → Branches (a/b/c/d): full pipeline
-/CJ_run <work-item-dir>         → Branch (f): phase-detect + dispatch
-/CJ_run                         → Branch (g): scan branch + auto-resume
+/CJ_goal_run <design-doc-path>       → Branches (a/b/c/d): full pipeline
+/CJ_goal_run <work-item-dir>         → Branch (f): phase-detect + dispatch
+/CJ_goal_run                         → Branch (g): scan branch + auto-resume
 ```
 
 **Branch summary:**
@@ -24,7 +24,7 @@ Design-doc mode (Branch c) flow:
 ```
 /office-hours (manual, separate)
     ↓ produces APPROVED design doc
-/CJ_run <design-doc-path>
+/CJ_goal_run <design-doc-path>
     ├── Phase 1: /autoplan          (Skill, inline)  [GATE #1: final-approval AUQ]
     ├── Phase 2: CJ_personal-pipeline (Agent subagent, --suppress-final-gate)
     │              └── scaffold → impl → QA (8.5 + 9.2 AUQs suppressed)
@@ -238,7 +238,7 @@ if [ "$INPUT_MODE" = "no-arg" ]; then
     for c in "${CANDIDATES[@]}"; do echo "  $(dirname "$c")"; done
     echo ""
     echo "Orchestrator: render AskUserQuestion with each candidate as an option."
-    echo "On user selection, re-invoke /CJ_run <selected-path> explicitly."
+    echo "On user selection, re-invoke /CJ_goal_run <selected-path> explicitly."
     exit 2
   fi
 fi
@@ -332,7 +332,7 @@ across orchestrator Bash calls, so the model carries `$MODE`, `$WORK_ITEM_DIR`,
 
 The `open_pr` row above references "Parse PR number inline." This is a verbatim
 duplicate of Step 5's PR_NUM parsing block (run.md ~lines 749-766). Duplicating
-is the taste decision over extracting a /CJ_run-internal helper: ~15 lines
+is the taste decision over extracting a /CJ_goal_run-internal helper: ~15 lines
 duplicated is cheaper than introducing the abstraction for a single re-use
 site.
 
@@ -365,7 +365,7 @@ After dispatch completes (or for graceful-exit modes), write the telemetry line:
 #   open_pr | already_shipped | user_aborted | subagent_crashed
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p ~/.gstack/analytics
-echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"\",\"work_item\":\"$WORK_ITEM_DIR\",\"pr_url\":\"${PR_URL:-}\",\"end_state\":\"$END_STATE\",\"mode\":\"$MODE\",\"multi_story_mode\":false,\"multi_story_children_shipped\":0,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> ~/.gstack/analytics/CJ_run.jsonl
+echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"\",\"work_item\":\"$WORK_ITEM_DIR\",\"pr_url\":\"${PR_URL:-}\",\"end_state\":\"$END_STATE\",\"mode\":\"$MODE\",\"multi_story_mode\":false,\"multi_story_children_shipped\":0,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> ~/.gstack/analytics/CJ_goal_run.jsonl
 ```
 
 Branch(f) exits after telemetry — does NOT fall through to Step 1.2 (design-doc branches).
@@ -393,7 +393,7 @@ esac
 
 # MUST have Status: APPROVED somewhere in the body (typically near top of doc) — Branch (d) error
 grep -q '^Status: APPROVED' "$DESIGN_DOC" || {
-  echo "Error: design doc lacks 'Status: APPROVED'. Run /office-hours, accept the final approval option, then re-invoke /CJ_run."
+  echo "Error: design doc lacks 'Status: APPROVED'. Run /office-hours, accept the final approval option, then re-invoke /CJ_goal_run."
   exit 1
 }
 
@@ -531,7 +531,7 @@ bash variables don't cross orchestrator-model Bash calls; the prompt template ca
 the literal path):
 
 ```
-ROLE: pipeline runner for /CJ_run wrapper.
+ROLE: pipeline runner for /CJ_goal_run wrapper.
 TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end state.
 
 STEPS:
@@ -630,7 +630,7 @@ If $CHILDREN_TOTAL > 3:
         /ship + /land-and-deploy adds ~3K tokens to this session. Proceed?"
   Options:
     A) Proceed (inline) — recommended for ≤6 children
-    B) Halt — re-design as N separate /CJ_run invocations
+    B) Halt — re-design as N separate /CJ_goal_run invocations
 ```
 
 **Loop body** — for each child, run git setup → pipeline dispatch → ship → deploy:
@@ -646,7 +646,7 @@ for CHILD_DIR in "${CHILDREN[@]}"; do
 
   echo "Branch(b) child $((CHILDREN_DONE + 1))/$CHILDREN_TOTAL: $CHILD_NAME"
 
-  # Resume guard: if a prior /CJ_run run already merged this child, skip.
+  # Resume guard: if a prior /CJ_goal_run run already merged this child, skip.
   # Matches branch name prefix to detect prior merges.
   PRIOR_PR=$(gh pr list --state merged --search "head:${FEATURE_NAME}--${CHILD_NAME}-" --limit 1 --json url,headRefName -q '.[0].url' 2>/dev/null || echo "")
   if [ -n "$PRIOR_PR" ]; then
@@ -738,7 +738,7 @@ else
   REMAINING=$((CHILDREN_TOTAL - CHILDREN_DONE))
   echo "Branch(b) halted: $CHILDREN_DONE/$CHILDREN_TOTAL shipped, $REMAINING remaining"
   echo "Failed children: $CHILDREN_FAILED"
-  echo "Re-run /CJ_run on the design doc to resume (already-merged children will skip)."
+  echo "Re-run /CJ_goal_run on the design doc to resume (already-merged children will skip)."
 fi
 write_state
 ```
@@ -773,7 +773,7 @@ END_STATE="subagent_crashed"
 # WORK_ITEM_DIR may have been created before crash but we don't know — leave as ""
 write_state
 # PROCEED TO STEP 6 — finalizer prints "CJ_personal-pipeline subagent crashed
-# (no RESULT line emitted). Re-invoke /CJ_run; pipeline's Branch (a)
+# (no RESULT line emitted). Re-invoke /CJ_goal_run; pipeline's Branch (a)
 # idempotency will resume from disk state if the work-item dir was created."
 ```
 
@@ -825,7 +825,7 @@ END_STATE="halted_at_ship"
 write_state
 # PROCEED TO STEP 6 — finalizer prints standard halt tail; note halted_at_ship
 # is healthy (review caught a real issue), excluded from sunset trip-wire by
-# Step 7's filter. Re-invoke /CJ_run after fix, or invoke /ship
+# Step 7's filter. Re-invoke /CJ_goal_run after fix, or invoke /ship
 # directly to continue (commits exist locally; /ship's idempotency resumes).
 ```
 
@@ -862,7 +862,7 @@ Forward-compat: if the running gstack version doesn't recognize the flag yet,
 its arg parser warns-and-continues — the invocation falls back to today's
 behavior with no regression. Hard stops (CI red, merge conflict, free-test
 regression at Step 3.5b, deploy failure, canary red) are unaffected — they
-remain pre-3.5 STOPs or post-3.5 AUQs and still halt /CJ_run cleanly.
+remain pre-3.5 STOPs or post-3.5 AUQs and still halt /CJ_goal_run cleanly.
 
 - If `PR_NUM` is set: `/land-and-deploy --suppress-readiness-gate #<PR_NUM>` (literal value).
 - If `PR_NUM` is empty: `/land-and-deploy --suppress-readiness-gate` (no PR arg —
@@ -947,7 +947,7 @@ if command -v jq >/dev/null 2>&1; then
     --argjson multi_story_children_shipped "$CHILDREN_DONE" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{run_id:$run_id,design_doc:$design_doc,work_item:$work_item,pr_url:$pr_url,end_state:$end_state,multi_story_mode:$multi_story_mode,multi_story_children_shipped:$multi_story_children_shipped,ts:$ts}' \
-    >> "$HOME/.gstack/analytics/CJ_run.jsonl"
+    >> "$HOME/.gstack/analytics/CJ_goal_run.jsonl"
 else
   # Fallback when jq is missing (workbench declared dep, so unlikely).
   # Lossy on paths with quotes/backslashes but never invalid JSON.
@@ -955,7 +955,7 @@ else
   _SAFE_WORK=$(printf '%s' "${WORK_ITEM_DIR:-}" | tr -d '\\"')
   _SAFE_PR=$(printf '%s' "${PR_URL:-}" | tr -d '\\"')
   echo "{\"run_id\":\"$RUN_ID\",\"design_doc\":\"$_SAFE_DOC\",\"work_item\":\"$_SAFE_WORK\",\"pr_url\":\"$_SAFE_PR\",\"end_state\":\"$END_STATE\",\"multi_story_mode\":$MULTI_STORY_BOOL,\"multi_story_children_shipped\":$CHILDREN_DONE,\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-    >> "$HOME/.gstack/analytics/CJ_run.jsonl"
+    >> "$HOME/.gstack/analytics/CJ_goal_run.jsonl"
 fi
 ```
 
@@ -964,20 +964,20 @@ fi
 If `END_STATE=green` AND `MULTI_STORY=1` (multi-story auto-iterate):
 
 ```
-/CJ_run COMPLETE (green)  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
+/CJ_goal_run COMPLETE (green)  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
 Feature:       ${WORK_ITEM_DIR:-N/A}
 Child PRs:     $CHILD_PR_URLS
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
-Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
 ```
 
 Else if `END_STATE=green` (single-story):
 
 ```
-/CJ_run COMPLETE (green)  multi_story=0
+/CJ_goal_run COMPLETE (green)  multi_story=0
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -985,7 +985,7 @@ Work item:     ${WORK_ITEM_DIR:-N/A}
 PR:            ${PR_URL:-N/A}
 Tracker:       ${TRACKER_PATH:-N/A}
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID for this run's decisions)
-Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
 ```
 
 Otherwise (any halt or `deploy_red`):
@@ -993,7 +993,7 @@ Otherwise (any halt or `deploy_red`):
 If `MULTI_STORY=1`:
 
 ```
-/CJ_run HALTED at end_state=$END_STATE  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
+/CJ_goal_run HALTED at end_state=$END_STATE  multi_story=1  children_shipped=$CHILDREN_DONE/$CHILDREN_TOTAL
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -1001,16 +1001,16 @@ Feature:       ${WORK_ITEM_DIR:-N/A}
 Shipped PRs:   $CHILD_PR_URLS
 Failed:        $CHILDREN_FAILED
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
-Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
 
-Resume: re-invoke /CJ_run on the same design doc — already-merged children
+Resume: re-invoke /CJ_goal_run on the same design doc — already-merged children
 are skipped via the resume guard (gh pr list --state merged).
 ```
 
 Else (single-story halt):
 
 ```
-/CJ_run HALTED at end_state=$END_STATE
+/CJ_goal_run HALTED at end_state=$END_STATE
 
 Run ID:        $RUN_ID
 Design:        $DESIGN_DOC
@@ -1018,9 +1018,9 @@ Work item:     ${WORK_ITEM_DIR:-N/A (halt before work-item created)}
 PR:            ${PR_URL:-N/A (halt before PR created)}
 Tracker:       ${TRACKER_PATH:-N/A}
 Pipeline log:  $PIPELINE_DECISION_LOG (filter by run_id=$RUN_ID)
-Telemetry:     ~/.gstack/analytics/CJ_run.jsonl
+Telemetry:     ~/.gstack/analytics/CJ_goal_run.jsonl
 
-Resume: re-invoke /CJ_run on the same design doc, OR continue manually
+Resume: re-invoke /CJ_goal_run on the same design doc, OR continue manually
 from the failed phase (each sub-skill has its own idempotent re-entry).
 ```
 
@@ -1085,12 +1085,21 @@ neuter its purpose.
 
 ```bash
 source "$STATE_FILE"
-TELEMETRY="$HOME/.gstack/analytics/CJ_run.jsonl"
+TELEMETRY="$HOME/.gstack/analytics/CJ_goal_run.jsonl"
+# v4.0.0 rename fallback: include legacy CJ_run.jsonl history in the count.
+# Writes go to the new path only; reads merge both. Removed in v5.0.0.
+LEGACY_TELEMETRY="$HOME/.gstack/analytics/CJ_run.jsonl"
 
-# This run's telemetry line was just appended by Step 6.1.
-# INVOCATION_COUNT includes this run.
-INVOCATION_COUNT=$(wc -l < "$TELEMETRY" 2>/dev/null | tr -d ' ')
-INVOCATION_COUNT=${INVOCATION_COUNT:-0}
+# This run's telemetry line was just appended by Step 6.1 to the new path.
+# INVOCATION_COUNT includes this run AND any legacy entries.
+NEW_COUNT=$(wc -l < "$TELEMETRY" 2>/dev/null | tr -d ' ')
+NEW_COUNT=${NEW_COUNT:-0}
+LEGACY_COUNT=0
+if [ -f "$LEGACY_TELEMETRY" ]; then
+  LEGACY_COUNT=$(wc -l < "$LEGACY_TELEMETRY" 2>/dev/null | tr -d ' ')
+  LEGACY_COUNT=${LEGACY_COUNT:-0}
+fi
+INVOCATION_COUNT=$(( NEW_COUNT + LEGACY_COUNT ))
 
 # Fire on invocation 6, then every 5 thereafter (11, 16, 21, ...).
 SHOULD_FIRE=0
@@ -1100,7 +1109,13 @@ fi
 
 if [ "$SHOULD_FIRE" = "1" ]; then
   # Take the 5 runs immediately before THIS one (the latest line is current run).
-  PRIOR_5=$(tail -6 "$TELEMETRY" | head -5)
+  # v4.0.0 fallback: concatenate legacy then new (chronological order), then
+  # tail -6 head -5 picks the prior 5 spanning the rename window.
+  if [ -f "$LEGACY_TELEMETRY" ]; then
+    PRIOR_5=$(cat "$LEGACY_TELEMETRY" "$TELEMETRY" 2>/dev/null | tail -6 | head -5)
+  else
+    PRIOR_5=$(tail -6 "$TELEMETRY" | head -5)
+  fi
 
   # Brittleness signal: halted_at_(autoplan|pipeline|deploy) or subagent_crashed.
   # Excludes: green (happy path), halted_at_ship (review caught real issue),
@@ -1132,7 +1147,7 @@ if [ "$SHOULD_FIRE" = "1" ]; then
   # wrapper itself (AskUserQuestion is in SKILL.md allowed-tools).
   #
   # AUQ body:
-  #   /CJ_run sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
+  #   /CJ_goal_run sunset checkpoint (invocation $INVOCATION_COUNT). Prior 5 runs:
   #   $PRIOR_5_SUMMARY
   #
   #   Trip-wire: $HALT_COUNT/5 brittleness-signal end_states
@@ -1152,8 +1167,8 @@ On Delete: print instructions to delete the skill (orchestrator does NOT
 auto-delete — destructive actions require explicit user execution):
 
 ```
-To delete /CJ_run:
-  rm -rf <workbench>/skills/CJ_run/
+To delete /CJ_goal_run:
+  rm -rf <workbench>/skills/CJ_goal_run/
   Strike the row from <workbench>/skills-catalog.json
   cd <workbench> && ./scripts/skills-deploy install
 ```

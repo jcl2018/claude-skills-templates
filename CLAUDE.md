@@ -18,12 +18,14 @@ cd claude-skills-templates
 Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 `./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
-The CJ_ skill family in this workbench includes top-level pipelines (/CJ_run,
+The CJ_ skill family in this workbench includes top-level pipelines (/CJ_goal_run,
 /CJ_personal-pipeline), workflow validators (/CJ_personal-workflow,
 /CJ_company-workflow), per-phase skills (/CJ_scaffold-work-item,
 /CJ_implement-from-spec, /CJ_qa-work-item), and standalone utilities
-(/CJ_system-health, /CJ_suggest, /CJ_goal). /CJ_goal bridges TODOS.md rows to
-the shipping pipeline in one keystroke — see `skills/CJ_goal/SKILL.md`.
+(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix). /CJ_goal_todo_fix bridges TODOS.md rows to
+the shipping pipeline in one keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
+Legacy aliases /CJ_run and /CJ_goal remain through v4.x (deprecation banner + delegation;
+removed in v5.0.0).
 
 ## CI/CD merge convention
 
@@ -241,15 +243,15 @@ fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 ## TODOS.md hygiene conventions
 
 `TODOS.md` is the workbench's active backlog. `/CJ_suggest` ranks rows from it for
-`/CJ_goal` and `/loop /CJ_goal`. Two known auto-marking gaps require explicit
-agent action — get either wrong and `/loop /CJ_goal` will keep re-picking
+`/CJ_goal_todo_fix` and `/loop /CJ_goal_todo_fix`. Two known auto-marking gaps require explicit
+agent action — get either wrong and `/loop /CJ_goal_todo_fix` will keep re-picking
 already-addressed rows, burning iterations on idempotent skips.
 
 ### When TODOS rows get auto-marked DONE
 
 `/ship` Step 14 (TODOS.md auto-update) reads the diff + commit history of the
 PR being shipped and marks completed rows automatically. Works correctly for the
-common case: a `/CJ_goal`-shipped PR with `[via /CJ_goal]` in the commit message
+common case: a `/CJ_goal_todo_fix`-shipped PR with `[via /CJ_goal_todo_fix]` (or the legacy `[via /CJ_goal]` marker for pre-v4.0.0 PRs) in the commit message
 and `Closes TODOS:NNN` in the body. Self-marks the row in the same PR's diff.
 Five recent PRs (#108, #111, #112, #113, #116) all auto-marked their TODOs
 without operator intervention.
@@ -267,13 +269,13 @@ PARTIAL annotation matching the existing convention at TODOS.md line 73:
 ```
 
 The `~~strikethrough~~` is required so `/CJ_suggest` excludes the row. Without
-it, `/loop /CJ_goal` will keep ranking the row as active and burning iterations
+it, `/loop /CJ_goal_todo_fix` will keep ranking the row as active and burning iterations
 to discover the work is already partly done. Example: TODOS:108 (T000027 / PR
 #114) — addressed sub-item (b) only; (a)/(c)/(d) deferred.
 
-### Edge case 2: multi-PR bundles via `/CJ_run` need a post-bundle cleanup PR
+### Edge case 2: multi-PR bundles via `/CJ_goal_run` need a post-bundle cleanup PR
 
-`/CJ_run`'s Branch (b) auto-iterate ships per-child PRs against `origin/main`
+`/CJ_goal_run`'s Branch (b) auto-iterate ships per-child PRs against `origin/main`
 without bundling them in a single `/ship` invocation. `/ship` Step 14 sees only
 each child's narrow diff and has no cross-PR view of which TODOs the bundle as
 a whole closes. Result: TODOS rows that the bundle addresses end up unmarked
@@ -285,7 +287,7 @@ TODOS:142 + :167 after PR #117 + #118 shipped the F000020 polish bundle.
 
 ### When in doubt
 
-Before invoking `/loop /CJ_goal`, scan `TODOS.md` for active-looking rows whose
+Before invoking `/loop /CJ_goal_todo_fix`, scan `TODOS.md` for active-looking rows whose
 T-IDs / PR numbers match recent merged commits. Any unstrikethrough'd row whose
 work has already shipped is a hygiene debt that will steal a `/loop` iteration.
 Cleanup PRs are cheap (single-file edit, no code, ~5 min through `/ship`).

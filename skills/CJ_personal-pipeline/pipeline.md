@@ -153,10 +153,10 @@ Parse the user's argument:
 # auto-decision mode unconditionally; there is no manual code path.
 # --suppress-final-gate is a wrapper-contract flag: when set, Step 8.5 and
 # Step 9.2's AUQs are suppressed (decision log still written, telemetry still
-# written). Used by /CJ_run and any future wrapper consuming this
+# written). Used by /CJ_goal_run and any future wrapper consuming this
 # pipeline as a subagent. See "Suppression Contract" below.
 # --work-item-dir <path> is the alternate input mode: skip scaffold, run
-# impl+QA on a pre-staged work-item dir. Used by /CJ_run Branch (b)/(f)
+# impl+QA on a pre-staged work-item dir. Used by /CJ_goal_run Branch (b)/(f)
 # to dispatch per-child runs without a design doc. Look-ahead consumes the
 # next arg as the path value.
 SUPPRESS_FINAL_GATE=""
@@ -242,7 +242,7 @@ filters by `run_id` to scope to this run.
 
 If `$WORK_ITEM_DIR_OVERRIDE` is set (from Step 1's `--work-item-dir` flag), the
 work-item dir is already staged on disk (typically by a wrapper skill like
-`/CJ_run` that pre-scaffolded children). Skip footer search and Phase 1
+`/CJ_goal_run` that pre-scaffolded children). Skip footer search and Phase 1
 entirely — there is no design doc to read and no scaffold subagent to dispatch.
 
 - Skip the footer regex match (no `$DESIGN_DOC` to read).
@@ -636,7 +636,7 @@ In both cases the journal-write path is the SAME tracker journal already written
 
 **Then skip 8.5.2, 8.5.3, 8.5.4 entirely** and proceed directly to Step 9.
 
-The wrapper that set the flag (e.g. `/CJ_run`) is consuming
+The wrapper that set the flag (e.g. `/CJ_goal_run`) is consuming
 `$DECISION_LOG` itself and will surface the relevant decisions (typically as
 part of `/ship`'s diff review, since the decisions are visible in the diff).
 
@@ -840,7 +840,7 @@ the orchestrator (Step 5.2) or escalated via `RESULT: ESCALATION_NEEDED=...`
 
 ### Suppression Contract (wrapper-invoked path)
 
-When `/CJ_personal-pipeline` is invoked with `--suppress-final-gate` (typically by a wrapper skill like `/CJ_run` that runs the pipeline as an Agent subagent and consumes the decision log itself):
+When `/CJ_personal-pipeline` is invoked with `--suppress-final-gate` (typically by a wrapper skill like `/CJ_goal_run` that runs the pipeline as an Agent subagent and consumes the decision log itself):
 
 - Step 8.5's AUQ is skipped. Tracker journal records `[auto-pipeline-clean]` (empty-state: zero Taste, zero User-Challenge-Approved — matches 8.5.2's standalone semantics) OR `[auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved; decisions at $DECISION_LOG` (non-empty). `END_STATE=green` (provided no halt fired earlier).
 - Step 9.2's sunset-checkpoint AUQ is skipped; telemetry write (Step 9.1) is unchanged so counts stay accurate; wrapper owns sunset cadence.

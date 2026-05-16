@@ -662,7 +662,7 @@ if [ -f "$PIPELINE_MD" ]; then
   else
     echo "  FAIL: pipeline.md missing '[ -x ./scripts/validate.sh ]' guard token"
     echo "        This guard is the workbench-coupling boundary (T000028, Approach D)."
-    echo "        Deleting it would regress downstream /CJ_goal portability."
+    echo "        Deleting it would regress downstream /CJ_goal_todo_fix portability."
     ERRORS=$((ERRORS + 1))
   fi
 else

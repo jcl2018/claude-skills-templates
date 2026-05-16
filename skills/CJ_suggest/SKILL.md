@@ -1,6 +1,6 @@
 ---
 name: CJ_suggest
-description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal."
+description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix."
 version: 1.1.0
 allowed-tools:
   - Bash
@@ -55,7 +55,7 @@ Edge cases (design premise #8):
 - `--for-skill <name>` — apply a named skill's preflight predicate block at
   ranking time. Rows the named skill would pre-reject are excluded from
   output; one stderr log line per exclusion (`[CJ_suggest] excluded: <id-or-title> reason=<criterion>`).
-  v1 supports `cj-goal` only. The cj-goal block mirrors `/CJ_goal`'s
+  v1 supports `cj-goal` only. The cj-goal block mirrors `/CJ_goal_todo_fix`'s
   preflight gates 3-5 (priority P1, size L|XL, sensitive-surface regex on
   body, design-needed keyword on body); gate 1's body-too-vague is omitted
   (vagueness is generic and already handled via the recency penalty), and
@@ -63,10 +63,10 @@ Edge cases (design premise #8):
   fallback. Future consumers add new named blocks.
 - `--limit N` — extend the top-N output cap beyond the default 5. Default
   preserves byte-identical output for un-flagged callers (interactive
-  /suggest users); `/CJ_goal` opts in via `--limit 15`.
+  /suggest users); `/CJ_goal_todo_fix` opts in via `--limit 15`.
 
 The two flags compose: `--for-skill cj-goal --limit 15` is the canonical
-`/CJ_goal` invocation (filtered + extended candidate window so /loop /CJ_goal
+`/CJ_goal_todo_fix` invocation (filtered + extended candidate window so /loop /CJ_goal_todo_fix
 sessions don't starve when the default top-5 is fully skip-listed).
 
 ## Routing
@@ -82,7 +82,7 @@ inside an eval'd bash-shaped block).
 # Default — interactive top-5
 bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh"
 
-# Filtered + extended — for /CJ_goal callers
+# Filtered + extended — for /CJ_goal_todo_fix callers
 bash "$HOME/.claude/skills/CJ_suggest/scripts/suggest.sh" --for-skill cj-goal --limit 15
 ```
 

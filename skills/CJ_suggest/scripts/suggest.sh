@@ -25,14 +25,14 @@ WORKITEMS_DIR="work-items"
 # `--for-skill <name>` activates a named-skill predicate block applied at
 # ranking time to exclude rows that the named skill would pre-reject. Today
 # the only supported name is `cj-goal`; future consumers add named blocks.
-# Predicates mirror /CJ_goal preflight gates 3-5 in goal.sh:262-303 (gate 1's
+# Predicates mirror /CJ_goal_todo_fix preflight gates 3-5 in todo_fix.sh:262-303 (gate 1's
 # body-too-vague is excluded — vagueness is a body-content judgement that
 # /CJ_suggest applies generically via the recency penalty; gate 2's missing
 # (Pn,X) suffix is already handled by suggest.sh's default-P4/M fallback).
 #
 # `--limit N` extends the top-N output cap beyond the default 5. Default 5
 # preserves byte-identical output for un-flagged callers (interactive
-# /suggest users); /CJ_goal opts in explicitly via `--limit 15`.
+# /suggest users); /CJ_goal_todo_fix opts in explicitly via `--limit 15`.
 #
 # Bash 3.2 compat: no associative arrays in this block; positional flags
 # parsed via case statement with explicit shift.
@@ -78,7 +78,7 @@ fi
 
 # extract_body: pull the body for a `### heading` from TODOS.md — all lines
 # after this heading up to the next `### `, the next `## `, or EOF. Mirrors
-# /CJ_goal goal.sh:152-160 (single source of truth lives there; this is the
+# /CJ_goal_todo_fix todo_fix.sh:152-160 (single source of truth lives there; this is the
 # body-content twin needed by --for-skill cj-goal predicates 4-5).
 # Tolerates missing TODOS.md (caller already errored) and empty heading.
 extract_body() {
@@ -321,7 +321,7 @@ fi
 # ---- Step 5.5: Apply --for-skill predicate block (S000042) ------------------
 #
 # When --for-skill is active, filter $SCORED to exclude rows that the named
-# skill would pre-reject. For cj-goal this mirrors goal.sh:262-303 gates 3-5:
+# skill would pre-reject. For cj-goal this mirrors todo_fix.sh:262-303 gates 3-5:
 #   - Gate 3: priority is P1   → exclude
 #   - Gate 3: size is L or XL  → exclude
 #   - Gate 4: body matches sensitive-surface regex → exclude
@@ -331,7 +331,7 @@ fi
 # emitted to stderr (P1 observability requirement). Heading-or-id is the
 # extracted T-ID when present, else the title.
 #
-# Sensitive-surface regex is copied VERBATIM from goal.sh:289 (drift between
+# Sensitive-surface regex is copied VERBATIM from todo_fix.sh:289 (drift between
 # the two would defeat the purpose). When the regex needs to evolve, edit
 # both call sites in the same PR — D000017's lessons apply.
 if [ -n "$FOR_SKILL" ]; then
@@ -345,7 +345,7 @@ if [ -n "$FOR_SKILL" ]; then
       reason="P1"
     fi
     # Gate 3b: size L or XL (suggest.sh's size parser only emits S|M|L today;
-    # XL is documented as future-compat — goal.sh accepts L|XL).
+    # XL is documented as future-compat — todo_fix.sh accepts L|XL).
     if [ -z "$reason" ]; then
       case "$f_size" in
         L|XL) reason="size $f_size" ;;
@@ -356,7 +356,7 @@ if [ -n "$FOR_SKILL" ]; then
     if [ -z "$reason" ]; then
       body=$(extract_body "$f_heading")
       if [ -n "$body" ]; then
-        # Gate 4: sensitive-surface regex (VERBATIM from goal.sh:289).
+        # Gate 4: sensitive-surface regex (VERBATIM from todo_fix.sh:289).
         if echo "$body" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|\.git/hooks/|templates/CJ_personal-workflow/'; then
           sm=$(echo "$body" | grep -oE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/[^[:space:]]*|\.git/hooks/[^[:space:]]*|templates/CJ_personal-workflow/[^[:space:]]*' | head -1)
           reason="sensitive-surface ($sm)"
