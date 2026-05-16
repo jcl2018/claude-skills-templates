@@ -22,14 +22,8 @@ The `work-items/features/ops/F000016_*` and `F000017_*` TRACKER files still show
 **Likely fix area:** `scripts/skills-deploy` doctor health gate + `scripts/test-deploy.sh` Test 8 expectation — Test 8 should run doctor against an isolated manifest so stale global update-check / collection-version state can't bleed into a temp-dir install's output, AND/OR decide whether the catalog+doctor wiring for the `experimental` `CJ_goal_investigate` skill is incomplete (doctor shouldn't WARN "source directory missing" when the catalog `files[0]` dir exists in-repo).
 **Found:** during /ship of the /CJ_improve-queue EOF-newline fix (v4.6.2); triaged pre-existing, operator chose ship + file P0.
 
-### `/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)
-F000023 collision shipped through F000024 (PR #140). Root cause: scaffolder picked F000023 based on the worktree's view of `work-items/features/ops/`, which lagged behind `origin/main` by a few hours. `b0e4f67` (v4.5.2, PR #134) shipped its own `F000023_retire_cj_company_workflow` while the worktree was in flight, but the scaffolder didn't see it. The collision was caught at `/ship` Step 4 (during the post-merge audit), forcing a mid-flight rename (F000023 → F000024) across 7 files in the version-bump commit.
-
-**Fix shape:** add a pre-scaffold step that runs `git fetch origin <base>` and includes `origin/<base>:work-items/features/**/F[0-9]*` directories in the F-ID collision scan, not just `find work-items/`. Same fix applies to S-IDs, D-IDs, T-IDs. Cheap: one fetch + one `git ls-tree origin/main work-items/` invocation, parse for ID prefixes, union with local scan.
-
-**Why P2, not P1:** rename mid-flight is recoverable (we did it in this session). But every operator working in long-lived worktrees while origin/main moves will hit this eventually — it's a latent footgun. Cost to fix is small; cost to rediscover via another late rename is annoying.
-
-**Reference:** F000024 / PR #140 commit `f6f1914` for the rename pattern (CHANGELOG header, work-item dirs, frontmatter); skill files were unaffected because the F-ID wasn't baked into impl (good design property to preserve).
+### ~~`/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)~~ DONE
+Closed by T000032 (v4.6.4, PR #TBD). Added Source 3 to `skills/CJ_scaffold-work-item/scaffold.md` Step 5.1 ID picker: `git fetch origin main --quiet || true` then `git ls-tree -r --name-only origin/main work-items/` parsed for `${PREFIX}NNNNNN_*_TRACKER.md` basenames; ORIGIN_MAX joins LOCAL_MAX + PR_MAX in the HIGHEST computation. Applied uniformly to F/S/T/D prefixes. Same diff also fixed a latent regex bug in Source 2 (PR-claim scan): the basename pattern required an intermediate slug between the ID and `_TRACKER` but actual basenames are `F000024_TRACKER.md` with no slug — silently matched nothing for every PR scanned until now. `(_[^/]*)?` optional-slug correction restored detection.
 
 ### PARTIAL — `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
 **Bugs surfaced + closed by D000020 (v4.6.3, PR #145):** the first `--dry-run` invocation of `/CJ_goal_investigate` (against the already-shipped D000017) found two idempotency-table edge cases before any subagent dispatch:
