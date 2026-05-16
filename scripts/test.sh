@@ -642,6 +642,22 @@ else
   fail_test "post-merge hook missing path filter for templates/skills/catalog/rules (D000013 guard)"
 fi
 
+# D000021: setup.sh bootstrap must wire setup-hooks.sh, else a fresh clone never
+# installs the post-merge auto-sync hook above and the repo's update model
+# silently degrades to manual behavior. Source-level static check only — never
+# runs the network-dependent setup.sh (same CI-safety rationale as this block).
+# Anchor on the executable invocation (quoted $CLONE_DIR prefix), NOT a bare
+# 'setup-hooks.sh' substring — the explanatory comments in setup.sh also
+# contain that string, so a loose grep stays green even if the invocation
+# line is deleted (matches the structural-token style of the D000013 guards
+# above, e.g. 'cat > "$HOOK_DIR/post-merge"').
+# shellcheck disable=SC2016 # literal $CLONE_DIR is intentional — grepping for the exact source string in setup.sh
+if grep -qE '"\$CLONE_DIR/scripts/setup-hooks\.sh"' "$REPO_ROOT/scripts/setup.sh"; then
+  ok "setup.sh bootstrap invokes setup-hooks.sh (post-merge hook auto-installed on fresh clone)"
+else
+  fail_test "setup.sh does not invoke setup-hooks.sh — fresh-clone bootstrap leaves auto-sync hook uninstalled (D000013 bootstrap-wiring guard)"
+fi
+
 echo ""
 echo "Regression test (D000015): skills-deploy install overwrites drifted templates by default..."
 

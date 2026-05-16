@@ -29,5 +29,12 @@ else
   git clone "$REPO_URL" "$CLONE_DIR"
 fi
 
+# Install git hooks (post-merge auto-sync + pre-commit validate). Best-effort:
+# setup-hooks.sh can exit non-zero for several reasons (HOOK_DIR resolution,
+# read-only .git, chmod failure), and setup.sh runs under `set -euo pipefail`,
+# so the `|| echo ... >&2` guard is load-bearing — without it ANY hook-install
+# failure would abort the deploy below. Deploy must not be blocked by hooks.
+"$CLONE_DIR/scripts/setup-hooks.sh" || echo "WARN: hook install failed (run scripts/setup-hooks.sh manually)" >&2
+
 # Deploy
 exec "$CLONE_DIR/scripts/skills-deploy" install
