@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.1] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` SKILL.md frontmatter sync (follow-on to v4.5.0).** Frontmatter `description` and `version` fields were stale ("Phase 1 MVP / 0.1.0") even though Phase 2 + Phase 3 sections shipped in the body. The routing layer reads the SKILL.md frontmatter description for skill discovery — without this fix, `/CJ_improve-queue` would not surface for "audit my skills" or "research <topic>" routing phrases. Also adds `WebSearch` to `allowed-tools` so the Phase 3 research flow's WebSearch invocation passes the tool-restriction gate.
+
 ## [4.5.0] - 2026-05-15
 
 ### Added

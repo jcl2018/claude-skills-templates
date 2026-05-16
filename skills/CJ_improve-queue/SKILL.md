@@ -1,11 +1,12 @@
 ---
 name: CJ_improve-queue
-description: "Phase 1 MVP — given a URL to an Anthropic best-practices article, evaluate fit against existing workbench skills via WebFetch + subagent reasoning, then append a draft `<!--impr-draft-->`-marked TODOS.md row that flows through /CJ_suggest -> /CJ_goal_todo_fix -> /ship once the marker is removed. Workbench-only (macOS); allowlist + HTML-comment-wrap defense for WebFetch trust; mkdir-based write lock; atomic mv; backup rotation. Phases 2 (audit) and 3 (research <topic>) deferred."
-version: 0.1.0
+description: "Workbench self-improvement skill. Three modes: (1) evaluate <url> — fetch a Claude best-practices article, classify pattern fit against existing workbench skills via subagent reasoning, append a draft TODOS.md row if novel/conflict. (2) audit — offline repo self-scan for stale skills + missing frontmatter; emits draft rows directly. (3) research <topic> — orchestrator-driven WebSearch + per-result evaluate, with privacy gate. All rows land with `<!--impr-draft-->` markers; /CJ_suggest skips them until promoted. Workbench-only (macOS); domain allowlist + HTML-comment-wrap defense; mkdir-based write lock; atomic mv; backup rotation."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
   - WebFetch
+  - WebSearch
   - Agent
 ---
 
