@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3.1] - 2026-05-15
+
+### Changed
+
+- **F000016 deferred decisions captured in tracker (T000030).** Added a `## Deferred decisions` section to `work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/F000016_TRACKER.md` recording the 5 items deferred during the 2026-05-13 autoplan review (budget gate, `--no-auto-iterate` escape hatch, `--run-id` passthrough, `--work-item-dir` migration guide, dependency-aware batching). Closes TODOS:114. The feature itself (S000036 / S000037) is still active; this is a doc-only capture so future reviewers don't re-litigate the same items.
+
 ## [4.3.0] - 2026-05-15
 
 ### Added
