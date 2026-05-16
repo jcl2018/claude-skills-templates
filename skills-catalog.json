@@ -309,5 +309,33 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "CJ_improve-queue",
+    "version": "0.1.0",
+    "description": "Phase 1 MVP — given a URL to an Anthropic best-practices article, evaluate fit against existing workbench skills via WebFetch + subagent reasoning, then append a draft <!--impr-draft-->-marked TODOS.md row that flows through /CJ_suggest -> /CJ_goal_todo_fix -> /ship once the marker is removed. Workbench-only (macOS); allowlist + HTML-comment-wrap defense for WebFetch trust; mkdir-based write lock; atomic mv; backup rotation. Phases 2 (audit) and 3 (research <topic>) deferred.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "bash",
+        "awk",
+        "jq",
+        "grep",
+        "sed",
+        "shasum",
+        "find",
+        "uuidgen",
+        "WebFetch",
+        "Agent"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_improve-queue/SKILL.md",
+      "skills/CJ_improve-queue/scripts/improve_queue.sh"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]
