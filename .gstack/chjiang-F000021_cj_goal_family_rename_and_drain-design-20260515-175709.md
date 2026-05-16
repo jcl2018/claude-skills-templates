@@ -402,3 +402,7 @@ The design's strategic intent (improvement-as-TODO via Approach C) is sound. The
 8. **Concretize error messages**: write the actual stderr strings for fetch-fail, dirty-TODOS, lock-busy, parse-fail.
 
 
+
+---
+
+**Status: SCAFFOLDED → `/Users/chjiang/Documents/projects/claude-skills-templates/work-items/features/ops/F000022_cj_improve_queue` on 2026-05-15-18-56-25**
