@@ -252,225 +252,86 @@ for dir in "$DOCS_DIR"/*/; do
   fi
 done
 
-# Error check 10: work-copilot bundle mirrors selected upstream content
+# Error check 10: work-copilot bundle existence check (S000052: F000023)
 #
-# MIRROR_SPECS entries are pipe-delimited 4-tuples: src|dst|shape|orphan_policy
-#   shape          = single | flat | recursive | manifest
-#   orphan_policy  = fail | warn   (fail = stale bundle file fails CI; warn = log only)
+# History: Error check 10 was previously a byte-mirror enforcement between
+# deprecated/CJ_company-workflow/ (upstream truth) and work-copilot/ (consumer).
+# F000023/S000052 inverted that relationship: work-copilot/ is now the canonical
+# source. The MIRROR_SPECS + shape handlers + orphan reporter (~190 lines) are
+# deleted. What remains is a single existence-check sweep over every file the
+# bundle is required to ship.
 #
-# Shapes:
-#   single     — exact file pair (src + dst are file paths)
-#   flat       — directory of *.md files (one level)
-#   recursive  — directory tree of *.md files; uses find -print0 (POSIX-portable;
-#                bash 3.2 on macOS lacks shopt -s globstar)
-#   manifest   — JSON pair compared with `description` field stripped via jq
-#                (description is human prose, no programmatic consumer)
-#
-# Filenames filter to *.md only — keeps OS junk out (.DS_Store, Thumbs.db, .gitkeep,
-# .gitattributes, .editorconfig). Binary cmp -s preserves D000005 CRLF safety.
-#
-# To add a new mirror dir: append one line to MIRROR_SPECS.
-
-MIRROR_SPECS=(
-  "deprecated/CJ_company-workflow/templates|work-copilot/templates|flat|warn"
-  "deprecated/CJ_company-workflow/WORKFLOW.md|work-copilot/WORKFLOW.md|single|fail"
-  "deprecated/CJ_company-workflow/reference|work-copilot/reference|flat|fail"
-  "deprecated/CJ_company-workflow/philosophy|work-copilot/philosophy|flat|fail"
-  "deprecated/CJ_company-workflow/examples|work-copilot/examples|flat|fail"
-  "deprecated/CJ_company-workflow/fixtures|work-copilot/fixtures|recursive|fail"
-  "deprecated/CJ_company-workflow/company-artifact-manifests.json|work-copilot/copilot-artifact-manifests.json|manifest|fail"
-)
-
-# Orphan reporter — emits FAIL or WARN based on policy. Used by all shapes.
-_mirror_orphan() {
-  local path="$1" policy="$2" upstream="$3"
-  if [ "$policy" = "fail" ]; then
-    fail "$path has no counterpart in $upstream (stale bundle file — delete or restore upstream)"
-  else
-    warn "$path has no counterpart in $upstream"
-  fi
-}
-
-# Single-file shape: compare two exact file paths.
-_mirror_check_single() {
-  local src="$1" dst="$2" policy="$3"
-  if [ ! -f "$src" ]; then
-    fail "$src missing (mirror source absent — sync spec is broken)"
-    return
-  fi
-  if [ ! -f "$dst" ]; then
-    fail "$dst missing (must mirror $src)"
-  elif ! cmp -s "$src" "$dst"; then
-    fail "$dst differs from $src"
-  else
-    pass "$dst in sync"
-  fi
-}
-
-# Flat shape: iterate *.md in src dir, check each in dst dir, then orphan-check dst.
-_mirror_check_flat() {
-  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
-  if [ ! -d "$src_dir" ]; then
-    fail "$src_dir missing (mirror source absent — sync spec is broken)"
-    return
-  fi
-  if [ ! -d "$dst_dir" ]; then
-    if [ "$policy" = "fail" ]; then
-      fail "$dst_dir missing (must mirror $src_dir)"
-    else
-      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
-    fi
-    return
-  fi
-  local src dst base count=0
-  for src in "$src_dir"/*.md; do
-    [ -f "$src" ] || continue
-    base=$(basename "$src")
-    dst="$dst_dir/$base"
-    if [ ! -f "$dst" ]; then
-      fail "$dst missing (must mirror $src)"
-    elif ! cmp -s "$src" "$dst"; then
-      fail "$dst differs from $src"
-    else
-      pass "$dst in sync"
-    fi
-    count=$((count + 1))
-  done
-  # Min-count assertion (autoplan G7): empty src dir = silent false-pass otherwise.
-  if [ "$count" -eq 0 ]; then
-    warn "$src_dir contains no *.md files (mirror spec may be misconfigured or upstream emptied)"
-  fi
-  # Flat-shape sanity: catch nested *.md the spec author forgot is there.
-  # Use find with -mindepth 2 to detect any *.md beneath the first level.
-  local nested
-  nested=$(find "$src_dir" -mindepth 2 -name '*.md' -print -quit 2>/dev/null)
-  if [ -n "$nested" ]; then
-    warn "$src_dir contains nested *.md files (e.g., $nested) — flat shape only checks the top level. If nesting is intentional, change MIRROR_SPECS shape to 'recursive'."
-  fi
-  # Orphan check: bundle-side files with no upstream counterpart.
-  for dst in "$dst_dir"/*.md; do
-    [ -f "$dst" ] || continue
-    base=$(basename "$dst")
-    if [ ! -f "$src_dir/$base" ]; then
-      _mirror_orphan "$dst" "$policy" "$src_dir/"
-    fi
-  done
-}
-
-# Recursive shape: find -name '*.md' -print0 (POSIX-portable, bash 3.2 safe).
-_mirror_check_recursive() {
-  local src_dir="${1%/}" dst_dir="${2%/}" policy="$3"
-  if [ ! -d "$src_dir" ]; then
-    fail "$src_dir missing (mirror source absent — sync spec is broken)"
-    return
-  fi
-  if [ ! -d "$dst_dir" ]; then
-    if [ "$policy" = "fail" ]; then
-      fail "$dst_dir missing (must mirror $src_dir tree)"
-    else
-      pass "no $dst_dir/ directory (sync check skipped — bundle dir absent)"
-    fi
-    return
-  fi
-  local src rel dst count=0
-  while IFS= read -r -d '' src; do
-    rel="${src#"$src_dir"/}"
-    dst="$dst_dir/$rel"
-    if [ ! -f "$dst" ]; then
-      fail "$dst missing (must mirror $src)"
-    elif ! cmp -s "$src" "$dst"; then
-      fail "$dst differs from $src"
-    else
-      pass "$dst in sync"
-    fi
-    count=$((count + 1))
-  done < <(find "$src_dir" -type f -name '*.md' -print0)
-  if [ "$count" -eq 0 ]; then
-    warn "$src_dir contains no *.md files recursively (mirror spec may be misconfigured)"
-  fi
-  # Orphan check: bundle-side files (recursive) with no upstream counterpart.
-  while IFS= read -r -d '' dst; do
-    rel="${dst#"$dst_dir"/}"
-    if [ ! -f "$src_dir/$rel" ]; then
-      _mirror_orphan "$dst" "$policy" "$src_dir/"
-    fi
-  done < <(find "$dst_dir" -type f -name '*.md' -print0)
-}
-
-# Manifest shape: schema parity (description field stripped) via jq.
-# Reason (autoplan D5): no code grep-consumes the description field; forcing
-# byte-identity is test-driven coupling, not product value. The runtime contract
-# is filenames + schema, not human prose.
-_mirror_check_manifest() {
-  local src="$1" dst="$2" policy="$3"
-  if [ ! -f "$src" ]; then
-    fail "$src missing (manifest source absent)"
-    return
-  fi
-  if [ ! -f "$dst" ]; then
-    fail "$dst missing (must mirror $src schema)"
-    return
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    warn "jq not installed — manifest schema-parity check skipped"
-    return
-  fi
-  local src_norm dst_norm
-  src_norm=$(jq -S 'del(.description)' "$src" 2>/dev/null) || {
-    fail "$src is not valid JSON"
-    return
-  }
-  dst_norm=$(jq -S 'del(.description)' "$dst" 2>/dev/null) || {
-    fail "$dst is not valid JSON"
-    return
-  }
-  if [ "$src_norm" = "$dst_norm" ]; then
-    pass "$dst schema-parity with $src (description field exempt)"
-  else
-    fail "$dst schema differs from $src (excluding description field)"
-  fi
-}
-
-echo ""
-echo "Checking work-copilot bundle mirror sync (MIRROR_SPECS, ${#MIRROR_SPECS[@]} entries)..."
-for spec in "${MIRROR_SPECS[@]}"; do
-  IFS='|' read -r _src _dst _shape _policy <<< "$spec"
-  case "$_shape" in
-    single)    _mirror_check_single    "$_src" "$_dst" "$_policy" ;;
-    flat)      _mirror_check_flat      "$_src" "$_dst" "$_policy" ;;
-    recursive) _mirror_check_recursive "$_src" "$_dst" "$_policy" ;;
-    manifest)  _mirror_check_manifest  "$_src" "$_dst" "$_policy" ;;
-    *)         fail "unknown MIRROR_SPECS shape '$_shape' for $_src" ;;
-  esac
-done
-
-# Error check 10b: work-copilot bundle existence check (T000019)
-# Structurally distinct from MIRROR_SPECS Error check 10 (byte-identity vs upstream).
-# This catches a different drift mode: file deleted / never shipped (not file
-# content drift). Required for files that live ONLY in work-copilot/ (no
-# upstream counterpart in deprecated/CJ_company-workflow/), i.e. the new
-# Copilot-specific prompts and domain skeletons added by F000015.
-#
-# Progressive gating: list only files whose owning child story has shipped.
-# Extend EXPECTED_BUNDLE_FILES as each F000015 child user-story lands:
-#   - S000030_wc_qa            → work-copilot/prompts/qa.prompt.md          (SHIPPED)
-#   - S000031_wc_implement     → work-copilot/prompts/implement.prompt.md   (SHIPPED)
-#   - S000032_wc_scaffold      → work-copilot/prompts/scaffold.prompt.md    (SHIPPED)
-#   - S000033_wc_investigate   → work-copilot/prompts/investigate.prompt.md (SHIPPED)
-#                              → work-copilot/domain/*.template.md          (SHIPPED, 3 files)
-#   - S000034_wc_ship          → work-copilot/prompts/ship.prompt.md        (SHIPPED)
-#   - S000035_wc_pipeline      → work-copilot/prompts/pipeline.prompt.md    (SHIPPED)
+# To extend: append one line per new bundle file. No shape distinction needed —
+# the bundle is byte-canonical on disk now; copilot-deploy.py reads it directly.
 EXPECTED_BUNDLE_FILES=(
+  # WORKFLOW + manifest (top-level)
+  "work-copilot/WORKFLOW.md"
+  "work-copilot/copilot-artifact-manifests.json"
+  # F000015 prompts + domain templates (bundle-only, no upstream counterpart)
   "work-copilot/prompts/validate.prompt.md"
   "work-copilot/prompts/qa.prompt.md"
   "work-copilot/prompts/implement.prompt.md"
   "work-copilot/prompts/scaffold.prompt.md"
   "work-copilot/prompts/investigate.prompt.md"
   "work-copilot/prompts/ship.prompt.md"
+  "work-copilot/prompts/pipeline.prompt.md"
   "work-copilot/domain/domain-knowledge.template.md"
   "work-copilot/domain/coding-conventions.template.md"
   "work-copilot/domain/architecture-overview.template.md"
-  "work-copilot/prompts/pipeline.prompt.md"
+  # Templates (17 — were templates/ via MIRROR_SPECS flat shape)
+  "work-copilot/templates/doc-ARCHITECTURE.md"
+  "work-copilot/templates/doc-DESIGN.md"
+  "work-copilot/templates/doc-feature-summary.md"
+  "work-copilot/templates/doc-milestones.md"
+  "work-copilot/templates/doc-pr-description-defect.md"
+  "work-copilot/templates/doc-pr-description-task.md"
+  "work-copilot/templates/doc-PRD.md"
+  "work-copilot/templates/doc-RCA.md"
+  "work-copilot/templates/doc-review-notes.md"
+  "work-copilot/templates/doc-scrum.md"
+  "work-copilot/templates/doc-test-plan.md"
+  "work-copilot/templates/doc-TEST-SPEC.md"
+  "work-copilot/templates/tracker-defect.md"
+  "work-copilot/templates/tracker-feature.md"
+  "work-copilot/templates/tracker-review.md"
+  "work-copilot/templates/tracker-task.md"
+  "work-copilot/templates/tracker-user-story.md"
+  # Reference guides (7 — were reference/ via MIRROR_SPECS flat shape)
+  "work-copilot/reference/guide-architecture.md"
+  "work-copilot/reference/guide-general.md"
+  "work-copilot/reference/guide-prd.md"
+  "work-copilot/reference/guide-rca.md"
+  "work-copilot/reference/guide-review-notes.md"
+  "work-copilot/reference/guide-task.md"
+  "work-copilot/reference/guide-test-spec.md"
+  # Philosophy (3 — were philosophy/ via MIRROR_SPECS flat shape)
+  "work-copilot/philosophy/rationale-ARCHITECTURE.md"
+  "work-copilot/philosophy/rationale-PRD.md"
+  "work-copilot/philosophy/rationale-TEST-SPEC.md"
+  # Examples (14 — were examples/ via MIRROR_SPECS flat shape)
+  "work-copilot/examples/example-doc-ARCHITECTURE.md"
+  "work-copilot/examples/example-doc-feature-summary.md"
+  "work-copilot/examples/example-doc-milestones.md"
+  "work-copilot/examples/example-doc-PRD.md"
+  "work-copilot/examples/example-doc-RCA.md"
+  "work-copilot/examples/example-doc-review-notes.md"
+  "work-copilot/examples/example-doc-scrum.md"
+  "work-copilot/examples/example-doc-test-plan.md"
+  "work-copilot/examples/example-doc-TEST-SPEC.md"
+  "work-copilot/examples/example-tracker-defect.md"
+  "work-copilot/examples/example-tracker-feature.md"
+  "work-copilot/examples/example-tracker-review.md"
+  "work-copilot/examples/example-tracker-task.md"
+  "work-copilot/examples/example-tracker-user-story.md"
+  # Fixtures (8 — were fixtures/ via MIRROR_SPECS recursive shape)
+  "work-copilot/fixtures/invalid-bad-frontmatter.md"
+  "work-copilot/fixtures/invalid-missing-artifact-dir/TRACKER.md"
+  "work-copilot/fixtures/invalid-missing-lifecycle.md"
+  "work-copilot/fixtures/invalid-wrong-order.md"
+  "work-copilot/fixtures/valid-feature-dir/DESIGN.md"
+  "work-copilot/fixtures/valid-feature-dir/feature-summary.md"
+  "work-copilot/fixtures/valid-feature-dir/milestones.md"
+  "work-copilot/fixtures/valid-feature-dir/TRACKER.md"
 )
 echo ""
 echo "Checking work-copilot bundle existence (${#EXPECTED_BUNDLE_FILES[@]} expected files)..."
