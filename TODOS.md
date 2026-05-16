@@ -2,24 +2,19 @@
 
 ## Active work
 
-### Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L) — NEXT
-After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY for design-doc input that decomposes into a single user-story. The full "drop any work-item path and it figures out what to do" experience needs two follow-up implementations, in this order:
+### ~~Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L)~~ DONE
+Closed by three PRs back in the v3.x line:
+- S000036 (`--work-item-dir` flag on `/CJ_personal-pipeline`) — v3.1.0, PR #100.
+- S000039 (Branch(f) phase-detection + dispatch in `/CJ_run`) — v3.2.0, PR #101.
+- S000037 (Branch(b) multi-story auto-iterate loop in `/CJ_run`) — v3.3.0, PR #102.
 
-1. **F000016 — multi-story auto-iterate** (`work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/`)
-   - **S000036 — `--work-item-dir` flag on `/CJ_personal-pipeline`**: adds Branch(e) to pipeline.md so the pipeline accepts an existing work-item directory and runs impl+QA without scaffolding. Unblocks Branch(f) `impl_qa_ship` dispatch in /CJ_run.
-   - **S000037 — Branch(b) auto-iterate loop in /CJ_run**: rewrites the multi-story halt-after-scaffold behavior into a per-child auto-iterate loop. After scaffold detects multiple children, loop each through CJ_personal-pipeline (`--work-item-dir`) → /ship → /land-and-deploy on a per-child branch. Captures per-child PR URLs.
-   - Both are scaffolded with TRACKER/DESIGN/SPEC/TEST-SPEC; need `/CJ_implement-from-spec` + `/CJ_qa-work-item` + `/ship` per child.
+`/CJ_goal_run` (renamed from `/CJ_run` in v4.0.0) now handles design-doc (single + multi-story), work-item-dir (any user-story phase), and no-arg branch scan with auto-resume. Verified end-to-end this session by shipping F000023's two child user-stories (S000052 + S000053) via the Branch(b) auto-iterate loop, and by resuming work-item-dir mode for S000053 separately.
 
-2. **F000017 S000039 — Branch(f) full phase-detection dispatch** (`work-items/features/ops/F000017_cj_run_entry_point/S000039_branch_f_work_item_dir/`)
-   - Reads TRACKER phase state (impl gate, QA gate, PR URL) and dispatches to one of 6 modes: `impl_qa_ship` / `qa_ship` / `ship` / `open_pr` / `already_shipped` / `pr_unknown_state`.
-   - Depends on S000036's `--work-item-dir` flag for the `impl_qa_ship` dispatch.
-   - Scaffolded; needs implementation.
+The `work-items/features/ops/F000016_*` and `F000017_*` TRACKER files still show open Phase 3 gates — that's a separate tracker-gate hygiene clean-up, not in scope for this row's closure. Functionality is in production.
 
-**After both ship**, /CJ_run handles: design-doc (single + multi-story), work-item-dir (any user-story phase), no-arg branch scan with auto-resume.
+**Defect/task work-item-dir support remains deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
 
-**Defect/task work-item-dir support deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
-
-**Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
+**Reference:** see commit messages on PR #100, #101, #102; design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
 
 ### test-deploy.sh Test 8 fails: skills-deploy doctor not "healthy" post-v4.6.0 (P0, M)
 `./scripts/test.sh` → `./scripts/test-deploy.sh` Test 8 ("Doctor on healthy install") fails (`FAIL: Doctor did not report healthy`), so `test.sh` ends `RESULT: FAIL` (1 failure). Reproduces on pristine `origin/main` at v4.6.0 (PR #140, F000024 `CJ_goal_investigate`) with unrelated changes stashed — **pre-existing, NOT introduced by the EOF-newline bugfix (v4.6.2)**. `skills-deploy doctor` emits non-healthy lines that Test 8 greps for: (1) `WARN: installed version differs from current` — the harness/global `~/.claude` collection-version notion is stale vs the VERSION file; (2) `WARN: CJ_goal_investigate — source directory missing in repo` for the freshly-merged experimental skill in the temp install; (3) stale update-check cache.
@@ -36,15 +31,18 @@ F000023 collision shipped through F000024 (PR #140). Root cause: scaffolder pick
 
 **Reference:** F000024 / PR #140 commit `f6f1914` for the rename pattern (CHANGELOG header, work-item dirs, frontmatter); skill files were unaffected because the F-ID wasn't baked into impl (good design property to preserve).
 
-### `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
-Phase 7 of F000024 v1.0 ships untested against a real defect — the machine handoff convention (orchestrator dispatches `/investigate` with a prompt instructing it to emit `DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON` sentinels) was designed but not yet observed in the wild. First time someone runs `/CJ_goal_investigate D000NNN` on a real defect is when we learn whether `/investigate` actually emits the sentinel block. Two possible outcomes:
+### PARTIAL — `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
+**Bugs surfaced + closed by D000020 (v4.6.3, PR #145):** the first `--dry-run` invocation of `/CJ_goal_investigate` (against the already-shipped D000017) found two idempotency-table edge cases before any subagent dispatch:
+1. Bug A — `R` (RCA-populated) detection used a degenerate awk range (`/^## Root Cause/,/^## /`) where start and end patterns both matched the header line → captured exactly one line → `R=0` regardless of prose length.
+2. Bug B — anomaly dispatch (Row 5) fired before terminal-state check (Row 4 / `M=1` PR merged) → fully-shipped defects routed to manual-review halt instead of idempotent no-op.
 
-1. **Sentinel emitted as expected** → contract holds, mark Phase 7 done in F000024_TRACKER.md, log a learning at confidence 9 with the verbatim output for future ref.
-2. **Free-text DEBUG REPORT instead of JSON** → orchestrator's fallback regex parser kicks in (per design doc Phase 1 fallback). Document the actual format in DESIGN.md, write a free-text-to-JSON regex shim, ship as v0.1.1. Optionally upstream a feature request to `/investigate` for first-class `--output-json` flag.
+**Sentinel-emission contract still unobserved.** The dry-run flag exits before any agent dispatch, so the `DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON` emission from `/investigate` has not been seen in the wild yet. **Remaining work:** pick a defect with `M=0` (PR not yet merged) so `/investigate` actually runs, observe the sentinel format, and log either confidence-9 "contract holds" or a free-text-to-JSON shim PR as v0.1.2.
 
-**Pick the defect carefully:** scaffolded legacy `work-items/defects/<domain>/D000NNN_<slug>/` layout only (v1.0 scope), root cause should be diff-traceable (not architectural), <5 files in expected blast radius (avoid the `[investigate-blast-radius]` halt). Good candidates from the existing backlog: low-stakes defects with clear repro steps. Skip anything where the fix has already shipped via other paths.
+Candidates for the next dogfood run (M=0):
+- **D000016** (`test_deploy_stale_templates`) — implementation done per its TRACKER journal, ship pending; `R=1 F=1 P=0 M=0 → Row 2` (skip /investigate, chain QA→ship→deploy). Exercises the second-half chain but skips the sentinel emission test (Row 2 doesn't dispatch /investigate).
+- **Fresh-scaffold from `test-deploy.sh Test 8 P0 row above`** — virgin defect, `R=0 F=0 P=0 M=0 → Row 1`, exercises the full chain including `/investigate` dispatch with sentinel emission. Best single-shot for the original Phase 7 goal.
 
-**Reference:** F000024 design doc "Next Steps" Phase 7; `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`.
+**Reference:** F000024 design doc "Next Steps" Phase 7; D000020_RCA.md; `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`.
 
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
