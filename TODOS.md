@@ -235,6 +235,19 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 
 ## Deferred work
 
+### Local: resync `~/.claude/` deployed state on this machine (P4, S) — OPERATOR-MANUAL, not automation-eligible
+Recurring local-env hygiene, NOT a code change and NOT PR-closeable — intentionally
+filed under `## Deferred work` so `/CJ_suggest` excludes it and `/CJ_goal_todo_fix` /
+`/loop` never drain it (placing it in `## Active work` would burn loop iterations
+forever since no PR can mark it done). On this machine the deployed `~/.claude/`
+collection drifted from concurrent multi-session work on 2026-05-15/16 (missing
+`~/.claude/templates/*`, `installed != current` version skew) — this is the local-only
+cause of `test-deploy.sh` Test 8 failing locally while CI stays green (see the
+`test-deploy.sh Test 8` P0 in `## Active work` for the full diagnosis). **Action when
+convenient (no other concurrent sessions mid-flight):** `cd <main-checkout> && ./scripts/skills-deploy install`
+from the main checkout (NOT a worktree — `skills-deploy install` pins manifest source to cwd).
+No completion marker needed; it's a periodic chore, re-run whenever local doctor drifts.
+
 ### ~~scripts/migrate-commands.sh (P3, S)~~ RETIRED
 Depends on create-skill.sh which was removed. Skills are now created manually via CLAUDE.md guide.
 
