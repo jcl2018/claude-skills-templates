@@ -974,6 +974,44 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   fi
 fi
 
+# Regression test (F000025/S000054): /CJ_goal_run + /CJ_goal_todo_fix SKILL.md
+# preambles source scripts/cj-worktree-init.sh BEFORE Path Resolution / Routing.
+# Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
+# Without these, an upstream refactor could silently drop the auto-worktree
+# wiring and the feature would regress to today's "polluting main checkout"
+# behavior with no test signal.
+echo ""
+echo "Regression test (F000025): /CJ_goal_run + /CJ_goal_todo_fix SKILL.md wire cj-worktree-init.sh..."
+
+if grep -qE 'cj-worktree-init\.sh.*--caller run' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
+  ok "skills/CJ_goal_run/SKILL.md sources cj-worktree-init.sh (--caller run)"
+else
+  fail_test "skills/CJ_goal_run/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
+fi
+
+if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then
+  ok "skills/CJ_goal_todo_fix/SKILL.md sources cj-worktree-init.sh (--caller todo)"
+else
+  fail_test "skills/CJ_goal_todo_fix/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
+fi
+
+if grep -q 'cj-worktree-init\.sh' "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh" \
+   && grep -qE '\-\-caller todo.*--force-create' "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"; then
+  ok "skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh calls cj-worktree-init.sh with --caller todo --force-create"
+else
+  fail_test "drain-one-todo.sh missing per-iteration cj-worktree-init.sh --force-create call (F000025 regression guard)"
+fi
+
+# Helper test: 5-case behavior coverage (F000025).
+echo ""
+echo "Running tests/cj-worktree-init.test.sh (5-case helper test)..."
+if bash "$REPO_ROOT/tests/cj-worktree-init.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-worktree-init.test.sh: all 5 cases pass"
+else
+  _cwit_rc=$?
+  fail_test "tests/cj-worktree-init.test.sh failed (rc=$_cwit_rc) — run \`bash tests/cj-worktree-init.test.sh\` directly to see"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
