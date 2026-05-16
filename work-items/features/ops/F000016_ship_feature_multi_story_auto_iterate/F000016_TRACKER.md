@@ -70,6 +70,16 @@ blocked_by: ""
 - [ ] If child N fails (impl or QA red), the wrapper halts, reports the failure, and leaves the repo on the feature branch (recoverable state)
 - [ ] `CJ_personal-pipeline --work-item-dir <dir>` works in standalone (non-wrapper) mode — not just when called from ship-feature
 
+## Deferred decisions
+
+Captured from autoplan review on branch `claude/awesome-pasteur-36565c` (2026-05-13). Recorded here so future reviewers don't re-litigate; see T000030.
+
+- **Blocking budget gate before loop** — auto-iterate mode implies acceptance. A preflight log line ("N children × impl+qa+ship+land") with no AUQ is the agreed middle ground (already in impl sketch). Full AUQ budget gate deferred.
+- **`--no-auto-iterate` escape hatch** — user confirmed full-auto intent; opt-out is invoking `/CJ_goal_run` per child manually. Defer to v0.3.0 if demand surfaces.
+- **`run_id` passthrough `--run-id` flag** — pipeline audit trail is useless in wrapper mode but not harmful. Requires pipeline interface change; defer to v0.3.0.
+- **Migration guide for `--work-item-dir`** — additive flag, no breaking changes to existing callers; CHANGELOG note is sufficient for v0.2.0.
+- **Dependency-aware batching** (Codex CEO) — `--work-item-dir` sequentially respects `S[0-9]*` sort order; `blocked_by` preflight halt is the safety net. Full dependency-aware scheduler deferred.
+
 ## Todos
 
 - [ ] S000036: add `--work-item-dir` flag to `pipeline.md` (Step 1 arg parsing + Step 2 Branch e) and update `SKILL.md` usage docs
