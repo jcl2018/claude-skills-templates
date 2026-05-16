@@ -1,6 +1,6 @@
 ---
 name: CJ_implement-from-spec
-description: "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (≤2 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance."
+description: "Implement a CJ_personal-workflow work-item from its input artifacts. Reads per-type spec (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans against Components Affected / Data Flow, writes code via Read/Edit/Write. Sensitive-surface AUQ for catalog/manifest/validator edits; propose-and-confirm by default (--auto for trivial ≤2-file changes). Idempotent. Use when: 'implement this work-item', 'write the code for this spec'."
 version: 1.0.0
 allowed-tools:
   - Bash

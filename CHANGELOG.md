@@ -3,11 +3,40 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.5.3] - 2026-05-15
+## [4.5.5] - 2026-05-15
 
 ### Fixed
 
 - **`/CJ_suggest --for-skill cj-goal` filter: three new heading-level gates (3c/3d/3e)** that catch rows `/CJ_goal_todo_fix` drain mode would halt on at preflight. The drain helper requires `(Pn, X)` suffix with `P != 1` and size `S|M`; rows under date-trigger H2 sections (e.g. `## Scheduled checkpoints`), rows with `YYYY-MM-DD —` heading prefix, and rows carrying terminal-marker literals (`WON'T FIX`, `SUPERSEDED`, `SHIPPED`, `RESOLVED`) all currently leak through and waste drain iterations on `halted_at_preflight`. Gates fire before body extraction (cheap heading-only checks) and emit `[CJ_suggest] excluded: ... reason=...` log lines to stderr matching the existing exclusion-log shape. Workbench TODOs unchanged (no false positives); portfolio-repo fallback-mode TODOs now correctly admit only drainable rows.
+
+## [4.5.4] - 2026-05-15
+
+### Changed
+
+- **All remaining workbench subagent prompt templates wrapped in XML tags (closes TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** Follow-on to v4.5.3 which did `/CJ_improve-queue` Step 3 only. This PR converts the remaining 5 dispatch templates:
+  - `skills/CJ_personal-pipeline/pipeline.md` Step 3 (Phase 1 scaffold subagent), Step 5.3 (implement subagent), Step 7 (Phase 3 QA subagent) — three dispatches that drive the full personal-workflow pipeline.
+  - `skills/CJ_qa-work-item/qa.md` Step 7 (E2E QA engineer subagent) — the leaf-node subagent that verifies E2E acceptance criteria.
+  - `skills/CJ_goal_run/run.md` Step 3 (CJ_personal-pipeline subagent dispatch under --suppress-final-gate) — the top-level pipeline-runner dispatch.
+
+  Each template now uses `<role>` / `<task>` / `<constraints>` / `<return-contract>` / `<inputs>` XML tags per Anthropic prompt-engineering guidance, so subagents parse mixed instructions + variable inputs unambiguously. No behavioral change to the contracts themselves — only the prompt-template structure. Closes the row that opened in v4.4.0 (F000022) and partially closed in v4.5.3.
+
+## [4.5.3] - 2026-05-15
+
+### Changed
+
+- **5 SKILL.md descriptions shortened (closes TODOS row "Adopt concise discovery-focused descriptions from anthropic-docs").** `CJ_goal_run`, `CJ_goal_todo_fix`, `CJ_personal-pipeline`, `CJ_qa-work-item`, `CJ_implement-from-spec` frontmatter `description` fields now follow Anthropic skill-authoring best practices: 1-3 sentences leading with what+when, embedded version-rename history and flag mechanics moved to the SKILL.md body. Improves Claude's skill-selector discrimination across 100+ skills.
+- **`/CJ_improve-queue` Step 3 subagent prompt template wrapped in XML tags (PARTIAL closure of TODOS row "Adopt XML-tag delimited subagent prompts from anthropic-docs").** `<role>`, `<task>`, `<constraints>`, `<return-contract>`, `<inputs>` sections replace plain-text `ROLE:` / `TASK:` / `CONSTRAINTS:` headers, per Anthropic prompt-engineering guidance. Remaining: wrap subagent prompts in `CJ_personal-pipeline/pipeline.md`, `CJ_qa-work-item/qa.md`, and `CJ_goal_run/run.md` — each load-bearing enough to warrant its own focused PR. Tracked as the residual half of the original TODOS row.
+
+## [4.5.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` allowlist subdomain matching (follow-on to v4.5.0).** `is_allowlisted()` in `scripts/improve_queue.sh` used exact-host comparison only, rejecting legitimate Anthropic surfaces like `code.claude.com`, `platform.claude.com`, `docs.claude.com`, `support.claude.com` — all of which are subdomains of the allowlisted `claude.com` host. Found by the Phase 3 research-mode killer test: WebSearch returned 6 valid `*.claude.com` results, all blocked. Fix: add suffix match (`*.h`) alongside exact match in the allowlist loop. Typosquat protection holds (`evilclaude.com` still rejected because the literal `.` is required for suffix match). Verified with both positive (`code.claude.com` accepted) and negative (`evilclaude.com` rejected) smoke tests.
+
+### Added (via Phase 3 research mode)
+
+- **Draft TODO: Adopt XML-tag delimited subagent prompts (novel, conf=7).** Anthropic prompt-engineering docs recommend wrapping prompt sections in named XML tags for unambiguous parsing. Workbench currently uses plain-text `ROLE:`/`TASK:`/`CONSTRAINTS:` section headers in subagent dispatch templates (CJ_personal-pipeline, CJ_improve-queue, CJ_qa-work-item, CJ_goal_run). Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
+- **Draft TODO: Adopt concise discovery-focused descriptions (conflict, conf=8).** Anthropic skill-authoring best practices say the SKILL.md description should be a 1-2 sentence what+when discovery handle. Workbench descriptions for CJ_goal_run, CJ_goal_todo_fix, CJ_personal-pipeline, CJ_qa-work-item, and CJ_implement-from-spec embed version-rename history, flag mechanics, and changelog detail — too long for Claude's skill-selector to discriminate cleanly across 100+ skills. Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
 
 ## [4.5.1] - 2026-05-15
 

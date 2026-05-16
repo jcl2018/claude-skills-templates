@@ -329,24 +329,37 @@ Clean slate. Proceed to Step 3 (Phase 1 dispatch).
 
 ## Step 3: Phase 1 — Scaffold Subagent
 
-Spawn an Agent subagent with `subagent_type: general-purpose` and a structured
-prompt (stable preamble first, variable tail last for cache friendliness):
+Spawn an Agent subagent with `subagent_type: general-purpose` and an XML-tag
+delimited prompt (stable preamble first, variable inputs last for cache
+friendliness; XML tags per Anthropic prompt-engineering guidance):
 
 ```
-ROLE: scaffold runner.
-TASK: invoke /CJ_scaffold-work-item with the design-doc path provided below.
-RETURN CONTRACT: end your final assistant message with a line in this exact form:
-  RESULT: WORK_ITEM_DIR=<absolute_path>
-The line must be on its own. No prose after it.
+<role>
+Scaffold runner.
+</role>
 
+<task>
+Invoke /CJ_scaffold-work-item with the design-doc path in <inputs>.
+</task>
+
+<constraints>
 If /CJ_scaffold-work-item asks for AUQs you cannot answer mechanically (slug,
 component selection, type when ambiguous), accept the recommended default for
 mechanical AUQs (slug-from-title, component-from-existing, type-from-branch).
 For sensitive-surface AUQs (catalog/manifest/validator changes), DO NOT
 auto-accept — emit `RESULT: STATUS=halted; ESCALATION_NEEDED=<reason>` and
 exit. The orchestrator will re-AUQ the human.
+</constraints>
 
+<return-contract>
+End your final assistant message with a line in this exact form:
+  RESULT: WORK_ITEM_DIR=<absolute_path>
+The line must be on its own. No prose after it.
+</return-contract>
+
+<inputs>
 DESIGN_DOC: <DESIGN_DOC absolute path>
+</inputs>
 ```
 
 Capture stdout/stderr to `SCAFFOLD_OUTPUT`. Parse with `parse_result`. Branch:
@@ -493,25 +506,39 @@ The orchestrator does NOT cancel on its own at Step 5.2 — it auto-decides and 
 
 ### 5.3 Dispatch implement subagent (with answers threaded)
 
-Spawn an Agent subagent:
+Spawn an Agent subagent with an XML-tag delimited prompt:
 
 ```
-ROLE: implementation runner.
-TASK: invoke /CJ_implement-from-spec with the work-item dir provided below in
-auto mode (do NOT call AskUserQuestion — your tool environment does not have
-it; AUQs have been pre-collected for you and are threaded below).
+<role>
+Implementation runner.
+</role>
 
-PRE-COLLECTED AUQ ANSWERS:
-  <each path/decision → answer line, one per line>
+<task>
+Invoke /CJ_implement-from-spec with the work-item dir in <inputs> in auto mode.
+Do NOT call AskUserQuestion — your tool environment does not have it; AUQs
+have been pre-collected for you and are threaded in <pre-collected-auq-answers>.
+</task>
 
-RETURN CONTRACT: end your final assistant message with a line in this exact form:
+<constraints>
+If you encounter a sensitive-surface or taste-fork that was NOT pre-answered,
+halt instead of guessing — emit the halt RESULT line in <return-contract>.
+</constraints>
+
+<pre-collected-auq-answers>
+<each path/decision → answer line, one per line>
+</pre-collected-auq-answers>
+
+<return-contract>
+End your final assistant message with a line in this exact form:
   RESULT: STATUS=<green|halted>; FILES_CHANGED=<n>
-If you encounter a sensitive-surface or taste-fork that was NOT pre-answered
-above, halt instead of guessing:
+If halting on un-pre-answered sensitive-surface or taste-fork, use:
   RESULT: STATUS=halted; ESCALATION_NEEDED=<reason>
 The line must be on its own. No prose after it.
+</return-contract>
 
+<inputs>
 WORK_ITEM_DIR: <absolute path>
+</inputs>
 ```
 
 Capture output, parse with `parse_result`, branch:
@@ -545,16 +572,18 @@ Orchestrator runs (NOT the subagent):
 
 ## Step 7: Phase 3 — QA Subagent
 
-Spawn an Agent subagent:
+Spawn an Agent subagent with an XML-tag delimited prompt:
 
 ```
-ROLE: QA runner.
-TASK: invoke /CJ_qa-work-item with the work-item dir provided below.
+<role>
+QA runner.
+</role>
 
-RETURN CONTRACT: end your final assistant message with a line in this exact form:
-  RESULT: SMOKE=<green|red>; E2E=<green|red|ambiguous>; PHASE2_GATES=<green|partial|red>
-The line must be on its own. No prose after it.
+<task>
+Invoke /CJ_qa-work-item with the work-item dir in <inputs>.
+</task>
 
+<constraints>
 For type=defect|task, emit `E2E=ambiguous` (smoke is the verification layer;
 `ambiguous` means "not applicable for this type" — `/CJ_qa-work-item`'s inner
 E2E subagent only dispatches for user-stories, per qa.md line 179). The
@@ -563,8 +592,17 @@ orchestrator's Step 7 type-aware halt rule (D000019 Edit #1) interprets
 SMOKE + PHASE2_GATES are both green. Do NOT emit `E2E=green` for defect/task
 — that would falsely claim user-story-shape E2E coverage which qa.md does
 not provide for those types.
+</constraints>
 
+<return-contract>
+End your final assistant message with a line in this exact form:
+  RESULT: SMOKE=<green|red>; E2E=<green|red|ambiguous>; PHASE2_GATES=<green|partial|red>
+The line must be on its own. No prose after it.
+</return-contract>
+
+<inputs>
 WORK_ITEM_DIR: <absolute path>
+</inputs>
 ```
 
 `/CJ_qa-work-item` already dispatches its own QA-engineer subagent internally
