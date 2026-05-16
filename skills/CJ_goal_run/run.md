@@ -554,30 +554,42 @@ The pipeline's Step 1 will emit a soft-warning to stderr about co-mingling decis
 with standalone-run history. That's accepted v1 behavior — Step 6.3 of the wrapper
 filters by run_id when reading the audit.
 
-**Subagent prompt template** (substitute `$DESIGN_DOC` literally at dispatch time —
-bash variables don't cross orchestrator-model Bash calls; the prompt template carries
-the literal path):
+**Subagent prompt template** (XML-tag delimited per Anthropic prompt-engineering
+guidance; substitute `$DESIGN_DOC` literally at dispatch time — bash variables
+don't cross orchestrator-model Bash calls, so the prompt template carries the
+literal path):
 
 ```
-ROLE: pipeline runner for /CJ_goal_run wrapper.
-TASK: invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end state.
+<role>
+Pipeline runner for /CJ_goal_run wrapper.
+</role>
 
-STEPS:
+<task>
+Invoke /CJ_personal-pipeline in --suppress-final-gate mode and report its end
+state.
+
+Steps:
 1. Invoke the slash command (via the Skill tool):
      /CJ_personal-pipeline --suppress-final-gate "<literal $DESIGN_DOC path>"
-2. The pipeline runs its full lifecycle (Phase 1 scaffold → Phase 2 impl → Phase 3 QA + post-phase gates).
-   It will SKIP Step 8.5's AUQ and Step 9.2's sunset AUQ per the --suppress-final-gate contract.
-   Its tracker journal will record [auto-pipeline-clean] (zero-decision run) or
-   [auto-final-gate-suppressed] N mechanical, M taste, K user-challenge-approved (non-zero).
-3. At pipeline completion, the pipeline prints a "PIPELINE COMPLETE: end_state=<X>" line as its final output (Step 9.3 of pipeline.md).
+2. The pipeline runs its full lifecycle (Phase 1 scaffold → Phase 2 impl →
+   Phase 3 QA + post-phase gates). It will SKIP Step 8.5's AUQ and Step 9.2's
+   sunset AUQ per the --suppress-final-gate contract. Its tracker journal
+   will record [auto-pipeline-clean] (zero-decision run) or
+   [auto-final-gate-suppressed] N mechanical, M taste, K
+   user-challenge-approved (non-zero).
+3. At pipeline completion, the pipeline prints a "PIPELINE COMPLETE:
+   end_state=<X>" line as its final output (Step 9.3 of pipeline.md).
 4. Read that end_state value. Map it to the wrapper's RESULT contract:
      pipeline's end_state=green                 → PIPELINE_END_STATE=green
      pipeline's end_state=halted_at_gate         → PIPELINE_END_STATE=halted_at_gate
      pipeline's end_state=user_aborted           → PIPELINE_END_STATE=user_aborted (shouldn't fire under --suppress-final-gate; defensive)
      pipeline's end_state=subagent_crashed       → PIPELINE_END_STATE=subagent_crashed
-5. Also extract the work-item directory path from the pipeline's "Work item: <path>" output line.
+5. Also extract the work-item directory path from the pipeline's "Work item:
+   <path>" output line.
+</task>
 
-RETURN CONTRACT — end your FINAL assistant message with this EXACT line on its own:
+<return-contract>
+End your FINAL assistant message with this EXACT line on its own:
   RESULT: PIPELINE_END_STATE=<value>; WORK_ITEM_DIR=<absolute_path>
 
 Example (literal, this is the expected format):
@@ -587,6 +599,11 @@ No prose, no markdown wrapping, no code fence around the RESULT line itself.
 If pipeline crashed and you cannot read end_state, emit:
   RESULT: PIPELINE_END_STATE=subagent_crashed; WORK_ITEM_DIR=
 (empty WORK_ITEM_DIR is acceptable when scaffold didn't complete.)
+</return-contract>
+
+<inputs>
+DESIGN_DOC: <literal $DESIGN_DOC path>
+</inputs>
 ```
 
 After the Agent tool returns, the subagent's full output is in `$SUBAGENT_OUTPUT`. The lenient parser from the Subagent Return Contract section finds the RESULT line.
