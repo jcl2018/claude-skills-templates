@@ -44,10 +44,10 @@ blocked_by: "S000052"
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -63,7 +63,7 @@ blocked_by: "S000052"
 
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
 - [ ] `/ship` — PR created (with pre-landing review)
