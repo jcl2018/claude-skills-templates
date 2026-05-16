@@ -25,7 +25,6 @@ Skills below remain in the repo for reference but are skipped by `skills-deploy 
 
 | Name | Description | Portability | Version |
 |------|-------------|-------------|---------|
-| CJ_company-workflow | Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules. | standalone | 5.0.0 |
 
 ## Quick Start
 

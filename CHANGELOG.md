@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.6.1] - 2026-05-15
+## [4.6.2] - 2026-05-15
 
 ### Fixed
 
@@ -21,6 +21,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   regression test (isolated temp git repo, novel + conflict fixtures) asserting
   the post-append TODOS.md ends with exactly one `\n` across two consecutive
   appends.
+
+## [4.6.1] - 2026-05-15
+
+### Removed
+
+- **S000053 (F000023 phase 2): delete the deprecated `CJ_company-workflow` skill.** Completes F000023 retirement. The byte-mirror relationship was inverted in S000052 (v4.5.5); S000053 deletes the now-orphaned source. Total: 53 files in `deprecated/CJ_company-workflow/` gone (SKILL.md, WORKFLOW.md, bin/, templates/, reference/, philosophy/, examples/, fixtures/, company-artifact-manifests.json).
+- **Catalog entry**: `CJ_company-workflow` removed from `skills-catalog.json`. The `templates_source` field handler in `scripts/skills-deploy` stays for future deprecated skills.
+- **`scripts/test.sh` CJ_company-workflow blocks (~1042 lines)**: COMPANY_PATH / COMPANY_TPL var declarations, knowledge-helpers (T000006), AI_KNOWLEDGE_DIR resolution (T000004), Knowledge Loading / On-Demand Matching test blocks, deprecated SKILL.md content checks (D000006, D000007), deprecated tracker template gates, WORKFLOW.md subsection checks. All tested gone implementation details; surgical edits preserved CJ_personal-workflow halves of shared-scope blocks.
+- **`scripts/test-deploy.sh` Tests 13–15 + 17–19 (subdir behaviors)**: deleted the CJ_company-workflow-specific subdirectory symlink tests. Test 16 (no-subdirs case for CJ_system-health) preserved as regression coverage.
+- **`template-registry.json`**: `sets.CJ_company-workflow` entry removed.
+- **`CLAUDE.md`**: "What this repo is" updated (2 custom skills now), "Skill routing" paragraph updated, "Work item templates" rewritten with `work-copilot/` as canonical, "Template naming" rewritten (no more byte-mirror language).
+- **`README.md`**: CJ_company-workflow row removed from the Skills table.
+
+### Preserved
+
+- `deprecated/` top-level directory + `deprecated/README.md` kept (convention for future deprecated skills, even when empty of skills).
+- `deprecated/work-items/` (F000007 historical work-item relocation) untouched.
+- `scripts/copilot-deploy.py` and `work-copilot/` bundle untouched. Bundle continues to deploy byte-identical to before. Already-deployed bundles in target repos unaffected.
 
 ## [4.6.0] - 2026-05-15
 
