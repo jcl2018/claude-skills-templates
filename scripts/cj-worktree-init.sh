@@ -66,7 +66,9 @@ esac
 sanitize_note() {
   local raw="$1"
   # Replace newlines with spaces, strip non-printable + double-quote + backslash, cap.
-  printf '%s' "$raw" | tr '\n\r\t' '   ' | tr -d -c '[:print:]' | tr -d '"\\' | cut -c1-200
+  # Note: tr -d set is reordered as '\\"' (backslash-then-quote) to avoid shellcheck
+  # SC1003 which trips on '\\'' at end-of-single-quoted-string. Same delete set.
+  printf '%s' "$raw" | tr '\n\r\t' '   ' | tr -d -c '[:print:]' | tr -d '\\"' | cut -c1-200
 }
 
 # Emit one line of JSON. Args: state, path, branch, note
