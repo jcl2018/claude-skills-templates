@@ -13,6 +13,7 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "what's next", "what should I work on", "suggest next work item", "top 5 work items" -> /CJ_suggest
 - "fix this TODO", "auto-resolve TODOs", "clear the TODO backlog", "ship the next TODO", "close TODOs from TODOS.md", "auto-ship TODOs", "resolve a TODO end-to-end" -> /CJ_goal_todo_fix [<T-ID> | "<fragment>"]
 - "fix TODO backlog continuously", "loop through TODOs", "auto-clear TODOs" -> /loop /CJ_goal_todo_fix
+- "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "check this Anthropic article", "add this pattern to TODOS" -> /CJ_improve-queue evaluate <url>
 
 Legacy aliases (v4.x grace window; removed in v5.0.0):
 - /CJ_run is a deprecated alias for /CJ_goal_run.

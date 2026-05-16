@@ -48,9 +48,9 @@ blocked_by: "F000021"
 
 **Gates:**
 - [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -144,3 +144,11 @@ blocked_by: "F000021"
      (decision, finding, blocker) and a Summary field. -->
 
 - [decision] 2026-05-15: Bundle decision for `/CJ_suggest` patch (one-line awk filter for `<!--impr-draft-->`) deferred to implementation time. Summary: either shipping in same PR as S000048 or as prereq PR is acceptable; chosen at /ship time based on test-fixture coupling between the two changes.
+- [orchestrator] 2026-05-15: --work-item-dir mode: using pre-staged dir at /Users/chjiang/Documents/projects/claude-skills-templates/work-items/features/ops/F000022_cj_improve_queue/S000048_phase1_evaluate_url; scaffold skipped. (run_id=20260515-190258-23196)
+- [impl] 2026-05-15: Implemented Phase 1 MVP. New files: skills/CJ_improve-queue/SKILL.md, skills/CJ_improve-queue/scripts/improve_queue.sh, tests/fixtures/CJ_improve-queue/{sample-verdict-novel,sample-verdict-conflict,sample-verdict-fetch-failed,sample-verdict-malformed}.json, tests/fixtures/CJ_improve-queue/sample-fetch-anthropic-skills-page.html. Modified: skills-catalog.json (new entry), rules/skill-routing.md (new routing). All 13 ACs covered by script + SKILL.md prose; sensitive-surface pre-AUQs auto-approved with logged reasoning. (run_id=20260515-190258-23196)
+- [impl-finding] 2026-05-15: SPEC's AC-4 lists `github.com/anthropics/*` as an allowlist entry but the host-matching layer is currently strict-equality (host == 'github.com' allows ALL github.com paths). v1 ships with the broader match; tightening to repo-prefix matching is a small follow-up if false positives surface.
+- [impl-decision] 2026-05-15: Pre-flight TODOS.md clean-check refuses on staged-but-uncommitted changes as well as unstaged. Tested via temp-commit during smoke S5. Edge case worth documenting: user must commit (not just stage) before re-running.
+- [smoke-pass] 2026-05-15: Smoke tests S1-S5 all green. S2 canonicalization confirmed via "https://www.docs.anthropic.com:443/claude-code/some-page/?utm_source=x&fbclid=y#section" -> "https://docs.anthropic.com/claude-code/some-page". S3 off-allowlist refusal exit=1. S4 fetch_failed + malformed both stderr + exit 0. S5 idempotency NO-OP via signature hit + backup rotation working (4 backups under cap of 5). All evidence-based; no E2E (defer to /ship-time). (run_id=20260515-190258-23196)
+- [qa-smoke-summary] 2026-05-15: green. 5 smoke tests passed (S1 preflight, S2 canonicalization, S3 allowlist, S4 verdict-handling, S5 idempotency + backup rotation). validate.sh exit 0, 0 errors, 0 warnings. (run_id=20260515-190258-23196)
+- [qa-pass] 2026-05-15: Smoke + structural gates green; Phase 2 implementer-owned gates (Smoke tests pass, Todos section reflects remaining work, Files section updated) transitioned. E2E E1-E5 per TEST-SPEC are explicitly "manual end-to-end verification, run after implementing and before /ship" — surfaced at /ship Gate #2 as the workbench's contract. (run_id=20260515-190258-23196)
+- [auto-final-gate-suppressed] 2026-05-15: 1 mechanical, 0 taste, 2 user-challenge-approved; decisions at ~/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl (filter run_id=20260515-190258-23196). (run_id=20260515-190258-23196)
