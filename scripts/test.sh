@@ -691,6 +691,29 @@ else
   fail_test "setup-hooks.sh missing .bak backup of non-workbench hooks — custom hooks lost unrecoverably (D000022 guard)"
 fi
 
+# D000022 (pre-landing-review hardening): the two failure-mode invariants below
+# have no other static anchor, so a regression that drops them would stay green
+# while re-opening exactly the bug classes D000022 exists to kill.
+#   (a) exit $rc — setup-hooks.sh must propagate a non-zero exit so setup.sh's
+#       `|| echo WARN >&2` guard fires; dropping it re-introduces the masked
+#       partial-failure class (the original D000022 / PR #150 finding).
+#   (b) backup-fail abort — if the .bak copy fails, install_hook must refuse to
+#       overwrite (the design's "one unacceptable outcome": losing an un-backed
+#       custom hook). The ERROR string is emitted only on that abort path,
+#       immediately before its `return 1`, so its presence proves the branch.
+# shellcheck disable=SC2016 # literal $rc is intentional — grepping for the exact source string in setup-hooks.sh
+if grep -qF 'exit $rc' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh propagates a non-zero exit on hook-install failure (D000022 guard)"
+else
+  fail_test "setup-hooks.sh missing 'exit \$rc' — a failed hook install is masked from setup.sh's WARN guard (D000022 guard)"
+fi
+
+if grep -qF 'could not be backed up — refusing to overwrite' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh aborts without clobbering when the .bak backup fails (D000022 guard)"
+else
+  fail_test "setup-hooks.sh missing backup-fail abort — an un-backed custom hook can be destroyed (D000022 guard)"
+fi
+
 echo ""
 echo "Regression test (D000015): skills-deploy install overwrites drifted templates by default..."
 
