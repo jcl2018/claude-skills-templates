@@ -61,6 +61,9 @@ telemetry_invocation_count() {
 }
 
 # Telemetry writer. Called from every exit path; idempotent within a run.
+# Reads $QUIET (set by --quiet flag below) to emit `scheduled_run` field per
+# S000047 (v4.3.0). The field is always present (true/false) so retro tooling
+# can grep without conditionals.
 TELEMETRY_WRITTEN=0
 write_telemetry() {
   local end_state="$1"
@@ -74,6 +77,14 @@ write_telemetry() {
     return 0
   fi
   TELEMETRY_WRITTEN=1
+  # scheduled_run: true when --quiet (cron / /schedule pattern); false otherwise.
+  # Defaults to false if QUIET is unset (interactive operator-driven run).
+  local scheduled_run_bool
+  if [ "${QUIET:-0}" = "1" ]; then
+    scheduled_run_bool=true
+  else
+    scheduled_run_bool=false
+  fi
   if command -v jq >/dev/null 2>&1; then
     jq -nc \
       --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -83,7 +94,8 @@ write_telemetry() {
       --arg pr_url "$pr_url" \
       --argjson duration_s "$duration_s" \
       --arg parent_skill "CJ_goal_todo_fix" \
-      '{ts:$ts,todo_heading:$todo_heading,t_id:$t_id,end_state:$end_state,pr_url:$pr_url,duration_s:$duration_s,parent_skill:$parent_skill}' \
+      --argjson scheduled_run "$scheduled_run_bool" \
+      '{ts:$ts,todo_heading:$todo_heading,t_id:$t_id,end_state:$end_state,pr_url:$pr_url,duration_s:$duration_s,parent_skill:$parent_skill,scheduled_run:$scheduled_run}' \
       >> "$TELEMETRY" 2>/dev/null || true
   else
     # Sanitized fallback: strip backslashes + double-quotes.
@@ -91,7 +103,32 @@ write_telemetry() {
     _h=$(printf '%s' "$todo_heading" | tr -d '\\"')
     _i=$(printf '%s' "$t_id" | tr -d '\\"')
     _u=$(printf '%s' "$pr_url" | tr -d '\\"')
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"todo_heading\":\"$_h\",\"t_id\":\"$_i\",\"end_state\":\"$end_state\",\"pr_url\":\"$_u\",\"duration_s\":$duration_s,\"parent_skill\":\"CJ_goal_todo_fix\"}" >> "$TELEMETRY" 2>/dev/null || true
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"todo_heading\":\"$_h\",\"t_id\":\"$_i\",\"end_state\":\"$end_state\",\"pr_url\":\"$_u\",\"duration_s\":$duration_s,\"parent_skill\":\"CJ_goal_todo_fix\",\"scheduled_run\":$scheduled_run_bool}" >> "$TELEMETRY" 2>/dev/null || true
+  fi
+}
+
+# Schedule-friendly journal-entry writer (S000047, v4.3.0).
+# Replaces the orchestrator-side Phase 3 summary AUQ when --quiet is set.
+# Writes `[scheduled-drain-summary]` to a session-level log readable post-cron.
+# Path: ~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl (append-only).
+write_scheduled_drain_summary() {
+  local summary="$1"  # human-readable summary string (no newlines)
+  local session_log="$HOME/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl"
+  mkdir -p "$(dirname "$session_log")"
+  local ts
+  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  if command -v jq >/dev/null 2>&1; then
+    jq -nc \
+      --arg ts "$ts" \
+      --arg run_id "$RUN_ID" \
+      --arg summary "$summary" \
+      --arg marker "scheduled-drain-summary" \
+      '{ts:$ts,run_id:$run_id,marker:$marker,summary:$summary}' \
+      >> "$session_log" 2>/dev/null || true
+  else
+    local _s
+    _s=$(printf '%s' "$summary" | tr -d '\\"')
+    echo "{\"ts\":\"$ts\",\"run_id\":\"$RUN_ID\",\"marker\":\"scheduled-drain-summary\",\"summary\":\"$_s\"}" >> "$session_log" 2>/dev/null || true
   fi
 }
 
@@ -142,6 +179,10 @@ halt() {
 # Recognized flags/args (any order, no required positional):
 #   --dry-run            preview-only; no writes
 #   --max-drain N        cap for native drain mode (default 10; 0 → error, use --dry-run)
+#   --quiet              schedule-friendly: suppress Phase 3 summary AUQ + start-of-run
+#                        stdout banner; write [scheduled-drain-summary] journal entry
+#                        instead. Telemetry gains scheduled_run:true. Does NOT suppress
+#                        /ship Gate #2 (autonomy ceiling preserved per F000021).
 #   <T000NNN>            single-TODO mode by exact T-ID
 #   <fragment>           single-TODO mode by fuzzy heading match
 #   (no args, no flags)  native drain mode — drain up to --max-drain easy-fix TODOs
@@ -149,6 +190,7 @@ halt() {
 ARG=""
 DRY_RUN=0
 MAX_DRAIN=10        # native-drain cap (S000046 default)
+QUIET=0             # schedule-friendly mode (S000047, v4.3.0)
 _next_is_max_drain=0
 for tok in "$@"; do
   if [ "$_next_is_max_drain" = "1" ]; then
@@ -160,6 +202,7 @@ for tok in "$@"; do
     --dry-run)    DRY_RUN=1 ;;
     --max-drain)  _next_is_max_drain=1 ;;
     --max-drain=*) MAX_DRAIN="${tok#--max-drain=}" ;;
+    --quiet)      QUIET=1 ;;
     --*)
       echo "Error: unknown flag '$tok'" >&2
       exit 1
@@ -174,6 +217,8 @@ for tok in "$@"; do
       ;;
   esac
 done
+# Export QUIET so write_telemetry / write_scheduled_drain_summary see it.
+export QUIET
 
 # Validate MAX_DRAIN.
 case "$MAX_DRAIN" in
@@ -254,7 +299,12 @@ extract_body() {
 # script emits the handoff block and exits 0.
 
 if [ "$DRAIN_MODE" = "1" ]; then
-  echo "[CJ_goal_todo_fix] drain mode: max=$MAX_DRAIN dry_run=$DRY_RUN" >&2
+  # S000047 (v4.3.0): suppress start-of-run banner under --quiet so cron output
+  # stays empty when there's nothing to report. Halt-on-red entries are
+  # unaffected (halt() always echoes its end_state line).
+  if [ "$QUIET" -eq 0 ]; then
+    echo "[CJ_goal_todo_fix] drain mode: max=$MAX_DRAIN dry_run=$DRY_RUN" >&2
+  fi
 
   # Phase 1: enumerate via /CJ_suggest. Pass --for-skill cj-goal so the
   # preflight-aware ranker (S000042, v3.6.0+) pre-filters P1/L/XL/sensitive/
@@ -281,7 +331,14 @@ if [ "$DRAIN_MODE" = "1" ]; then
 
   if [ -z "$SUGGEST_OUTPUT" ] || echo "$SUGGEST_OUTPUT" | grep -q '^No actionable items\.'; then
     # Empty Phase 1 — distinct end_state for cron consumers.
-    echo "No easy-fix TODOs available."
+    # S000047 (v4.3.0): under --quiet, suppress the stdout print and write
+    # [scheduled-drain-summary] journal entry to the session log instead.
+    # Cron output stays empty; the fact is preserved in the session log.
+    if [ "$QUIET" -eq 1 ]; then
+      write_scheduled_drain_summary "nothing_to_drain — /CJ_suggest returned no actionable items"
+    else
+      echo "No easy-fix TODOs available."
+    fi
     halt "nothing_to_drain" "/CJ_suggest returned no actionable items"
   fi
 
@@ -339,7 +396,12 @@ if [ "$DRAIN_MODE" = "1" ]; then
   done < "$CANDIDATES_FILE"
 
   if [ "$DRAIN_COUNT" -eq 0 ]; then
-    echo "No easy-fix TODOs available."
+    # S000047 (v4.3.0): same --quiet treatment as the empty-Phase-1 path above.
+    if [ "$QUIET" -eq 1 ]; then
+      write_scheduled_drain_summary "nothing_to_drain — all candidates filtered by skip-list / lockfile"
+    else
+      echo "No easy-fix TODOs available."
+    fi
     halt "nothing_to_drain" "all candidates filtered by skip-list / lockfile"
   fi
 
@@ -357,10 +419,15 @@ if [ "$DRAIN_MODE" = "1" ]; then
 
   # Live mode: emit DRAIN_HANDOFF block. Orchestrator parses, then invokes
   # drain-one-todo.sh per heading, capturing PR URLs and halt-on-red status.
+  # S000047 (v4.3.0): QUIET=1 line tells the orchestrator to suppress its
+  # Phase 3 summary AUQ and instead write a [scheduled-drain-summary] journal
+  # entry per drained child's tracker (or the session log when nothing drained).
+  # /ship Gate #2 stays interactive per child — the autonomy ceiling.
   echo "CJ_GOAL_DRAIN_HANDOFF_BEGIN"
   echo "MAX_DRAIN=$MAX_DRAIN"
   echo "DRAIN_COUNT=$DRAIN_COUNT"
   echo "SESSION_ID=$RUN_ID"
+  echo "QUIET=$QUIET"
   echo "HEADINGS:"
   cat "$DRAIN_LIST_FILE"
   echo "DISPATCH: invoke drain-one-todo.sh dispatch \"<heading>\" \"$RUN_ID\" per HEADING (halt-on-red)"

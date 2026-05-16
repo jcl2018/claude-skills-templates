@@ -65,7 +65,7 @@ blocked_by: "S000044"
 - [x] E2E walked manually
 - [x] All children shipped (N/A — atomic)
 - [x] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -106,6 +106,8 @@ blocked_by: "S000044"
 
 ## PRs
 
+- [PR #125: v4.2.0 feat: S000046 /CJ_goal_todo_fix native drain mode + drain-one-todo.sh helper](https://github.com/jcl2018/claude-skills-templates/pull/125) — MERGED
+
 ## Files
 
 - skills/CJ_goal_todo_fix/scripts/todo_fix.sh (modified — native drain mode)
@@ -137,3 +139,4 @@ blocked_by: "S000044"
 - 2026-05-16T01:35:40Z [qa-pass] post-implement gates: validate.sh PASS, test.sh PASS, all 7 smoke tests PASS, work-item boundary check green
 
 - 2026-05-16T01:35:54Z [auto-final-gate-suppressed] 1 mechanical, 0 taste, 2 user-challenge-approved; decisions at /Users/chjiang/.gstack/analytics/CJ_personal-pipeline-auto-decisions.jsonl (run_id=20260515-182128-37301)
+- 2026-05-15 [gates-update] Phase 3: /land-and-deploy — PR merged,PRs section: linked PR #125 (MERGED).

@@ -150,7 +150,7 @@
   {
     "name": "CJ_implement-from-spec",
     "version": "1.0.0",
-    "description": "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (\u22642 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
+    "description": "Implement a CJ_personal-workflow work-item (user-story, defect, task, or feature) from its input artifacts. Reads per-type input (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks; features delegate to a child user-story via AUQ), plans the change against the artifact's Components Affected / Data Flow, writes code via Read/Edit/Write tools. Sensitive-surface AUQ (catalog/manifest/validator). Propose-and-confirm by default; --auto for trivial changes (≤2 files, no sensitive surface). Idempotent (re-run on completed work-item is NO-OP). Boundary check refuses on incomplete Phase 1; verifies post-write compliance.",
     "source": "local",
     "depends": {
       "skills": [
@@ -243,8 +243,8 @@
   },
   {
     "name": "CJ_goal_todo_fix",
-    "version": "2.1.0",
-    "description": "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews. Workbench-only; halt-on-red preserved end-to-end.",
+    "version": "2.2.0",
+    "description": "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0; --quiet added v4.3.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews; --quiet suppresses Phase 3 summary AUQ for cron / /schedule consumers (autonomy ceiling preserved — /ship Gate #2 still fires per child). Workbench-only; halt-on-red preserved end-to-end.",
     "source": "local",
     "depends": {
       "skills": [
@@ -277,7 +277,7 @@
   {
     "name": "CJ_run",
     "version": "4.0.0",
-    "description": "DEPRECATED ALIAS \u2014 renamed to /CJ_goal_run in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_run with the same args. Will be removed in v5.0.0.",
+    "description": "DEPRECATED ALIAS — renamed to /CJ_goal_run in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_run with the same args. Will be removed in v5.0.0.",
     "source": "local",
     "depends": {
       "skills": [
@@ -295,7 +295,7 @@
   {
     "name": "CJ_goal",
     "version": "4.0.0",
-    "description": "DEPRECATED ALIAS \u2014 renamed to /CJ_goal_todo_fix in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_todo_fix with the same args. Will be removed in v5.0.0.",
+    "description": "DEPRECATED ALIAS — renamed to /CJ_goal_todo_fix in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_todo_fix with the same args. Will be removed in v5.0.0.",
     "source": "local",
     "depends": {
       "skills": [
