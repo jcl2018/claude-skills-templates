@@ -2,24 +2,19 @@
 
 ## Active work
 
-### Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L) — NEXT
-After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY for design-doc input that decomposes into a single user-story. The full "drop any work-item path and it figures out what to do" experience needs two follow-up implementations, in this order:
+### ~~Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L)~~ DONE
+Closed by three PRs back in the v3.x line:
+- S000036 (`--work-item-dir` flag on `/CJ_personal-pipeline`) — v3.1.0, PR #100.
+- S000039 (Branch(f) phase-detection + dispatch in `/CJ_run`) — v3.2.0, PR #101.
+- S000037 (Branch(b) multi-story auto-iterate loop in `/CJ_run`) — v3.3.0, PR #102.
 
-1. **F000016 — multi-story auto-iterate** (`work-items/features/ops/F000016_ship_feature_multi_story_auto_iterate/`)
-   - **S000036 — `--work-item-dir` flag on `/CJ_personal-pipeline`**: adds Branch(e) to pipeline.md so the pipeline accepts an existing work-item directory and runs impl+QA without scaffolding. Unblocks Branch(f) `impl_qa_ship` dispatch in /CJ_run.
-   - **S000037 — Branch(b) auto-iterate loop in /CJ_run**: rewrites the multi-story halt-after-scaffold behavior into a per-child auto-iterate loop. After scaffold detects multiple children, loop each through CJ_personal-pipeline (`--work-item-dir`) → /ship → /land-and-deploy on a per-child branch. Captures per-child PR URLs.
-   - Both are scaffolded with TRACKER/DESIGN/SPEC/TEST-SPEC; need `/CJ_implement-from-spec` + `/CJ_qa-work-item` + `/ship` per child.
+`/CJ_goal_run` (renamed from `/CJ_run` in v4.0.0) now handles design-doc (single + multi-story), work-item-dir (any user-story phase), and no-arg branch scan with auto-resume. Verified end-to-end this session by shipping F000023's two child user-stories (S000052 + S000053) via the Branch(b) auto-iterate loop, and by resuming work-item-dir mode for S000053 separately.
 
-2. **F000017 S000039 — Branch(f) full phase-detection dispatch** (`work-items/features/ops/F000017_cj_run_entry_point/S000039_branch_f_work_item_dir/`)
-   - Reads TRACKER phase state (impl gate, QA gate, PR URL) and dispatches to one of 6 modes: `impl_qa_ship` / `qa_ship` / `ship` / `open_pr` / `already_shipped` / `pr_unknown_state`.
-   - Depends on S000036's `--work-item-dir` flag for the `impl_qa_ship` dispatch.
-   - Scaffolded; needs implementation.
+The `work-items/features/ops/F000016_*` and `F000017_*` TRACKER files still show open Phase 3 gates — that's a separate tracker-gate hygiene clean-up, not in scope for this row's closure. Functionality is in production.
 
-**After both ship**, /CJ_run handles: design-doc (single + multi-story), work-item-dir (any user-story phase), no-arg branch scan with auto-resume.
+**Defect/task work-item-dir support remains deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
 
-**Defect/task work-item-dir support deferred to v0.3** (Branch g/f gate-string detection is user-story-specific).
-
-**Reference:** F000017 DESIGN.md, F000016 DESIGN.md, design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
+**Reference:** see commit messages on PR #100, #101, #102; design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-awesome-pasteur-36565c-design-20260513-154622.md`.
 
 ### test-deploy.sh Test 8 fails: skills-deploy doctor not "healthy" post-v4.6.0 (P0, M)
 `./scripts/test.sh` → `./scripts/test-deploy.sh` Test 8 ("Doctor on healthy install") fails (`FAIL: Doctor did not report healthy`), so `test.sh` ends `RESULT: FAIL` (1 failure). Reproduces on pristine `origin/main` at v4.6.0 (PR #140, F000024 `CJ_goal_investigate`) with unrelated changes stashed — **pre-existing, NOT introduced by the EOF-newline bugfix (v4.6.2)**. `skills-deploy doctor` emits non-healthy lines that Test 8 greps for: (1) `WARN: installed version differs from current` — the harness/global `~/.claude` collection-version notion is stale vs the VERSION file; (2) `WARN: CJ_goal_investigate — source directory missing in repo` for the freshly-merged experimental skill in the temp install; (3) stale update-check cache.
@@ -27,24 +22,21 @@ After PR #99 lands (v3.0.0 rename + Branch g), `/CJ_run` works end-to-end ONLY f
 **Likely fix area:** `scripts/skills-deploy` doctor health gate + `scripts/test-deploy.sh` Test 8 expectation — Test 8 should run doctor against an isolated manifest so stale global update-check / collection-version state can't bleed into a temp-dir install's output, AND/OR decide whether the catalog+doctor wiring for the `experimental` `CJ_goal_investigate` skill is incomplete (doctor shouldn't WARN "source directory missing" when the catalog `files[0]` dir exists in-repo).
 **Found:** during /ship of the /CJ_improve-queue EOF-newline fix (v4.6.2); triaged pre-existing, operator chose ship + file P0.
 
-### `/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)
-F000023 collision shipped through F000024 (PR #140). Root cause: scaffolder picked F000023 based on the worktree's view of `work-items/features/ops/`, which lagged behind `origin/main` by a few hours. `b0e4f67` (v4.5.2, PR #134) shipped its own `F000023_retire_cj_company_workflow` while the worktree was in flight, but the scaffolder didn't see it. The collision was caught at `/ship` Step 4 (during the post-merge audit), forcing a mid-flight rename (F000023 → F000024) across 7 files in the version-bump commit.
+### ~~`/CJ_scaffold-work-item`: re-scan F-IDs against `origin/main` post-fetch (P2, S)~~ DONE
+Closed by T000032 (v4.6.4, PR #148). Added Source 3 to `skills/CJ_scaffold-work-item/scaffold.md` Step 5.1 ID picker: `git fetch origin main --quiet || true` then `git ls-tree -r --name-only origin/main work-items/` parsed for `${PREFIX}NNNNNN_*_TRACKER.md` basenames; ORIGIN_MAX joins LOCAL_MAX + PR_MAX in the HIGHEST computation. Applied uniformly to F/S/T/D prefixes. Same diff also fixed a latent regex bug in Source 2 (PR-claim scan): the basename pattern required an intermediate slug between the ID and `_TRACKER` but actual basenames are `F000024_TRACKER.md` with no slug — silently matched nothing for every PR scanned until now. `(_[^/]*)?` optional-slug correction restored detection.
 
-**Fix shape:** add a pre-scaffold step that runs `git fetch origin <base>` and includes `origin/<base>:work-items/features/**/F[0-9]*` directories in the F-ID collision scan, not just `find work-items/`. Same fix applies to S-IDs, D-IDs, T-IDs. Cheap: one fetch + one `git ls-tree origin/main work-items/` invocation, parse for ID prefixes, union with local scan.
+### PARTIAL — `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
+**Bugs surfaced + closed by D000020 (v4.6.3, PR #145):** the first `--dry-run` invocation of `/CJ_goal_investigate` (against the already-shipped D000017) found two idempotency-table edge cases before any subagent dispatch:
+1. Bug A — `R` (RCA-populated) detection used a degenerate awk range (`/^## Root Cause/,/^## /`) where start and end patterns both matched the header line → captured exactly one line → `R=0` regardless of prose length.
+2. Bug B — anomaly dispatch (Row 5) fired before terminal-state check (Row 4 / `M=1` PR merged) → fully-shipped defects routed to manual-review halt instead of idempotent no-op.
 
-**Why P2, not P1:** rename mid-flight is recoverable (we did it in this session). But every operator working in long-lived worktrees while origin/main moves will hit this eventually — it's a latent footgun. Cost to fix is small; cost to rediscover via another late rename is annoying.
+**Sentinel-emission contract still unobserved.** The dry-run flag exits before any agent dispatch, so the `DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON` emission from `/investigate` has not been seen in the wild yet. **Remaining work:** pick a defect with `M=0` (PR not yet merged) so `/investigate` actually runs, observe the sentinel format, and log either confidence-9 "contract holds" or a free-text-to-JSON shim PR as v0.1.2.
 
-**Reference:** F000024 / PR #140 commit `f6f1914` for the rename pattern (CHANGELOG header, work-item dirs, frontmatter); skill files were unaffected because the F-ID wasn't baked into impl (good design property to preserve).
+Candidates for the next dogfood run (M=0):
+- **D000016** (`test_deploy_stale_templates`) — implementation done per its TRACKER journal, ship pending; `R=1 F=1 P=0 M=0 → Row 2` (skip /investigate, chain QA→ship→deploy). Exercises the second-half chain but skips the sentinel emission test (Row 2 doesn't dispatch /investigate).
+- **Fresh-scaffold from `test-deploy.sh Test 8 P0 row above`** — virgin defect, `R=0 F=0 P=0 M=0 → Row 1`, exercises the full chain including `/investigate` dispatch with sentinel emission. Best single-shot for the original Phase 7 goal.
 
-### `/CJ_goal_investigate` first-defect dogfood validation (P2, S)
-Phase 7 of F000024 v1.0 ships untested against a real defect — the machine handoff convention (orchestrator dispatches `/investigate` with a prompt instructing it to emit `DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON` sentinels) was designed but not yet observed in the wild. First time someone runs `/CJ_goal_investigate D000NNN` on a real defect is when we learn whether `/investigate` actually emits the sentinel block. Two possible outcomes:
-
-1. **Sentinel emitted as expected** → contract holds, mark Phase 7 done in F000024_TRACKER.md, log a learning at confidence 9 with the verbatim output for future ref.
-2. **Free-text DEBUG REPORT instead of JSON** → orchestrator's fallback regex parser kicks in (per design doc Phase 1 fallback). Document the actual format in DESIGN.md, write a free-text-to-JSON regex shim, ship as v0.1.1. Optionally upstream a feature request to `/investigate` for first-class `--output-json` flag.
-
-**Pick the defect carefully:** scaffolded legacy `work-items/defects/<domain>/D000NNN_<slug>/` layout only (v1.0 scope), root cause should be diff-traceable (not architectural), <5 files in expected blast radius (avoid the `[investigate-blast-radius]` halt). Good candidates from the existing backlog: low-stakes defects with clear repro steps. Skip anything where the fix has already shipped via other paths.
-
-**Reference:** F000024 design doc "Next Steps" Phase 7; `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`.
+**Reference:** F000024 design doc "Next Steps" Phase 7; D000020_RCA.md; `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`.
 
 ### ~~Rename user-authored skills to `CJ_` prefix (P2, M)~~ DONE
 Closed by T000018 (v2.0.0). All 8 user-authored skills now namespaced under
@@ -103,8 +95,18 @@ Closed in v2.0.4 (this PR). `skills-catalog.json` entries for `CJ_qa-work-item` 
 ### Verify `/personal-pipeline` works on a fresh remote machine (P3, S)
 v1.13.0 shipped `/personal-pipeline` and the bootstrap pipeline run was validated on the author's machine. Need a clean-room verification on a different machine: fresh git clone, `./scripts/setup.sh` (or `skills-deploy install`), then run the orchestrator on a synthetic design doc end-to-end. **Why it matters:** Agent-tool subagent behavior, AskUserQuestion availability inside subagents (S000026 spike key finding), and `claude -p` headless behavior are all environment-dependent — the spike findings were captured on Claude Code 2.1.91 with the Opus overlay. A fresh-machine run validates the design holds across setups and catches any path-resolution / upstream-skill discovery regressions. **Steps:** (1) clone repo on remote machine, (2) `./scripts/setup.sh` (or `git pull && ./scripts/skills-deploy install` if already cloned), (3) verify `~/.claude/skills/personal-pipeline/SKILL.md` exists, (4) `/office-hours` to produce a small design doc, (5) `/personal-pipeline <design-doc>` end-to-end, (6) check `~/.gstack/analytics/personal-pipeline.jsonl` for the telemetry line. **When:** before recommending the skill broadly, or when a second machine becomes available. **Reference:** found 2026-05-09 during v1.13.0's /document-release session.
 
-### F000013 V1 eval harness — nightly CI (P1, S)
-S000024 shipped in v1.16.1: 4 personal-workflow cases (#2–#5 in the V1 case index) plus a supplementary `check-untested-p0` to satisfy AC-7 after system-health deferral; full suite verified via `bash scripts/eval.sh` at $0.99 / ~72s wall-clock. system-health behavioral cases (`report-clean-system`, `report-with-issues`) deferred to V2 — `tests/eval/lib/run-case.sh` doesn't fake `$HOME` and `system-health` hard-codes `~/.claude/`, so fixtures under `tests/eval/system-health/<case>/fixture/` are invisible. Path forward: opt-in `HOME=$tmpdir` runner flag. Remaining: **S000025** (nightly CI workflow at `.github/workflows/eval-nightly.yml`, first real CI run validation). After S000025 ships, mark the parent eval-harness entry DONE-V1.
+### F000013 V1 eval harness — nightly CI (P1, S) — BLOCKED on `ANTHROPIC_API_KEY` repo secret
+**Infrastructure is fully shipped.** `.github/workflows/eval-nightly.yml` is active, runs `scripts/eval.sh` on the `'17 9 * * *'` cron (09:17 UTC daily) + `workflow_dispatch` for manual invocation, with hardening: `permissions: contents: read`, concurrency group, `shell: bash` default, npm install pinned to `@^2`, secret pre-check, GITHUB_STEP_SUMMARY writer. S000025 shipped.
+
+**Blocker:** every nightly run since at least 2026-05-13 has failed at the "Verify claude CLI + secret" step because `ANTHROPIC_API_KEY` repo secret is empty. The pre-check is doing its job (fail-fast instead of silent N×auth-failed cases). No code change can fix this — the repo admin needs to run:
+
+```
+gh secret set ANTHROPIC_API_KEY
+```
+
+Once the secret is set, the next scheduled run (or a `gh workflow run eval-nightly.yml`) should produce the first real eval-suite result. After one green run, mark the parent F000013 eval-harness entry DONE-V1.
+
+**Prior context:** S000024 shipped in v1.16.1 (4 personal-workflow cases + `check-untested-p0`; full suite verified at $0.99 / ~72s wall-clock). system-health behavioral cases (`report-clean-system`, `report-with-issues`) deferred to V2 — `tests/eval/lib/run-case.sh` doesn't fake `$HOME` and `system-health` hard-codes `~/.claude/`, so fixtures under `tests/eval/system-health/<case>/fixture/` are invisible. Path forward: opt-in `HOME=$tmpdir` runner flag.
 
 ### Re-do brief-mode for `/CJ_personal-pipeline` against auto-only main (P2, M)
 Closed PR #79 (v1.15.2 scaffold) hit a 3-way queue collision with PR #80 (v1.16.0 auto-only refactor) at /land-and-deploy Step 3.4: VERSION drift (1.15.2 vs new base 1.16.0), S000029 ID collision (PR #80 took it for `S000029_auto_default` under F000014; our scaffold gave us `S000029_phase0_spike` under F000015), and a now-stale design Constraint that says brief mode "MUST work with both `--auto` and manual orchestrator modes" — manual mode no longer exists. The brief-mode value prop is still valid (small work-items shouldn't need full /office-hours), but the design needs re-grounding. **Carry over from PR #79:** problem statement, approach A vs B vs C, error rows, filename grammar, fenced-verbatim brief insulation, 8 error-handling rows, spec review history (27 issues fixed across 2 iterations, 9/10 score). **Edit out:** the "MUST work with both --auto and manual modes" constraint, Premise 4's "v1.1 user-story follow-up" framing (the type-guardrail story changes under auto-only), telemetry mode-field values (was `auto|manual|brief|brief+auto`, now just `default|brief`). **Fresh IDs:** F000016+ and S000032+ (PR #80 already used S000029, our P3 fix below now also accounts for this via open-PR scan). **Steps:** (1) `/office-hours` from a new worktree with the closed-PR design as starting context, (2) `/CJ_personal-pipeline` (auto is now the only mode), (3) `/ship`. **Reference:** closed [PR #79](https://github.com/jcl2018/claude-skills-templates/pull/79); preserved design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-lucid-sanderson-bcccff-design-20260509-224555.md`. Found 2026-05-09 during /land-and-deploy halt; skill names updated to `CJ_*` post-v2.0.0.

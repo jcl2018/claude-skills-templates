@@ -163,7 +163,7 @@ fi
 
 ### Step 5.1: Fresh-ID generation (only when 5.0 did not match)
 
-Scan local work-items AND open PRs for the highest existing ID matching the type prefix. The two-source check prevents ID collisions when parallel worktrees scaffold from the same baseline (e.g. main at S000028 → both worktrees grab S000029) before either has merged.
+Scan local work-items AND open PRs AND origin/main for the highest existing ID matching the type prefix. The three-source check prevents ID collisions when parallel worktrees scaffold from the same baseline (e.g. main at S000028 → both worktrees grab S000029) before either has merged, AND when origin/main has moved ahead of the local checkout since the last fetch (e.g. a sibling PR merged a new F-ID while this worktree was in flight).
 
 ```bash
 # Source 1: local work-items
@@ -189,23 +189,37 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
       [ "$CLAIMED" -gt "$PR_MAX" ] && PR_MAX="$CLAIMED"
     done < <(
       gh pr view "$PR_NUM" --json files -q '.files[].path' 2>/dev/null \
-        | grep -oE "${PREFIX}[0-9]{6}_[^/]*_TRACKER\.md$" \
+        | grep -oE "${PREFIX}[0-9]{6}(_[^/]*)?_TRACKER\.md$" \
         | sed "s|^${PREFIX}\([0-9]*\)_.*|\1|"
     )
   done
 fi
 
+# Source 3: origin/main post-fetch (origin-drift detection — added 2026-05-16).
+# Why: when origin/main has moved ahead since the local checkout (e.g. a sibling
+# PR merged a new ${PREFIX}-ID while this worktree was in flight), Sources 1+2
+# miss it — Source 1 only sees the lagging local tree; Source 2 only sees OPEN
+# PRs, not merged ones. Fetch quietly and skip silently if offline / no remote /
+# no origin/main; the existing LOCAL+PR sources remain the floor.
+git fetch origin main --quiet 2>/dev/null || true
+ORIGIN_MAX=$(git ls-tree -r --name-only origin/main work-items/ 2>/dev/null \
+  | grep -oE "${PREFIX}[0-9]{6}(_[^/]*)?_TRACKER\.md$" \
+  | sed "s|^${PREFIX}\([0-9]*\)_.*|\1|" \
+  | sort -un | tail -1)
+ORIGIN_MAX=${ORIGIN_MAX:-0}
+
 HIGHEST=$LOCAL_MAX
 [ "$PR_MAX" -gt "$HIGHEST" ] 2>/dev/null && HIGHEST=$PR_MAX
+[ "$((10#$ORIGIN_MAX))" -gt "$((10#$HIGHEST))" ] 2>/dev/null && HIGHEST=$ORIGIN_MAX
 # Force base-10 in arithmetic context: bash interprets leading-zero strings
 # like "000029" as octal, which fails on digits 8/9. The 10# prefix is
 # bash-specific but zsh tolerates it (with OCTAL_ZEROES unset, the default).
 NEW_ID=$(printf "${PREFIX}%06d" $((10#$HIGHEST + 1)))
 ```
 
-Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect. The PR-claim check applies to all four prefixes uniformly: any open PR adding a `${PREFIX}NNNNNN_*_TRACKER.md` file counts as claiming that ID.
+Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect. The PR-claim and origin/main checks apply to all four prefixes uniformly: any open PR adding a `${PREFIX}NNNNNN_*_TRACKER.md` file, OR any such file already present on `origin/main`, counts as claiming that ID.
 
-Result: `NEW_ID` (e.g., `F000010`), guaranteed not to collide with local state OR any open PR's claimed IDs.
+Result: `NEW_ID` (e.g., `F000010`), guaranteed not to collide with local state, any open PR's claimed IDs, OR origin/main's latest state.
 
 ## Step 6: Determine Slug
 
