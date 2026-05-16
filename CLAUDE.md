@@ -201,7 +201,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `deps.sh` | Shows dependency graph | When changing deps |
 | `generate-readme.sh` | Regenerates README.md from catalog | After catalog changes |
 | `sync-upstream.sh` | Compares upstream gstack skills | When updating from gstack |
-| `setup-hooks.sh` | Installs pre-commit hook | Once per clone |
+| `setup-hooks.sh` | Installs git hooks (pre-commit validate + post-merge auto-sync) | Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks) |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
 

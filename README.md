@@ -85,7 +85,7 @@ See `CLAUDE.md` for the `.gstack/` (lateral/exploratory) vs `work-items/` (struc
 | `deps.sh` | Dependency graph visualization | 0 (advisory) |
 | `generate-readme.sh` | Auto-generate this README | 1 on write failure |
 | `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
-| `setup-hooks.sh` | Install pre-commit hook | 0 |
+| `setup-hooks.sh` | Install git hooks (pre-commit validate + post-merge auto-sync). Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks). | 0 |
 | `setup-gstack-symlink.sh` | Per-machine: symlink `~/.gstack/projects/<slug>/` to `<main-repo>/.gstack/` so gstack output commits in git. Idempotent; `--force` to re-point or merge non-empty target. | 1 on error |
 | `teardown-gstack-symlink.sh` | Reverse the gstack symlink: restore `~/.gstack/projects/<slug>/` to a real directory. Refuses if the symlink target doesn't match expected. | 1 on wrong target |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle in a target repo | 1 on error |
