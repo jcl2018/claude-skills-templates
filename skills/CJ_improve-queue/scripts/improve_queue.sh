@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# improve_queue.sh — Phase 1 (S000048): /CJ_improve-queue evaluate <url> envelope.
+# improve_queue.sh — /CJ_improve-queue envelope (S000048 Phase 1 + S000050 Phase 2).
 #
-# Three sub-commands:
+# Four sub-commands:
 #   evaluate <url>          One-shot orchestrator entry. Emits HANDOFF block on stdout;
 #                           orchestrator parses, dispatches Agent, captures verdict,
 #                           pipes back into `apply`. (NOTE: bash cannot reach Agent
@@ -10,6 +10,11 @@
 #                           then exit 0. Useful in isolation for orchestrator testing.
 #   apply                   Read verdict JSON from stdin, append (or NO-OP) a draft
 #                           TODOS.md row.
+#   audit                   (S000050 Phase 2) Offline repo self-scan. No network, no
+#                           subagent. Checks stale-skill detection via
+#                           ~/.gstack/analytics/skill-usage.jsonl + missing
+#                           frontmatter fields. Emits draft rows for each finding via
+#                           the same apply-path the evaluate flow uses.
 #
 # Optional flags:
 #   --allow-untrusted-source   Skip the source-domain allowlist gate.
@@ -611,6 +616,127 @@ cmd_apply() {
 }
 
 # ---------------------------------------------------------------------------
+# Phase 2 (S000050): audit mode — offline repo self-scan
+# ---------------------------------------------------------------------------
+#
+# audit scans the workbench's skills/ tree + ~/.gstack/analytics/skill-usage.jsonl
+# and emits draft TODOS.md rows for two finding classes:
+#   1. stale-skill — no invocation in the last 30 days per analytics
+#   2. missing-frontmatter — SKILL.md lacks `version:` OR `allowed-tools:`
+#
+# Each finding goes through the same apply-path that evaluate uses (synthetic
+# verdict JSON → cmd_apply). This keeps idempotency, atomic write, and lock
+# semantics consistent across modes — one writer, one signature scheme.
+#
+# Source URLs for audit rows use the synthetic scheme `repo-audit://<check>/<target>`
+# so the allowlist gate (which only fires in evaluate-prepare) is sidestepped
+# and the signature stays unique per (check, target) pair.
+
+cmd_audit() {
+  local root
+  root=$(repo_root)
+  check_todos_clean "$root"
+
+  local scanned=0
+  local appended=0
+  local skipped=0
+
+  local analytics="$HOME/.gstack/analytics/skill-usage.jsonl"
+  local now_epoch
+  now_epoch=$(date +%s)
+  local stale_threshold=$((30 * 86400))
+
+  local skill_md skill_name last_ts last_epoch age_sec
+  for skill_md in "$root"/skills/*/SKILL.md; do
+    [ -f "$skill_md" ] || continue
+    skill_name=$(basename "$(dirname "$skill_md")")
+    scanned=$((scanned + 1))
+
+    # ---- Check 1: stale skill (no analytics hit in last 30d) -------------
+    last_epoch=0
+    if [ -f "$analytics" ]; then
+      last_ts=$(grep -F "\"skill\":\"$skill_name\"" "$analytics" 2>/dev/null \
+        | tail -1 \
+        | jq -r '.ts // ""' 2>/dev/null || true)
+      if [ -n "$last_ts" ]; then
+        last_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_ts" +%s 2>/dev/null || echo 0)
+      fi
+    fi
+
+    age_sec=$((now_epoch - last_epoch))
+    if [ "$last_epoch" -eq 0 ] || [ "$age_sec" -ge "$stale_threshold" ]; then
+      local age_days
+      if [ "$last_epoch" -eq 0 ]; then
+        age_days="never"
+      else
+        age_days=$((age_sec / 86400))
+      fi
+      local synth_verdict
+      synth_verdict=$(jq -n \
+        --arg url "repo-audit://stale-skill/$skill_name" \
+        --arg p "address-stale-skill-$skill_name" \
+        --arg path "skills/$skill_name/SKILL.md" \
+        --arg quote "Skill not invoked in $age_days days per ~/.gstack/analytics/skill-usage.jsonl; consider retirement or freshness investment." \
+        --arg change "Review and decide: retire (move to deprecated/), polish (update description, add example), or document why it's a quiet utility." \
+        '{
+          verdict: "novel",
+          canonical_url: $url,
+          pattern_name: $p,
+          short_source_name: "repo-audit",
+          affected_skills: [$path],
+          suggested_change: $change,
+          source_quote: $quote,
+          confidence: 6
+        }')
+      local apply_out
+      apply_out=$(printf '%s' "$synth_verdict" | cmd_apply 2>&1 || true)
+      case "$apply_out" in
+        *"appended draft row"*) appended=$((appended + 1)) ;;
+        *"signature already in"*) skipped=$((skipped + 1)) ;;
+      esac
+    fi
+
+    # ---- Check 2: missing frontmatter fields ---------------------------
+    local has_version has_tools
+    has_version=$(grep -c '^version:' "$skill_md" 2>/dev/null || echo 0)
+    has_tools=$(grep -c '^allowed-tools:' "$skill_md" 2>/dev/null || echo 0)
+    local missing=""
+    [ "$has_version" = "0" ] && missing="${missing}version "
+    [ "$has_tools" = "0" ] && missing="${missing}allowed-tools "
+    missing=$(echo "$missing" | sed 's/ *$//')
+
+    if [ -n "$missing" ]; then
+      local synth_verdict
+      synth_verdict=$(jq -n \
+        --arg url "repo-audit://missing-frontmatter/$skill_name" \
+        --arg p "add-missing-frontmatter-$skill_name" \
+        --arg path "skills/$skill_name/SKILL.md" \
+        --arg quote "SKILL.md lacks required frontmatter fields: $missing" \
+        --arg change "Add the missing frontmatter field(s) to skills/$skill_name/SKILL.md: $missing" \
+        '{
+          verdict: "novel",
+          canonical_url: $url,
+          pattern_name: $p,
+          short_source_name: "repo-audit",
+          affected_skills: [$path],
+          suggested_change: $change,
+          source_quote: $quote,
+          confidence: 9
+        }')
+      local apply_out
+      apply_out=$(printf '%s' "$synth_verdict" | cmd_apply 2>&1 || true)
+      case "$apply_out" in
+        *"appended draft row"*) appended=$((appended + 1)) ;;
+        *"signature already in"*) skipped=$((skipped + 1)) ;;
+      esac
+    fi
+  done
+
+  printf '[CJ_improve-queue audit] scanned=%d appended=%d skipped=%d (already in backlog)\n' \
+    "$scanned" "$appended" "$skipped"
+}
+
+# ---------------------------------------------------------------------------
 # Arg dispatch
 # ---------------------------------------------------------------------------
 
@@ -638,6 +764,9 @@ main() {
     apply)
       cmd_apply
       ;;
+    audit)
+      cmd_audit
+      ;;
     ""|-h|--help|help)
       cat <<'EOF'
 usage: improve_queue.sh <sub-command> [args] [--allow-untrusted-source]
@@ -648,6 +777,8 @@ Sub-commands:
   evaluate-prepare <url>  Preflight + canonicalize + emit HANDOFF block, exit 0.
                           Useful for orchestrator testing in isolation.
   apply                   Read verdict JSON from stdin, append draft TODOS.md row.
+  audit                   (S000050 Phase 2) Offline repo self-scan: stale-skill +
+                          missing-frontmatter checks. Emits draft rows directly.
 
 Test hook:
   CJ_IMPROVE_QUEUE_VERDICT_FILE=<path>  Skip Agent dispatch; read verdict from file.

@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.0] - 2026-05-15
+
+### Added
+
+- **`/CJ_improve-queue audit` Phase 2 (S000050).** Offline repo self-scan, no network. Two deterministic checks per skill: (1) **stale-skill** — no entry in `~/.gstack/analytics/skill-usage.jsonl` within last 30 days (confidence 6, REVIEW-flagged because analytics naming drift can produce false positives); (2) **missing-frontmatter** — `SKILL.md` lacks `version:` or `allowed-tools:` (confidence 9, deterministic). Each finding goes through the same `cmd_apply` path the evaluate flow uses, with synthetic `repo-audit://<check>/<target>` URLs that sidestep the allowlist gate and produce stable signatures for idempotency. Re-running audit on an unchanged repo is a NO-OP.
+
+- **`/CJ_improve-queue research <topic>` Phase 3 (S000051).** Orchestrator-driven flow (no new bash code) composing Phase 1 primitives. Three steps: (R1) privacy AskUserQuestion gate before sending topic to WebSearch provider (matches `/office-hours` Phase 2.75 convention); (R2) WebSearch capped at 3 results, filtered to allowlist hosts only (`--allow-untrusted-source` NOT respected — trust boundary stays tight); (R3) per-result loop calling existing `evaluate-prepare` + Agent dispatch + `apply`. Aggregates into a single summary line.
+
+### Tested
+
+- **Killer test on 3 real Anthropic docs URLs**: `claude-code/skills` → match (SKILL.md authoring conventions already adopted), `claude-code/hooks-guide` → reject (harness/settings layer, orthogonal to skills), `claude-code/sub-agents` → match (fresh-context dispatch already in CJ_personal-pipeline + CJ_goal_run). No false-positive rows appended; all 3 verdicts correctly classified. Confirms end-to-end: HANDOFF emit, subagent dispatch, WebFetch, JSON verdict parse, apply gates, allowlist all working.
+
 ## [4.4.2] - 2026-05-15
 
 ### Fixed
