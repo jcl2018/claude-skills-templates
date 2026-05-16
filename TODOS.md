@@ -244,3 +244,12 @@ Measures whether a skill actually works, not just whether metadata exists.
 ### ~~Batch version mode for multi-skill commits (P3, S)~~ SIMPLIFIED
 Simplified by collection versioning. Use `collection-version.sh bump patch`.
 **Depends on:** collection-version.sh
+
+### Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)<!--impr-draft-->
+
+**Source:** https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+**Verdict:** novel
+**Affected skills:** skills/CJ_personal-pipeline/SKILL.md, skills/CJ_improve-queue/SKILL.md, skills/CJ_qa-work-item/SKILL.md, skills/CJ_goal_run/SKILL.md
+**Suggested change:** Wrap subagent prompt sections (role, task, constraints, inputs, return contract) in named XML tags so subagents parse mixed instructions plus variable inputs unambiguously.
+<!-- source-quote: "XML tags help Claude parse complex prompts unambiguously, especially when your prompt mixes instructions, context, examples, and variable inputs." -->
+<!-- impr-sig=6b0a15bea5c5e84d impr-conf=7/10 -->
