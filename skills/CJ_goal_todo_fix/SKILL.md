@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_todo_fix
-description: "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0; --quiet added v4.3.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews; --quiet suppresses Phase 3 summary AUQ for cron / /schedule consumers (autonomy ceiling preserved — /ship Gate #2 still fires per child). Workbench-only; halt-on-red preserved end-to-end."
+description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_personal-pipeline + /ship + /land-and-deploy. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
 version: 2.2.0
 allowed-tools:
   - Bash
