@@ -473,12 +473,20 @@ do_install() {
     main_toplevel="$REPO_ROOT"
   fi
 
+  # Capture origin URL at install time (T000031). Stored in manifest so
+  # skills-update-check can verify it hasn't been redirected before recommending
+  # `git pull --ff-only origin main` against `$source`. Empty when the source
+  # repo has no `origin` remote (rare; skill installs from non-git source dir).
+  local upstream_url
+  upstream_url=$(git -C "$main_toplevel" remote get-url origin 2>/dev/null || true)
+
   # Write manifest
   echo "$manifest" | jq --arg s "$main_toplevel" --arg r "jcl2018/claude-skills-templates" \
     --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
     --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg cv "$col_ver" \
-    '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv}' | manifest_write
+    --arg u "$upstream_url" \
+    '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv, upstream_url: $u}' | manifest_write
 
   # Write JUST_UPGRADED marker if invoked from the update-check upgrade flow.
   # Format: single line "<from_version> <to_version>" — consumed once by
