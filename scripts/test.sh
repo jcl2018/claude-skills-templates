@@ -378,27 +378,21 @@ echo "Regression test (D000006): test-doc scope contracts..."
 
 # Scope comments in test-doc templates (CJ_personal-workflow only after
 # CJ_company-workflow retirement in F000023/S000053).
-for entry in \
-    "$REPO_ROOT/templates/CJ_personal-workflow/doc-test-plan.md|CJ_personal-workflow doc-test-plan.md"; do
-  path="${entry%%|*}"
-  display="${entry#*|}"
-  if grep -q "ONE fix (defect) or ONE task" "$path"; then
-    ok "$display has the test-plan scope comment"
-  else
-    fail_test "$display is missing the test-plan scope comment"
-  fi
-done
+_tp_path="$REPO_ROOT/templates/CJ_personal-workflow/doc-test-plan.md"
+_tp_disp="CJ_personal-workflow doc-test-plan.md"
+if grep -q "ONE fix (defect) or ONE task" "$_tp_path"; then
+  ok "$_tp_disp has the test-plan scope comment"
+else
+  fail_test "$_tp_disp is missing the test-plan scope comment"
+fi
 
-for entry in \
-    "$REPO_ROOT/templates/CJ_personal-workflow/doc-TEST-SPEC.md|CJ_personal-workflow doc-TEST-SPEC.md"; do
-  path="${entry%%|*}"
-  display="${entry#*|}"
-  if grep -q "ENTIRE user story" "$path"; then
-    ok "$display has the TEST-SPEC scope comment"
-  else
-    fail_test "$display is missing the TEST-SPEC scope comment"
-  fi
-done
+_ts_path="$REPO_ROOT/templates/CJ_personal-workflow/doc-TEST-SPEC.md"
+_ts_disp="CJ_personal-workflow doc-TEST-SPEC.md"
+if grep -q "ENTIRE user story" "$_ts_path"; then
+  ok "$_ts_disp has the TEST-SPEC scope comment"
+else
+  fail_test "$_ts_disp is missing the TEST-SPEC scope comment"
+fi
 
 echo ""
 echo "Regression test (D000007): contract.json eliminated; templates are the single source of truth..."
@@ -518,6 +512,7 @@ echo "Regression test (D000012): deployed workflow templates stay in sync with w
 #       asserts every workbench template is present and byte-identical in the
 #       deployed copy. Skipped on hosts where skills-deploy hasn't run (e.g. CI).
 
+# shellcheck disable=SC2043  # single-element loop preserved for CJ_personal-workflow scope after CJ_company-workflow retirement (F000023/S000053)
 for _wf in CJ_personal-workflow; do
   case "$_wf" in
     CJ_personal-workflow) _tmpls="doc-DESIGN.md doc-SPEC.md doc-ROADMAP.md" ;;
@@ -533,6 +528,7 @@ for _wf in CJ_personal-workflow; do
   done
 done
 
+# shellcheck disable=SC2043  # single-element loop preserved for CJ_personal-workflow scope after CJ_company-workflow retirement (F000023/S000053)
 for _wf in CJ_personal-workflow; do
   _D12_DEPLOYED="${HOME}/.claude/templates/$_wf"
   # Catalog-driven workbench source dir (F000006). Honors the catalog
@@ -589,6 +585,7 @@ echo "Regression test (D000014): WORKFLOW.md type-to-artifact counts match manif
 # items that fail downstream validation. This block forces the markdown table count
 # to match the manifest's required-array length — manifest is authoritative.
 
+# shellcheck disable=SC2043  # single-element loop preserved for CJ_personal-workflow scope after CJ_company-workflow retirement (F000023/S000053)
 for _wf in CJ_personal-workflow; do
   # Strip the CJ_ prefix from the skill name to recover the manifest filename
   # base (manifests retain their original "personal-artifact-manifests.json"
