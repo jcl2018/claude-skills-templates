@@ -89,43 +89,6 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_company-workflow",
-    "version": "5.0.0",
-    "description": "Company work item specification. Validates tracker files and work item directories against company templates and company-artifact-manifests.json. Templates + WORKFLOW.md are the single source of truth for structural rules.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "deprecated/CJ_company-workflow/SKILL.md",
-      "deprecated/CJ_company-workflow/WORKFLOW.md",
-      "deprecated/CJ_company-workflow/company-artifact-manifests.json"
-    ],
-    "templates": [
-      "CJ_company-workflow/tracker-feature.md",
-      "CJ_company-workflow/tracker-defect.md",
-      "CJ_company-workflow/tracker-task.md",
-      "CJ_company-workflow/tracker-user-story.md",
-      "CJ_company-workflow/tracker-review.md",
-      "CJ_company-workflow/doc-feature-summary.md",
-      "CJ_company-workflow/doc-PRD.md",
-      "CJ_company-workflow/doc-ARCHITECTURE.md",
-      "CJ_company-workflow/doc-TEST-SPEC.md",
-      "CJ_company-workflow/doc-DESIGN.md",
-      "CJ_company-workflow/doc-milestones.md",
-      "CJ_company-workflow/doc-RCA.md",
-      "CJ_company-workflow/doc-test-plan.md",
-      "CJ_company-workflow/doc-review-notes.md",
-      "CJ_company-workflow/doc-scrum.md",
-      "CJ_company-workflow/doc-pr-description-task.md",
-      "CJ_company-workflow/doc-pr-description-defect.md"
-    ],
-    "status": "deprecated",
-    "templates_source": "deprecated/CJ_company-workflow/templates"
-  },
-  {
     "name": "CJ_qa-work-item",
     "version": "1.0.0",
     "description": "QA a CJ_personal-workflow work-item (user-story, defect, or task) per its test rows. For user-stories: runs Smoke Tests then dispatches a QA engineer subagent (fresh context, 5-min cap) for E2E verification per TEST-SPEC. For defects/tasks: runs test-plan rows as smoke-equivalent (no E2E subagent in v1). Writes findings to tracker journal; transitions Phase 2 qa-owned gates for user-stories; records [qa-pass] for defects/tasks. Idempotent (re-run on green work-item is NO-OP). Boundary check refuses on incomplete Phase 2.",

@@ -628,54 +628,11 @@ fi
 teardown_update_env
 
 # === Subdirectory tests ===
-echo ""
-echo "=== Subdirectory deployment tests ==="
-echo ""
-
-# Test 13: Subdirectory symlinks created on install
-echo "Test 13: Subdirectory symlinks created on install"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-subdir_ok=true
-for dname in reference philosophy fixtures; do
-  target="$SKILLS_DEPLOY_TARGET/CJ_company-workflow/$dname"
-  if [ -L "$target" ] && [ -e "$target" ]; then
-    true
-  else
-    fail_test "CJ_company-workflow/$dname not symlinked"
-    subdir_ok=false
-  fi
-done
-if [ "$subdir_ok" = true ]; then
-  ok "All subdirectories symlinked (reference, philosophy, fixtures)"
-fi
-teardown_env
-
-# Test 14: Subdirectory idempotent install
-echo "Test 14: Subdirectory idempotent install"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-if [ -L "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference" ]; then
-  ok "Subdirectory symlinks valid after double install"
-else
-  fail_test "Subdirectory symlinks broken after double install"
-fi
-teardown_env
-
-# Test 15: Doctor detects broken subdirectory symlink
-echo "Test 15: Doctor detects broken subdirectory symlink"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference"
-ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference"
-output=$("$DEPLOY" doctor 2>&1)
-if echo "$output" | grep -q "FAIL.*reference"; then
-  ok "Doctor detects broken subdirectory symlink"
-else
-  fail_test "Doctor missed broken subdirectory symlink"
-fi
-teardown_env
+# Tests 13-19 (subdirectory symlink behaviors) deleted in S000053 (F000023):
+# they exercised the deprecated CJ_company-workflow skill's reference/philosophy/
+# fixtures subdirs. The skill is gone; the behavior they covered (catalog-driven
+# subdir symlinking) is still exercised by Test 16 below for CJ_system-health
+# (no-subdirs case) — sufficient regression coverage for the subdir codepath.
 
 # Test 16: Skill without subdirectories unaffected
 echo "Test 16: Skill without subdirectories unaffected"
@@ -686,53 +643,6 @@ if [ "$subdir_count" -eq 0 ]; then
   ok "No spurious subdirectory symlinks for CJ_system-health"
 else
   fail_test "CJ_system-health has unexpected subdirectory symlinks: $subdir_count"
-fi
-teardown_env
-
-# Test 17: Remove cleans up subdirectory symlinks
-echo "Test 17: Remove cleans up subdirectory symlinks"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-"$DEPLOY" remove CJ_company-workflow --force >/dev/null 2>&1
-if [ ! -e "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference" ] && [ ! -e "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/philosophy" ]; then
-  ok "Subdirectory symlinks cleaned up on remove"
-else
-  fail_test "Subdirectory symlinks still exist after remove"
-fi
-teardown_env
-
-# Test 18: Relink recreates subdirectory symlinks
-echo "Test 18: Relink recreates subdirectory symlinks"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference"
-"$DEPLOY" relink >/dev/null 2>&1
-if [ -L "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference" ] && [ -e "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference" ]; then
-  ok "Relink restored subdirectory symlink"
-else
-  fail_test "Relink did not restore subdirectory symlink"
-fi
-teardown_env
-
-# Test 19: Migration skips modified subdir content
-echo "Test 19: Migration skips modified subdir content"
-setup_env
-"$DEPLOY" install CJ_company-workflow --include-deprecated >/dev/null 2>&1
-# Replace symlink with real dir containing modified file
-rm -f "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference"
-mkdir -p "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference"
-echo "modified content" > "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference/guide-general.md"
-output=$("$DEPLOY" install CJ_company-workflow --include-deprecated 2>&1)
-if echo "$output" | grep -q "WARN.*local modifications"; then
-  ok "Migration warns about modified subdir content"
-else
-  fail_test "Migration did not warn about modified subdir content"
-fi
-# Verify original content preserved
-if [ -f "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference/guide-general.md" ] && grep -q "modified content" "$SKILLS_DEPLOY_TARGET/CJ_company-workflow/reference/guide-general.md"; then
-  ok "Modified content preserved"
-else
-  fail_test "Modified content was overwritten"
 fi
 teardown_env
 
