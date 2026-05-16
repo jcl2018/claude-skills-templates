@@ -900,13 +900,13 @@ if [ -x "$_IQ_SCRIPT" ] && [ -f "$_IQ_FIX/sample-verdict-novel.json" ] && [ -f "
   }
 
   # 1st append (novel verdict).
-  cat "$_IQ_FIX/sample-verdict-novel.json" | ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply ) >/dev/null 2>&1
+  ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply < "$_IQ_FIX/sample-verdict-novel.json" ) >/dev/null 2>&1
   _iq_assert_single_lf "$_IQ_TMP/TODOS.md" "CJ_improve-queue 1st append"
 
   # Commit row1, then 2nd append (conflict verdict — distinct signature, so it
   # appends rather than NO-OPs). Proves the fix recurs cleanly across appends.
   ( cd "$_IQ_TMP" && git add -A && git commit -qm row1 ) >/dev/null 2>&1
-  cat "$_IQ_FIX/sample-verdict-conflict.json" | ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply ) >/dev/null 2>&1
+  ( cd "$_IQ_TMP" && bash "$_IQ_SCRIPT" apply < "$_IQ_FIX/sample-verdict-conflict.json" ) >/dev/null 2>&1
   _iq_assert_single_lf "$_IQ_TMP/TODOS.md" "CJ_improve-queue 2nd append"
 
   unset -f _iq_assert_single_lf
