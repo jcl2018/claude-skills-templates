@@ -1,0 +1,1 @@
+{ this is not valid JSON — intentional malformed payload for the apply step's "unparseable verdict" handling path. The bash envelope MUST exit 0 with a stderr line and leave TODOS.md untouched.

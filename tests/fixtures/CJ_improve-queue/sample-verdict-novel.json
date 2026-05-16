@@ -1,0 +1,13 @@
+{
+  "verdict": "novel",
+  "canonical_url": "https://docs.anthropic.com/claude-code/sample-pattern-page",
+  "pattern_name": "subagent contract testing",
+  "short_source_name": "anthropic-docs",
+  "affected_skills": [
+    "skills/CJ_personal-pipeline/SKILL.md",
+    "skills/CJ_goal_run/SKILL.md"
+  ],
+  "suggested_change": "Add a subagent-contract test layer that stubs the inner Agent dispatch via env-var fixture so verdict-handling paths are CI-testable without live network.",
+  "source_quote": "Test subagent boundaries with stubbed verdicts so the deterministic shell envelope can be exercised in CI without depending on network.",
+  "confidence": 8
+}

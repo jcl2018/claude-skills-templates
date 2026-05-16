@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+  Frozen WebFetch sample for /CJ_improve-queue Phase 1 reference / future re-test.
+  Not used by the smoke tests — the subagent is stubbed at its boundary via
+  CJ_IMPROVE_QUEUE_VERDICT_FILE. This file documents the kind of input the
+  live subagent would WebFetch and reason against.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sample Anthropic Skills Page (frozen for /CJ_improve-queue tests)</title>
+</head>
+<body>
+  <h1>Subagent Contract Testing</h1>
+  <p>
+    When designing skills that dispatch fresh-context subagents, define the
+    return contract as a strict JSON object emitted on stdout. Stub the
+    subagent at its boundary by reading a fixture file from an environment
+    variable in tests. This lets the deterministic shell envelope exercise
+    every verdict path (novel, conflict, match, reject, fetch_failed,
+    malformed) in CI without depending on the network or the live subagent's
+    reasoning quality.
+  </p>
+  <p>
+    Concretely: route a CJ_IMPROVE_QUEUE_VERDICT_FILE env var through the
+    shell envelope. When set, skip the WebFetch + Agent dispatch and feed
+    the stub directly to the apply step. Preflight gates still fire so the
+    Darwin check and dirty-TODOS.md check stay covered.
+  </p>
+  <p>
+    Trim source quotes to under 200 bytes and wrap them in HTML comments so
+    they cannot be misread as renderable markdown. Layer this defense with
+    a default-on source-domain allowlist to neutralize regex-injection paths.
+  </p>
+</body>
+</html>

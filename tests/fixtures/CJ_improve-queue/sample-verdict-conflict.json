@@ -1,0 +1,12 @@
+{
+  "verdict": "conflict",
+  "canonical_url": "https://docs.anthropic.com/claude-code/another-sample",
+  "pattern_name": "halt-on-doubt over bias-toward-action",
+  "short_source_name": "anthropic-docs",
+  "affected_skills": [
+    "skills/CJ_personal-pipeline/SKILL.md"
+  ],
+  "suggested_change": "Pipeline's auto-mode P6 already inverts gstack's bias-toward-action to halt-on-doubt; reconcile naming to match Anthropic's published terminology so cross-skill audits are easier.",
+  "source_quote": "When uncertainty exceeds the action's blast radius, halt and surface rather than proceeding silently.",
+  "confidence": 6
+}
