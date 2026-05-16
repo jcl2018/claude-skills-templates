@@ -15,6 +15,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 - **Killer test on 3 real Anthropic docs URLs**: `claude-code/skills` → match (SKILL.md authoring conventions already adopted), `claude-code/hooks-guide` → reject (harness/settings layer, orthogonal to skills), `claude-code/sub-agents` → match (fresh-context dispatch already in CJ_personal-pipeline + CJ_goal_run). No false-positive rows appended; all 3 verdicts correctly classified. Confirms end-to-end: HANDOFF emit, subagent dispatch, WebFetch, JSON verdict parse, apply gates, allowlist all working.
 
+## [4.4.3] - 2026-05-15
+
+### Added
+
+- **Origin URL pinning for the skills-update-check upgrade path (T000031).** `skills-deploy install` now captures `git remote get-url origin` of the source repo at install time and writes it to `manifest.upstream_url` in `~/.claude/.skills-templates.json`. `skills-update-check` reads the pinned URL and, when set, compares it against the source repo's current `origin` URL. On mismatch, the upgrade banner is suppressed and a warning is emitted to stderr telling the user to re-run `skills-deploy install` from a trusted clone to re-pin. Hardening: closes the manifest-tampering window where a writer of `~/.claude/.skills-templates.json` could redirect `git -C "$source" pull --ff-only origin main` to attacker-controlled code. Backward-compatible: pre-T000031 manifests (no `upstream_url` field) skip the check and behave exactly as before. Covered by 4 new tests in `scripts/test-deploy.sh` (U29-U32). Closes TODOS:58.
+
 ## [4.4.2] - 2026-05-15
 
 ### Fixed
