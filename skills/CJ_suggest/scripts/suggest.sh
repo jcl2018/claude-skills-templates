@@ -163,17 +163,22 @@ NO_TRACKERS=0
 #    portable TODOs rank by recency/blocked-status alone.
 #
 # Detection: presence of `## Active work` switches modes.
+#
+# S000049: skip headings containing `<!--impr-draft-->` (rows emitted by
+# /CJ_improve-queue in draft state — invisible-marker convention so promotion
+# is a single search-and-replace, no string-prefix typo footgun). Mirrors the
+# strikethrough skip already in place.
 if grep -q '^## Active work[[:space:]]*$' "$TODOS"; then
   ACTIVE_HEADINGS=$(awk '
     /^## Active work[[:space:]]*$/ {a=1; next}
     /^## / && !/^## Active work[[:space:]]*$/ {a=0}
-    a && /^### [^~]/ { print }
+    a && /^### [^~]/ && !/<!--impr-draft-->/ { print }
   ' "$TODOS")
 else
   ACTIVE_HEADINGS=$(awk '
     /^## (Completed|Done|Archive|Archived|Shipped|Deferred work)[[:space:]]*$/ {a=0; next}
     /^## / {a=1}
-    a && /^### [^~]/ { print }
+    a && /^### [^~]/ && !/<!--impr-draft-->/ { print }
   ' "$TODOS")
 fi
 
