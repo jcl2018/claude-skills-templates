@@ -1,7 +1,7 @@
 ---
 type: test-spec
 parent: S000049
-feature: F000023
+feature: F000024
 title: "v1.0 single-defect mode — /CJ_goal_investigate skill + pipeline + chain — Test Specification"
 version: 1
 status: Draft

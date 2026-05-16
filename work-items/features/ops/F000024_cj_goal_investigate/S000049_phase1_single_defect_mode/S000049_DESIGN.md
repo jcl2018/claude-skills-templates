@@ -14,7 +14,7 @@ reviewers: []
 
 ## Problem
 
-Build the v1.0 single-defect mode of `/CJ_goal_investigate`: skill scaffolding, defect resolver, machine-readable `/investigate` dispatch, RCA + test-plan artifact writes, halt-on-red taxonomy, idempotent re-entry, and the chain to `/CJ_qa-work-item` → `/ship` → `/land-and-deploy`. See parent [F000023_DESIGN.md](../F000023_DESIGN.md) for full context.
+Build the v1.0 single-defect mode of `/CJ_goal_investigate`: skill scaffolding, defect resolver, machine-readable `/investigate` dispatch, RCA + test-plan artifact writes, halt-on-red taxonomy, idempotent re-entry, and the chain to `/CJ_qa-work-item` → `/ship` → `/land-and-deploy`. See parent [F000024_DESIGN.md](../F000024_DESIGN.md) for full context.
 
 ## Shape of the solution
 
@@ -48,7 +48,7 @@ Build the v1.0 single-defect mode of `/CJ_goal_investigate`: skill scaffolding, 
 
 ## Not in scope
 
-- Drain mode, `--quiet`, `--max-drain` — see parent F000023's Not in scope.
+- Drain mode, `--quiet`, `--max-drain` — see parent F000024's Not in scope.
 - Family-drain lock — v1.1.
 - Sunset criterion — v1.1.
 - Freestanding defect convention — v1.1.
@@ -56,8 +56,8 @@ Build the v1.0 single-defect mode of `/CJ_goal_investigate`: skill scaffolding, 
 
 ## Pointers
 
-- Parent feature design: [../F000023_DESIGN.md](../F000023_DESIGN.md)
-- Parent tracker: [../F000023_TRACKER.md](../F000023_TRACKER.md)
+- Parent feature design: [../F000024_DESIGN.md](../F000024_DESIGN.md)
+- Parent tracker: [../F000024_TRACKER.md](../F000024_TRACKER.md)
 - Story tracker: [S000049_TRACKER.md](S000049_TRACKER.md)
 - Story spec: [S000049_SPEC.md](S000049_SPEC.md)
 - Story test-spec: [S000049_TEST-SPEC.md](S000049_TEST-SPEC.md)

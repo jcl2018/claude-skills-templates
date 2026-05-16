@@ -1,6 +1,6 @@
 ---
 type: roadmap
-parent: F000023
+parent: F000024
 title: "/CJ_goal_investigate — defect-aware bugfix pipeline orchestrator — Roadmap"
 date: 2026-05-15
 author: chjiang

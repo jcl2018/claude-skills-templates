@@ -1,7 +1,7 @@
 ---
 name: "/CJ_goal_investigate — defect-aware bugfix pipeline orchestrator"
 type: feature
-id: "F000023"
+id: "F000024"
 status: active
 created: "2026-05-15"
 updated: "2026-05-15"

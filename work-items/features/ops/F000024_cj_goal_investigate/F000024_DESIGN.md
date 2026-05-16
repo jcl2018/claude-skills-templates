@@ -1,6 +1,6 @@
 ---
 type: design
-parent: F000023
+parent: F000024
 title: "/CJ_goal_investigate — defect-aware bugfix pipeline orchestrator — Feature Design"
 version: 1
 status: Draft
@@ -74,8 +74,8 @@ v1.1 adds drain mode (no args), `--max-drain N`, `--quiet`, family-drain lock, s
 
 ## Pointers
 
-- Parent tracker: [F000023_TRACKER.md](F000023_TRACKER.md)
-- Roadmap: [F000023_ROADMAP.md](F000023_ROADMAP.md)
+- Parent tracker: [F000024_TRACKER.md](F000024_TRACKER.md)
+- Roadmap: [F000024_ROADMAP.md](F000024_ROADMAP.md)
 - /office-hours design: `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-worktree-immutable-watching-sparrow-design-20260515-193008.md`
 - Sibling skills: `/CJ_goal_run`, `/CJ_goal_todo_fix`
 - Upstream gstack: `/investigate`, `/ship`, `/land-and-deploy`

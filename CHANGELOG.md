@@ -3,6 +3,29 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.0] - 2026-05-15
+
+### Added
+
+- **`/CJ_goal_investigate` v0.1.0 (F000024 / S000049): defect-to-shipped-fix pipeline orchestrator.**
+  Third sibling in the `CJ_goal_*` family, alongside `/CJ_goal_run` (user-stories) and
+  `/CJ_goal_todo_fix` (TODOs). Takes a scaffolded defect work-item (legacy
+  `work-items/defects/<domain>/D000NNN_<slug>/` layout in v1.0) and ships a deployed
+  fix end-to-end via `/investigate` (Agent subagent, sentinel-wrapped JSON output) →
+  RCA + test-plan artifact writes → `/CJ_qa-work-item` → `/ship` → `/land-and-deploy`.
+  Iron-Law gate enforced automatically: no fixes ship without a populated root cause.
+  Machine-readable `/investigate` handoff (`DEBUG_REPORT_BEGIN_JSON ... DEBUG_REPORT_END_JSON`)
+  eliminates free-text parser brittleness. 9-state halt-on-red taxonomy with
+  `next_action=` / `resume_cmd=` / `raw_output_path=` journal entries. 5-row
+  idempotency resume table for mid-chain re-entry. `--dry-run` previews chain plan +
+  write paths without mutation. Workbench-only; drain mode / family-drain lock /
+  sunset criterion / freestanding defect convention all deferred to v1.1. Catalog
+  entry status `experimental`. Routing rule added to `rules/skill-routing.md`.
+  Files: `skills/CJ_goal_investigate/{SKILL.md, pipeline.md, scripts/test-*.sh}`,
+  `skills-catalog.json` (+1 entry), `rules/skill-routing.md` (+1 rule),
+  `work-items/features/ops/F000024_cj_goal_investigate/` (DESIGN, ROADMAP, TRACKER,
+  S000049 child story with SPEC + DESIGN + TEST-SPEC + TRACKER).
+
 ## [4.5.5] - 2026-05-15
 
 ### Changed

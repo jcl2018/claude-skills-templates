@@ -5,13 +5,13 @@ id: "S000049"
 status: active
 created: "2026-05-15"
 updated: "2026-05-15"
-parent: "F000023"
+parent: "F000024"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "feat/S000049_cj_suggest_impr_draft_filter-20260515-192236"
 blocked_by: ""
 ---
 
-<!-- Prerequisite: parent F000023_DESIGN.md captures the design context.
+<!-- Prerequisite: parent F000024_DESIGN.md captures the design context.
      This atomic story derives directly from the parent feature's
      /office-hours session — DESIGN.md here is a brief stub linking back. -->
 
@@ -143,7 +143,7 @@ blocked_by: ""
 - [decision] 2026-05-15: `/CJ_implement-from-spec` NOT in chain; `/investigate` Phase 4 writes the fix directly.
 - [decision] 2026-05-15: legacy defect dir convention only (`work-items/defects/<domain>/D000NNN_<slug>/`); freestanding deferred to v1.1.
 
-- 2026-05-16T06:03:47Z [orchestrator] --work-item-dir mode: using pre-staged dir at /Users/chjiang/Documents/projects/claude-skills-templates/.claude/worktrees/immutable-watching-sparrow/work-items/features/ops/F000023_cj_goal_investigate/S000049_phase1_single_defect_mode; scaffold skipped.
+- 2026-05-16T06:03:47Z [orchestrator] --work-item-dir mode: using pre-staged dir at /Users/chjiang/Documents/projects/claude-skills-templates/.claude/worktrees/immutable-watching-sparrow/work-items/features/ops/F000024_cj_goal_investigate/S000049_phase1_single_defect_mode; scaffold skipped.
 
 - 2026-05-16T06:10:20Z [phase2-implement] CJ_goal_investigate skill scaffolded: SKILL.md + pipeline.md + 4 test scripts; catalog entry added; routing rule added. validate.sh: PASS (0 errors, 0 warnings).
 
