@@ -275,12 +275,23 @@ sig_of() {
 # ---------------------------------------------------------------------------
 
 is_allowlisted() {
+  # Match against the allowlist on either exact-host match OR subdomain suffix
+  # (`*.h`). Subdomain matching covers legitimate Anthropic surfaces like
+  # code.claude.com, platform.claude.com, docs.claude.com, support.claude.com —
+  # all of which are under Anthropic control but were rejected by the prior
+  # exact-only match (found by the v4.5.0 research-mode killer test).
+  # Typosquatting protection holds: `evilclaude.com` doesn't suffix-match
+  # `.claude.com` (the literal dot is required), so attacker-registered
+  # lookalikes are still rejected.
   local host="$1"
   local h
   for h in "${ALLOWLIST_HOSTS[@]}"; do
     if [ "$host" = "$h" ]; then
       return 0
     fi
+    case "$host" in
+      *."$h") return 0 ;;
+    esac
   done
   return 1
 }

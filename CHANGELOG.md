@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.2] - 2026-05-15
+
+### Fixed
+
+- **`/CJ_improve-queue` allowlist subdomain matching (follow-on to v4.5.0).** `is_allowlisted()` in `scripts/improve_queue.sh` used exact-host comparison only, rejecting legitimate Anthropic surfaces like `code.claude.com`, `platform.claude.com`, `docs.claude.com`, `support.claude.com` — all of which are subdomains of the allowlisted `claude.com` host. Found by the Phase 3 research-mode killer test: WebSearch returned 6 valid `*.claude.com` results, all blocked. Fix: add suffix match (`*.h`) alongside exact match in the allowlist loop. Typosquat protection holds (`evilclaude.com` still rejected because the literal `.` is required for suffix match). Verified with both positive (`code.claude.com` accepted) and negative (`evilclaude.com` rejected) smoke tests.
+
+### Added (via Phase 3 research mode)
+
+- **Draft TODO: Adopt XML-tag delimited subagent prompts (novel, conf=7).** Anthropic prompt-engineering docs recommend wrapping prompt sections in named XML tags for unambiguous parsing. Workbench currently uses plain-text `ROLE:`/`TASK:`/`CONSTRAINTS:` section headers in subagent dispatch templates (CJ_personal-pipeline, CJ_improve-queue, CJ_qa-work-item, CJ_goal_run). Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
+- **Draft TODO: Adopt concise discovery-focused descriptions (conflict, conf=8).** Anthropic skill-authoring best practices say the SKILL.md description should be a 1-2 sentence what+when discovery handle. Workbench descriptions for CJ_goal_run, CJ_goal_todo_fix, CJ_personal-pipeline, CJ_qa-work-item, and CJ_implement-from-spec embed version-rename history, flag mechanics, and changelog detail — too long for Claude's skill-selector to discriminate cleanly across 100+ skills. Row landed in TODOS.md with `<!--impr-draft-->` marker; remove the marker to promote.
+
 ## [4.5.1] - 2026-05-15
 
 ### Fixed
