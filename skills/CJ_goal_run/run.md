@@ -1112,23 +1112,28 @@ while IFS= read -r heading; do
     break
   fi
   echo "Phase 5 child $HEADING_IDX/$DRAIN_TARGET_COUNT: $heading"
-  # Orchestrator step: invoke /CJ_goal_todo_fix via Skill tool with $heading
-  # as the resolver hint. /CJ_goal_todo_fix's own preflight will match the
-  # heading against TODOS.md row, scaffold a T-task, and run its own
-  # full pipeline.
+  # Per-TODO inner loop is owned by the shared helper at:
+  #   skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh
+  # (S000046, v4.2.0). Both /CJ_goal_run Phase 5 and /CJ_goal_todo_fix Phase 2
+  # call this single helper so the lockfile + preflight + scaffold + chain
+  # behavior has one source of truth.
   #
-  # On child green: extract child PR URL from /CJ_goal_todo_fix's RESULT
-  # tail (final summary block) and append to DRAINED_PR_URLS (space-sep).
-  # On child red: STOP the loop, set END_STATE=drained_partial, break out.
+  # Invocation contract (orchestrator drives the chain; helper handles lock +
+  # preflight + scaffold-handoff):
+  #   bash skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh dispatch "$heading" "$RUN_ID"
   #
-  # The orchestrator parses /CJ_goal_todo_fix's printed summary for
-  # `PR:` / `pr_url:` lines (same pattern /ship + /land-and-deploy emit).
+  # Helper outputs:
+  #   - "RESULT: STATUS=lock_skip; ..."          → skip this heading silently
+  #   - CJ_GOAL_HANDOFF_BEGIN ... END + handoff_pending RESULT → orchestrator
+  #     dispatches /CJ_personal-pipeline + /ship + /land-and-deploy via Skill
+  #     tool, captures PR URL, then calls:
+  #       bash skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh release "$heading" "$RUN_ID"
+  #   - "RESULT: STATUS=halted; ..."             → child red; STOP the loop
   #
-  # NOTE: v1 calls /CJ_goal_todo_fix as a subroutine via the Skill tool.
-  # S000046 extracts the inner loop into a shared `drain-one-todo.sh`
-  # helper so this Phase 5 loop and /CJ_goal_todo_fix's own native-drain
-  # mode share a single code path. v1 keeps the Skill-tool invocation
-  # for simplicity (DRY now via shared skill, not yet via shared script).
+  # On child green: append the captured PR URL to DRAINED_PR_URLS
+  # (space-separated). On child red (STATUS=halted or any chain stage failure
+  # other than `green` / `already_shipped`): STOP the loop, set
+  # END_STATE=drained_partial, break out.
 done < "$PHASE5_HEADINGS_FILE"
 
 # After loop: classify END_STATE.
