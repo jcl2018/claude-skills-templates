@@ -245,7 +245,7 @@ Measures whether a skill actually works, not just whether metadata exists.
 Simplified by collection versioning. Use `collection-version.sh bump patch`.
 **Depends on:** collection-version.sh
 
-### Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)<!--impr-draft-->
+### Adopt XML-tag delimited subagent prompts from anthropic-docs (P3, M)
 
 **Source:** https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
 **Verdict:** novel
@@ -253,7 +253,7 @@ Simplified by collection versioning. Use `collection-version.sh bump patch`.
 **Suggested change:** Wrap subagent prompt sections (role, task, constraints, inputs, return contract) in named XML tags so subagents parse mixed instructions plus variable inputs unambiguously.
 <!-- source-quote: "XML tags help Claude parse complex prompts unambiguously, especially when your prompt mixes instructions, context, examples, and variable inputs." -->
 <!-- impr-sig=6b0a15bea5c5e84d impr-conf=7/10 -->
-### Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)<!--impr-draft-->
+### Adopt concise discovery-focused descriptions from anthropic-docs (P3, M)
 
 **Source:** https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
 **Verdict:** conflict
