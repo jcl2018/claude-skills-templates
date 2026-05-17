@@ -1,7 +1,7 @@
 ---
 name: CJ_goal_investigate
-description: "Defect-to-shipped-fix orchestrator. Takes a scaffolded defect work-item (legacy `work-items/defects/<domain>/D000NNN_<slug>/` layout in v1.0) and ships a deployed fix end-to-end via /investigate (Agent subagent, sentinel-wrapped JSON output) → RCA + test-plan artifact writes → /CJ_qa-work-item → /ship → /land-and-deploy. Iron-Law gate enforced for free: no fixes ship without a populated root cause. 9-state halt-on-red taxonomy with `next_action=` / `resume_cmd=` / `raw_output_path=` journal entries. 5-row idempotency resume table. `--dry-run` previews chain plan + write paths without mutation. Workbench-only (v1.0); drain mode / family-drain lock / sunset criterion / freestanding defect convention all deferred to v1.1."
-version: 1.0.0
+description: "Defect-to-shipped-fix orchestrator. Takes a scaffolded defect work-item (legacy `work-items/defects/<domain>/D000NNN_<slug>/` layout) OR, on a zero-match fragment (v1.1), captures a non-canonical `.inbox/` draft and promotes it to a canonical D-ID dir only after /investigate passes the Iron-Law gate. Ships a deployed fix end-to-end via /investigate (Agent subagent, sentinel-wrapped JSON output) → RCA + test-plan artifact writes → /CJ_qa-work-item → /ship → /land-and-deploy. Iron-Law gate enforced for free: no fixes ship — and no D-ID is minted — without a populated root cause. 13-state halt-on-red taxonomy with `next_action=` / `resume_cmd=` / `raw_output_path=` journal entries. 5-row idempotency resume table. `--dry-run` previews chain plan + write paths without mutation. Workbench-only; drain mode / family-drain lock / sunset criterion still deferred to a later version."
+version: 1.1.0
 allowed-tools:
   - Bash
   - Read
@@ -114,14 +114,32 @@ never auto-advances.
   `~/.gstack/analytics/CJ_goal_investigate-runs/<RUN_ID>/investigate-raw.txt`
   in addition to the structured halt journal entries' `raw_output_path=`.
 
-**Out of scope for v1.0** (deferred to v1.1+ per SPEC Tradeoffs row 6 and
-parent F000023 design):
+**v1.1 — ad-hoc bugs without a scaffolded defect dir (zero-match
+draft→promote).** A fragment that matches no canonical defect no longer
+halts. The pipeline captures a NON-CANONICAL draft under
+`work-items/defects/.inbox/<slug>/DRAFT.md` (no D-ID allocated), runs
+`/investigate` against it, and promotes it to a canonical
+`work-items/defects/uncategorized/D000NNN_<slug>/` dir **only after** the
+Iron-Law gate passes (Step 7.4). One command — `/CJ_goal_investigate
+"freshly observed bug"` — from observation to deployed fix. Iron-Law is
+strengthened: a D-ID is never spent on a rootcause-less defect.
+Verbatim re-invocation pre-promotion resumes the existing draft (no
+duplicate); the canonical resolver's match logic is unchanged except a
+defensive literal/option-safe hardening (`grep -rliF --`, glob-escaped
+`-iname`) that the C3 re-entry guarantee depends on — drafts remain
+invisible to it by construction. `--dry-run` on a zero-match fragment
+prints the would-create/resume/promote plan and writes nothing.
+
+**Still out of scope** (deferred to a later version per SPEC Tradeoffs and
+parent F000023/F000024 design):
 - Drain mode (`--max-drain N`)
 - `--quiet` schedule-friendly mode
 - Family-drain shared lockfile (cross-skill race protection)
 - Sunset criterion + telemetry-driven decommission gate
 - Freestanding defect convention (`D<NNN>_bug-report.md` without dir)
-- Ad-hoc bugs without scaffolded defect dir (v2.0)
+- Domain inference at promotion (defaults to `uncategorized` in v1.1)
+- Fuzzy/token match so re-worded fragments resume the right draft/defect
+- Garbage-collect stale `.inbox/` drafts
 
 ## Routing
 
@@ -137,7 +155,8 @@ chain dispatch, and telemetry.
 | Not a git repo | "Error: /CJ_goal_investigate requires a git repository." | Run inside a repo |
 | Skill assets not found | "Error: CJ_goal_investigate skill assets not found." | Run `skills-deploy install` |
 | No argument | "Error: D-ID or fragment required." | Pass `D000NNN` or a fragment string |
-| Defect not resolved (zero matches) | "Halt: no defect matches '<arg>'." | Verify `work-items/defects/<domain>/D000NNN_*/` exists; check spelling |
+| Zero canonical match (v1.1) | NOT a halt — captures a draft: "No existing defect matched ... created a temporary draft at .inbox/<slug> (no D-ID yet)." | None — pipeline continues; draft is promoted after /investigate passes the Iron-Law gate. Re-run the same phrase to resume; `rm -rf .inbox/<slug>` to discard |
+| Promotion lock timeout (v1.1) | `[promote-lock-timeout]` (13th end-state) | Check for a stale `.scaffold.lock.d`; rmdir it if no other invocation is live; re-run `/CJ_goal_investigate "<fragment>"` |
 | Defect ambiguous (2+ matches) | "Halt: '<arg>' matches N defects:\n  D000NNN at <path>\n  ...\nRe-run with full D-ID." | Re-run with `D000NNN` |
 | Anomaly: RCA empty but fix in tree | "Halt: [anomaly-rca-missing-with-fix] — fix on branch but no RCA. Manual review required." | Inspect tracker journal; either revert the partial fix or hand-author RCA |
 | /investigate output missing sentinel | Journal entry `[investigate-no-sentinel]` with `next_action=` / `resume_cmd=` / `raw_output_path=` | Inspect raw output; manual investigate; resume via `resume_cmd` |
@@ -148,7 +167,7 @@ chain dispatch, and telemetry.
 | /ship Gate #2 declined | `[ship-declined]` | Address operator feedback; re-run when ready |
 | /land-and-deploy red | `[land-and-deploy-red]` (CI / merge / canary) | Inspect run output; fix + re-invoke |
 
-## Halt-on-Red Taxonomy (9 end-states)
+## Halt-on-Red Taxonomy (10 substantive halts + 2 resolver halts)
 
 All halts write a structured journal entry with the following fields:
 
@@ -157,24 +176,29 @@ All halts write a structured journal entry with the following fields:
 - `resume_cmd=<copy-paste shell command>` — how to resume after fixing
 - `raw_output_path=<path or N/A>` — pointer to raw subagent output where applicable
 
-The 9 end-states:
+The end-states:
 
 | End-state | Halt marker | When |
 |-----------|-------------|------|
 | `halted_at_resolve_ambiguous` | (no journal — resolver halt; output on stderr) | Fragment matched 2+ defects |
-| `halted_at_resolve_zero` | (no journal — resolver halt; output on stderr) | Fragment matched zero defects |
+| `halted_at_resolve_zero` | (REMOVED in v1.1 — zero-match now captures a draft, see Step 2 0) branch) | (no longer a halt) |
 | `halted_at_anomaly_rca_missing` | `[anomaly-rca-missing-with-fix]` | Fix in tree but RCA empty (idempotency anomaly row) |
 | `halted_at_investigate_blast_radius` | `[investigate-blast-radius]` | FIX_PLAN reports >5 files; pre-write halt |
 | `halted_at_investigate_no_sentinel` | `[investigate-no-sentinel]` | /investigate stdout missing DEBUG_REPORT_BEGIN_JSON block |
 | `halted_at_investigate_parse_error` | `[investigate-parse-error]` | Sentinel block found but JSON invalid |
 | `halted_at_investigate_no_root_cause` | `[investigate-no-root-cause]` | JSON.root_cause empty or matches `/^\[.*\]$/` placeholder |
 | `halted_at_investigate_unverified` | `[investigate-unverified]` | JSON.status == "DONE_WITH_CONCERNS" |
+| `halted_at_promote_lock_timeout` | `[promote-lock-timeout]` | **(v1.1, 13th end-state)** Step 7.4 D-ID allocation mkdir-lock held >10s; promotion aborted, draft retained, no D-ID consumed |
 | `halted_at_ship` | `[ship-declined]` | /ship Gate #2 declined or pre-landing review red |
 | `halted_at_deploy` | `[land-and-deploy-red]` | /land-and-deploy red (CI / merge / canary) |
 
-(End-state count is 9 substantive halts + the 2 resolver halts that exit
-before any journal write. The taxonomy table above lists all of them for
-completeness.)
+End-state accounting: v1.0 had 9 substantive halts + 2 resolver halts + 3
+success states (`green`, `already_shipped`, `dry_run_preview`) = 14 named,
+12 "true halt/success" per pipeline.md's note. v1.1 retires
+`halted_at_resolve_zero` (zero-match now captures a draft instead of
+halting) and adds `halted_at_promote_lock_timeout` (Step 7.4 C4) — the new
+**13th end-state** in pipeline.md's 13-total count. The resolver still has
+the `halted_at_resolve_ambiguous` halt (2+ matches).
 
 ## Idempotency Resume Table (5 rows)
 
