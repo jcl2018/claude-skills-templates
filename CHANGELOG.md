@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.11] - 2026-05-17
+
+### Fixed
+
+- **D000021: `/CJ_goal_todo_fix` drain mode now finds `cj-worktree-init.sh` after `skills-deploy install`, so each drained TODO gets its own worktree instead of all colliding on one branch.** `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh` resolved the worktree-init helper with a `BASH_SOURCE`-relative `../../..` path. That only points at the workbench repo root when the script runs from the in-repo checkout. `skills-deploy install` symlinks per-skill files into `~/.claude/skills/CJ_goal_todo_fix/scripts/` but never deploys repo-root `scripts/` to `~/.claude/scripts/`, so from the deployed location `../../..` resolved to `~/.claude` and the helper was sought at the nonexistent `~/.claude/scripts/cj-worktree-init.sh`. The `[ -x ]` guard then silently fell through and drain ran every drained TODO in-place on the current branch — defeating the per-iteration worktree isolation F000025/S000054 exists to provide and causing `/ship` Gate #2 branch collisions across drained TODOs. The failure was silent: drain *appeared* to work and only surfaced downstream as a branch collision. Fix: `drain-one-todo.sh` now resolves the helper via the workbench-source path recorded in `~/.claude/.skills-templates.json` (`.source`) — exactly the convention `todo_fix.sh`, the single-TODO `SKILL.md` preamble, and the F000009 update-check preamble already use — with the original `BASH_SOURCE`-relative path retained only as the in-repo / no-manifest fallback so consumer repos without a workbench source still degrade gracefully. The convention-aligned fix (option b) was chosen over teaching `skills-deploy` to deploy repo-root `scripts/` (option a), which would add a deployment surface that contradicts the documented "scripts stay in the clone; resolve via `.source`" workbench convention. Regression coverage: new `tests/drain-one-todo-worktree-resolve.test.sh` (Case 1 static convention assertion + Case 2 behavioral deployed-layout test that builds a simulated deployed layout and asserts a real per-iteration `cj-todo-*` worktree is created), proven to FAIL on both cases pre-fix and PASS post-fix, wired into `scripts/test.sh` after the F000025 block. Captured and shipped end-to-end by `/CJ_goal_investigate` (zero-match fragment → `.inbox` draft → `/investigate` root cause → promotion to D000021 → QA → ship).
+
 ## [4.6.10] - 2026-05-16
 
 ### Fixed

@@ -1075,6 +1075,24 @@ else
   fail_test "tests/cj-worktree-init.test.sh failed (rc=$_cwit_rc) — run \`bash tests/cj-worktree-init.test.sh\` directly to see"
 fi
 
+# Regression test (drain-one-todo worktree-init path resolution defect):
+# drain-one-todo.sh must resolve scripts/cj-worktree-init.sh via the
+# workbench-source path in ~/.claude/.skills-templates.json (.source) — the
+# same convention todo_fix.sh / the single-TODO SKILL.md preamble / the
+# F000009 update-check preamble use. The original BASH_SOURCE-relative
+# `../../..` resolution silently broke from the deployed ~/.claude/ location
+# (skills-deploy never deploys repo-root scripts/ there), so drain ran every
+# TODO in-place and lost per-iteration worktree isolation (the F000025/S000054
+# collision-avoidance the feature exists to provide).
+echo ""
+echo "Running tests/drain-one-todo-worktree-resolve.test.sh (deployed-path resolution)..."
+if bash "$REPO_ROOT/tests/drain-one-todo-worktree-resolve.test.sh" >/dev/null 2>&1; then
+  ok "tests/drain-one-todo-worktree-resolve.test.sh: deployed drain resolves cj-worktree-init.sh via manifest .source"
+else
+  _dwr_rc=$?
+  fail_test "tests/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/drain-one-todo-worktree-resolve.test.sh\` directly to see"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

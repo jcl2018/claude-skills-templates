@@ -198,10 +198,31 @@ case "$SUBCMD" in
     # /ship Gate #2 (one PR per TODO) can run cleanly without branch collision.
     # --force-create bypasses in-worktree detection (drain typically runs from
     # inside a Conductor parent worktree). --quiet suppresses the [worktree]
-    # echo so cron output stays empty. Helper resolved via BASH_SOURCE
-    # relative path (Decision Audit Trail #14: DRY — script lives inside
-    # workbench tree, no need for second manifest-resolution layer).
-    _WT_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-init.sh"
+    # echo so cron output stays empty.
+    #
+    # D-fix (drain-one-todo worktree-init path resolution): the helper MUST be
+    # resolved via the workbench-source path recorded in
+    # ~/.claude/.skills-templates.json (.source) — exactly the convention
+    # todo_fix.sh preamble (line ~11), the single-TODO SKILL.md preamble, and
+    # the F000009 update-check preamble already use. The original
+    # BASH_SOURCE-relative `../../..` resolution only held for the in-repo
+    # checkout: skills-deploy symlinks per-skill files into
+    # ~/.claude/skills/CJ_goal_todo_fix/scripts/ but NEVER deploys repo-root
+    # scripts/ to ~/.claude/scripts/, so from the deployed location
+    # `../../..` resolves to ~/.claude and the helper was looked for at the
+    # nonexistent ~/.claude/scripts/cj-worktree-init.sh — drain then silently
+    # ran every TODO on the current branch (the exact collision S000054 fixes).
+    # Manifest .source is primary; BASH_SOURCE-relative is the in-repo /
+    # no-manifest fallback (consumer repos without workbench source still
+    # degrade gracefully — helper simply unreachable, today's behavior).
+    _WT_HELPER=""
+    _WT_SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || true)
+    if [ -n "$_WT_SRC" ] && [ -x "$_WT_SRC/scripts/cj-worktree-init.sh" ]; then
+      _WT_HELPER="$_WT_SRC/scripts/cj-worktree-init.sh"
+    else
+      _WT_FALLBACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-init.sh"
+      [ -x "$_WT_FALLBACK" ] && _WT_HELPER="$_WT_FALLBACK"
+    fi
     if [ -x "$_WT_HELPER" ]; then
       _WT_JSON=$("$_WT_HELPER" --caller todo --force-create --quiet 2>/dev/null || true)
       if [ -n "$_WT_JSON" ]; then
