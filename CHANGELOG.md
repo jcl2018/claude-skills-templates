@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.8] - 2026-05-16
+
+### Added
+
+- **`/CJ_goal_investigate` now auto-creates a worktree when invoked from `main`, closing the F000025 deferral.** v4.6.7 shipped the auto-worktree default for `/CJ_goal_run` + `/CJ_goal_todo_fix` but deferred `/CJ_goal_investigate` because its source-of-truth lived on an unmerged worktree. That blocker is gone: the established F000025 "Default-worktree" block is now mirrored into `skills/CJ_goal_investigate/SKILL.md` ahead of Path Resolution, calling `scripts/cj-worktree-init.sh --caller investigate` (helper maps to branch prefix `cj-inv`). The user-facing change: typing `/CJ_goal_investigate D000NNN` on `main` no longer pollutes the main checkout with mid-investigation state — it spins up `.claude/worktrees/cj-inv-{YYYYMMDD-HHMMSS}-{PID}/` first, exactly like the other two orchestrators. The guard mirrors `/CJ_goal_todo_fix`'s positional-arg detection rather than `/CJ_goal_run`'s `$#` check: a flag-only invocation (bare `--dry-run` with no defect) skips the helper and errors on the missing D-id as before, so no empty worktree is spun up. `--no-worktree` opts out; `--quiet` gates the `[worktree]` echo. `scripts/test.sh` gains a third source-level regression grep assertion (`--caller investigate`) alongside the existing run/todo guards; `tests/cj-worktree-init.test.sh` needed no new case (Case 1's branch-prefix assertion is parameterized by caller and already covers `cj-inv-`). CLAUDE.md's F000025 line updated to list all three skills + the `cj-{run|todo|inv}` prefix glob.
+
 ## [4.6.7] - 2026-05-16
 
 ### Added
