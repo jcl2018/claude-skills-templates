@@ -974,14 +974,15 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   fi
 fi
 
-# Regression test (F000025/S000054): /CJ_goal_run + /CJ_goal_todo_fix SKILL.md
-# preambles source scripts/cj-worktree-init.sh BEFORE Path Resolution / Routing.
+# Regression test (F000025/S000054): /CJ_goal_run + /CJ_goal_todo_fix +
+# /CJ_goal_investigate SKILL.md preambles source scripts/cj-worktree-init.sh
+# BEFORE Path Resolution / Routing.
 # Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
 # Without these, an upstream refactor could silently drop the auto-worktree
 # wiring and the feature would regress to today's "polluting main checkout"
 # behavior with no test signal.
 echo ""
-echo "Regression test (F000025): /CJ_goal_run + /CJ_goal_todo_fix SKILL.md wire cj-worktree-init.sh..."
+echo "Regression test (F000025): /CJ_goal_run + /CJ_goal_todo_fix + /CJ_goal_investigate SKILL.md wire cj-worktree-init.sh..."
 
 if grep -qE 'cj-worktree-init\.sh.*--caller run' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
   ok "skills/CJ_goal_run/SKILL.md sources cj-worktree-init.sh (--caller run)"
@@ -993,6 +994,12 @@ if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_tod
   ok "skills/CJ_goal_todo_fix/SKILL.md sources cj-worktree-init.sh (--caller todo)"
 else
   fail_test "skills/CJ_goal_todo_fix/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
+fi
+
+if grep -qE 'cj-worktree-init\.sh.*--caller investigate' "$REPO_ROOT/skills/CJ_goal_investigate/SKILL.md"; then
+  ok "skills/CJ_goal_investigate/SKILL.md sources cj-worktree-init.sh (--caller investigate)"
+else
+  fail_test "skills/CJ_goal_investigate/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
 fi
 
 if grep -q 'cj-worktree-init\.sh' "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh" \

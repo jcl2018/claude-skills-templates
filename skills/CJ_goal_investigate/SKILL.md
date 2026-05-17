@@ -31,6 +31,53 @@ git rev-parse --show-toplevel 2>/dev/null || echo "NOT_A_GIT_REPO"
 
 If `NOT_A_GIT_REPO`: print `Error: /CJ_goal_investigate requires a git repository.` and stop.
 
+## Default-worktree (BEFORE Path Resolution — variables get re-resolved post-cd)
+
+Per F000025/S000054: when invoked with a positional `<D-id|fragment>` on `main`,
+auto-create `.claude/worktrees/cj-inv-{YYYYMMDD-HHMMSS}-{PID}/` and `cd` into it.
+Conductor-managed sessions (already inside a worktree) detect + no-op.
+`--no-worktree` opts out; `--quiet` gates the `[worktree]` echo and skips on a
+dirty checkout. The positional-arg guard means a flag-only invocation (e.g. a
+bare `--dry-run` with no defect) skips the helper and errors on the missing
+D-id as usual — no empty worktree is spun up. Mirrors the `/CJ_goal_run` +
+`/CJ_goal_todo_fix` wiring; helper maps `--caller investigate` → branch prefix
+`cj-inv`.
+
+```bash
+# Default-worktree (BEFORE path resolution — variables get re-resolved post-cd)
+# Detect a positional defect arg: at least one non-flag arg present.
+_HAS_POSITIONAL=0
+for _ARG in "$@"; do
+  case "$_ARG" in
+    --*|-*) ;;
+    *) _HAS_POSITIONAL=1; break ;;
+  esac
+done
+
+if [ "$_HAS_POSITIONAL" = "1" ]; then  # only when a D-id/fragment is present
+  _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+  if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-init.sh" ]; then
+    _WT_JSON=$("$_S/scripts/cj-worktree-init.sh" --caller investigate "$@" 2>/dev/null)
+    if [ -n "$_WT_JSON" ]; then
+      _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
+      _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
+      _WT_NOTE=$(echo "$_WT_JSON" | jq -r '.note // empty' 2>/dev/null)
+      if [ "$_WT_STATE" = "created" ] || [ "$_WT_STATE" = "detected" ]; then
+        cd "$_WT_PATH" || { echo "[worktree] ERROR: cd $_WT_PATH failed"; exit 1; }
+      elif [ "$_WT_STATE" = "failed" ]; then
+        echo "[worktree] ERROR: $_WT_NOTE"
+        exit 1
+      fi
+      # On opted_out / skipped: no cd, no halt; just continue
+      [ "${QUIET:-0}" != "1" ] && [ -n "$_WT_NOTE" ] && echo "[worktree] $_WT_NOTE"
+    fi
+  else
+    # Visible warning (NOT silent no-op) — per F000025 Decision Audit Trail #11
+    [ "${QUIET:-0}" != "1" ] && echo "[worktree] WARN: helper unreachable; running on current branch"
+  fi
+fi
+```
+
 ## Path Resolution
 
 Resolve skill assets using a 2-level fallback chain:
