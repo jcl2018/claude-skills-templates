@@ -57,15 +57,39 @@ layout only in v1.0).
 _REPO_ROOT=$(git rev-parse --show-toplevel)
 DEFECTS_ROOT="$_REPO_ROOT/work-items/defects"
 
+# v1.1: IS_DRAFT defaults to 0 so the canonical 1) and *) branches leave it
+# zero. Only the 0) (zero-match) branch sets IS_DRAFT=1. The canonical
+# if/MATCHES/MATCH_COUNT block below keeps its v1.0 match SEMANTICS; the only
+# v1.1 change is a defensive literal/option-safe hardening of the fuzzy
+# matchers (`grep -rliF --`, glob-escaped `-iname`) that the C3 re-entry
+# guarantee depends on. Drafts stay invisible to it by construction (no
+# D###### basename, DRAFT.md not *_TRACKER.md), so neither BASENAME_HITS nor
+# NAME_HITS can match them.
+IS_DRAFT=0
+DRAFT_SLUG=""
+DRAFT_FRAGMENT=""
+
 # Exact D-ID match: anchored regex on dir basename starting with D followed by 6 digits + underscore.
 if [[ "$ARG" =~ ^D[0-9]{6}$ ]]; then
   MATCHES=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -name "${ARG}_*" 2>/dev/null)
 else
   # Fragment fuzzy: match against (a) dir basename and (b) tracker `name:` field.
   # Two passes union'd; dedup by path.
-  BASENAME_HITS=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -iname "*${ARG}*" 2>/dev/null \
+  # Glob-escape the fragment for `find -iname`: a raw `*`/`?`/`[` in the
+  # fragment would change glob semantics (over-match → false ambiguity or
+  # wrong-defect resume). Backslash-escape the three glob metacharacters.
+  ARG_GLOB=$(printf '%s' "$ARG" | sed 's/[][*?]/\\&/g')
+  BASENAME_HITS=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -iname "*${ARG_GLOB}*" 2>/dev/null \
                   | grep -E '/D[0-9]{6}_' || true)
-  NAME_HITS=$(grep -rli --include="*_TRACKER.md" "$ARG" "$DEFECTS_ROOT" 2>/dev/null \
+  # `-F` + `--`: treat the fragment as a literal string (not a basic regex),
+  # and stop option parsing so a fragment starting with `-` is not consumed as
+  # a grep flag (option injection). Without `-F` a fragment with regex
+  # metachars (`a[b`, `500 on.*body`) makes grep exit 2 or match unintended
+  # trackers — a spurious zero-match then routes an already-canonical defect
+  # into the draft path and (post-promotion) mints a SECOND D-ID. The v1.1 C3
+  # re-entry guarantee ("the written canonical TRACKER is found by NAME_HITS on
+  # re-invocation") depends on this literal, option-safe match.
+  NAME_HITS=$(grep -rliF --include="*_TRACKER.md" -- "$ARG" "$DEFECTS_ROOT" 2>/dev/null \
               | xargs -I {} dirname {} 2>/dev/null || true)
   MATCHES=$(printf '%s\n%s\n' "$BASENAME_HITS" "$NAME_HITS" | grep -v '^$' | sort -u)
 fi
@@ -74,11 +98,94 @@ MATCH_COUNT=$(printf '%s\n' "$MATCHES" | grep -c '^[^[:space:]]' || true)
 
 case "$MATCH_COUNT" in
   0)
-    echo "Halt: no defect matches '$ARG'."
-    echo "Looked in: $DEFECTS_ROOT (legacy layout: <domain>/D000NNN_<slug>/)"
-    # No journal entry — there's no work-item to journal to.
-    # Telemetry: end_state=halted_at_resolve_zero
-    exit 1
+    # v1.1: zero canonical match → resolve-or-create a NON-CANONICAL draft.
+    # No D-ID is allocated here. Promotion (Step 7.4) mints the D-ID after the
+    # Iron-Law gate passes. Draft dirs are invisible to the canonical resolver
+    # above: no D###### basename, DRAFT.md (not *_TRACKER.md).
+    INBOX="$DEFECTS_ROOT/.inbox"
+    mkdir -p "$INBOX"
+
+    # Slugify fragment: lowercase, non-alnum -> _, collapse, cap 50, trim trailing _.
+    # C6 (slug isolation is load-bearing): the lowercasing here is NOT cosmetic.
+    # The canonical resolver at Step 2 line ~62 uses a case-sensitive
+    # `find -name "D000099_*"` for exact D-ID matches; the draft model relies on
+    # draft dir names never starting with a `D[0-9]{6}_` prefix. If a future
+    # change "preserves case", a fragment like "D000099 broke" could slug to
+    # `D000099_broke` and collide with that case-sensitive find — silently
+    # turning a non-canonical draft into a resolver match. Keep the lowercase.
+    SLUG=$(printf '%s' "$ARG" | tr '[:upper:]' '[:lower:]' \
+           | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g' \
+           | cut -c1-50 \
+           | sed -E 's/_+$//')
+    [ -z "$SLUG" ] && SLUG="untitled"
+
+    # Idempotent re-invocation: an existing draft for this slug wins (no dup).
+    # The timestamp is NOT in the dir name, so the same fragment maps to the
+    # same draft deterministically.
+    DRAFT_DIR="$INBOX/$SLUG"
+
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+      if [ -d "$DRAFT_DIR" ]; then
+        echo "DRY RUN: would resume existing draft: $DRAFT_DIR"
+      else
+        echo "DRY RUN: would create draft: $DRAFT_DIR"
+      fi
+      echo "DRY RUN: would promote to work-items/defects/uncategorized/D<next>_$SLUG after /investigate populates a root cause"
+      # C7 (--dry-run on a zero-match fragment): plain-English, no internal jargon.
+      echo "DRY RUN: writes nothing. Re-running the same phrase later would resume this draft; reworded text would create a different draft."
+      # Telemetry: end_state=dry_run_preview
+      exit 0
+    fi
+
+    if [ -d "$DRAFT_DIR" ]; then
+      # C5: echo the stored fragment so a wrong-bug slug collision is visible.
+      # DRAFT.md stores it as a double-quoted YAML scalar: fragment: "<escaped>".
+      # Strip the `fragment: "` prefix + trailing `"`, then best-effort unescape
+      # (\" -> ", \\ -> \). Display-only; an off-by-an-escape on a pathological
+      # fragment is cosmetic. The OLD `awk -F': '` split mangled any fragment
+      # containing `: ` (e.g. "auth: token expired") even with no collision.
+      STORED_FRAGMENT=$(sed -n 's/^fragment: "\(.*\)"$/\1/p' "$DRAFT_DIR/DRAFT.md" 2>/dev/null | head -1 \
+                        | sed 's/\\"/"/g; s/\\\\/\\/g')
+      [ -z "$STORED_FRAGMENT" ] && STORED_FRAGMENT="$ARG"
+      # C7 (draft resume): plain-English, echoes the original fragment.
+      echo "Resuming the temporary draft at $DRAFT_DIR (originally: \"$STORED_FRAGMENT\"). Still no D-ID until the root cause is found."
+    else
+      mkdir -p "$DRAFT_DIR"
+      NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      # F1: the fragment is operator free text — it can contain `:`, `#`, `"`,
+      # `\`. Emit it as a double-quoted YAML scalar with `\` and `"` escaped
+      # and any CR/LF stripped, so the frontmatter is always valid YAML. (The
+      # markdown body below is prose, mid-line — raw `$ARG` is fine there.)
+      ARG_YAML=$(printf '%s' "$ARG" | tr -d '\r\n' | sed 's/\\/\\\\/g; s/"/\\"/g')
+      # DRAFT.md is the ONLY artifact. Mutable; no frontmatter contract; not a
+      # TRACKER; deliberately not matched by the canonical resolver above.
+      cat > "$DRAFT_DIR/DRAFT.md" <<DRAFT
+---
+kind: defect-draft
+created: $NOW
+fragment: "$ARG_YAML"
+---
+
+# Draft: $ARG
+
+Captured by /CJ_goal_investigate on $NOW from a zero-match fragment.
+No D-ID allocated yet. /investigate runs against this draft; on a populated
+root cause it is promoted to work-items/defects/<domain>/D000NNN_<slug>/.
+DRAFT
+      # C7 (draft capture): plain-English, names the path + the rm -rf safety.
+      echo "No existing defect matched \"$ARG\", so I created a temporary draft at $DRAFT_DIR (no D-ID yet). Re-run this exact phrase to resume it; it becomes a real D-ID only after the root cause is found. Stale drafts are safe to rm -rf — they are not canonical."
+    fi
+
+    # Wire the rest of the pipeline to operate on the draft. IS_DRAFT=1 makes
+    # Step 3 short-circuit to Row 1 and Step 7.4 promote before the chain.
+    IS_DRAFT=1
+    DEFECT_DIR="$DRAFT_DIR"
+    DEFECT_ID=""                       # allocated at promotion (Step 7.4)
+    DRAFT_SLUG="$SLUG"
+    DRAFT_FRAGMENT="$ARG"
+    TRACKER="$DRAFT_DIR/DRAFT.md"      # /investigate gets a working file
+    RCA_PATH=""                        # set at promotion
+    TEST_PLAN_PATH=""                  # set at promotion
     ;;
   1)
     DEFECT_DIR=$(printf '%s\n' "$MATCHES" | head -1)
@@ -102,9 +209,17 @@ case "$MATCH_COUNT" in
     ;;
 esac
 
-TRACKER=$(find "$DEFECT_DIR" -maxdepth 1 -name "*_TRACKER.md" | head -1)
-RCA_PATH="$DEFECT_DIR/${DEFECT_ID}_RCA.md"
-TEST_PLAN_PATH="$DEFECT_DIR/${DEFECT_ID}_test-plan.md"
+# C1 (Step 2 var-clobber guard, CRITICAL): this post-`case` recompute is
+# correct for the canonical 1)/*) branches but would CLOBBER the 0)-branch
+# draft values — an empty TRACKER (no *_TRACKER.md in a draft dir) and a
+# malformed RCA_PATH/TEST_PLAN_PATH built from an empty $DEFECT_ID. Guard it
+# so the draft path keeps TRACKER="$DRAFT_DIR/DRAFT.md", RCA_PATH="",
+# TEST_PLAN_PATH="" until Step 7.4 rebinds them to canonical post-promotion.
+if [ "${IS_DRAFT:-0}" != "1" ]; then
+  TRACKER=$(find "$DEFECT_DIR" -maxdepth 1 -name "*_TRACKER.md" | head -1)
+  RCA_PATH="$DEFECT_DIR/${DEFECT_ID}_RCA.md"
+  TEST_PLAN_PATH="$DEFECT_DIR/${DEFECT_ID}_test-plan.md"
+fi
 ```
 
 ## Step 3: Preflight — 5-row idempotency table
@@ -112,6 +227,16 @@ TEST_PLAN_PATH="$DEFECT_DIR/${DEFECT_ID}_test-plan.md"
 Compute the four state signals (R, F, P, M) and pick the resume row:
 
 ```bash
+# v1.1 draft short-circuit: a draft is fresh by construction — no RCA, no
+# D-ID, no PR possible. Skip the R/F/P/M computation entirely and resume at
+# Row 1 (fresh: dispatch /investigate). The canonical R/F/P/M ladder below
+# is unchanged for non-draft (IS_DRAFT=0) invocations.
+if [ "${IS_DRAFT:-0}" = "1" ]; then
+  R=0; F=0; P=0; M=0
+  RESUME_ROW=1
+  echo "Idempotency: draft (IS_DRAFT=1) → Row 1 (fresh) by construction"
+else
+
 # R: RCA populated? (file exists AND Root Cause section has prose beyond the TODO placeholder)
 #
 # D000020 fix: the previous `/^## Root Cause/,/^## /` awk range is degenerate —
@@ -174,6 +299,7 @@ else
   echo "warning: idempotency signals R=$R F=$F P=$P M=$M did not match any canonical row; treating as fresh." >&2
 fi
 echo "Resume row: $RESUME_ROW"
+fi  # end v1.1 draft short-circuit (IS_DRAFT=1 → Row 1; else canonical R/F/P/M ladder)
 ```
 
 ## Step 3.5: --dry-run preview branch (if `$DRY_RUN`)
@@ -283,6 +409,20 @@ DEFECT_ID:     <$DEFECT_ID>
 TRACKER:       <$TRACKER>
 ```
 
+**C2 (blank `$DEFECT_ID` leaks into Step 5, HIGH).** For a draft,
+`$DEFECT_ID` is empty (it is allocated only at promotion, Step 7.4).
+Interpolating an empty `DEFECT_ID:` line confuses `/investigate`. When
+`IS_DRAFT=1`, the dispatch prompt's `DEFECT_ID:` line MUST read the literal:
+
+```
+DEFECT_ID:     (draft — none yet; working dir is the draft)
+```
+
+and `WORK_ITEM_DIR` is the draft dir (`$DEFECT_DIR`, which the 0) branch set
+to `$DRAFT_DIR`), `TRACKER` is `$DRAFT_DIR/DRAFT.md`. The orchestrator-model
+substitutes this draft-aware form when `IS_DRAFT=1`, the `$DEFECT_ID`-based
+form otherwise.
+
 Capture the subagent's stdout to a raw output file:
 
 ```bash
@@ -321,6 +461,39 @@ If FIX_PLAN block is absent (older /investigate runs without sentinel
 support), continue to Step 7 — the blast-radius gate is best-effort.
 
 ## Step 7: Parse DEBUG_REPORT (Iron-Law gate)
+
+**C2 + C7 — shared halt contract for EVERY Step 7 halt (and the Step 7.4
+lock-timeout).** Two rules apply uniformly to Halt 1-5 below:
+
+1. **C2 (blank `$DEFECT_ID` in `resume_cmd=`, HIGH).** Every halt's
+   `resume_cmd=` interpolates `$DEFECT_ID`, which is empty for a draft. When
+   `IS_DRAFT=1`, the halt's `resume_cmd=` MUST be the fragment-based form
+   `resume_cmd=/CJ_goal_investigate "$DRAFT_FRAGMENT"` (the fragment is the
+   only stable pre-promotion re-entry key — there is no D-ID yet). When
+   `IS_DRAFT=0`, use the existing `$DEFECT_ID`-based command unchanged. The
+   `cat >> "$TRACKER"` heredocs below show the canonical (non-draft) form;
+   the orchestrator-model substitutes the fragment-based `resume_cmd=` line
+   when `IS_DRAFT=1`. (For a draft, `$TRACKER` is `$DRAFT_DIR/DRAFT.md`, so
+   the journal entry lands in the draft itself — recoverable on resume.)
+
+2. **C7 (narrate the halt in plain English, HIGH).** In ADDITION to the
+   journal heredoc, every halt MUST print a 3-line block to the terminal
+   (stdout), in plain English, before `exit 1`:
+
+   ```bash
+   echo "Why it stopped: <one-line plain-English reason for THIS halt>"
+   if [ "${IS_DRAFT:-0}" = "1" ]; then
+     echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
+     echo "Next: /CJ_goal_investigate \"$DRAFT_FRAGMENT\""
+   else
+     echo "State preserved: tracker at $TRACKER"
+     echo "Next: <the resume_cmd for this halt, verbatim, copy-pasteable>"
+   fi
+   ```
+
+   The `Next:` line is verbatim copy-pasteable. The orchestrator-model emits
+   this block for each of Halt 1-5 (and the Step 7.4 lock-timeout) with the
+   halt-specific reason filled into `Why it stopped:`.
 
 ```bash
 DEBUG_REPORT=$(awk '/^DEBUG_REPORT_BEGIN_JSON$/,/^DEBUG_REPORT_END_JSON$/' "$RAW_OUTPUT" \
@@ -395,8 +568,158 @@ EOF
 fi
 ```
 
-If we reach here, `$STATUS == "DONE"` and `$ROOT_CAUSE` is populated. Continue
-to Step 8.
+If we reach here, `$STATUS == "DONE"` and `$ROOT_CAUSE` is populated. The
+Iron-Law gate has passed. Continue to Step 7.4 (promotion, only if this run
+is a draft) then Step 7.5.
+
+## Step 7.4: Promote draft → canonical defect dir (v1.1; only if `IS_DRAFT=1`)
+
+Inserted between Step 7 (Iron-Law gate) and Step 7.5 (artifact writes). Runs
+ONLY when `IS_DRAFT=1`. By the time control reaches here, Step 7 guarantees
+`STATUS=DONE` and `$ROOT_CAUSE` is populated — so the Iron-Law gate has
+passed and a D-ID may now be minted. If `IS_DRAFT=0` (canonical resolve),
+this entire step is a NO-OP and control falls through to Step 7.5 unchanged.
+
+**C3 — atomic promotion protocol (pinned ordering, all inside the
+mkdir-lock).** This ordering is BINDING. The illustrative snippet below shows
+it; the binding contract is the numbered ordering, not the exact shell:
+
+1. `DRAFT_OLD="$DEFECT_DIR"` — capture the pre-rebind absolute draft path
+   BEFORE any rebind. Step 5 (`rm -rf "$DRAFT_OLD"`) uses this saved path;
+   never reconstruct from `$INBOX/$DRAFT_SLUG` (which may be out of scope).
+2. Allocate the D-ID (highest-N scan) and `mkdir -p "$CANON_DIR"`.
+3. **Write the canonical TRACKER** containing `name: $DRAFT_FRAGMENT`. **This
+   is the DURABLE COMMIT POINT** — once it exists, the canonical resolver's
+   `grep -rli --include="*_TRACKER.md" "$ARG"` (NAME_HITS, Step 2) resolves
+   the canonical dir by fragment, so a re-invocation resumes the canonical
+   defect with NO second D-ID.
+4. Rebind `DEFECT_DIR/DEFECT_ID/TRACKER/RCA_PATH/TEST_PLAN_PATH` to canonical.
+5. `rm -rf "$DRAFT_OLD"` — the saved absolute path from step 1, last.
+6. Release the lock (`rmdir`; `trap - EXIT`).
+
+Crash semantics:
+- **Crash before step 3** → an empty `D000NNN_<slug>/` orphan dir. This is
+  *not* a duplicate: the highest-N scan counts it, so the next promotion
+  gets N+1. It is a harmless `rm -rf`-able artifact. Accepted.
+- **Crash after step 3** → re-invocation's canonical resolver finds the
+  D-ID dir (NAME_HITS via the written TRACKER), normal resume, no second
+  D-ID.
+
+**C4 — lock-timeout halt needs full bookkeeping.** The lock-acquisition
+timeout path is a real halt: it MUST append a `[promote-lock-timeout]`
+journal entry to the draft's `DRAFT.md` (with `next_action=` and
+`resume_cmd=/CJ_goal_investigate "$DRAFT_FRAGMENT"`), write a telemetry line
+with `end_state=halted_at_promote_lock_timeout`, and is the **13th
+end-state** added to SKILL.md's halt-taxonomy table. It is NOT a bare
+`echo; exit 1`. It also prints the C7 3-line terminal block (per the Step 7
+shared C2+C7 contract — the lock-timeout is explicitly covered there).
+
+```bash
+if [ "${IS_DRAFT:-0}" = "1" ]; then
+  # Allocate the D-ID under an mkdir-based lock (POSIX-atomic; stock macOS
+  # has no flock). The highest-existing-N scan + the new mkdir are both
+  # inside the lock so concurrent invocations cannot collide on a D-ID.
+  LOCK_DIR="$DEFECTS_ROOT/.scaffold.lock.d"
+  DRAFT_OLD="$DEFECT_DIR"                      # C3 step 1: save before any rebind
+  i=0
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    i=$((i+1))
+    if [ $i -gt 50 ]; then
+      # C4: full halt bookkeeping, not a bare echo/exit.
+      TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      cat >> "$DRAFT_OLD/DRAFT.md" <<EOF
+
+- $TS [promote-lock-timeout] D-ID allocation lock ($LOCK_DIR) held >10s; promotion aborted.
+  next_action=Check for a stale lock dir; rmdir it if no other invocation is live, then re-invoke.
+  resume_cmd=/CJ_goal_investigate "$DRAFT_FRAGMENT"
+  raw_output_path=$RAW_OUTPUT
+EOF
+      # C7 3-line terminal block (per Step 7 shared contract).
+      echo "Why it stopped: another invocation held the D-ID allocation lock for over 10 seconds, so I could not safely mint a defect number."
+      echo "State preserved: draft retained at $DRAFT_OLD, no D-ID consumed"
+      echo "Next: /CJ_goal_investigate \"$DRAFT_FRAGMENT\""
+      # Telemetry: end_state=halted_at_promote_lock_timeout (13th end-state)
+      exit 1
+    fi
+    sleep 0.2
+  done
+  # F3: save any pre-existing EXIT trap and restore it on release instead of a
+  # bare `trap - EXIT` (which would silently drop a cleanup trap installed by
+  # an earlier step or a future edit). The trap is installed only AFTER the
+  # lock is acquired — a crash during the mkdir-wait loop must NOT rmdir a
+  # lock we do not own.
+  _PRIOR_EXIT_TRAP=$(trap -p EXIT)
+  trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+
+  # C3 step 2: allocate D-ID (highest-N scan over canonical dirs) + mkdir.
+  HIGHEST=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -name 'D[0-9][0-9][0-9][0-9][0-9][0-9]_*' 2>/dev/null \
+            | sed -E 's|.*/D0*([0-9]+)_.*|\1|' | sort -n | tail -1)
+  NEXT_N=$(( ${HIGHEST:-0} + 1 ))
+  DEFECT_ID=$(printf "D%06d" "$NEXT_N")
+
+  DOMAIN="uncategorized"                       # domain inference is v1.2
+  CANON_DIR="$DEFECTS_ROOT/$DOMAIN/${DEFECT_ID}_${DRAFT_SLUG}"
+  mkdir -p "$CANON_DIR"
+  NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  # F1 (CRITICAL): the canonical TRACKER is BOTH the C3 durable commit point
+  # AND a CJ_personal-workflow-validated artifact. The fragment is operator
+  # free text; emit `name:` as a double-quoted YAML scalar with `\`/`"`
+  # escaped and CR/LF stripped so a routine fragment like
+  # `login: 500 on POST` cannot produce invalid frontmatter that wedges the
+  # promoted work-item (validator/qa reject, draft already deleted).
+  DRAFT_FRAGMENT_YAML=$(printf '%s' "$DRAFT_FRAGMENT" | tr -d '\r\n' | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+  # C3 step 3 — DURABLE COMMIT POINT. Write the canonical TRACKER. Once this
+  # file exists, NAME_HITS (Step 2) resolves the canonical dir by fragment so
+  # a crash here-or-after never allocates a second D-ID. auto_scaffolded +
+  # promoted_from_draft are additive frontmatter keys; the CJ_personal-workflow
+  # validator is pass-through on extra keys (check.md Step 16: "Extra key: no
+  # flag") so no manifest/allowlist change is required.
+  cat > "$CANON_DIR/${DEFECT_ID}_TRACKER.md" <<TRK
+---
+type: defect
+id: $DEFECT_ID
+name: "$DRAFT_FRAGMENT_YAML"
+status: phase-1-investigating
+created: $NOW
+auto_scaffolded: true
+promoted_from_draft: .inbox/$DRAFT_SLUG
+---
+
+# $DEFECT_ID: $DRAFT_FRAGMENT
+
+## Bug Report
+$DRAFT_FRAGMENT
+
+## Journal
+- $NOW [auto-scaffolded] /CJ_goal_investigate captured fragment "$DRAFT_FRAGMENT" as draft .inbox/$DRAFT_SLUG, then promoted to $DEFECT_ID after /investigate populated the root cause. Domain defaulted to '$DOMAIN'; \`mv\` to a more specific subdir if needed.
+TRK
+
+  # C3 step 4 — rebind ALL downstream vars to canonical paths. Step 7.5+ is
+  # unchanged; it just operates on the rebound canonical vars. (TRACKER was
+  # already written above as the durable commit point; this rebind points
+  # the var at it.)
+  DEFECT_DIR="$CANON_DIR"
+  TRACKER="$CANON_DIR/${DEFECT_ID}_TRACKER.md"
+  RCA_PATH="$CANON_DIR/${DEFECT_ID}_RCA.md"
+  TEST_PLAN_PATH="$CANON_DIR/${DEFECT_ID}_test-plan.md"
+
+  # C3 step 5 — remove the consumed draft LAST, using the saved absolute path.
+  rm -rf "$DRAFT_OLD" 2>/dev/null
+
+  # C3 step 6 — release the lock; restore the prior EXIT trap (F3), or clear
+  # ours if there was none.
+  rmdir "$LOCK_DIR" 2>/dev/null
+  eval "${_PRIOR_EXIT_TRAP:-trap - EXIT}"
+
+  # C7 (promotion success echo): plain-English, names the new D-ID + path.
+  echo "Root cause found, so I converted the draft into defect $DEFECT_ID at $CANON_DIR (was: \"$DRAFT_FRAGMENT\"). The .inbox draft is now gone."
+fi
+```
+
+After Step 7.4, `$DEFECT_DIR`/`$DEFECT_ID`/`$TRACKER`/`$RCA_PATH`/`$TEST_PLAN_PATH`
+are the canonical post-promotion values (or the original canonical values
+when `IS_DRAFT=0`). Steps 7.5-12 are unchanged.
 
 ## Step 7.5: Write artifacts (RCA + test-plan)
 
@@ -472,6 +795,9 @@ Append to tracker journal:
 Append telemetry line:
 
 ```bash
+# v1.1: auto_scaffolded is true iff this run promoted a draft (IS_DRAFT=1
+# reached Step 7.4 successfully). Additive key — existing consumers read
+# named fields, so no schema break.
 jq -nc \
   --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg run_id "$RUN_ID" \
@@ -479,7 +805,8 @@ jq -nc \
   --arg defect_dir "$DEFECT_DIR" \
   --arg end_state "green" \
   --arg pr_url "$PR_URL" \
-  '{ts:$ts,run_id:$run_id,defect_id:$defect_id,defect_dir:$defect_dir,end_state:$end_state,pr_url:$pr_url,parent_skill:"CJ_goal_investigate"}' \
+  --argjson auto_scaffolded "$([ "${IS_DRAFT:-0}" = "1" ] && echo true || echo false)" \
+  '{ts:$ts,run_id:$run_id,defect_id:$defect_id,defect_dir:$defect_dir,end_state:$end_state,pr_url:$pr_url,auto_scaffolded:$auto_scaffolded,parent_skill:"CJ_goal_investigate"}' \
   >> "$TELEMETRY"
 ```
 
@@ -503,11 +830,12 @@ Telemetry: $TELEMETRY
 
 ## Notes on end-state telemetry
 
-Every exit path (success OR halt) writes a single telemetry line. The 9 halt
-states + the 3 success states (`green`, `already_shipped`, `dry_run_preview`)
-give 12 total end-states. Add any new halt with: (a) a journal entry in the
-appropriate Step, (b) a telemetry write before exit, (c) a row in SKILL.md's
-halt-taxonomy table.
+Every exit path (success OR halt) writes a single telemetry line. v1.0 had 9
+halt states + 3 success states (`green`, `already_shipped`,
+`dry_run_preview`) = 12. v1.1 adds the `halted_at_promote_lock_timeout`
+halt (Step 7.4 C4) → **13 total end-states**. Add any new halt with: (a) a
+journal entry in the appropriate Step, (b) a telemetry write before exit,
+(c) a row in SKILL.md's halt-taxonomy table.
 
 ## Resilience contract
 

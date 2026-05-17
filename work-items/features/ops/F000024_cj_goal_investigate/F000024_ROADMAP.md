@@ -43,6 +43,7 @@ status: Draft
 | User-Story | Title | Status |
 |-----------|-------|--------|
 | [S000049](S000049_phase1_single_defect_mode/S000049_TRACKER.md) | Phase1: v1.0 single-defect mode — skill scaffold, /investigate dispatch with sentinel-wrapped JSON, RCA + test-plan artifact writes, halt taxonomy, idempotency, /CJ_qa-work-item + /ship + /land-and-deploy chain, dogfood validation | Open |
+| [S000055](S000055_zero_match_draft_capture_promote/S000055_TRACKER.md) | v1.1: zero-match captures a non-canonical `.inbox/` draft and promotes it to a canonical D-ID dir only after /investigate passes the Iron-Law gate (binding C1-C7 implementation contract) | Open |
 
 ## Delivery Timeline
 
