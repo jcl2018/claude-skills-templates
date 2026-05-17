@@ -3,11 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.6.8] - 2026-05-16
+## [4.6.9] - 2026-05-16
 
 ### Fixed
 
 - **D000022: `scripts/setup-hooks.sh` no longer silently destroys a customized git hook.** Before this, `setup-hooks.sh` wrote both hooks with an unconditional `cat > "$HOOK_DIR/<hook>"` — no existence check, no ownership check, no backup. Since v4.6.5 (D000021) wired `setup-hooks.sh` into `setup.sh`, and `setup.sh` re-runs on every "update my skills" invocation, any operator- or tooling-customized `pre-commit`/`post-merge` hook (Husky, lefthook, a local debug hook) was overwritten and unrecoverable on the next `setup.sh`. This closes the follow-up that v4.6.5's CHANGELOG explicitly disclosed and deferred. Now: an existing hook that is **not** workbench-owned is copied to `<hook>.bak` (timestamped if a `.bak` already exists) with a clear stderr warning before the workbench hook is installed; if that backup can't be written, the install **aborts without touching your hook** rather than destroying it. Workbench-owned hooks (identified by an embedded sentinel) are refreshed in place, so repeated `setup.sh` runs stay a no-op with no backup litter. Hook bodies are now written atomically — staged to a temp file and `chmod +x`'d before an atomic `mv` into place — so an interrupted or failed install leaves the previous hook intact instead of a truncated, broken one, and a failed install now surfaces through `setup.sh`'s warning instead of being silently swallowed. Regression coverage: the existing hook-install guard was re-anchored to the new code shape and five source-level assertions were added so none of these invariants can silently regress.
+
+## [4.6.8] - 2026-05-16
+
+### Added
+
+- **`/CJ_goal_investigate` now auto-creates a worktree when invoked from `main`, closing the F000025 deferral.** v4.6.7 shipped the auto-worktree default for `/CJ_goal_run` + `/CJ_goal_todo_fix` but deferred `/CJ_goal_investigate` because its source-of-truth lived on an unmerged worktree. That blocker is gone: the established F000025 "Default-worktree" block is now mirrored into `skills/CJ_goal_investigate/SKILL.md` ahead of Path Resolution, calling `scripts/cj-worktree-init.sh --caller investigate` (helper maps to branch prefix `cj-inv`). The user-facing change: typing `/CJ_goal_investigate D000NNN` on `main` no longer pollutes the main checkout with mid-investigation state — it spins up `.claude/worktrees/cj-inv-{YYYYMMDD-HHMMSS}-{PID}/` first, exactly like the other two orchestrators. The guard mirrors `/CJ_goal_todo_fix`'s positional-arg detection rather than `/CJ_goal_run`'s `$#` check: a flag-only invocation (bare `--dry-run` with no defect) skips the helper and errors on the missing D-id as before, so no empty worktree is spun up. `--no-worktree` opts out; `--quiet` gates the `[worktree]` echo. `scripts/test.sh` gains a third source-level regression grep assertion (`--caller investigate`) alongside the existing run/todo guards; `tests/cj-worktree-init.test.sh` needed no new case (Case 1's branch-prefix assertion is parameterized by caller and already covers `cj-inv-`). CLAUDE.md's F000025 line updated to list all three skills + the `cj-{run|todo|inv}` prefix glob.
 
 ## [4.6.7] - 2026-05-16
 
