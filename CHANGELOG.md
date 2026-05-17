@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.8] - 2026-05-16
+
+### Fixed
+
+- **D000022: `scripts/setup-hooks.sh` no longer silently destroys a customized git hook.** Before this, `setup-hooks.sh` wrote both hooks with an unconditional `cat > "$HOOK_DIR/<hook>"` — no existence check, no ownership check, no backup. Since v4.6.5 (D000021) wired `setup-hooks.sh` into `setup.sh`, and `setup.sh` re-runs on every "update my skills" invocation, any operator- or tooling-customized `pre-commit`/`post-merge` hook (Husky, lefthook, a local debug hook) was overwritten and unrecoverable on the next `setup.sh`. This closes the follow-up that v4.6.5's CHANGELOG explicitly disclosed and deferred. Now: an existing hook that is **not** workbench-owned is copied to `<hook>.bak` (timestamped if a `.bak` already exists) with a clear stderr warning before the workbench hook is installed; if that backup can't be written, the install **aborts without touching your hook** rather than destroying it. Workbench-owned hooks (identified by an embedded sentinel) are refreshed in place, so repeated `setup.sh` runs stay a no-op with no backup litter. Hook bodies are now written atomically — staged to a temp file and `chmod +x`'d before an atomic `mv` into place — so an interrupted or failed install leaves the previous hook intact instead of a truncated, broken one, and a failed install now surfaces through `setup.sh`'s warning instead of being silently swallowed. Regression coverage: the existing hook-install guard was re-anchored to the new code shape and five source-level assertions were added so none of these invariants can silently regress.
+
 ## [4.6.7] - 2026-05-16
 
 ### Added
