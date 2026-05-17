@@ -21,9 +21,49 @@ name: Eval Nightly
 # - npm install pinned to `@^2` to mitigate yanked-from-latest supply-chain risk.
 # - `apt-get update` precedes install to avoid stale-cache install failures.
 # - Secret pre-check fails fast if ANTHROPIC_API_KEY isn't set, instead of N silent auth-failed cases.
-# Deferred hardening (tracked in TODOS.md "Eval workflow hardening" follow-up):
-# - F1: secret-exfil ingress via workflow_dispatch from non-main refs needs Environment + branch-protection design.
-# - F3: prompt-injection RCE via bypassPermissions in eval.sh case fixtures (fundamental eval.sh design issue).
+#
+# F1 — secret-exfil ingress, CLOSED via Approach C (D000023, GATE #1 2026-05-17):
+#   ANTHROPIC_API_KEY is no longer a job-level `env:`. The secret-bearing `eval`
+#   job binds to a protected GitHub Environment (`eval-secrets`) whose
+#   deployment-branch rule restricts it to `refs/heads/main`, AND is gated with
+#   `if: github.ref == 'refs/heads/main'`. The Environment binding is the actual
+#   access control (braces); the `if:` is the belt. A non-main `workflow_dispatch`
+#   runs the secretless `eval-structure` job only (discovery/structure validated;
+#   no API call, no secret in env). A future Environment-rule regression is
+#   caught by the permanent adversarial probe step in `eval-structure`, not by
+#   audit.
+#
+#   Cutover order (ENG-7 / T3, no-gap — for the operator wiring the GitHub
+#   Environment; the workflow file below is already in its leak-window-free
+#   final state):
+#     (i)  FIRST: the secret pre-check is branch-aware (off main: warn-not-fail,
+#          proceed secretless) — this commit ships that, so a non-main ref can
+#          never die at the pre-check, and there is no commit where a non-main
+#          ref still reads the key via an old unconditional job-level `env:`
+#          (the old `env:` is removed in this same commit).
+#     (ii) Create the protected Environment `eval-secrets` in repo Settings →
+#          Environments, add a deployment-branch rule limiting it to `main`,
+#          and set ANTHROPIC_API_KEY *inside that Environment* (not as a plain
+#          repo secret).  [out-of-band, GitHub UI — coordinate with the
+#          F000013 nightly-CI secret-set blocker owner]
+#     (iii) The `eval` job declares `environment: eval-secrets` + `if: main`
+#           (already in this file).
+#     (iv) The old job-level `env: ANTHROPIC_API_KEY` reference is deleted
+#          (already done in this file).
+#   No order leaves a window where a scheduled `main` nightly has no key
+#   (the old `env:` is only removed once the Environment is the source), nor a
+#   window where a non-main ref reads the key via the old `env:`.
+#
+# F3 — prompt-injection RCE: CLOSED (env-surface) in tests/eval/lib/run-case.sh
+#   via an env -i / explicit-allowlist scrub + a fail-closed post-assert on the
+#   untrusted (non-main / local) path, proven by tests/eval/lib/plant-test.sh.
+#   Residual non-env same-UID recovery is explicitly out of V1 scope (Approach
+#   B, tracked). See work-items/defects/ops/eval-ci/D000023_*.
+#
+# Deferred hardening (tracked in TODOS.md "Eval workflow hardening" follow-ups,
+# split from D000023 per the confirmed F1+F3-only scope):
+# - SEC-1: npm-postinstall key exposure on scheduled-main (same Premise-1 root
+#   cause, one step upstream of F3).
 # - F11: GITHUB_STEP_SUMMARY injection via case-dir names (partial mitigation in summary writer below).
 # - F12: failure artifact upload (already P2 in S000025_SPEC).
 
@@ -57,20 +97,137 @@ defaults:
     shell: bash
 
 jobs:
+  # Secretless structure job — runs on EVERY trigger/ref (including non-main
+  # workflow_dispatch). No GitHub Environment binding, so it can never receive
+  # ANTHROPIC_API_KEY. Its first step is a permanent adversarial probe (T2 /
+  # Q2 verification) that fails CI if any ANTHROPIC* variable is ever visible
+  # on a non-main ref — i.e. it catches a future Environment-rule regression
+  # automatically rather than via audit. This job is the no-gap guarantee for
+  # F1's "non-main is always secretless".
+  eval-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Adversarial secretless probe (T2 / Q2 — permanent, runs before everything)
+        # Permanent CI assertion (NOT a one-time manual check). On any non-main
+        # ref, NO variable matching ^ANTHROPIC or *_API_KEY/_TOKEN/_SECRET may
+        # be visible to this job. Ordered FIRST so a regression in the
+        # Environment deployment-branch rule (e.g. someone widens it past main,
+        # or re-adds a job-level `env:`) fails the run here, loudly, before any
+        # other step. On `main` this job still runs but the probe is informational
+        # (main legitimately has the secret in the SEPARATE `eval` job, not here —
+        # this job never binds the Environment regardless of ref).
+        run: |
+          ref="${GITHUB_REF:-}"
+          leaked=$(env | grep -E '^(ANTHROPIC[^=]*|[^=]*_(API_KEY|TOKEN|SECRET))=' | cut -d= -f1 || true)
+          if [ "$ref" = "refs/heads/main" ]; then
+            echo "ref=$ref — eval-structure never binds the Environment; informational only."
+            [ -n "$leaked" ] && echo "note (main): secret-shaped vars present in this job's env: $leaked" || true
+            exit 0
+          fi
+          if [ -n "$leaked" ]; then
+            echo "SECURITY REGRESSION (F1/T2): secret-shaped variable(s) visible on non-main ref '$ref':" >&2
+            echo "$leaked" | sed 's/^/  - /' >&2
+            echo "A non-main workflow_dispatch must be fully secretless. The protected" >&2
+            echo "Environment 'eval-secrets' deployment-branch rule (main only) has regressed," >&2
+            echo "or a job-level env: secret reference was re-introduced. Failing closed." >&2
+            exit 1
+          fi
+          echo "OK: no ANTHROPIC*/_API_KEY/_TOKEN/_SECRET visible on non-main ref '$ref' (secretless confirmed)."
+
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Install claude CLI
+        # Secretless job: no ANTHROPIC_API_KEY in env, so a malicious npm
+        # postinstall here has no API credential to exfiltrate (SEC-1 is the
+        # tracked follow-up for the scheduled-main `eval` job, where the key
+        # IS present at install time).
+        run: |
+          npm install -g @anthropic-ai/claude-code@^2
+          echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify claude CLI + secretless precondition (branch-aware pre-check, T3/ENG-7)
+        # Branch-aware pre-check (T3 / ENG-7) — FIRST cutover sub-step of F1.
+        # This job is ALWAYS secretless by construction (no Environment binding).
+        # Off main: an empty ANTHROPIC_API_KEY is EXPECTED — warn, do not fail.
+        # The old unconditional `exit 1`-on-empty-key behavior would have
+        # hard-failed every non-main run here; gating it to main (the real
+        # API eval lives in the separate `eval` job) is what makes the
+        # secretless non-main path reachable instead of dying at the pre-check.
+        run: |
+          claude --version
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "INFO: ANTHROPIC_API_KEY is empty in eval-structure (expected — this job is secretless on every ref)."
+            echo "      The real API eval runs in the main-only 'eval' job bound to the protected Environment."
+          else
+            echo "WARNING: ANTHROPIC_API_KEY is unexpectedly present in the secretless structure job; not failing, but investigate the Environment-rule scope." >&2
+          fi
+
+      - name: Validate eval suite structure (secretless — discovery + lint, no API calls)
+        # Non-main / secretless signal: validate that every case is well-formed
+        # (prompt.md + expected.schema.json present, no external $ref, fixtures
+        # symlink-free) and that the lib scripts pass `bash -n`. This is the
+        # cheap, non-zero secretless signal the design calls for — it does NOT
+        # call the API. The fail-closed scrub regression is covered by the
+        # plant-test below.
+        run: |
+          fail=0
+          for skill_dir in tests/eval/*/; do
+            base=$(basename "$skill_dir")
+            case "$base" in lib|schemas) continue ;; esac
+            for case_dir in "$skill_dir"*/; do
+              [ -d "$case_dir" ] || continue
+              for required in prompt.md expected.schema.json; do
+                if [ ! -f "$case_dir/$required" ]; then
+                  echo "STRUCTURE FAIL: $case_dir missing $required" >&2
+                  fail=1
+                fi
+              done
+              if [ -f "$case_dir/expected.schema.json" ] && \
+                 grep -qE '"\$ref"[[:space:]]*:[[:space:]]*"[^#"]' "$case_dir/expected.schema.json"; then
+                echo "STRUCTURE FAIL: $case_dir schema has an external \$ref (only #/... allowed)" >&2
+                fail=1
+              fi
+              if [ -d "$case_dir/fixture" ] && \
+                 find "$case_dir/fixture" -type l -print -quit 2>/dev/null | grep -q .; then
+                echo "STRUCTURE FAIL: $case_dir/fixture contains a symlink (regular files only)" >&2
+                fail=1
+              fi
+            done
+          done
+          for s in tests/eval/lib/*.sh; do
+            bash -n "$s" || { echo "STRUCTURE FAIL: $s failed bash -n" >&2; fail=1; }
+          done
+          [ "$fail" -eq 0 ] && echo "Eval suite structure OK (secretless validation passed)." || exit 1
+
+      - name: F3 fail-closed scrub regression (plant-test — secretless, no API)
+        # Proves run-case.sh's fail-closed post-assert still fires when a
+        # secret-shaped var is planted in the to-be-exported env. Runs on every
+        # ref with zero API cost; guards SC3 against a silent fail-open
+        # regression. See tests/eval/lib/plant-test.sh.
+        run: bash tests/eval/lib/plant-test.sh
+
+  # Real API eval — main-only. Binds the protected GitHub Environment
+  # `eval-secrets` (deployment-branch rule: refs/heads/main) which is the ACTUAL
+  # access control for ANTHROPIC_API_KEY; `if: github.ref == 'refs/heads/main'`
+  # is the belt. There is NO job-level `env: ANTHROPIC_API_KEY` — the Environment
+  # provides the secret to `secrets.ANTHROPIC_API_KEY` references only because
+  # this job is bound to it AND the ref is main. A non-main workflow_dispatch
+  # skips this job entirely (if:-false) and only `eval-structure` runs.
   eval:
+    needs: eval-structure
+    if: github.ref == 'refs/heads/main'
+    environment: eval-secrets
     runs-on: ubuntu-latest
     # 15 min = 25% headroom over the V1 success criterion (12 min).
     # If runs consistently approach this, V1 needs case-cuts before being
     # treated as steady-state.
     timeout-minutes: 15
-
-    env:
-      # Repo secret. Set via: gh secret set ANTHROPIC_API_KEY
-      # KNOWN GAP (F1, deferred): on workflow_dispatch from non-main refs, this
-      # secret is accessible to scripts that ref pushes can modify. See TODOS.md
-      # "Eval workflow hardening" for planned mitigation (GitHub Environment +
-      # branch-protection rules, or `if: github.ref == 'refs/heads/main'` gate).
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -89,21 +246,39 @@ jobs:
         # Pinned to `@^2` (same-major range) to mitigate yanked-from-latest
         # supply-chain attacks: a malicious 2.x patch would still need to publish
         # under Anthropic's npm account, but a future breaking 3.x can't sneak in.
-        # Bump the major deliberately after reviewing release notes; the secret
-        # is in env, so postinstall scripts run with API access.
+        # Bump the major deliberately after reviewing release notes.
+        # SEC-1 (deferred, TODOS.md): on this main-only job the secret IS in env
+        # via the Environment, so a malicious postinstall here could exfiltrate it
+        # before run-case.sh's scrub. Tracked follow-up: `--ignore-scripts` or
+        # install-before-Environment-binding. Same Premise-1 root cause as F3,
+        # one step upstream; out of D000023's confirmed F1+F3-only scope.
         run: |
           npm install -g @anthropic-ai/claude-code@^2
           echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
 
-      - name: Verify claude CLI + secret
+      - name: Verify claude CLI + secret (branch-aware — main fails closed on empty key)
         # Sanity check before invoking eval.sh. Catches two common failure modes
         # with clear errors instead of letting eval.sh produce N silent auth-failed
         # cases that surface as "PASS: 0  FAIL: N" with $0 cost (root cause obscured).
+        # This job only runs on main (if: gate above), so an empty key here is a
+        # genuine misconfiguration (Environment secret not set / deployment-branch
+        # rule wrong) — fail closed with a clear pointer, do NOT proceed secretless.
+        # Step-scoped env: the JOB declares `environment: eval-secrets`, so the
+        # Environment protection (deployment-branch rule = main) is already
+        # invoked at the job level; this step-level reference is the legitimate
+        # way to surface the Environment-gated secret into the step. (Per the
+        # design: a step `env:` alone does NOT invoke Environment protection —
+        # here it is the job's `environment:` that does; the step `env:` just
+        # consumes it.)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           claude --version
           if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            echo "ERROR: ANTHROPIC_API_KEY is empty. Set the secret via:" >&2
-            echo "  gh secret set ANTHROPIC_API_KEY" >&2
+            echo "ERROR: ANTHROPIC_API_KEY is empty on the main-only eval job." >&2
+            echo "  The protected Environment 'eval-secrets' must define ANTHROPIC_API_KEY" >&2
+            echo "  with a deployment-branch rule allowing refs/heads/main. Set it via:" >&2
+            echo "  repo Settings → Environments → eval-secrets → Add secret" >&2
             exit 1
           fi
 
@@ -112,6 +287,13 @@ jobs:
         # `tee` captures output for the next step's summary write; the
         # job-level `defaults: shell: bash` guarantees -eo pipefail so the
         # pipe failure propagates eval.sh's exit code.
+        # Step-scoped secret: surfaced from the job's bound Environment
+        # `eval-secrets` (main-only). run-case.sh KEEPS env auth on the
+        # scheduled-main path (GITHUB_REF == refs/heads/main) because these
+        # cases are all merged/reviewed; its env -i/allowlist scrub +
+        # fail-closed assert apply only to the untrusted non-main / local path.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: bash scripts/eval.sh | tee eval-output.txt
 
       - name: Write job summary
