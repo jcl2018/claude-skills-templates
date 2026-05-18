@@ -453,12 +453,6 @@ do_install() {
     done
   fi
 
-  # Read collection version if available
-  local col_ver="unknown"
-  if [ -f "$REPO_ROOT/VERSION" ]; then
-    col_ver=$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")
-  fi
-
   # Resolve the manifest `source` to the MAIN repo toplevel (T000025).
   # `$REPO_ROOT` (line 7) is `dirname(script)/..`, which under `.claude/worktrees/<name>/`
   # points at the ephemeral worktree. Once the worktree is removed, `skills-deploy doctor`
@@ -471,6 +465,20 @@ do_install() {
   main_toplevel=$(dirname "$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null) || true
   if [ -z "$main_toplevel" ] || [ ! -d "$main_toplevel" ]; then
     main_toplevel="$REPO_ROOT"
+  fi
+
+  # Read collection version from the SAME repo the manifest `source` points at.
+  # Must be `$main_toplevel`, not `$REPO_ROOT`: `doctor` later reads
+  # `current_cv` from `$source/VERSION` (= `$main_toplevel/VERSION`). Sourcing
+  # `col_ver` from `$REPO_ROOT/VERSION` (the ephemeral worktree, routinely ahead
+  # of the stale main checkout during worktree-based dev) split the two endpoints
+  # of doctor's drift check across two different VERSION files, emitting a
+  # spurious "installed != current" WARN on every healthy worktree install
+  # (T000025 moved `source` but left this read on `$REPO_ROOT`). The exact
+  # deployed HEAD is still captured separately in the manifest `commit` field.
+  local col_ver="unknown"
+  if [ -f "$main_toplevel/VERSION" ]; then
+    col_ver=$(tr -d '[:space:]' < "$main_toplevel/VERSION")
   fi
 
   # Capture origin URL at install time (T000031). Stored in manifest so

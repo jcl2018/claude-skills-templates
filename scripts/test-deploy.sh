@@ -147,6 +147,45 @@ else
 fi
 teardown_env
 
+# Test 8b: Worktree VERSION split must NOT produce a spurious drift WARN.
+# Regression for T000025: it moved manifest `source` to the main repo toplevel
+# but left `col_ver` reading from `$REPO_ROOT/VERSION` (the ephemeral worktree).
+# When the worktree's VERSION leads the stale main checkout (the normal state
+# during worktree-based dev), doctor compared installed_cv (worktree VERSION at
+# install) against current_cv (main VERSION now) — two different files — and
+# emitted "installed != current", failing Test 8. Fixture: a real main repo
+# with a linked worktree whose VERSION diverges; install from the worktree must
+# record collection_version from the main toplevel (= manifest `source`).
+echo "Test 8b: Worktree VERSION split — no spurious drift WARN (T000025 regression)"
+setup_env
+wt_main=$(mktemp -d)
+_CLEANUP_DIRS+=("$wt_main")
+git -c init.defaultBranch=main init --quiet "$wt_main"
+mkdir -p "$wt_main/scripts"
+cp "$REPO_ROOT/scripts/skills-deploy" "$wt_main/scripts/skills-deploy"
+# Templates-only entry (empty files[]) — gives `install` one catalog entry to
+# process so it reaches the manifest write, without needing skill files on disk.
+# An empty `[]` catalog would abort do_install (set -u + empty-array iteration).
+echo '[{"name":"_fixture","files":[],"templates":[]}]' > "$wt_main/skills-catalog.json"
+printf '4.6.7' > "$wt_main/VERSION"
+git -C "$wt_main" add -A
+git -C "$wt_main" -c user.name=test -c user.email=t@e.st commit --quiet -m "main 4.6.7"
+wt_link="$wt_main/.claude/worktrees/wt-test"
+git -C "$wt_main" worktree add --quiet -b wt-test "$wt_link" >/dev/null 2>&1
+printf '4.6.13' > "$wt_link/VERSION"
+"$wt_link/scripts/skills-deploy" install >/dev/null 2>&1
+recorded_cv=$(jq -r '.collection_version' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo MISSING)
+recorded_src=$(jq -r '.source' "$SKILLS_DEPLOY_MANIFEST" 2>/dev/null || echo MISSING)
+src_ver=$(tr -d '[:space:]' < "$recorded_src/VERSION" 2>/dev/null || echo MISSING)
+doctor_out=$("$wt_link/scripts/skills-deploy" doctor 2>&1)
+git -C "$wt_main" worktree remove --force "$wt_link" >/dev/null 2>&1 || true
+if [ "$recorded_cv" = "$src_ver" ] && [ "$recorded_cv" != "MISSING" ] && echo "$doctor_out" | grep -q "Health: OK"; then
+  ok "collection_version ($recorded_cv) matches source VERSION; doctor healthy"
+else
+  fail_test "spurious drift: recorded_cv=$recorded_cv source=$recorded_src src_ver=$src_ver doctor=[$(echo "$doctor_out" | grep -E 'Collection version|Health:' | tr '\n' '|')]"
+fi
+teardown_env
+
 # Test 9: Doctor detects broken symlink
 echo "Test 9: Doctor detects broken symlink"
 setup_env
