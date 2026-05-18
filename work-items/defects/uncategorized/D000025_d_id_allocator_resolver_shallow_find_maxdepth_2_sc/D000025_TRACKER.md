@@ -52,9 +52,9 @@ promoted_from_draft: ".inbox/d_id_allocator_resolver_shallow_find_maxdepth_2_sc"
 ### Phase 3: Ship
 
 **Gates:**
-- [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
-- [ ] `/ship` — PR created
+- [x] `/CJ_personal-workflow check` — validation passed
+- [x] Test-plan verified (regression scenarios passing)
+- [x] `/ship` — PR created
 - [ ] `/land-and-deploy` — merged and deployed
 
 ## Reproduction Steps
@@ -81,7 +81,7 @@ fixture) — the post-fix deep scan returns 99.
 
 ## PRs
 
-<!-- PR link added at /ship time. -->
+- [#162](https://github.com/jcl2018/claude-skills-templates/pull/162) — v4.6.13 — open (created by /ship via /CJ_goal_investigate)
 
 ## Files
 
@@ -132,3 +132,4 @@ fixture) — the post-fix deep scan returns 99.
 - 2026-05-17 [qa-smoke] 5 (regression Guard — no -maxdepth 2 regression): green — no `-maxdepth 2` cap on any `$DEFECTS_ROOT` find in pipeline.md (fix intact)
 - 2026-05-17 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending). `bash tests/cj-goal-investigate-did-allocator.test.sh` RESULT: PASS, exit=0; `./scripts/validate.sh` PASS (0 errors / 0 warnings).
 - 2026-05-17 [qa-pass] D000025 (defect): green smoke from test-plan rows (5 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+- 2026-05-17 [ship] D000025 v4.6.13 PR #162 created via /CJ_goal_investigate. Gate #2 (autonomy ceiling) operator-approved: full pipeline → deploy. Commit ddc5ff0 (9 files, +552/-11). Pre-landing review clean; pre-existing/orthogonal scripts/test-deploy.sh failure triaged (independently revert-proven on clean tree, flagged as separate task). VERSION 4.6.12→4.6.13, queue clean.
