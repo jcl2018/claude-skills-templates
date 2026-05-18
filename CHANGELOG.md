@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.6.12] - 2026-05-18
+
+### Fixed
+
+- **D000024 (drain silent in-place scaffold): `/CJ_goal_todo_fix` drain mode now halts loudly instead of silently scaffolding a drained TODO into your current (possibly dirty) branch when `cj-worktree-init.sh` is unavailable.** This is a *distinct root cause* from D000021 (PR #158, the worktree-init **path resolution** fix) — D000021's RCA Insights explicitly scoped this remaining silent-failure mode out. In `drain-one-todo.sh`'s `dispatch` subcommand, after the helper-resolution block leaves `$_WT_HELPER` empty (manifest `.source` missing/empty/non-executable **and** the `BASH_SOURCE`-relative in-repo fallback also not executable), the old code (lines 246-248) was a pure comment — execution fell straight through to the `todo_fix.sh` delegation and scaffolded the drained TODO into the **current** branch, destroying the F000025/S000054 per-TODO worktree isolation. An operator hit exactly this: a drain scaffold dispatched into uncommitted WIP on an unrelated branch. Fix: the unreachable-helper case now **fails loud** — `lock_release` (idempotent), a clear stderr remediation message, `RESULT: STATUS=halted; STAGE=preflight; HEADING=…; REASON=worktree-helper-unavailable`, and `exit 2` — consistent with the adjacent `worktree-cd-failed` and `todo_fix.sh-not-found` halt exits already in this path. The orchestrator treats `exit 2` as a halt and STOPS the drain loop; no in-place scaffold runs, the operator's WIP is untouched. The fail-loud is **drain-context only** (the `dispatch` subcommand is invoked solely by the drain loop / `CJ_goal_run` Phase 5); single-TODO mode has its own worktree preamble in `SKILL.md` and never reaches this block, so its graceful degradation is unaffected, as are the safe `failed`/`detected`/`skipped`/`opted_out` states where the helper *ran* and made a deliberate call. Regression coverage: new `tests/drain-one-todo-helper-unavailable.test.sh` (Case 1 static guard-presence assertion + Case 2 behavioral test that builds a simulated deployed layout with the helper unreachable everywhere and asserts `exit 2`, the halted RESULT line, and a `todo_fix.sh` tripwire that never fires), proven to FAIL pre-fix / PASS post-fix, wired into `scripts/test.sh` after the D000021 `drain-one-todo-worktree-resolve` block. Captured and shipped end-to-end by `/CJ_goal_investigate`.
+
 ## [4.6.11] - 2026-05-17
 
 ### Fixed

@@ -223,29 +223,55 @@ case "$SUBCMD" in
       _WT_FALLBACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-init.sh"
       [ -x "$_WT_FALLBACK" ] && _WT_HELPER="$_WT_FALLBACK"
     fi
-    if [ -x "$_WT_HELPER" ]; then
-      _WT_JSON=$("$_WT_HELPER" --caller todo --force-create --quiet 2>/dev/null || true)
-      if [ -n "$_WT_JSON" ]; then
-        _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
-        _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
-        if [ "$_WT_STATE" = "created" ] && [ -n "$_WT_PATH" ]; then
-          # cd into the per-TODO worktree before delegating to todo_fix.sh so
-          # scaffold writes land in the right tree.
-          cd "$_WT_PATH" || {
-            lock_release "$HEADING" "$SESSION_ID" >/dev/null 2>&1 || true
-            echo "[drain] ERROR: cd $_WT_PATH failed" >&2
-            echo "RESULT: STATUS=halted; STAGE=preflight; HEADING=$HEADING; REASON=worktree-cd-failed"
-            exit 2
-          }
-        fi
-        # state=failed/detected/skipped/opted_out: continue without cd (drain
-        # iteration runs in current tree; matches today's behavior when
-        # helper is unavailable).
-      fi
+    # D-fix (drain-one-todo silent in-place scaffold when worktree helper
+    # unavailable): in DRAIN context, per-TODO worktree isolation is
+    # load-bearing — it is the entire point of F000025/S000054 and /ship
+    # Gate #2's one-PR-per-TODO contract. D000021 fixed only the path
+    # resolution and its RCA Insights explicitly flagged this remaining
+    # "silent failure mode" as scoped out. If the helper is genuinely
+    # unreachable here ($_WT_HELPER empty: manifest .source missing/empty/
+    # non-executable AND the BASH_SOURCE-relative in-repo fallback also not
+    # executable), the OLD code silently fell through to the todo_fix.sh
+    # delegation below and scaffolded the drained TODO into the CURRENT —
+    # possibly dirty, possibly unrelated — branch, destroying the per-TODO
+    # worktree isolation (operator hit exactly this: a scaffold dispatched
+    # into uncommitted WIP on an unrelated branch). The drain iteration MUST
+    # FAIL LOUD instead, consistent with the worktree-cd-failed and
+    # todo_fix.sh-not-found halt exits already in this dispatch path
+    # (release lock -> RESULT: STATUS=halted -> exit 2). The orchestrator
+    # treats exit 2 as a halt and STOPS the drain loop (no in-place scaffold,
+    # operator's WIP untouched). NOTE: this fail-loud is DRAIN-context only —
+    # it lives in drain-one-todo.sh's `dispatch` subcommand, which is invoked
+    # solely by the drain loop (todo_fix.sh drain dispatch / CJ_goal_run
+    # Phase 5). Single-TODO mode has its own worktree preamble in SKILL.md and
+    # never reaches this block, so single-TODO graceful degradation is
+    # unaffected.
+    if [ ! -x "$_WT_HELPER" ]; then
+      lock_release "$HEADING" "$SESSION_ID" >/dev/null 2>&1 || true
+      echo "[drain] ERROR: cj-worktree-init.sh unavailable — refusing to scaffold '$HEADING' in-place on the current branch (per-TODO worktree isolation is required in drain mode). Deploy the workbench (skills-deploy install) so ~/.claude/.skills-templates.json .source resolves the helper, or run single-TODO mode." >&2
+      echo "RESULT: STATUS=halted; STAGE=preflight; HEADING=$HEADING; REASON=worktree-helper-unavailable"
+      exit 2
     fi
-    # If helper missing entirely: drain iteration proceeds on current branch
-    # (today's behavior preserved; consumer repos without workbench source
-    # silently degrade).
+    _WT_JSON=$("$_WT_HELPER" --caller todo --force-create --quiet 2>/dev/null || true)
+    if [ -n "$_WT_JSON" ]; then
+      _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
+      _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
+      if [ "$_WT_STATE" = "created" ] && [ -n "$_WT_PATH" ]; then
+        # cd into the per-TODO worktree before delegating to todo_fix.sh so
+        # scaffold writes land in the right tree.
+        cd "$_WT_PATH" || {
+          lock_release "$HEADING" "$SESSION_ID" >/dev/null 2>&1 || true
+          echo "[drain] ERROR: cd $_WT_PATH failed" >&2
+          echo "RESULT: STATUS=halted; STAGE=preflight; HEADING=$HEADING; REASON=worktree-cd-failed"
+          exit 2
+        }
+      fi
+      # state=failed/detected/skipped/opted_out: helper RAN and made a
+      # deliberate call (detected = already inside an isolating Conductor
+      # worktree; opted_out = --no-worktree; skipped/failed = helper-internal).
+      # Continue without cd — distinct from "helper unreachable" above, which
+      # halts loud. This preserves the safe graceful-degradation cases.
+    fi
 
     # Lock acquired. Delegate to todo_fix.sh in single-TODO mode.
     # todo_fix.sh handles preflight, scaffold, and emits the

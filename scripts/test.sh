@@ -1093,6 +1093,24 @@ else
   fail_test "tests/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/drain-one-todo-worktree-resolve.test.sh\` directly to see"
 fi
 
+# Regression test (drain-one-todo silent in-place scaffold when worktree
+# helper unavailable — distinct from D000021): when cj-worktree-init.sh is
+# genuinely unreachable in drain dispatch context ($_WT_HELPER empty: manifest
+# .source missing/empty/non-exec AND the BASH_SOURCE in-repo fallback also not
+# executable), drain-one-todo.sh must FAIL LOUD (release lock; RESULT:
+# STATUS=halted; REASON=worktree-helper-unavailable; exit 2) instead of
+# silently delegating to todo_fix.sh and scaffolding the drained TODO into the
+# current (possibly dirty / unrelated) branch. D000021 fixed only the path
+# resolution; its RCA Insights explicitly scoped this silent-fallthrough out.
+echo ""
+echo "Running tests/drain-one-todo-helper-unavailable.test.sh (unreachable-helper fail-loud)..."
+if bash "$REPO_ROOT/tests/drain-one-todo-helper-unavailable.test.sh" >/dev/null 2>&1; then
+  ok "tests/drain-one-todo-helper-unavailable.test.sh: drain halts loud when cj-worktree-init.sh unreachable (no in-place scaffold)"
+else
+  _dhu_rc=$?
+  fail_test "tests/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/drain-one-todo-helper-unavailable.test.sh\` directly to see"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
