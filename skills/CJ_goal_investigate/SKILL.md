@@ -288,6 +288,14 @@ Signals are detected from:
   does NOT bypass operator diff review.
 - **`/land-and-deploy --suppress-readiness-gate`** — mirrors `/CJ_goal_run`'s
   family-pattern so the chain doesn't AUQ a second time at deploy.
-- **Legacy defect dir only in v1.0.** `resolve_defect_dir()` searches
-  `work-items/defects/<domain>/D000NNN_<slug>/`. Freestanding
-  `D<NNN>_bug-report.md` convention is a v1.1 helper swap.
+- **Dir-based defect layout only in v1.x.** `resolve_defect_dir()` searches
+  `work-items/defects/<domain...>/D000NNN_<slug>/`, where `<domain...>` is
+  ONE OR MORE path segments — the find scans are unbounded-depth and
+  anchored on the globally-unambiguous `D[0-9]{6}_` basename, so nested
+  2-segment domains (`ops/skills-deploy/`, `ops/ship/`, `ops/workflow/`)
+  resolve correctly (D000022 fix; the prior `-maxdepth 2` cap missed them
+  and re-minted a colliding D-ID). The D-ID allocator additionally unions
+  filesystem D-IDs with D-IDs found in `git log --all` subjects and
+  `TODOS.md`, so a shipped-and-relocated or deferred/freestanding
+  (git/TODOS-only, no dir) D-ID is never re-minted. Freestanding
+  `D<NNN>_bug-report.md` (no dir at all) is a later-version helper swap.

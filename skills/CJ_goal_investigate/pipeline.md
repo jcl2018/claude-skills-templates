@@ -50,8 +50,13 @@ RAW_DIR="$HOME/.gstack/analytics/CJ_goal_investigate-runs/$RUN_ID"
 
 ## Step 2: Resolve the defect directory
 
-The resolver searches `work-items/defects/<domain>/D000NNN_<slug>/` (legacy
-layout only in v1.0).
+The resolver searches `work-items/defects/<domain...>/D000NNN_<slug>/`
+(dir-based layout only in v1.x — freestanding `D<NNN>_bug-report.md` is a
+later-version helper swap). `<domain...>` may be ONE or MORE path segments —
+the repo has organically nested 2-segment domains (e.g.
+`ops/skills-deploy/`, `ops/ship/`). The find scans are unbounded-depth and
+anchored on the globally-unambiguous `D[0-9]{6}_` basename, so nested
+domains resolve correctly (D000022 fix).
 
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -70,8 +75,14 @@ DRAFT_SLUG=""
 DRAFT_FRAGMENT=""
 
 # Exact D-ID match: anchored regex on dir basename starting with D followed by 6 digits + underscore.
+# D000022 fix: NO -maxdepth cap. The `D######_` basename is globally
+# unambiguous, so an unbounded `find -type d -name "${ARG}_*"` is safe and
+# correct. A -maxdepth 2 cap silently encoded a now-false assumption that
+# every defect domain is exactly one segment under work-items/defects/; the
+# repo grew nested 2-segment domains (ops/skills-deploy/, ops/ship/,
+# ops/workflow/ — depth 3) whose defects were unresolvable by exact D-ID.
 if [[ "$ARG" =~ ^D[0-9]{6}$ ]]; then
-  MATCHES=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -name "${ARG}_*" 2>/dev/null)
+  MATCHES=$(find "$DEFECTS_ROOT" -type d -name "${ARG}_*" 2>/dev/null)
 else
   # Fragment fuzzy: match against (a) dir basename and (b) tracker `name:` field.
   # Two passes union'd; dedup by path.
@@ -79,7 +90,12 @@ else
   # fragment would change glob semantics (over-match → false ambiguity or
   # wrong-defect resume). Backslash-escape the three glob metacharacters.
   ARG_GLOB=$(printf '%s' "$ARG" | sed 's/[][*?]/\\&/g')
-  BASENAME_HITS=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -iname "*${ARG_GLOB}*" 2>/dev/null \
+  # D000022 fix: NO -maxdepth cap (same rationale as the exact-D-ID find
+  # above). The `grep -E '/D[0-9]{6}_'` post-filter still constrains hits to
+  # real defect dirs, so removing the depth cap only widens reach to nested
+  # 2-segment domains — every other semantic (glob-escaping, the grep filter)
+  # is preserved.
+  BASENAME_HITS=$(find "$DEFECTS_ROOT" -type d -iname "*${ARG_GLOB}*" 2>/dev/null \
                   | grep -E '/D[0-9]{6}_' || true)
   # `-F` + `--`: treat the fragment as a literal string (not a basic regex),
   # and stop option parsing so a fragment starting with `-` is not consumed as
@@ -651,9 +667,35 @@ EOF
   _PRIOR_EXIT_TRAP=$(trap -p EXIT)
   trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
 
-  # C3 step 2: allocate D-ID (highest-N scan over canonical dirs) + mkdir.
-  HIGHEST=$(find "$DEFECTS_ROOT" -maxdepth 2 -type d -name 'D[0-9][0-9][0-9][0-9][0-9][0-9]_*' 2>/dev/null \
-            | sed -E 's|.*/D0*([0-9]+)_.*|\1|' | sort -n | tail -1)
+  # C3 step 2: allocate D-ID. D000022 fix — the next D-ID is the max over the
+  # UNION of three durable D-ID sources, +1. Two distinct root causes are
+  # addressed here:
+  #
+  #  (a) Filesystem scan: NO -maxdepth cap. A -maxdepth 2 cap under-counted
+  #      the highest D-ID whenever the max lived in a nested 2-segment domain
+  #      (ops/skills-deploy/, ops/ship/, ops/workflow/ — depth 3), re-minting
+  #      a colliding D-ID (the real D000022 incident, PR #161). The
+  #      `D[0-9]{6}_` basename is globally unambiguous so an unbounded
+  #      `find -type d -name 'D[0-9][0-9][0-9][0-9][0-9][0-9]_*'` is correct.
+  #  (b) Git log + TODOS.md: a D-ID is durably recorded in git commit
+  #      subjects and TODOS.md independent of any directory. A shipped-and-
+  #      relocated defect, or a deferred/freestanding tracked-but-no-dir
+  #      defect (e.g. a deferred D-ID that only ever appears in git/TODOS),
+  #      is invisible to a filesystem-only scan and would be silently
+  #      re-minted. Union all three integer sets; take the max.
+  #
+  # POSIX/BSD-portable: stock `find`/`sed`/`git`/`grep`, no GNU-only flags.
+  _FS_NS=$(find "$DEFECTS_ROOT" -type d -name 'D[0-9][0-9][0-9][0-9][0-9][0-9]_*' 2>/dev/null \
+           | sed -E 's|.*/D0*([0-9]+)_.*|\1|')
+  _GIT_NS=$(git -C "$_REPO_ROOT" log --all --format='%s' 2>/dev/null \
+            | grep -oE 'D[0-9]{6}' | sed -E 's|D0*([0-9]+)|\1|')
+  _TODOS_NS=""
+  if [ -f "$_REPO_ROOT/TODOS.md" ]; then
+    _TODOS_NS=$(grep -oE 'D[0-9]{6}' "$_REPO_ROOT/TODOS.md" 2>/dev/null \
+                | sed -E 's|D0*([0-9]+)|\1|')
+  fi
+  HIGHEST=$(printf '%s\n%s\n%s\n' "$_FS_NS" "$_GIT_NS" "$_TODOS_NS" \
+            | grep -E '^[0-9]+$' | sort -n | tail -1)
   NEXT_N=$(( ${HIGHEST:-0} + 1 ))
   DEFECT_ID=$(printf "D%06d" "$NEXT_N")
 

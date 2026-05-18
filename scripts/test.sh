@@ -1111,6 +1111,25 @@ else
   fail_test "tests/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/drain-one-todo-helper-unavailable.test.sh\` directly to see"
 fi
 
+# Regression test (CJ_goal_investigate D-ID allocator + resolver shallow find
+# -maxdepth 2): pipeline.md's Step 7.4 highest-N allocator + Step 2 exact-D-ID
+# / BASENAME_HITS resolvers used `find ... -maxdepth 2`, which only reached
+# work-items/defects/<domain>/D######_* and missed nested 2-segment domains
+# (ops/skills-deploy/, ops/ship/, ops/workflow/ — depth 3). Real impact: the
+# allocator re-minted D000022 over an existing depth-3 D000022 (renumbered to
+# D000024 mid-ship, PR #161). Second gap: filesystem-only highest-N ignored
+# D-IDs that live only in git log / TODOS.md (e.g. deferred D000023). The fix
+# removes the depth cap on all 3 sites and unions filesystem + git-log +
+# TODOS.md D-IDs for allocation. Test uses a fully isolated mktemp fixture.
+echo ""
+echo "Running tests/cj-goal-investigate-did-allocator.test.sh (nested-domain + git/TODOS union)..."
+if bash "$REPO_ROOT/tests/cj-goal-investigate-did-allocator.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-investigate-did-allocator.test.sh: deep find reaches nested domains; allocator unions fs+git+TODOS"
+else
+  _cgida_rc=$?
+  fail_test "tests/cj-goal-investigate-did-allocator.test.sh failed (rc=$_cgida_rc) — run \`bash tests/cj-goal-investigate-did-allocator.test.sh\` directly to see"
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
