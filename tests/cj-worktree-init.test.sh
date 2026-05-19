@@ -1,18 +1,35 @@
 #!/usr/bin/env bash
-# tests/cj-worktree-init.test.sh — 5-case test for scripts/cj-worktree-init.sh.
+# tests/cj-worktree-init.test.sh — 13-case test for scripts/cj-worktree-init.sh.
 #
 # Per F000025/S000054 design (Decision Audit Trail #10): replaces the "one grep
 # is theatrical" assertion with real behavior tests for the worktree helper.
+# Extended by T000033 with the 8 --assert-isolated verdict cases + two pipeline.md
+# static-grep regression assertions (Step 5 gate; --no-worktree marker-file wiring).
 #
-# Cases:
+# Mutating-mode cases (F000025):
 #   (1) on-main + clean → state=created (via --dry-run to avoid mutation)
 #   (2) in-worktree → state=detected
 #   (3) --no-worktree → state=opted_out
 #   (4) --force-create bypasses in-worktree detection (via --dry-run)
 #   (5) dirty-check halts (interactive) / skips (--quiet)
 #
-# Pure smoke: uses --dry-run for the "create" cases so no real worktrees are
-# left behind. Real worktree creation is exercised manually via the E2E rows
+# --assert-isolated verdict-mode cases (T000033; read-only, no fs mutation):
+#   (a)  in worktree → isolated / 0
+#   (b)  clean main, no worktree → not_isolated / ≠0
+#   (c)  dirty on a feature branch → dirty / ≠0 (dirty wins over branch rule)
+#   (d)  clean feature branch → isolated / 0
+#   (e1) --no-worktree + clean → isolated / 0
+#   (e2) --no-worktree + dirty → dirty / ≠0 (hatch is NOT a bypass)
+#   (f)  not a repo → not_a_repo / ≠0
+#   (g)  detached HEAD on primary checkout → not_isolated / ≠0
+#
+# Plus a static-grep regression assertion that pipeline.md Step 5 wires the
+# --assert-isolated gate AND the draft-aware resume_cmd (F000025's
+# one-grep-per-SKILL.md idiom, applied to pipeline.md here).
+#
+# Pure smoke: uses --dry-run for the F000025 "create" cases so no real
+# worktrees are left behind. The --assert-isolated cases are inherently
+# read-only. Real worktree creation is exercised manually via the E2E rows
 # in S000054_TEST-SPEC.md.
 
 set -euo pipefail
@@ -170,6 +187,188 @@ SBX5=$(mk_sandbox)
 )
 case_5_rc=$?
 [ "$case_5_rc" -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ============================================================================
+# T000033: --assert-isolated verdict-mode cases (read-only; no fs mutation)
+# ============================================================================
+#
+# verdict_case <label> <expected_state> <expected_exit_kind: zero|nonzero> -- <cmd...>
+# Runs the helper, asserts JSON .state and exit-code class. Helper exits
+# non-zero on dirty/not_a_repo/not_isolated, so `|| true` captures rc.
+
+assert_verdict() {
+  local label="$1" want_state="$2" want_exit="$3"; shift 3
+  # "$@" is the full argv to the helper (already includes --assert-isolated).
+  local out rc state
+  out=$("$@" 2>&1) && rc=0 || rc=$?
+  state=$(echo "$out" | jq -r '.state' 2>/dev/null || echo "")
+  local exit_ok=0
+  if [ "$want_exit" = "zero" ] && [ "$rc" -eq 0 ]; then exit_ok=1; fi
+  if [ "$want_exit" = "nonzero" ] && [ "$rc" -ne 0 ]; then exit_ok=1; fi
+  if [ "$state" = "$want_state" ] && [ "$exit_ok" -eq 1 ]; then
+    ok "$label: state=$state exit=$rc"
+  else
+    fail_test "$label: expected state=$want_state exit=$want_exit; got state=$state rc=$rc out=$out"
+  fi
+}
+
+# ---------- Case (a): in a linked worktree → isolated / 0 ----------
+
+echo ""
+echo "Case (a): --assert-isolated in a linked worktree → isolated / 0..."
+SBXA=$(mk_sandbox)
+trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" "${SBXB:-}" "${SBXC:-}" "${SBXD:-}" "${SBXE:-}" "${SBXG:-}"' EXIT
+(
+  cd "$SBXA"
+  mkdir -p .claude/worktrees
+  git worktree add -q -b ai-wt-branch ".claude/worktrees/ai-wt" >/dev/null 2>&1
+  cd ".claude/worktrees/ai-wt"
+  assert_verdict "Case (a)" "isolated" "zero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (b): clean main, no worktree → not_isolated / ≠0 ----------
+
+echo ""
+echo "Case (b): --assert-isolated clean main, no worktree → not_isolated / ≠0..."
+SBXB=$(mk_sandbox)
+(
+  cd "$SBXB"
+  assert_verdict "Case (b)" "not_isolated" "nonzero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (c): dirty on a feature branch → dirty / ≠0 ----------
+# Dirty is checked BEFORE the branch rule — proves the ladder order.
+
+echo ""
+echo "Case (c): --assert-isolated dirty feature branch → dirty / ≠0 (dirty wins)..."
+SBXC=$(mk_sandbox)
+(
+  cd "$SBXC"
+  git checkout -q -b feat/some-work
+  echo "dirty" >> seed.txt
+  assert_verdict "Case (c)" "dirty" "nonzero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (d): clean feature branch → isolated / 0 ----------
+
+echo ""
+echo "Case (d): --assert-isolated clean feature branch → isolated / 0..."
+SBXD=$(mk_sandbox)
+(
+  cd "$SBXD"
+  git checkout -q -b feat/clean-work
+  assert_verdict "Case (d)" "isolated" "zero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (e1): --no-worktree + clean → isolated / 0 ----------
+
+echo ""
+echo "Case (e1): --assert-isolated --no-worktree + clean → isolated / 0..."
+SBXE=$(mk_sandbox)
+(
+  cd "$SBXE"
+  assert_verdict "Case (e1)" "isolated" "zero" \
+    bash "$HELPER" --caller investigate --assert-isolated --no-worktree
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (e2): --no-worktree + dirty → dirty / ≠0 ----------
+# The escape hatch is NOT a bypass: dirty wins over --no-worktree.
+
+echo ""
+echo "Case (e2): --assert-isolated --no-worktree + dirty → dirty / ≠0 (hatch != bypass)..."
+(
+  cd "$SBXE"
+  echo "dirty" >> seed.txt
+  assert_verdict "Case (e2)" "dirty" "nonzero" \
+    bash "$HELPER" --caller investigate --assert-isolated --no-worktree
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case (f): not a git repo → not_a_repo / ≠0 ----------
+
+echo ""
+echo "Case (f): --assert-isolated not a git repo → not_a_repo / ≠0..."
+NONGIT=$(mktemp -d -t cj-wi-nongit.XXXXXX)
+(
+  cd "$NONGIT"
+  assert_verdict "Case (f)" "not_a_repo" "nonzero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+rm -rf "$NONGIT"
+
+# ---------- Case (g): detached HEAD on primary checkout → not_isolated / ≠0 ----------
+
+echo ""
+echo "Case (g): --assert-isolated detached HEAD on primary → not_isolated / ≠0..."
+SBXG=$(mk_sandbox)
+(
+  cd "$SBXG"
+  _HEAD_SHA=$(git rev-parse HEAD)
+  git checkout -q "$_HEAD_SHA" 2>/dev/null   # detach
+  assert_verdict "Case (g)" "not_isolated" "nonzero" \
+    bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- pipeline.md Step 5 static-grep regression assertion ----------
+#
+# T000033 + F000025 one-grep-per-SKILL.md idiom (applied to pipeline.md):
+# guards that pipeline.md Step 5 keeps the --assert-isolated isolation gate
+# AND the draft-aware resume_cmd. An upstream refactor that drops either
+# silently reopens the D000024 silent-in-place-source-write class.
+
+echo ""
+echo "pipeline.md Step 5 regression: --assert-isolated gate + draft-aware resume_cmd present..."
+_PIPELINE_MD="$REPO_ROOT/skills/CJ_goal_investigate/pipeline.md"
+# Three independent fixed-string signals must all be present (the helper is
+# invoked via a re-resolved $_HELPER var, so the F000025 single-line
+# `helper.sh.*--flag` idiom does not apply — assert the signals separately):
+#   (1) the gate invokes the helper with --assert-isolated;
+#   (2) the gate re-resolves the helper as scripts/cj-worktree-init.sh
+#       (the 2-level probe — workbench-self-dev + manifest .source);
+#   (3) the gate's halt uses a draft-aware resume_cmd (the C2 shared-halt
+#       idiom: branch on IS_DRAFT, emit $DRAFT_FRAGMENT — never a bare
+#       empty-$DEFECT_ID command).
+if grep -qF -- '--assert-isolated' "$_PIPELINE_MD" \
+   && grep -qF 'scripts/cj-worktree-init.sh' "$_PIPELINE_MD" \
+   && grep -qF 'resume_cmd=$([ "${IS_DRAFT:-0}" = "1" ]' "$_PIPELINE_MD" \
+   && grep -qF 'DRAFT_FRAGMENT' "$_PIPELINE_MD"; then
+  ok "pipeline.md Step 5 wires --assert-isolated gate + helper re-resolution + draft-aware resume_cmd"
+else
+  fail_test "pipeline.md Step 5 missing --assert-isolated gate, helper re-resolution, or draft-aware resume_cmd (T000033 regression guard)"
+fi
+
+# ---------- pipeline.md --no-worktree marker-file wiring (T000033 P1 fix) ----------
+#
+# The operator --no-worktree opt-out cannot ride a shell var (vars do NOT
+# persist across bash tool calls — CLAUDE.md). The first cut read an
+# always-unset ${NO_WORKTREE:-0}, making the documented escape hatch dead
+# code: `/CJ_goal_investigate --no-worktree` on a clean checkout false-halted
+# at Step 5.0. The fix persists the opt-out RUN_ID-scoped in Step 1 (where
+# NO_WORKTREE + RUN_ID are both live) and re-reads the marker at Step 5.0 via
+# the model-carried RUN_ID. Guard all three signals AND the absence of the
+# dead shell-var conditional.
+
+echo ""
+echo "pipeline.md --no-worktree marker-file wiring present (T000033 P1 regression)..."
+if grep -qF -- '--no-worktree) NO_WORKTREE=1' "$_PIPELINE_MD" \
+   && grep -qF '/.operator-no-worktree' "$_PIPELINE_MD" \
+   && grep -qF 'CJ_goal_investigate-runs/$RUN_ID/.operator-no-worktree' "$_PIPELINE_MD" \
+   && ! grep -qF '"${NO_WORKTREE:-0}" = "1"' "$_PIPELINE_MD"; then
+  ok "pipeline.md --no-worktree opt-out persisted RUN_ID-scoped + re-read via marker (no dead shell-var read)"
+else
+  fail_test "pipeline.md --no-worktree marker-file wiring missing OR dead \${NO_WORKTREE:-0} shell-var read reintroduced (T000033 P1 regression guard)"
+fi
 
 # ---------- Summary ----------
 

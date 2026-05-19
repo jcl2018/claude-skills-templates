@@ -211,6 +211,7 @@ chain dispatch, and telemetry.
 | Empty root cause / placeholder | `[investigate-no-root-cause]` | Re-run /investigate manually; populate RCA by hand if needed |
 | DONE_WITH_CONCERNS | `[investigate-unverified]` | Manual verification + manual /ship if appropriate |
 | Blast radius >5 files | `[investigate-blast-radius]` (pre-write halt) | Decompose fix into multiple defects; manual /investigate per chunk |
+| Checkout not clean+isolated (or helper unreachable) | `[investigate-not-isolated]` (Step 5.0 pre-dispatch halt) | Commit/stash changes, run from a fresh worktree / clean feature branch, or pass `--no-worktree` on a clean checkout; re-run via `resume_cmd` |
 | /ship Gate #2 declined | `[ship-declined]` | Address operator feedback; re-run when ready |
 | /land-and-deploy red | `[land-and-deploy-red]` (CI / merge / canary) | Inspect run output; fix + re-invoke |
 
@@ -235,6 +236,7 @@ The end-states:
 | `halted_at_investigate_parse_error` | `[investigate-parse-error]` | Sentinel block found but JSON invalid |
 | `halted_at_investigate_no_root_cause` | `[investigate-no-root-cause]` | JSON.root_cause empty or matches `/^\[.*\]$/` placeholder |
 | `halted_at_investigate_unverified` | `[investigate-unverified]` | JSON.status == "DONE_WITH_CONCERNS" |
+| `halted_at_investigate_not_isolated` | `[investigate-not-isolated]` | **(T000033)** Step 5.0 isolation gate: checkout not clean+isolated (verdict `dirty`/`not_isolated`/`not_a_repo`) OR worktree helper unreachable after both probes; pre-dispatch halt, source-writing subagent provably not dispatched |
 | `halted_at_promote_lock_timeout` | `[promote-lock-timeout]` | **(v1.1, 13th end-state)** Step 7.4 D-ID allocation mkdir-lock held >10s; promotion aborted, draft retained, no D-ID consumed |
 | `halted_at_ship` | `[ship-declined]` | /ship Gate #2 declined or pre-landing review red |
 | `halted_at_deploy` | `[land-and-deploy-red]` | /land-and-deploy red (CI / merge / canary) |

@@ -1065,11 +1065,12 @@ else
   fail_test "drain-one-todo.sh missing per-iteration cj-worktree-init.sh --force-create call (F000025 regression guard)"
 fi
 
-# Helper test: 5-case behavior coverage (F000025).
+# Helper test: 13-case behavior coverage (F000025 5 mutating-mode cases +
+# T000033 8 --assert-isolated verdict cases + pipeline.md static-grep guard).
 echo ""
-echo "Running tests/cj-worktree-init.test.sh (5-case helper test)..."
+echo "Running tests/cj-worktree-init.test.sh (13-case helper test)..."
 if bash "$REPO_ROOT/tests/cj-worktree-init.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-worktree-init.test.sh: all 5 cases pass"
+  ok "tests/cj-worktree-init.test.sh: all 13 cases pass"
 else
   _cwit_rc=$?
   fail_test "tests/cj-worktree-init.test.sh failed (rc=$_cwit_rc) — run \`bash tests/cj-worktree-init.test.sh\` directly to see"
