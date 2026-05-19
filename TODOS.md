@@ -2,6 +2,15 @@
 
 ## Active work
 
+### Wire `--assert-isolated` into `/CJ_goal_run` + `/CJ_goal_todo_fix` dispatch boundaries (P3, S)
+Deferred family-scope follow-up from **T000033** (v-TBD). T000033 added the read-only `--assert-isolated` verdict mode to `scripts/cj-worktree-init.sh` and wired it as an enforced isolation gate (`Step 5.0`) before `/CJ_goal_investigate`'s source-writing `/investigate` subagent dispatch. The helper mode is shared by all three `CJ_goal_*` orchestrators, so the same silent-in-place-source-write class (D000024) can be closed for `/CJ_goal_run` + `/CJ_goal_todo_fix` with a ~3-line call each:
+- Add an isolation-gate block before each orchestrator's source-writing subagent dispatch boundary, re-resolving the helper via the 2-level probe (repo-local first, then manifest `.source`), exact argv `"$_HELPER" --caller {run|todo} --assert-isolated` (forward `--no-worktree` iff the operator passed it; never `--dry-run`/`--quiet`/`--force-create`), helper-unreachable → HALT.
+- Mirror the `[*-not-isolated]` halt-taxonomy row + C7 terminal block + draft-aware/`resume_cmd` pattern T000033 established in `skills/CJ_goal_investigate/pipeline.md` Step 5.0.
+- Extend the per-orchestrator regression assertions (the F000025 one-grep-per-SKILL.md idiom) to assert the gate is wired.
+Scoped out of T000033 deliberately to hold minimal scope (Open Q #2) — ship the mechanism + one consumer first, validate, then fan out.
+**Route:** `/CJ_goal_todo_fix "wire --assert-isolated into CJ_goal_run + CJ_goal_todo_fix"` once T000033 has merged + soaked.
+**Reference:** T000033 work-item (`work-items/tasks/skills/T000033_investigate_isolation_gate/`); design doc `~/.gstack/chjiang-claude-sad-aryabhata-82fbaf-design-20260519-082921.md`.
+
 ### ~~Implement F000016 multi-story auto-iterate + F000017 S000039 Branch(f) (P0, L)~~ DONE
 Closed by three PRs back in the v3.x line:
 - S000036 (`--work-item-dir` flag on `/CJ_personal-pipeline`) — v3.1.0, PR #100.

@@ -19,6 +19,7 @@ Accept the following arg shapes:
 /CJ_goal_investigate --dry-run D000NNN
 /CJ_goal_investigate --dry-run "fragment"
 /CJ_goal_investigate --verbose D000NNN          # optional P2
+/CJ_goal_investigate --no-worktree D000NNN      # operator opt-out: run in place on a clean checkout
 ```
 
 Parser:
@@ -26,11 +27,13 @@ Parser:
 ```bash
 DRY_RUN=""
 VERBOSE=""
+NO_WORKTREE=""
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --verbose) VERBOSE=1 ;;
+    --no-worktree) NO_WORKTREE=1 ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -38,6 +41,18 @@ ARG="${ARGS[0]:-}"
 [ -n "$ARG" ] || { echo "Error: D-ID or fragment required."; exit 1; }
 [ "${#ARGS[@]}" -le 1 ] || { echo "Error: exactly one D-ID or fragment expected (got: ${ARGS[*]})"; exit 1; }
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$$
+# Persist the operator --no-worktree opt-out RUN_ID-scoped, in THIS block —
+# the only place NO_WORKTREE (set by the parser loop above) and RUN_ID (just
+# generated) are both live. Shell vars do NOT persist across bash tool calls
+# (CLAUDE.md), so Step 5.0's isolation gate cannot read $NO_WORKTREE; it
+# re-reads this marker via the model-carried RUN_ID (same persistence pattern
+# as TELEMETRY / RAW_DIR / $TRACKER). RUN_ID-scoped dir = no cross-run leak;
+# written post-RUN_ID = no pre-RUN_ID handoff problem (why design Approach B
+# was rejected does not apply: one bit set post-RUN_ID, not a JSON handoff).
+if [ "${NO_WORKTREE:-}" = "1" ]; then
+  mkdir -p "$HOME/.gstack/analytics/CJ_goal_investigate-runs/$RUN_ID"
+  : > "$HOME/.gstack/analytics/CJ_goal_investigate-runs/$RUN_ID/.operator-no-worktree"
+fi
 ```
 
 Initialize telemetry + decision-log paths:
@@ -374,6 +389,118 @@ Continue to Step 5.
 ### Row 3: skip through /ship; jump to Step 10 (`/land-and-deploy`).
 
 ## Step 5: Dispatch /investigate via Agent subagent
+
+### Step 5.0: Isolation gate (T000033 — enforced before subagent dispatch)
+
+`/investigate` Phase 4 writes the fix **directly to source** — there is no
+separate implement step. Dispatching the subagent from an un-isolated or
+dirty checkout means an in-place mutation of unrelated work (the D000024
+bug class). This gate enforces the "clean + isolated" invariant BEFORE the
+`ROLE:` dispatch prompt below is ever sent.
+
+Run this bash block first. **Shell vars do NOT persist across bash tool
+calls** (only cwd does — see CLAUDE.md), so the helper path is re-resolved
+here via the *manifest-`source` idiom* (NOT the SKILL.md "Path Resolution"
+idiom, which resolves skill assets and contains no `scripts/`):
+
+```bash
+# Hard idempotency guard (defense-in-depth — Rows 2/3/4/5 already jump past
+# Step 5 via their Step 4 per-row branches; this makes the gate robust to
+# prose-jump drift instead of inheriting the model-discipline dependency).
+# The gate runs IFF this is a fresh run (RESUME_ROW == 1).
+if [ "${RESUME_ROW:-1}" = "1" ]; then
+
+  # Re-resolve the helper: (1) repo-local first (workbench self-development —
+  # there may be NO deployed manifest, but scripts/cj-worktree-init.sh is
+  # present repo-local; trying manifest first would false-halt here), then
+  # (2) the deployed manifest .source path.
+  _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  _HELPER=""
+  if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-worktree-init.sh" ]; then
+    _HELPER="$_REPO_ROOT/scripts/cj-worktree-init.sh"
+  else
+    _SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+    if [ -n "$_SRC" ] && [ -x "$_SRC/scripts/cj-worktree-init.sh" ]; then
+      _HELPER="$_SRC/scripts/cj-worktree-init.sh"
+    fi
+  fi
+
+  if [ -z "$_HELPER" ]; then
+    # Helper unreachable after BOTH probes. Scoped revision of F000025
+    # Decision #11 (which lets a missing helper WARN-and-continue): at THIS
+    # boundary — immediately before a source-writing subagent dispatch —
+    # unreachable means HALT, not silent in-place. This is exactly the
+    # D000024 class the gate exists to close.
+    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat >> "$TRACKER" <<EOF
+- $TS [investigate-not-isolated] worktree helper unreachable (repo-local + manifest .source both absent); cannot verify clean+isolated before source-writing subagent dispatch. HALT (no silent in-place write).
+  next_action=Restore scripts/cj-worktree-init.sh (repo-local) or fix \$HOME/.claude/.skills-templates.json .source; then re-run.
+  resume_cmd=$([ "${IS_DRAFT:-0}" = "1" ] && echo "/CJ_goal_investigate \"$DRAFT_FRAGMENT\"" || echo "/CJ_goal_investigate $DEFECT_ID")
+  raw_output_path=N/A
+EOF
+    echo "Why it stopped: the worktree-isolation helper is unreachable, so a clean+isolated checkout can't be verified before /investigate writes the fix to source."
+    if [ "${IS_DRAFT:-0}" = "1" ]; then
+      echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
+      echo "Next: /CJ_goal_investigate \"$DRAFT_FRAGMENT\""
+    else
+      echo "State preserved: tracker at $TRACKER"
+      echo "Next: /CJ_goal_investigate $DEFECT_ID"
+    fi
+    # Telemetry: end_state=halted_at_investigate_not_isolated
+    exit 1
+  fi
+
+  # Exact gate argv. Forward ONLY --no-worktree, and only if the operator
+  # passed it. NEVER forward --dry-run / --quiet / --force-create:
+  #   - --dry-run already exited upstream at Step 3.5 (never reaches Step 5).
+  #   - --quiet must NOT downgrade the isolation verdict (the helper ladder
+  #     deliberately has no --quiet rule; forwarding it would be inert here
+  #     but is omitted to keep the contract unambiguous).
+  # The operator opt-out cannot ride a shell var ($NO_WORKTREE does NOT
+  # persist across bash tool calls — CLAUDE.md; the prior code read an
+  # always-unset var, making the documented escape hatch dead code). Step 1
+  # persisted the opt-out RUN_ID-scoped; re-read that marker via the
+  # model-carried RUN_ID (the same persistence pattern as TELEMETRY / RAW_DIR
+  # / $TRACKER used elsewhere in this block).
+  if [ -f "$HOME/.gstack/analytics/CJ_goal_investigate-runs/$RUN_ID/.operator-no-worktree" ]; then
+    VERDICT_JSON=$("$_HELPER" --caller investigate --assert-isolated --no-worktree 2>&1) && _GRC=0 || _GRC=$?
+  else
+    VERDICT_JSON=$("$_HELPER" --caller investigate --assert-isolated 2>&1) && _GRC=0 || _GRC=$?
+  fi
+  VERDICT_STATE=$(echo "$VERDICT_JSON" | jq -r '.state' 2>/dev/null || echo "")
+
+  if [ "$_GRC" -ne 0 ]; then
+    # Non-zero verdict: dirty / not_isolated / not_a_repo. Append the halt
+    # journal entry with a draft-aware resume_cmd, emit the C7 block, exit 1.
+    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat >> "$TRACKER" <<EOF
+- $TS [investigate-not-isolated] isolation gate verdict=$VERDICT_STATE — checkout is not clean+isolated; refusing to dispatch the source-writing /investigate subagent (D000024 class).
+  next_action=Make the checkout clean+isolated: commit/stash changes, or run from a fresh worktree / clean feature branch; or pass --no-worktree on a clean checkout.
+  resume_cmd=$([ "${IS_DRAFT:-0}" = "1" ] && echo "/CJ_goal_investigate \"$DRAFT_FRAGMENT\"" || echo "/CJ_goal_investigate $DEFECT_ID")
+  raw_output_path=N/A
+EOF
+    echo "Why it stopped: the checkout is not clean+isolated (verdict: $VERDICT_STATE), so /investigate would write the fix on top of unrelated work."
+    if [ "${IS_DRAFT:-0}" = "1" ]; then
+      echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
+      echo "Next: /CJ_goal_investigate \"$DRAFT_FRAGMENT\""
+    else
+      echo "State preserved: tracker at $TRACKER"
+      echo "Next: /CJ_goal_investigate $DEFECT_ID"
+    fi
+    # Telemetry: end_state=halted_at_investigate_not_isolated
+    exit 1
+  fi
+
+  echo "Isolation gate: verdict=$VERDICT_STATE — clean+isolated; proceeding to subagent dispatch."
+fi
+```
+
+Only on a green (`isolated`, exit 0) verdict — or a legitimate resume where
+`RESUME_ROW != 1` (the gate is skipped, Rows 2/3/4/5 already bypass Step 5
+via their Step 4 branches) — does control proceed to build and send the
+dispatch prompt below.
+
+### Step 5.1: Build the dispatch prompt
 
 Build the dispatch prompt (preamble first, variable tail last for cache
 friendliness):
@@ -878,6 +1005,15 @@ halt states + 3 success states (`green`, `already_shipped`,
 halt (Step 7.4 C4) → **13 total end-states**. Add any new halt with: (a) a
 journal entry in the appropriate Step, (b) a telemetry write before exit,
 (c) a row in SKILL.md's halt-taxonomy table.
+
+| End-state | Halt marker | When |
+|-----------|-------------|------|
+| `halted_at_investigate_not_isolated` | `[investigate-not-isolated]` | T000033 — Step 5.0 isolation gate: checkout not clean+isolated (verdict `dirty`/`not_isolated`/`not_a_repo`) OR the worktree helper is unreachable after both probes. Pre-dispatch halt; the source-writing /investigate subagent is provably NOT dispatched. |
+
+(The pre-existing inconsistent count strings in this file and SKILL.md —
+"9-state", "13-state", "10+2", "14 named", "13-total" — are deliberately
+NOT reconciled here; that is tracked as a separate cleanup. This row is
+purely additive.)
 
 ## Resilience contract
 
