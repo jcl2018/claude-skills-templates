@@ -24,8 +24,6 @@ skills (/CJ_scaffold-work-item, /CJ_implement-from-spec, /CJ_qa-work-item), and
 standalone utilities (/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix).
 /CJ_goal_todo_fix bridges TODOS.md rows to the shipping pipeline in one
 keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
-Legacy aliases /CJ_run and /CJ_goal remain through v4.x (deprecation banner + delegation;
-removed in v5.0.0).
 
 ## CI/CD merge convention
 

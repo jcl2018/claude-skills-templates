@@ -22,6 +22,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - **GATE #2 helper's three pre-merge defects (caught at `/ship` Step 11 Codex structured review, fixed before merge)** — (1) flag semantics were ambiguously fused; now split into `--handoff` (handoff signal) and `--auto-merge-small-diffs` (auto-merge opt-in). (2) Gate predicate was checking pipeline-internal state instead of the orchestrator's `PIPELINE_END_STATE`; now persists `PIPELINE_END_STATE=green` via `write_state()` so Step 4.5 reads exactly the canonical value. (3) `scripts/test.sh`'s new test block was clobbering the suite-level EXIT trap (silently leaving the checkout dirty between runs); now composes via `_OLD_EXIT_TRAP=$(trap -p EXIT | sed -E "s/^trap -- '(.*)' EXIT$/\1/")` + `trap "${_OLD_EXIT_TRAP}; rm -rf \"\$CJGA_FIX_DIR\"" EXIT` so both the suite's restoration logic and the new fixture cleanup fire.
+## v5.0.0 - 2026-05-19
+
+### Removed (BREAKING)
+
+- **`/CJ_run` and `/CJ_goal` deprecated aliases removed.** Both skills printed a one-line deprecation banner and delegated to their canonical replacements from v4.0.0 (released 2025-10) through v4.6.15 — a ~7 month grace window. Operators must now use the canonical names directly:
+  - `/CJ_run` → `/CJ_goal_run` (full design-doc → shipped pipeline)
+  - `/CJ_goal` → `/CJ_goal_todo_fix` (TODOS.md drain to PR)
+- Operators who still type `/CJ_run` or `/CJ_goal` after `git pull` + `./scripts/skills-deploy install` will get a "command not found" error from Claude Code (skill directories `~/.claude/skills/CJ_run/` and `~/.claude/skills/CJ_goal/` no longer exist).
+- Surfaces touched (Approach A minimal cut, 9 surfaces + 1 follow-up): `skills/CJ_run/` (deleted), `skills/CJ_goal/` (deleted), `skills-catalog.json` (2 entries removed via jq), `rules/skill-routing.md` (legacy-aliases block dropped), `README.md` (regenerated — 2 table rows gone), `tests/eval/CJ_goal/` → `tests/eval/CJ_goal_todo_fix/` (git mv + ~25 inline reference rewrites across 7 fixture dirs), `CLAUDE.md` (legacy-aliases line removed under Skill routing), `VERSION` (4.6.15 → 5.0.0), `CHANGELOG.md` (this entry). One follow-up TODO row appended for post-v5.0.0 telemetry fallback-read cleanup (~20 LOC across 4 files — cosmetic, no live consumers post-removal).
 
 ## [4.6.15] - 2026-05-19
 

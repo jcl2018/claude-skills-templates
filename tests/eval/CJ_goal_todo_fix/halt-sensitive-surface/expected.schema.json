@@ -1,18 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "halt-body-too-vague expected output",
-  "description": "Asserts that /CJ_goal halts a TODO whose body is under 50 chars at preflight.",
+  "title": "halt-sensitive-surface expected output",
+  "description": "Asserts that /CJ_goal_todo_fix halts a sensitive-surface TODO with halted_at_sensitive_surface_user_declined.",
   "type": "object",
   "required": ["halt_class", "halt_reason_contains"],
   "additionalProperties": true,
   "properties": {
     "halt_class": {
       "type": "string",
-      "const": "halted_at_preflight"
+      "const": "halted_at_sensitive_surface_user_declined"
     },
     "halt_reason_contains": {
       "type": "string",
-      "pattern": "vague|body|50"
+      "pattern": "sensitive|catalog"
     }
   }
 }
