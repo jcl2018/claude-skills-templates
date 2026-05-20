@@ -249,6 +249,23 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 <!-- source-quote: "The description is critical for skill selection: Claude uses it to choose the right Skill from potentially 100+ available Skills." -->
 <!-- impr-sig=432d0480aa0d58e5 impr-conf=8/10 -->
 
+### Post-v5.0.0: rip out legacy telemetry fallback-reads (P3, S)
+
+Now that `/CJ_run` and `/CJ_goal` are deleted (v5.0.0, T000034, this PR), the
+legacy telemetry fallback-read paths (`CJ_run.jsonl` / `CJ_goal.jsonl`) in the
+canonical-name skills have no live consumers. Cosmetic-only cleanup — ~20 LOC
+across 4 files:
+
+- `skills/CJ_goal_run/SKILL.md` (lines 146, 164, 267)
+- `skills/CJ_goal_run/run.md` (lines 1434-1436)
+- `skills/CJ_goal_todo_fix/SKILL.md` (line 249)
+- `skills/CJ_goal_todo_fix/scripts/todo_fix.sh` (lines 40, 45)
+
+No behavior change post-removal; the historical jsonl files on operator
+machines under `~/.gstack/analytics/` are individual operator state, not
+workbench artifacts. Safe to remove the fallback-read branches; the
+canonical-name path is the only live one.
+
 ## Deferred work
 
 ### Local: resync `~/.claude/` deployed state on this machine (P4, S) — OPERATOR-MANUAL, not automation-eligible
