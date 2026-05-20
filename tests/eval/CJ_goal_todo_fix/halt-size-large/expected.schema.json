@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "halt-size-large expected output",
-  "description": "Asserts that /CJ_goal halts a size-L TODO at preflight with a reason mentioning size or L.",
+  "description": "Asserts that /CJ_goal_todo_fix halts a size-L TODO at preflight with a reason mentioning size or L.",
   "type": "object",
   "required": ["halt_class", "halt_reason_contains"],
   "additionalProperties": true,

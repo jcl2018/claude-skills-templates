@@ -1,6 +1,6 @@
-Run `/CJ_goal` (no args) inside the fixture working directory. The fixture's `TODOS.md` contains exactly one active TODO heading sized `L`. The /CJ_goal pre-flight gates refuse size in {L, XL} (per the source design's priority/size cap rule — size is the load-bearing risk control).
+Run `/CJ_goal_todo_fix` (no args) inside the fixture working directory. The fixture's `TODOS.md` contains exactly one active TODO heading sized `L`. The /CJ_goal_todo_fix pre-flight gates refuse size in {L, XL} (per the source design's priority/size cap rule — size is the load-bearing risk control).
 
-Determine which halt class /CJ_goal emits and report it as a JSON object with this exact shape:
+Determine which halt class /CJ_goal_todo_fix emits and report it as a JSON object with this exact shape:
 
 ```json
 {

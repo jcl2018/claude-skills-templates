@@ -9,4 +9,4 @@
 ### Some deferred thing (P3, S)
 
 This is in the Deferred section so /CJ_suggest excludes it. The Active set is
-empty, so /CJ_goal no-args mode hits halted_at_resolve.
+empty, so /CJ_goal_todo_fix no-args mode hits halted_at_resolve.

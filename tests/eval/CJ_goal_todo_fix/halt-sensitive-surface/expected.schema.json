@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "halt-sensitive-surface expected output",
-  "description": "Asserts that /CJ_goal halts a sensitive-surface TODO with halted_at_sensitive_surface_user_declined.",
+  "description": "Asserts that /CJ_goal_todo_fix halts a sensitive-surface TODO with halted_at_sensitive_surface_user_declined.",
   "type": "object",
   "required": ["halt_class", "halt_reason_contains"],
   "additionalProperties": true,
