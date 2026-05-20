@@ -90,15 +90,38 @@ remaining positional arg(s) are passed through unchanged.
 ```bash
 # Phase 5 flag parsing: --no-drain skips Phase 5 entirely.
 # Default: NO_DRAIN_FLAG=0 (Phase 5 runs as designed).
+#
+# Handoff flags (F000026 / S000056 / /CJ_goal_auto integration):
+# Two SEPARATE flags with distinct semantics:
+#   --handoff               -> HANDOFF_FLAG=1            (signals "called via /CJ_goal_auto")
+#   --auto-merge-small-diffs -> AUTO_MERGE_SMALL_DIFFS=1 (operator opted into auto-merge)
+#
+# Default (legacy direct /CJ_goal_run, neither flag): Step 4.5 is a no-op;
+# /ship creates the PR and Phase 4 /land-and-deploy --suppress-readiness-gate
+# runs as usual. Behavior is UNCHANGED from pre-F000026.
+#
+# /CJ_goal_auto default mode (--handoff alone, NO --auto-merge-small-diffs):
+# Step 4.5 HALTS after /ship — the PR is review-ready, operator merges
+# manually via `gh pr diff` / `gh pr merge`. This is the "exactly one
+# mandatory human touchpoint" promised by the /CJ_goal_auto design.
+#
+# /CJ_goal_auto auto-merge mode (BOTH --handoff AND --auto-merge-small-diffs):
+# Step 4.5 runs scripts/cj-handoff-gate.sh. Exit 0 -> proceed to Phase 4
+# (auto-merge); non-zero -> halt for human review (PR exists; operator merges
+# manually).
 NO_DRAIN_FLAG=0
+HANDOFF_FLAG=0
+AUTO_MERGE_SMALL_DIFFS=0
 _FILTERED_ARGS=()
 for _A in "$@"; do
   case "$_A" in
     --no-drain) NO_DRAIN_FLAG=1 ;;
+    --handoff) HANDOFF_FLAG=1 ;;
+    --auto-merge-small-diffs) AUTO_MERGE_SMALL_DIFFS=1 ;;
     *) _FILTERED_ARGS+=("$_A") ;;
   esac
 done
-# Re-bind positional args to the filtered list (drops --no-drain if present).
+# Re-bind positional args to the filtered list (drops --no-drain/--handoff/--auto-merge-small-diffs if present).
 set -- "${_FILTERED_ARGS[@]}"
 
 ARG="${1:-}"
@@ -121,6 +144,8 @@ else
 fi
 echo "INPUT_MODE: $INPUT_MODE"
 echo "NO_DRAIN_FLAG: $NO_DRAIN_FLAG"
+echo "HANDOFF_FLAG: $HANDOFF_FLAG"
+echo "AUTO_MERGE_SMALL_DIFFS: $AUTO_MERGE_SMALL_DIFFS"
 ```
 
 ### Step 1.0.g: Branch(g) — no-arg branch scan (S000038, T000026)
@@ -490,6 +515,9 @@ CHILDREN_DONE=$CHILDREN_DONE
 CHILDREN_FAILED="$CHILDREN_FAILED"
 CHILD_PR_URLS="$CHILD_PR_URLS"
 NO_DRAIN_FLAG=${NO_DRAIN_FLAG:-0}
+HANDOFF_FLAG=${HANDOFF_FLAG:-0}
+AUTO_MERGE_SMALL_DIFFS=${AUTO_MERGE_SMALL_DIFFS:-0}
+PIPELINE_END_STATE="${PIPELINE_END_STATE:-}"
 NEW_TODOS_COUNT=${NEW_TODOS_COUNT:-0}
 DRAINED_COUNT=${DRAINED_COUNT:-0}
 DRAINED_PR_URLS="$DRAINED_PR_URLS"
@@ -625,6 +653,10 @@ if [ "$CHILD_TRACKERS" -ge 1 ]; then
 else
   MULTI_STORY=0
 fi
+# Persist PIPELINE_END_STATE so Step 4.5's gate predicate (Defect 2) can read it
+# across bash-call boundaries via source $STATE_FILE.
+PIPELINE_END_STATE=green
+write_state
 ```
 
 If `MULTI_STORY=0`: store `WORK_ITEM_DIR`; continue to Step 4.
@@ -857,7 +889,109 @@ PR_URL=$(gh pr list --head "$(git branch --show-current)" --json url -q '.[0].ur
 
 ### Branch (a): /ship green
 
-PR created, `$PR_URL` captured. Continue to Step 5.
+PR created, `$PR_URL` captured. Continue to Step 4.5 (handoff gate; semantics depend on flag combination) → Step 5.
+
+### Step 4.5: GATE #2 — scripts/cj-handoff-gate.sh (handoff-aware)
+
+Three-way branch on the `(HANDOFF_FLAG, AUTO_MERGE_SMALL_DIFFS)` combination:
+
+1. `HANDOFF_FLAG=0` (legacy direct `/CJ_goal_run`, no `--handoff`): **no-op**,
+   fall through to Step 5 with the normal merge flow. Behavior UNCHANGED from
+   pre-F000026. `--auto-merge-small-diffs` alone (without `--handoff`) is also
+   treated as legacy mode and falls through — the flag pair is only meaningful
+   when invoked via `/CJ_goal_auto`, which always passes `--handoff` first.
+
+2. `HANDOFF_FLAG=1` AND `AUTO_MERGE_SMALL_DIFFS=1` (`/CJ_goal_auto
+   --auto-merge-small-diffs`): run `scripts/cj-handoff-gate.sh`. Exit 0 →
+   proceed to Step 5 (auto-merge); non-zero → halt for human review.
+
+3. `HANDOFF_FLAG=1` AND `AUTO_MERGE_SMALL_DIFFS=0` (`/CJ_goal_auto` default
+   mode): **HALT** — do NOT proceed to Step 5. The PR is review-ready;
+   operator merges manually via `gh pr diff` / `gh pr merge`. This is the
+   "exactly one mandatory human touchpoint in v1" promised by the
+   /CJ_goal_auto design.
+
+The sentinel line `CJ_GOAL_AUTO_HANDOFF_SENTINEL=v1` below is intentionally
+co-located with the gate invocation that follows — `/CJ_goal_auto`'s Stage 0
+capability check greps it, and `scripts/test.sh` test 9 asserts the line-distance ≤20.
+
+```bash
+if [ "$HANDOFF_FLAG" = "1" ] && [ "$AUTO_MERGE_SMALL_DIFFS" = "0" ]; then
+  # /CJ_goal_auto default human-gated mode: halt after /ship.
+  source "$STATE_FILE"
+  cat >&2 <<EOF
+
+[stage4.5-handoff-default-halt]
+next_action=Default /CJ_goal_auto mode: PR is created and review-ready at $PR_URL. Run \`gh pr diff\` and merge manually. To auto-merge small/safe diffs, pass \`--auto-merge-small-diffs\`.
+resume_cmd=gh pr diff $PR_NUM  # then: gh pr merge $PR_NUM --squash --delete-branch
+pr_url=$PR_URL
+EOF
+  END_STATE="halted_at_handoff"
+  write_state
+  # Flow to Step 6 — do NOT proceed to Step 5 (/land-and-deploy).
+elif [ "$HANDOFF_FLAG" = "1" ] && [ "$AUTO_MERGE_SMALL_DIFFS" = "1" ]; then
+  # /CJ_goal_auto --auto-merge-small-diffs: run the gate helper.
+  source "$STATE_FILE"
+  _REPO_ROOT=$(git rev-parse --show-toplevel)
+  _GATE_HELPER="$_REPO_ROOT/scripts/cj-handoff-gate.sh"
+  [ -x "$_GATE_HELPER" ] || _GATE_HELPER="$HOME/.claude/scripts/cj-handoff-gate.sh"
+
+  if [ ! -x "$_GATE_HELPER" ]; then
+    echo "[gate2-helper-missing] scripts/cj-handoff-gate.sh not found or not executable." >&2
+    END_STATE="halted_at_pipeline"
+    write_state
+    # Flow to Step 6 (finalize)
+  else
+    # Write Phase-2 markers file (read by helper). PIPELINE_END_STATE is
+    # persisted across bash calls via write_state (Defect 2 fix); the
+    # granular SMOKE/E2E/PHASE2_GATES markers are intentionally omitted
+    # from the predicate — PIPELINE_END_STATE=green is already a strict
+    # superset (CJ_personal-pipeline only returns green when all phases
+    # passed). Helper still reads the file shape it expects; the granular
+    # keys are emitted as `unknown` so the helper's parser sees them but
+    # the gate predicate keys on PIPELINE_END_STATE.
+    _MARKERS_DIR="$_REPO_ROOT/.gstack"
+    mkdir -p "$_MARKERS_DIR"
+    _MARKERS_FILE="$_MARKERS_DIR/phase2-markers.txt"
+    {
+      echo "PIPELINE_END_STATE=${PIPELINE_END_STATE:-unknown}"
+      echo "SMOKE=unknown"
+      echo "E2E=unknown"
+      echo "PHASE2_GATES=unknown"
+    } > "$_MARKERS_FILE"
+
+    # CJ_GOAL_AUTO_HANDOFF_SENTINEL=v1 — co-located with the gate invocation
+    # below for the Stage 0 capability self-check (see scripts/test.sh test 9).
+    _GATE_OUT=$("$_GATE_HELPER" --markers-file "$_MARKERS_FILE" 2>&1)
+    _GATE_RC=$?
+
+    # Surface the KV stdout for audit (CJ_goal_auto's Stage 3 greps for these).
+    echo "$_GATE_OUT"
+
+    if [ "$_GATE_RC" != "0" ]; then
+      # Halt: structured stop block. The helper already wrote the `[gate2-*]`
+      # marker to stderr (the orchestrator-model sees it in $_GATE_OUT via 2>&1).
+      # If the failure cited PIPELINE_END_STATE, name it directly.
+      cat >&2 <<EOF
+
+[stage4.5-gate2-halt]
+next_action=inspect the PR; merge manually if good (gate predicate keys on PIPELINE_END_STATE=green; see helper output above for which marker tripped)
+resume_cmd=gh pr diff $PR_NUM  # then: gh pr merge $PR_NUM --squash --delete-branch
+pr_url=$PR_URL
+gate_output: see KV lines printed above
+EOF
+      END_STATE="halted_at_pipeline"
+      write_state
+      # Flow to Step 6 — do NOT proceed to Step 5 (/land-and-deploy).
+    else
+      [ "${QUIET:-0}" != "1" ] && echo "[stage4.5] gate green — proceeding to /land-and-deploy" >&2
+      # END_STATE stays unset (Step 5 will set it); fall through to Step 5.
+    fi
+  fi
+fi
+```
+
+Continue to Step 5 (skipped when `END_STATE` was just set to `halted_at_pipeline` or `halted_at_handoff`).
 
 ### Branch (b): /ship halted or aborted
 
