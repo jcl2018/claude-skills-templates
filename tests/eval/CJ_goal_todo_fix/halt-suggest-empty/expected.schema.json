@@ -1,18 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "halt-design-keyword expected output",
-  "description": "Asserts that /CJ_goal halts a TODO whose body contains a design-needed keyword.",
+  "title": "halt-suggest-empty expected output",
+  "description": "Asserts that /CJ_goal_todo_fix halts at resolve when /CJ_suggest returns no actionable items.",
   "type": "object",
   "required": ["halt_class", "halt_reason_contains"],
   "additionalProperties": true,
   "properties": {
     "halt_class": {
       "type": "string",
-      "const": "halted_at_preflight"
+      "const": "halted_at_resolve"
     },
     "halt_reason_contains": {
       "type": "string",
-      "pattern": "design|investigate|spike|unclear|figure out|TBD"
+      "pattern": "actionable|resolve|suggest|empty"
     }
   }
 }

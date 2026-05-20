@@ -238,42 +238,6 @@
     "status": "active"
   },
   {
-    "name": "CJ_run",
-    "version": "4.0.0",
-    "description": "DEPRECATED ALIAS — renamed to /CJ_goal_run in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_run with the same args. Will be removed in v5.0.0.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_run"
-      ],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/CJ_run/SKILL.md"
-    ],
-    "templates": [],
-    "status": "experimental"
-  },
-  {
-    "name": "CJ_goal",
-    "version": "4.0.0",
-    "description": "DEPRECATED ALIAS — renamed to /CJ_goal_todo_fix in v4.0.0. This thin alias prints a one-line deprecation banner then delegates to /CJ_goal_todo_fix with the same args. Will be removed in v5.0.0.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_todo_fix"
-      ],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/CJ_goal/SKILL.md"
-    ],
-    "templates": [],
-    "status": "experimental"
-  },
-  {
     "name": "CJ_improve-queue",
     "version": "0.2.0",
     "description": "Workbench self-improvement skill. Three modes: (1) evaluate <url> — fetch an Anthropic best-practices article, classify pattern fit against existing workbench skills via subagent reasoning, append a draft TODOS.md row if novel/conflict. (2) audit — offline repo self-scan for stale skills + missing frontmatter; emits draft rows directly. (3) research <topic> — orchestrator-driven WebSearch + per-result evaluate, with privacy gate. All rows land with <!--impr-draft--> markers; /CJ_suggest skips them until promoted. Workbench-only (macOS); domain allowlist + HTML-comment-wrap defense; mkdir-based write lock; atomic mv; backup rotation.",
