@@ -2,6 +2,12 @@
 
 ## Active work
 
+### First real `/CJ_goal_auto --auto-merge-small-diffs` end-to-end dogfood (P2, S)
+Documented v1.0 sunset-trigger precondition before trusting `--handoff` unattended (F000026/S000056 SPEC + DESIGN). v5.0.1 shipped + dry-run smoke-tested green (classifier verdict + Stage 0 worktree/sentinel/version-queue all verified), but Stages 1, 1.5, 2 chained on a REAL change are untested end-to-end. Until one clean auto-merge happens, the gate helper + post-`/ship` merge-gate path are "fully wired, plausibly correct, not battle-tested." The first 5 auto-merges fire the every-run retro AUQ by design so the user can build trust safely.
+**Route:** fresh session → pick a P3/P4 leaf-skill tweak from TODOS.md → `/CJ_goal_auto --dry-run "<idea>"` first to confirm `small-unambiguous` verdict → if green, `/CJ_goal_auto --auto-merge-small-diffs "<idea>"` end-to-end → watch retro AUQ fire on completion → record the receipt.
+**Success criterion:** one auto-merged PR lands without intervention beyond GATE #1 + the retro AUQ; `~/.gstack/analytics/CJ_goal_auto.jsonl` shows the receipt with pinned BASE, denylist=clean, gate=auto-approved.
+**Reference:** PR #166 (v5.0.1); F000026/S000056; design doc at `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-claude-flamboyant-johnson-c3d0e5-design-20260517-125333.md` ("Dogfood: one real small item end-to-end" + the every-5th-retro safety valve).
+
 ### Wire `--assert-isolated` into `/CJ_goal_run` + `/CJ_goal_todo_fix` dispatch boundaries (P3, S)
 Deferred family-scope follow-up from **T000033** (v-TBD). T000033 added the read-only `--assert-isolated` verdict mode to `scripts/cj-worktree-init.sh` and wired it as an enforced isolation gate (`Step 5.0`) before `/CJ_goal_investigate`'s source-writing `/investigate` subagent dispatch. The helper mode is shared by all three `CJ_goal_*` orchestrators, so the same silent-in-place-source-write class (D000024) can be closed for `/CJ_goal_run` + `/CJ_goal_todo_fix` with a ~3-line call each:
 - Add an isolation-gate block before each orchestrator's source-writing subagent dispatch boundary, re-resolving the helper via the 2-level probe (repo-local first, then manifest `.source`), exact argv `"$_HELPER" --caller {run|todo} --assert-isolated` (forward `--no-worktree` iff the operator passed it; never `--dry-run`/`--quiet`/`--force-create`), helper-unreachable → HALT.
