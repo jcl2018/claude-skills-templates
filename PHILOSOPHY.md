@@ -49,6 +49,270 @@ The target user is a solo developer using Claude Code who wants lightweight life
 - `skills-catalog.json` tracks all skill versions and template ownership
 - Collection version bumps on every ship
 
+## The CJ_ skill family — workflow map
+
+The CJ_ family is the workbench's user-facing pipeline. Top-level orchestrators take different inputs (idea, design doc, defect, TODO row) and converge on the same downstream chain (`/CJ_personal-pipeline` → `/ship` → `/land-and-deploy`). Internal phase-step skills are called transitively by orchestrators — route to the top-level ones.
+
+### Decision tree: which CJ_ skill to call?
+
+```
+START: What's your input?
+
+  ┌─ Just a one-liner idea? ─────► /CJ_goal_auto "<idea>"
+  │  (small, unambiguous)            ├─ --auto-merge-small-diffs  (opt-in auto-merge)
+  │                                  ├─ --dry-run                 (zero-write preview)
+  │                                  └─ --audit                   (last 10 receipts)
+  │
+  ├─ Have an approved design doc? ─► /CJ_goal_run <path/to/design-doc.md>
+  │  (from /office-hours, in .gstack/)
+  │
+  ├─ Mid-work-item, resume? ──────► /CJ_goal_run                  (no args)
+  │  ("pick up where I left off")    auto-scans current branch
+  │
+  ├─ Resume specific work-item? ──► /CJ_goal_run <work-item-dir>
+  │
+  ├─ Defect to root-cause + ship? ► /CJ_goal_investigate <D-id | fragment>
+  │  (Iron Law: no fix without RCA)
+  │
+  ├─ Drain TODOs.md? ─────────────► /CJ_goal_todo_fix [<T-id> | "<frag>"]
+  │  ├─ Auto-drain:                  /CJ_goal_todo_fix --max-drain 3
+  │  ├─ Cron-friendly:               /CJ_goal_todo_fix --quiet
+  │  └─ Continuous loop:             /loop /CJ_goal_todo_fix
+  │
+  ├─ "What should I work on?" ────► /CJ_suggest
+  │  (top-5 from TODOS + trackers)   ├─ --include-internal
+  │                                  ├─ --for-skill <name>
+  │                                  └─ --limit N
+  │
+  ├─ "Is my ~/.claude/ healthy?" ─► /CJ_system-health [--quick]
+  │  (dependency graph + usage)
+  │
+  └─ Found a Claude best-practice ► /CJ_improve-queue evaluate <url>
+     URL? Audit the repo?            ├─ /CJ_improve-queue audit
+                                     └─ /CJ_improve-queue research <topic>
+```
+
+### Per-skill pipelines (what each one actually does)
+
+**`/CJ_goal_auto "<one-liner>"`** — full one-liner-to-deployed:
+
+```
+[Stage 0]    auto-worktree + version-queue check + --handoff capability sentinel
+     │
+     ▼
+[Stage 0.5]  classifier: small-unambiguous | needs-human-taste | too-big
+     │       (halts non-small)
+     ▼
+[Stage 1]    workbench-owned design-doc generator → ~/.gstack/projects/<slug>/...
+     │
+     ▼
+[Stage 1.5]  fail-closed doc gate (file exists + APPROVED + required sections)
+     │
+     ▼
+[Stage 2]    inline /CJ_goal_run <doc> --handoff --no-drain
+     │       ├─ default: GATE #2 = human /ship AUQ
+     │       └─ --auto-merge-small-diffs: GATE #2 = scripts/cj-handoff-gate.sh
+     │         (frozen merge-base, denylist, ≤5 files, ≤120 lines, Phase-2 green)
+     ▼
+[Stage 3]    audit receipt → ~/.gstack/analytics/CJ_goal_auto.jsonl
+             + retro AUQ (first 5 auto-merges, then every 5th)
+```
+
+**`/CJ_goal_run <design-doc | work-item-dir>`** — the canonical full pipeline:
+
+```
+[Pre-flight]   validate APPROVED doc path; auto-worktree if on main with args
+     │
+     ▼
+[Phase 1: /autoplan]   CEO + design + eng + DX reviews
+     │                 → GATE #1 = autoplan native final-approval AUQ (always human)
+     ▼
+[Phase 2: /CJ_personal-pipeline]   Agent subagent, --suppress-final-gate
+     │                             scaffold → implement → QA
+     ▼
+[Phase 3: /ship]   diff review + VERSION bump + PR
+     │             → GATE #2 = /ship diff-review AUQ (always human)
+     ▼
+[Phase 4: /land-and-deploy --suppress-readiness-gate]   merge + CI + canary
+     │
+     ▼
+[Phase 5: TODO drain]   diff TODOS.md for added rows; AUQ "drain N?" → loop
+     │
+     ▼
+[Telemetry]   ~/.gstack/analytics/CJ_goal_run.jsonl + sunset trip-wire
+```
+
+**`/CJ_goal_investigate <D-id | fragment>`** — defect to deployed fix, Iron-Law enforced:
+
+```
+[Resolve]     D-ID exact / fragment fuzzy / zero-match → .inbox/<slug>/DRAFT.md
+     │        (canonical D-ID minted ONLY after Iron-Law gate passes)
+     ▼
+[Preflight]   5-row idempotency table → R/F/P/M signals → resume row
+     │
+     ▼
+[Isolation]   T000033 isolation gate — halt if working tree dirty
+     │
+     ▼
+[/investigate]   Agent subagent, sentinel-wrapped JSON output
+     │           FIX_PLAN_BEGIN_JSON + DEBUG_REPORT_BEGIN_JSON
+     │           (Phase 4 writes fix DIRECTLY to source — no /CJ_implement-from-spec)
+     ▼
+[Iron-Law]   empty root_cause → halt; DONE_WITH_CONCERNS → halt
+     │       blast radius >5 files → halt pre-write
+     ▼
+[Write artifacts]   D000NNN_RCA.md + test-plan.md row
+     │
+     ▼
+[/CJ_qa-work-item <defect-dir>]
+     │
+     ▼
+[/ship]   GATE #2 = human diff-review AUQ
+     │
+     ▼
+[/land-and-deploy --suppress-readiness-gate]
+     │
+     ▼
+[Journal]   [investigate-shipped] D000NNN vX.Y.Z PR #NNN + telemetry
+```
+
+**`/CJ_goal_todo_fix [<T-id> | "<frag>"]`** — TODOS.md drain to merged PRs:
+
+```
+     ┌─ no args ─────────► drain mode  ──┐
+     └─ T-id / fragment ─► single mode ──┤
+                                          ▼
+[drain Phase 1]   /CJ_suggest --for-skill cj-goal --limit 2×max → ranked candidates
+     │            (--max-drain N caps; default 10)
+     ▼
+[drain Phase 2]   for each TODO: scripts/drain-one-todo.sh dispatch
+     │            ↓ shared lockfile, atomic
+     │            ↓ scripts/todo_fix.sh single-mode
+                                          │
+per-TODO chain (shared between drain + single):
+     ▼
+[Preflight gates]   body <50 chars / missing (P,S) / P1 / L|XL /
+     │              sensitive surface / design-needed keyword / idempotency hit
+     ▼
+[T-task scaffold]   TRACKER + test-plan
+     │
+     ▼
+[/CJ_personal-pipeline]   scaffold → impl → QA
+     │
+     ▼
+[/ship]   GATE #2 fires per TODO (NOT suppressed by --quiet — autonomy ceiling)
+     │
+     ▼
+[/land-and-deploy]
+     │
+     ▼
+[TODOS.md DONE-mark]   hash-verified strikethrough
+     │
+     ▼
+[Telemetry]   ~/.gstack/analytics/CJ_goal_todo_fix.jsonl
+              (+ session log if --quiet)
+```
+
+**`/CJ_suggest [--for-skill <name>] [--limit N] [--include-internal]`** — read-only backlog ranker:
+
+```
+[Read]     ./TODOS.md (auto-detect mode 1 "## Active work" vs mode 2 domain H2)
+     │     + ./work-items/**/*_TRACKER.md frontmatter
+     ▼
+[Score]    pri_w (P1=4..P4=1) + size_w (S=3, M=2, L=1)
+     │     + unblocked (+2) − recency (age_days / 14)
+     ▼
+[Filter]   exclude internal phase-step skills by default
+     │     (CJ_personal-{workflow,pipeline}, CJ_{scaffold,implement,qa}-*)
+     ▼
+[--for-skill predicate]   (v1: cj-goal only — preflight gates + heading gates)
+     │
+     ▼
+[Print top-N]   markdown table to stdout (default N=5)
+                (deterministic bash — no LLM, no subagent, no AUQ)
+```
+
+**`/CJ_system-health [--quick]`** — ~/.claude/ health dashboard:
+
+```
+[Step 1: Scan ~/.claude/]
+     │   • SKILL inventory (frontmatter, symlink targets, OK/broken)
+     │   • cross-references (grep 'skills/<name>')
+     │   • settings.json structural keys (no creds)
+     │   • rules/, templates/
+     ▼
+[Step 2: Graph analysis]
+     │   • adjacency list, in-degree per skill
+     │   • orphans (in-degree 0), hubs (>5 = HIGH FRAGILITY)
+     │   • broken symlinks, dead references, circular deps
+     ▼
+[Step 3: Filesystem health]
+     │   • disk usage per subdir
+     │   • history.jsonl size, stale sessions (>24h)
+     │   • temp files (.tmp/.bak/.pending-*), empty dirs
+     ▼
+[Step 4: Waza integration]   (optional; skipped on --quick or missing)
+     │
+     ▼
+[Report]   composite score + trend tracking
+           + usage analytics overlay from skill-usage.jsonl
+```
+
+**`/CJ_improve-queue {evaluate <url> | audit | research <topic>}`** — workbench self-improvement, trust-split:
+
+```
+Trust-split architecture (load-bearing):
+
+  bash envelope   ←──→   orchestrator   ←──→   Agent subagent (fresh context)
+  (improve_       (this skill)                (general-purpose,
+   queue.sh)                                   WebFetch + JSON verdict)
+  — deterministic                              — match | conflict | novel |
+    I/O, allowlist,                              reject | fetch_failed
+    locking, atomic write
+
+evaluate <url>:
+  [1] preflight: Darwin gate, TODOS.md clean, allowlist
+   ▼  (docs.anthropic.com, anthropic.com, claude.com, github.com/anthropics/*)
+  [2] HANDOFF JSON: canonical_url + in-scope skills
+   ▼
+  [3] subagent WebFetches + reads SKILL.md → JSON verdict
+   ▼
+  [4] apply: confidence <7 → REVIEW: prefix; novel/conflict → append
+      TODO row with <!--impr-draft--> marker (filtered from /CJ_suggest)
+
+audit:     offline self-scan — stale skills (no usage 30d) + missing frontmatter
+           → synthetic verdicts → same apply
+
+research <topic>:
+  [R1] privacy gate AUQ → [R2] WebSearch ≤3, allowlist filter →
+  [R3] per-result: compose Phase 1 evaluate
+```
+
+### Internal phase-step skills — called transitively, do not route directly
+
+| Skill | Called by | Job |
+|---|---|---|
+| `/CJ_personal-pipeline` | `/CJ_goal_run` Phase 2; `/CJ_goal_todo_fix` per-TODO | Chains scaffold → impl → QA in a fresh-context Agent subagent |
+| `/CJ_scaffold-work-item` | `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree |
+| `/CJ_implement-from-spec` | `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write |
+| `/CJ_qa-work-item` | `/CJ_personal-pipeline`; `/CJ_goal_investigate` | Runs TEST-SPEC rows (smoke + E2E subagent per row) |
+| `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against manifest |
+
+### Quick rule of thumb
+
+| Your situation | Call |
+|---|---|
+| Vague idea, want auto-ship | `/CJ_goal_auto "<idea>"` |
+| Have an approved design doc | `/CJ_goal_run <doc>` |
+| Bug to ship a fix for | `/CJ_goal_investigate <D-id>` |
+| Backlog has shippable rows | `/CJ_goal_todo_fix` (or `--max-drain N`) |
+| Lost track, what's next? | `/CJ_suggest` |
+| Resume current branch | `/CJ_goal_run` (no args) |
+| Health check the workbench | `/CJ_system-health` |
+| Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` |
+
+The four `/CJ_goal_*` orchestrators all converge on the same downstream chain (`/CJ_personal-pipeline` → `/ship` → `/land-and-deploy`) — they differ in what they take as input (idea / doc / defect / TODO row). **GATE #1** (final approval before code is written) is always human across all four. **GATE #2** (post-implementation merge) is human-by-default; `/CJ_goal_auto --auto-merge-small-diffs` is the only path that delegates GATE #2 to a script (`scripts/cj-handoff-gate.sh`) with a strict denylist + size cap.
+
 ## How to extend without breaking its character
 
 **Adding a new work item type:** Add an entry to `artifact-manifests.json` with its required artifacts and template filenames. Create the tracker template (`tracker-{type}.md`) and any doc templates. Add the branch naming pattern to `rules/work-items.md`. The validation in `/docs check` will pick it up automatically via the manifest.
