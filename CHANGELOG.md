@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.2] - 2026-05-20
+
+### Added
+
+- **PHILOSOPHY.md — "The CJ_ skill family — workflow map" section** — Decision tree mapping inputs (one-liner idea / approved design doc / defect / TODO row / "what's next?" / health check / Claude best-practice URL) to the right top-level CJ_ skill, plus a compact ASCII pipeline diagram for each of the 7 non-internal skills (`/CJ_goal_auto`, `/CJ_goal_run`, `/CJ_goal_investigate`, `/CJ_goal_todo_fix`, `/CJ_suggest`, `/CJ_system-health`, `/CJ_improve-queue`) showing their internal phases (worktree setup, classifier, autoplan, /CJ_personal-pipeline subagent, /ship, /land-and-deploy, telemetry sinks) and gate placements (GATE #1 human-only, GATE #2 human-by-default with `--auto-merge-small-diffs` opt-in delegating to `scripts/cj-handoff-gate.sh`). Internal phase-step skills moved to a table (skill → called-by → job) so the routing rule "do not call directly" is structurally obvious. Closes the documentation gap where the family's input → pipeline → gate convergence was only described in scattered SKILL.md files. Slotted between "Key patterns and conventions" and "How to extend without breaking its character" — natural reading order: patterns → map of the family → how to add to it.
+
 ## [5.0.1] - 2026-05-20
 
 ### Added
