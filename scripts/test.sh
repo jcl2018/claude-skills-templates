@@ -1148,7 +1148,10 @@ CJGA_FIX_DIR=$(mktemp -d -t cjga-fix-XXXXX)
 # after the run. The trap-union pattern below preserves both behaviors.
 _OLD_EXIT_TRAP=$(trap -p EXIT | sed -E "s/^trap -- '(.*)' EXIT$/\\1/")
 if [ -n "$_OLD_EXIT_TRAP" ]; then
-  trap "${_OLD_EXIT_TRAP}; rm -rf \"\$CJGA_FIX_DIR\"" EXIT
+  # Single-quote the cleanup portion so $CJGA_FIX_DIR expands at signal time,
+  # not at trap-definition time (shellcheck SC2064). The previous-trap text is
+  # already a literal command string from `trap -p`, so it composes safely.
+  trap "${_OLD_EXIT_TRAP}; "'rm -rf "$CJGA_FIX_DIR"' EXIT
 else
   trap 'rm -rf "$CJGA_FIX_DIR"' EXIT
 fi
@@ -1404,6 +1407,7 @@ else
   # `"$_GATE_HELPER" --markers-file` is the load-bearing call site that
   # test 9 anchors to; comments / variable assignments are excluded so the
   # sentinel co-location metric tracks the real gate call.
+  # shellcheck disable=SC2016  # literal '$_GATE_HELPER' is a grep pattern, not a var to expand
   _GATE_LINE=$(grep -n '"\$_GATE_HELPER" --markers-file' "$_RUN_MD" | head -1 | cut -d: -f1)
   # Find the CLOSEST sentinel to the gate invocation. The sentinel may appear
   # in multiple places (e.g. prose anchor + inline comment); we want the one
