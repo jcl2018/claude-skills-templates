@@ -15,6 +15,7 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "fix TODO backlog continuously", "loop through TODOs", "auto-clear TODOs" -> /loop /CJ_goal_todo_fix
 - "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "check this Anthropic article", "add this pattern to TODOS" -> /CJ_improve-queue evaluate <url>
 - "investigate this defect", "debug this defect", "ship a fix for D000NNN", "root-cause and ship", "fix this bug end-to-end", "investigate to ship", "RCA and deploy" -> /CJ_goal_investigate <D-id|fragment>
+- "fire and forget small change", "one-liner to deployed", "auto-ship this small idea", "handoff this small change", "ship this small idea end-to-end" -> /CJ_goal_auto "<idea>"  (default human-gated at GATE #2; add --auto-merge-small-diffs for opt-in auto-merge; --dry-run for zero-write preview; --audit for read-only receipt history)
 
 Legacy aliases (v4.x grace window; removed in v5.0.0):
 - /CJ_run is a deprecated alias for /CJ_goal_run.

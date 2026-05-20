@@ -334,5 +334,34 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "CJ_goal_auto",
+    "version": "1.0.0",
+    "description": "Full-handoff one-liner-to-deployed orchestrator (v1.0, experimental). Takes a single one-line idea and runs Stage 0 (worktree + version-queue + --handoff capability sentinel grep) -> Stage 0.5 (small-unambiguous classifier; halts non-small) -> Stage 1 (workbench-owned design-doc generator) -> Stage 1.5 (fail-closed post-condition doc gate) -> Stage 2 (/CJ_goal_run <doc> --handoff --no-drain). GATE #1 (autoplan final-approval AUQ) always human; GATE #2 (post-/ship merge gate) delegated to scripts/cj-handoff-gate.sh -- frozen merge-base, denylist (rename/symlink-safe + test-surface), <=120 added lines, <=5 files, Phase-2 markers all-green -- exit 0 proceeds to /land-and-deploy --suppress-readiness-gate; non-zero halts for human review of the created PR. Three explicit shapes: '<idea>' (human-gated default), --auto-merge-small-diffs '<idea>' (opt-in auto-merge), --dry-run '<idea>' (zero-write preview). --handoff is deprecated alias. Stage 3 writes per-run audit receipt to ~/.gstack/analytics/CJ_goal_auto.jsonl; --audit/--list-handoffs prints the last 10. Every-run retro AUQ for first 5 auto-merges, then every-5th. Halt-on-red default with structured stop block. Workbench-only (macOS). v1.0 single user-story; multi-story/headless-office-hours/Approach C/Copilot bundle all deferred.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_goal_run"
+      ],
+      "tools": [
+        "bash",
+        "awk",
+        "grep",
+        "sed",
+        "jq",
+        "git",
+        "gh",
+        "find"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_goal_auto/SKILL.md",
+      "skills/CJ_goal_auto/auto.md",
+      "scripts/cj-handoff-gate.sh"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]
