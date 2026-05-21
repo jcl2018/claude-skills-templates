@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.4] - 2026-05-21
+
+### Added
+
+- **`/cj_goal_defect` skill — F000027 story 2 of 4 (experimental).** The `defect` verb of the CJ_goal two-verb refactor: a flat, defect-first orchestrator that turns a plain bug description (no pre-existing defect dir) into a root-caused, shipped fix. Flow: worktree (`cj-worktree-init.sh --caller defect`) → scaffold `.inbox/<slug>/DRAFT.md` → `/investigate` as an Agent subagent (sentinel-wrapped JSON; Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped) → on a populated root cause, write RCA + test-plan and promote the draft to a canonical `work-items/defects/.../D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes) → `/CJ_qa-work-item` → human-gated `/ship` (Gate #2) → `/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of `/CJ_goal_investigate` v1.1's flat pipeline, depth ≤ 2 (no subagent-spawns-subagent), consuming the S000057 `cj-goal-common.sh --mode defect` helper. Marked `experimental`; structural smoke (frontmatter, catalog↔fs, deploy-tail + Iron-Law wiring) is green — end-to-end dogfooding on a real bug is the remaining verification.
+
 ## [5.0.3] - 2026-05-21
 
 ### Added
