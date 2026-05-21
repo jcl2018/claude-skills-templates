@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# tests/cj-worktree-init.test.sh — 13-case test for scripts/cj-worktree-init.sh.
+# tests/cj-worktree-init.test.sh — test for scripts/cj-worktree-init.sh.
 #
 # Per F000025/S000054 design (Decision Audit Trail #10): replaces the "one grep
 # is theatrical" assertion with real behavior tests for the worktree helper.
 # Extended by T000033 with the 8 --assert-isolated verdict cases + two pipeline.md
 # static-grep regression assertions (Step 5 gate; --no-worktree marker-file wiring).
+# Extended by F000027/S000057 with the caller→prefix matrix block: asserts the two
+# NEW callers (feature→cj-feat, defect→cj-def) resolve + exit 0, AND that the three
+# existing callers (run→cj-run, todo→cj-todo, investigate→cj-inv) resolve unchanged
+# (non-regression — SPEC P1 #4).
 #
 # Mutating-mode cases (F000025):
 #   (1) on-main + clean → state=created (via --dry-run to avoid mutation)
@@ -22,6 +26,14 @@
 #   (e2) --no-worktree + dirty → dirty / ≠0 (hatch is NOT a bypass)
 #   (f)  not a repo → not_a_repo / ≠0
 #   (g)  detached HEAD on primary checkout → not_isolated / ≠0
+#
+# caller→prefix matrix (F000027/S000057; --dry-run, no fs mutation):
+#   (h1) --caller feature     → state=created, cj-feat-* branch  (NEW)
+#   (h2) --caller defect      → state=created, cj-def-*  branch  (NEW)
+#   (h3) --caller run         → state=created, cj-run-*  branch  (non-regression)
+#   (h4) --caller todo        → state=created, cj-todo-* branch  (non-regression)
+#   (h5) --caller investigate → state=created, cj-inv-*  branch  (non-regression)
+#   (h6) --caller bogus       → state=failed, exit 1            (validator still rejects unknown)
 #
 # Plus a static-grep regression assertion that pipeline.md Step 5 wires the
 # --assert-isolated gate AND the draft-aware resume_cmd (F000025's
@@ -317,6 +329,60 @@ SBXG=$(mk_sandbox)
   git checkout -q "$_HEAD_SHA" 2>/dev/null   # detach
   assert_verdict "Case (g)" "not_isolated" "nonzero" \
     bash "$HELPER" --caller investigate --assert-isolated
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ============================================================================
+# F000027 / S000057: caller→prefix matrix (--dry-run; no fs mutation)
+# ============================================================================
+#
+# Asserts the full --caller validator + prefix map in one sandbox:
+#   - the TWO NEW callers resolve to their new prefixes and exit 0 (SPEC P0 #1);
+#   - the THREE EXISTING callers resolve UNCHANGED (SPEC P1 #4 non-regression);
+#   - an unknown caller is still rejected (state=failed / exit 1) — the
+#     extension widened the allow-list, it did NOT open it.
+#
+# All resolution cases use --dry-run so the prefix is reported in the .branch
+# field of the emitted JSON without any `git worktree add`.
+
+# assert_caller_prefix <label> <caller> <expected_prefix>
+# Runs the helper --dry-run in the matrix sandbox, asserts state=created and the
+# branch matches ^<expected_prefix>-YYYYMMDD-HHMMSS-PID$.
+assert_caller_prefix() {
+  local label="$1" caller="$2" prefix="$3"
+  local out state branch
+  out=$(bash "$HELPER" --caller "$caller" --dry-run 2>&1) && : || :
+  state=$(echo "$out" | jq -r '.state' 2>/dev/null || echo "")
+  branch=$(echo "$out" | jq -r '.branch' 2>/dev/null || echo "")
+  if [ "$state" = "created" ] && echo "$branch" | grep -qE "^${prefix}-[0-9]{8}-[0-9]{6}-[0-9]+$"; then
+    ok "$label: --caller $caller → $prefix (branch=$branch)"
+  else
+    fail_test "$label: --caller $caller expected state=created with ${prefix}-* branch; got: $out"
+  fi
+}
+
+echo ""
+echo "Case (h): caller→prefix matrix (2 new callers + 3 existing non-regression + unknown reject)..."
+SBXH=$(mk_sandbox)
+trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" "${SBXB:-}" "${SBXC:-}" "${SBXD:-}" "${SBXE:-}" "${SBXG:-}" "${SBXH:-}"' EXIT
+(
+  cd "$SBXH"
+  # NEW callers (SPEC P0 #1)
+  assert_caller_prefix "Case (h1)" feature     cj-feat
+  assert_caller_prefix "Case (h2)" defect      cj-def
+  # EXISTING callers — must resolve unchanged (SPEC P1 #4 non-regression)
+  assert_caller_prefix "Case (h3)" run         cj-run
+  assert_caller_prefix "Case (h4)" todo        cj-todo
+  assert_caller_prefix "Case (h5)" investigate cj-inv
+
+  # Unknown caller still rejected: state=failed, exit 1.
+  OUT_BOGUS=$(bash "$HELPER" --caller bogus --dry-run 2>&1) && RC_BOGUS=0 || RC_BOGUS=$?
+  STATE_BOGUS=$(echo "$OUT_BOGUS" | jq -r '.state' 2>/dev/null || echo "")
+  if [ "$STATE_BOGUS" = "failed" ] && [ "$RC_BOGUS" -ne 0 ]; then
+    ok "Case (h6): --caller bogus → state=failed exit=$RC_BOGUS (validator still rejects unknown)"
+  else
+    fail_test "Case (h6): expected state=failed/exit≠0 for unknown caller; got state=$STATE_BOGUS rc=$RC_BOGUS out=$OUT_BOGUS"
+  fi
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
