@@ -327,5 +327,34 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "cj_goal_defect",
+    "version": "0.1.0",
+    "description": "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'.",
+    "source": "local",
+    "depends": {
+      "skills": [
+        "CJ_qa-work-item",
+        "CJ_personal-workflow"
+      ],
+      "tools": [
+        "bash",
+        "awk",
+        "grep",
+        "sed",
+        "jq",
+        "git",
+        "gh",
+        "find"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/cj_goal_defect/SKILL.md",
+      "skills/cj_goal_defect/pipeline.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]
