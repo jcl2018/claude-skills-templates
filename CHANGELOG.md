@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.3] - 2026-05-21
+
+### Added
+
+- **F000027 foundation — `/cj_goal_feature` + `/cj_goal_defect` groundwork (S000057).** First, foundational story of the CJ_goal two-verb refactor (a flat-over-leaf-skills redesign of the CJ_goal family; full design + GATE-#1 dual-model review history live in the F000027 work-item). Three shippable surfaces, none of which depend on the verb skills existing yet:
+  - `scripts/cj-worktree-init.sh` now accepts `--caller feature` (→ `cj-feat`) and `--caller defect` (→ `cj-def`). The prior validator rejected anything outside `run|investigate|todo`, which would have hard-blocked the new skills' worktree creation. Existing `run`/`investigate`/`todo` callers are byte-unchanged — non-regressive, proven by a new caller→prefix test matrix in `tests/cj-worktree-init.test.sh`.
+  - New `scripts/cj-goal-common.sh` — a deterministic, shellcheck-clean helper exposing the drift-prone common trio (worktree-init delegation, telemetry audit-receipt write, read-only fail-soft PR-existence check) behind `--phase`/`--mode` flags, so both verb skills can reuse one tested helper instead of duplicating LLM-followed prose.
+  - New `tests/cj-goal-feature-smoke.test.sh` — an early smoke harness that validates the feature-path shape before the verb skills land (defect-first sequencing otherwise leaves the feature tail unexercised until a later PR).
+  - The full F000027 work-item (4 child user-stories) is scaffolded; only S000057 is implemented in this release.
+
 ## [5.0.2] - 2026-05-20
 
 ### Added
