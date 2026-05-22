@@ -43,6 +43,16 @@ TOPIC="${ARGS[0]:-}"
 # resume state file). A positional arg is a fresh topic (or a verbatim resume).
 [ "${#ARGS[@]}" -le 1 ] || { echo "Error: exactly one quoted topic expected (got: ${ARGS[*]})"; exit 1; }
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$$
+# Persist the operator --no-worktree opt-out RUN_ID-scoped, in THIS block —
+# the only place NO_WORKTREE (set by the parser loop above) and RUN_ID (just
+# generated) are both live. Shell vars do NOT persist across bash tool calls
+# (CLAUDE.md), so Step 1.9's isolation gate cannot read $NO_WORKTREE; it
+# re-reads this marker via the model-carried RUN_ID (same persistence pattern
+# as TELEMETRY / RAW_DIR). Mirrors /cj_goal_defect Step 1 exactly.
+if [ "${NO_WORKTREE:-}" = "1" ]; then
+  mkdir -p "$HOME/.gstack/analytics/CJ_goal_feature-runs/$RUN_ID"
+  : > "$HOME/.gstack/analytics/CJ_goal_feature-runs/$RUN_ID/.operator-no-worktree"
+fi
 ```
 
 Initialize telemetry + raw-output paths:
@@ -169,6 +179,101 @@ fi
 
 After Step 1.5, `LAST_PHASE` is the validated resume point. The phase dispatch
 below skips only phases at or before a *validated* `LAST_PHASE`.
+
+## Step 1.9: Isolation gate (the worktree phase is MANDATORY — enforced before any source write)
+
+The silent build (Step 3) dispatches `/CJ_scaffold-work-item` +
+`/CJ_implement-from-spec` as subagents that **write to repo source** (a new
+work-item dir and code). Dispatching them from an un-isolated or dirty checkout
+means an in-place mutation of unrelated work — the D000024 bug class. The
+SKILL.md "Default-worktree" block is supposed to have already created (or
+detected) a `cj-feat-*` worktree; this gate **verifies** that invariant held and
+**refuses to proceed** otherwise.
+
+This is **not a judgment call.** There is no "feature branch on the primary
+checkout" shortcut — either the checkout is clean+isolated (a `cj-feat-*`
+worktree, a clean feature branch, or `--no-worktree` on a clean tree) or the run
+HALTs here. The gate is placed before office-hours (not just before the build)
+so an un-isolated run fails fast instead of after the interactive phase. It
+mirrors the proven `/cj_goal_defect` Step 5.0 gate.
+
+Run this bash block before office-hours. **Shell vars do NOT persist across bash
+tool calls** (only cwd does — see CLAUDE.md), so `$RUN_ID` / `$TELEMETRY` /
+`$TOPIC` are the same model-carried values from Step 1, and the helper path is
+re-resolved here. The gate calls the helper with `--assert-isolated` (a
+read-only verdict mode `cj-goal-common.sh` does not wrap):
+
+```bash
+# Re-resolve cj-worktree-init.sh: (1) repo-local first (workbench self-dev),
+# then (2) the deployed manifest .source path.
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_HELPER=""
+if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-worktree-init.sh" ]; then
+  _HELPER="$_REPO_ROOT/scripts/cj-worktree-init.sh"
+else
+  _SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+  if [ -n "$_SRC" ] && [ -x "$_SRC/scripts/cj-worktree-init.sh" ]; then
+    _HELPER="$_SRC/scripts/cj-worktree-init.sh"
+  fi
+fi
+
+RESUME_DIR="$_REPO_ROOT/.cj-goal-feature"
+mkdir -p "$RESUME_DIR" 2>/dev/null || true
+
+if [ -z "$_HELPER" ]; then
+  # Helper unreachable after BOTH probes. Immediately before a source-writing
+  # subagent dispatch, unreachable means HALT, not silent in-place. This is
+  # exactly the D000024 class the gate exists to close.
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [feature-not-isolated] worktree helper unreachable (repo-local + manifest .source both absent); cannot verify clean+isolated before the source-writing build. HALT (no silent in-place write).
+  next_action=Restore scripts/cj-worktree-init.sh (repo-local) or fix \$HOME/.claude/.skills-templates.json .source; then re-run.
+  resume_cmd=/cj_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=N/A
+EOF
+  echo "Why it stopped: the worktree-isolation helper is unreachable, so a clean+isolated checkout can't be verified before the build writes to source."
+  echo "State preserved: no work-item scaffolded; resume state under $RESUME_DIR."
+  echo "Next: /cj_goal_feature \"$TOPIC\""
+  jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_not_isolated" \
+    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+    >> "$TELEMETRY" 2>/dev/null || true
+  exit 1
+fi
+
+# Forward ONLY --no-worktree, and only if the operator passed it (re-read the
+# RUN_ID-scoped marker — $NO_WORKTREE does not persist across bash tool calls).
+# NEVER forward --dry-run (already exited at Step 1).
+if [ -f "$HOME/.gstack/analytics/CJ_goal_feature-runs/$RUN_ID/.operator-no-worktree" ]; then
+  VERDICT_JSON=$("$_HELPER" --caller feature --assert-isolated --no-worktree 2>&1) && _GRC=0 || _GRC=$?
+else
+  VERDICT_JSON=$("$_HELPER" --caller feature --assert-isolated 2>&1) && _GRC=0 || _GRC=$?
+fi
+VERDICT_STATE=$(echo "$VERDICT_JSON" | jq -r '.state' 2>/dev/null || echo "")
+
+if [ "$_GRC" -ne 0 ]; then
+  # Non-zero verdict: dirty / not_isolated / not_a_repo.
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [feature-not-isolated] isolation gate verdict=$VERDICT_STATE — checkout is not clean+isolated; refusing to run the source-writing build (D000024 class). The cj-feat-* worktree was not created (or was bypassed for a primary-checkout branch).
+  next_action=Run /cj_goal_feature from a clean main checkout (it auto-creates a cj-feat-* worktree), or from a clean feature branch / worktree; or pass --no-worktree on a clean checkout.
+  resume_cmd=/cj_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=N/A
+EOF
+  echo "Why it stopped: the checkout is not clean+isolated (verdict: $VERDICT_STATE), so the build would write on top of unrelated work. The mandatory cj-feat-* worktree was not in place."
+  echo "State preserved: no work-item scaffolded; resume state under $RESUME_DIR."
+  echo "Next: /cj_goal_feature \"$TOPIC\"  (from a clean main checkout — it creates the worktree automatically)"
+  jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_not_isolated" \
+    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+    >> "$TELEMETRY" 2>/dev/null || true
+  exit 1
+fi
+
+echo "Isolation gate: verdict=$VERDICT_STATE — clean+isolated; proceeding to office-hours + the silent build."
+```
+
+Only on a green (`isolated`, exit 0) verdict does control proceed to Step 2.
 
 ## Step 2: /office-hours (INLINE — the one interactive phase)
 
@@ -422,8 +527,8 @@ Telemetry:    $TELEMETRY
 Every exit path (success OR halt) writes a single telemetry line to
 `~/.gstack/analytics/CJ_goal_feature.jsonl`. Success states: `green_pr_opened`,
 `already_shipped`, `dry_run_preview`. Halt states (P1 #6):
-`halted_at_no_arg`, `halted_at_officehours`, `halted_at_scaffold`,
-`halted_at_impl`, `halted_at_qa`, `halted_at_ship`.
+`halted_at_no_arg`, `halted_at_not_isolated`, `halted_at_officehours`,
+`halted_at_scaffold`, `halted_at_impl`, `halted_at_qa`, `halted_at_ship`.
 
 Add any new halt with: (a) a journal / `.resume.log` entry in the appropriate
 Step, (b) a telemetry write before exit, (c) a row in SKILL.md's halt-taxonomy
