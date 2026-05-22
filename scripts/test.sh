@@ -1030,20 +1030,23 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   fi
 fi
 
-# Regression test (F000025/S000054): /CJ_goal_run + /CJ_goal_todo_fix +
-# /CJ_goal_investigate SKILL.md preambles source scripts/cj-worktree-init.sh
-# BEFORE Path Resolution / Routing.
+# Regression test (F000025/S000054): /CJ_goal_todo_fix + /CJ_goal_investigate
+# SKILL.md preambles source scripts/cj-worktree-init.sh BEFORE Path Resolution /
+# Routing. (S000060: /CJ_goal_run is now a deprecation shim; its worktree
+# responsibility moved to /cj_goal_feature, so it is guarded as a shim below.)
 # Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
 # Without these, an upstream refactor could silently drop the auto-worktree
 # wiring and the feature would regress to today's "polluting main checkout"
 # behavior with no test signal.
 echo ""
-echo "Regression test (F000025): /CJ_goal_run + /CJ_goal_todo_fix + /CJ_goal_investigate SKILL.md wire cj-worktree-init.sh..."
+echo "Regression test (F000025): /CJ_goal_todo_fix + /CJ_goal_investigate SKILL.md wire cj-worktree-init.sh; /CJ_goal_run is a deprecation shim (S000060)..."
 
-if grep -qE 'cj-worktree-init\.sh.*--caller run' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
-  ok "skills/CJ_goal_run/SKILL.md sources cj-worktree-init.sh (--caller run)"
+# S000060: /CJ_goal_run is now a DEPRECATED alias shim routing to /cj_goal_feature
+# (which owns worktree creation). Guard the shim shape instead of worktree wiring.
+if grep -qE '/cj_goal_feature' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
+  ok "skills/CJ_goal_run/SKILL.md is a deprecation shim routing to /cj_goal_feature (S000060)"
 else
-  fail_test "skills/CJ_goal_run/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
+  fail_test "skills/CJ_goal_run/SKILL.md should route to /cj_goal_feature (S000060 deprecation shim)"
 fi
 
 if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then

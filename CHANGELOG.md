@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.6] - 2026-05-21
+
+### Changed
+
+- **F000027 complete (story 4 of 4) — `/CJ_goal_run` + `/CJ_goal_auto` deprecated in favor of the two verbs.** The cluttered front-door orchestrators are now thin **alias shims**: each prints a one-line deprecation banner and routes to `/cj_goal_feature`, carrying a **sunset at v6.0.0** (mirroring the proven `CJ_run → CJ_goal_run` pattern). Both catalog entries flip to `status: deprecated`, so `skills-deploy install` skips them by default (WARN) while `--include-deprecated` still installs them — in-flight pipelines finish under the old skills. Routing in `rules/skill-routing.md` + `CLAUDE.md` now fronts the two intent-named verbs: "build a feature" → `/cj_goal_feature`, "fix a bug" → `/cj_goal_defect`; run/auto are demoted to a "Deprecated front doors" note. `/CJ_goal_todo_fix` + `/CJ_personal-pipeline` (and `/schedule` + `/loop`) are untouched. The shims stay in `skills/` (status-flip only, no relocation — functional aliases must remain invocable; `validate.sh` accepts `deprecated` status with files under `skills/`); the legacy `run.md` / `auto.md` / `scripts/cj-handoff-gate.sh` are left in place, dead until the v6.0.0 removal. Completes the F000027 two-verb refactor (S000057 helper prep → S000058 `/cj_goal_defect` → S000059 `/cj_goal_feature` → S000060 deprecation + routing).
+
+### Deprecated
+
+- **`/CJ_goal_run` and `/CJ_goal_auto`** — superseded by `/cj_goal_feature` (build a feature: topic → reviewable PR) and `/cj_goal_defect` (fix a bug: description → shipped fix). Both now print a deprecation banner and route to `/cj_goal_feature`; removal lands at **v6.0.0**. Keep them installed for in-flight migration with `skills-deploy install --include-deprecated`.
+
 ## [5.0.5] - 2026-05-21
 
 ### Added
