@@ -436,6 +436,29 @@ else
   fail_test "pipeline.md --no-worktree marker-file wiring missing OR dead \${NO_WORKTREE:-0} shell-var read reintroduced (T000033 P1 regression guard)"
 fi
 
+# ---------- cj_goal_feature/pipeline.md Step 1.9 isolation-gate guard ----------
+#
+# F000027 parity: the `feature` verb's silent build (Step 3) dispatches
+# source-writing scaffold/implement subagents, so it needs the same
+# --assert-isolated gate the `defect` / investigate verbs got from T000033. An
+# upstream refactor that drops it silently reopens the D000024
+# in-place-source-write class on the feature path. Mirrors the investigate
+# guards above, adapted for the feature verb (no IS_DRAFT/draft concept).
+
+echo ""
+echo "cj_goal_feature/pipeline.md Step 1.9 regression: --assert-isolated gate + --no-worktree marker present..."
+_FEAT_PIPELINE_MD="$REPO_ROOT/skills/cj_goal_feature/pipeline.md"
+if grep -qF -- '--assert-isolated' "$_FEAT_PIPELINE_MD" \
+   && grep -qF 'scripts/cj-worktree-init.sh' "$_FEAT_PIPELINE_MD" \
+   && grep -qF -- '--caller feature --assert-isolated' "$_FEAT_PIPELINE_MD" \
+   && grep -qF '/.operator-no-worktree' "$_FEAT_PIPELINE_MD" \
+   && grep -qF 'CJ_goal_feature-runs/$RUN_ID/.operator-no-worktree' "$_FEAT_PIPELINE_MD" \
+   && ! grep -qF '"${NO_WORKTREE:-0}" = "1"' "$_FEAT_PIPELINE_MD"; then
+  ok "cj_goal_feature/pipeline.md Step 1.9 wires --assert-isolated gate + --no-worktree marker (no dead shell-var read)"
+else
+  fail_test "cj_goal_feature/pipeline.md Step 1.9 missing --assert-isolated gate or --no-worktree marker wiring (F000027 isolation-gate regression guard)"
+fi
+
 # ---------- Summary ----------
 
 echo ""

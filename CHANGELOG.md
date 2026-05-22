@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.7] - 2026-05-21
+
+### Fixed
+
+- **`/cj_goal_feature` worktree phase is now non-skippable — new Step 1.9 isolation gate.** The `feature` verb auto-creates a `cj-feat-*` worktree at the top of every run, but nothing downstream *verified* that worktree was actually in place — so an agent could reason its way out of the deterministic worktree block ("I'll use a feature branch on the main checkout instead") and the silent build (scaffold + implement, which write to source) would run on the primary checkout. That is the D000024 in-place-source-write bug class, and `/cj_goal_defect` + `/CJ_goal_investigate` already closed it with a T000033 `--assert-isolated` gate; `/cj_goal_feature` was missing it. This adds the parity gate: pipeline.md Step 1.9 re-resolves `cj-worktree-init.sh`, runs `--assert-isolated`, and **HALTs `[feature-not-isolated]`** (new `halted_at_not_isolated` end-state) on a `dirty`/`not_isolated`/`not_a_repo` verdict or an unreachable helper — before office-hours, before any source write. The `--no-worktree` opt-out is persisted RUN_ID-scoped (shell vars don't survive across bash blocks) and re-read by the gate. SKILL.md gains a "this phase is MANDATORY, not a judgment call" callout that explicitly rebuts the feature-branch-on-primary-checkout shortcut (the worktree IS the concurrency mitigation; QA runs the test suite inside it), plus Error-Handling + Halt-on-Red taxonomy rows. A regression guard in `tests/cj-worktree-init.test.sh` asserts the gate + `--no-worktree` marker wiring stay present. Behavior tightening: `--no-worktree` on a **dirty** checkout now HALTs (a dirty tree is never isolated — matches `defect`/`investigate`); `--no-worktree` on a clean checkout is unchanged. From a clean `main`, every `/cj_goal_feature` run now reliably lands in its own `cj-feat-*` worktree or halts loudly explaining why it can't.
+
 ## [5.0.6] - 2026-05-21
 
 ### Changed

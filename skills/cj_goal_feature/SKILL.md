@@ -47,6 +47,18 @@ with no topic) skips the helper and errors on the missing argument as usual —
 no empty worktree is spun up. Mirrors the `/cj_goal_defect` wiring exactly; the
 only difference is `--mode feature` (branch prefix `cj-feat`).
 
+**This phase is MANDATORY — not a judgment call.** Do NOT reason about whether a
+worktree is "worth it," and do NOT substitute a feature branch on the primary
+checkout. The worktree IS the mitigation for concurrent-session tree collisions
+(it is not a risk to weigh against), and QA runs the test suite *inside* the
+worktree ([pipeline.md](pipeline.md) Step 3.3) — so there is no test-isolation
+reason to stay on the primary checkout. The only operator opt-out is the
+explicit `--no-worktree` flag (on a clean checkout). [pipeline.md](pipeline.md)
+Step 1.9 re-verifies the clean+isolated invariant via `cj-worktree-init.sh
+--assert-isolated` and HALTs (`[feature-not-isolated]`) if it does not hold — so
+a skipped worktree phase fails loudly instead of silently building on the
+primary checkout (the D000024 in-place-source-write bug class).
+
 ```bash
 # Default-worktree (BEFORE path resolution — variables get re-resolved post-cd)
 # Detect a positional topic arg: at least one non-flag arg present.
@@ -231,6 +243,7 @@ taxonomy, and telemetry.
 | Skill assets not found | "Error: cj_goal_feature skill assets not found." | Run `skills-deploy install` |
 | No argument | "Error: a feature topic is required." | Pass a quoted topic |
 | Worktree phase failed | `[worktree] ERROR: ...` | Inspect `cj-goal-common.sh` output; pass `--no-worktree` on a clean checkout |
+| Checkout not clean+isolated | `[feature-not-isolated]` (Step 1.9 gate) | Run from a clean `main` checkout (auto-worktree), a clean feature branch / worktree, or pass `--no-worktree` on a clean tree |
 | office-hours not APPROVED / abandoned | `[officehours-not-approved]` (Step 3 halt) | Resume `/office-hours`, accept the final Approve, then re-run `/cj_goal_feature` |
 | Resume SHA stale (not ancestor of HEAD) | `[resume-sha-stale]` (restarts the affected phase, not a hard halt) | None — the affected phase re-runs automatically |
 | Resume PR no longer OPEN | `[resume-pr-not-open]` (restarts the ship phase or reports already-shipped) | If MERGED/CLOSED → `already_shipped`; else the ship phase re-runs |
@@ -255,6 +268,7 @@ exists) with the family contract fields:
 |-----------|-------------|------|
 | `green_pr_opened` | (no journal — success; summary printed) | office-hours APPROVED, silent build green, `/ship` opened a PR; pipeline STOPPED at the PR |
 | `halted_at_no_arg` | (no journal — usage halt; output on stderr) | No topic passed |
+| `halted_at_not_isolated` | `[feature-not-isolated]` | Step 1.9 isolation gate: checkout not clean+isolated (verdict `dirty`/`not_isolated`/`not_a_repo`) OR the worktree helper is unreachable after both probes. Pre-build halt; the source-writing scaffold/implement subagents are provably NOT dispatched. |
 | `halted_at_officehours` | `[officehours-not-approved]` | office-hours did not emit an APPROVED design doc (declined / abandoned / `Status` != APPROVED) |
 | `halted_at_scaffold` | `[scaffold-red]` | scaffold leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_impl` | `[impl-red]` | implement leaf subagent crashed or returned a non-green RESULT |
