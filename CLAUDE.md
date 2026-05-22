@@ -18,12 +18,20 @@ cd claude-skills-templates
 Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 `./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
-The CJ_ skill family in this workbench includes top-level pipelines (/CJ_goal_run,
-/CJ_personal-pipeline), workflow validator (/CJ_personal-workflow), per-phase
+The CJ_ skill family in this workbench is fronted by two intent-named verbs:
+`/cj_goal_feature` (build a feature: topic → reviewable PR) and `/cj_goal_defect`
+(fix a bug: description → shipped fix). Supporting skills: `/CJ_goal_investigate`
+(ship a fix for an existing scaffolded defect), `/CJ_personal-pipeline` (internal
+scaffold→impl→qa engine), workflow validator (/CJ_personal-workflow), per-phase
 skills (/CJ_scaffold-work-item, /CJ_implement-from-spec, /CJ_qa-work-item), and
 standalone utilities (/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix).
 /CJ_goal_todo_fix bridges TODOS.md rows to the shipping pipeline in one
 keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
+
+`/CJ_goal_run` + `/CJ_goal_auto` are **DEPRECATED** alias shims (F000027 two-verb
+refactor; sunset v6.0.0) that print a banner then route to `/cj_goal_feature`. Do
+not use them for new work; they stay installable via `skills-deploy install
+--include-deprecated` so in-flight pipelines finish.
 
 ## CI/CD merge convention
 

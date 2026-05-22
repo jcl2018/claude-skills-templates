@@ -159,12 +159,12 @@
   },
   {
     "name": "CJ_goal_run",
-    "version": "1.1.0",
-    "description": "Unified pipeline entry point (formerly /CJ_run; renamed v4.0.0). Accepts (a) an APPROVED /office-hours design doc -> full pipeline (autoplan -> scaffold -> impl -> QA -> PR -> deploy -> Phase 5 drain), (b) a work-item directory -> Branch(f) full phase-detection + dispatch (impl_qa_ship / qa_ship / ship / open_pr / already_shipped / pr_unknown_state) using verbatim Phase 2 gate strings + gh PR-state check with graceful UNKNOWN fallback, (c) NO ARG -> Branch(g) scans current branch's work-items/ for in-progress user-stories and hands off to Branch(f). Phase 4 invokes /land-and-deploy with --suppress-readiness-gate (opt-in upstream flag mirroring CJ_personal-pipeline's --suppress-final-gate pattern) so green end-to-end runs surface only the autoplan + /ship AUQs; red signals (CI, merge conflict, free-test regression, deploy/canary failure) still halt. Branch(f) open_pr mode auto-continues into /land-and-deploy with the same flag + inline-parsed PR_NUM. Phase 5 (v4.1.0+, S000045) is a post-deploy TODO drain: diff TODOS.md additions in the merged PR; if 0 new -> emit green silently; if >0 -> AUQ 'Drain N new TODOs?' (cap=5 recommendation). On yes: per-TODO /CJ_goal_todo_fix loop; halt-on-red emits drained_partial, all green emits drained_complete. --no-drain flag bypasses Phase 5 entirely. Replaces /CJ_ship-feature (renamed) and the public /CJ_personal-pipeline routing (now internal). Halt-on-red default; idempotent via each sub-skill's own re-entry path; sunset criterion at 6th invocation.",
+    "version": "5.0.6",
+    "description": "DEPRECATED ALIAS (F000027, sunsets v6.0.0) — superseded by the two-verb refactor. This thin alias prints a one-line deprecation banner then routes to /cj_goal_feature. Use /cj_goal_feature to build a feature end-to-end (topic → reviewable PR) or /cj_goal_defect to fix a bug (description → shipped fix). Removal is deferred to v6.0.0; in-flight pipelines finish under the old skill via skills-deploy install --include-deprecated.",
     "source": "local",
     "depends": {
       "skills": [
-        "CJ_personal-pipeline"
+        "cj_goal_feature"
       ],
       "tools": [
         "git",
@@ -178,7 +178,7 @@
       "skills/CJ_goal_run/run.md"
     ],
     "templates": [],
-    "status": "active"
+    "status": "deprecated"
   },
   {
     "name": "CJ_suggest",
@@ -301,12 +301,12 @@
   },
   {
     "name": "CJ_goal_auto",
-    "version": "1.0.0",
-    "description": "Full-handoff one-liner-to-deployed orchestrator (v1.0, experimental). Takes a single one-line idea and runs Stage 0 (worktree + version-queue + --handoff capability sentinel grep) -> Stage 0.5 (small-unambiguous classifier; halts non-small) -> Stage 1 (workbench-owned design-doc generator) -> Stage 1.5 (fail-closed post-condition doc gate) -> Stage 2 (/CJ_goal_run <doc> --handoff --no-drain). GATE #1 (autoplan final-approval AUQ) always human; GATE #2 (post-/ship merge gate) delegated to scripts/cj-handoff-gate.sh -- frozen merge-base, denylist (rename/symlink-safe + test-surface), <=120 added lines, <=5 files, Phase-2 markers all-green -- exit 0 proceeds to /land-and-deploy --suppress-readiness-gate; non-zero halts for human review of the created PR. Three explicit shapes: '<idea>' (human-gated default), --auto-merge-small-diffs '<idea>' (opt-in auto-merge), --dry-run '<idea>' (zero-write preview). --handoff is deprecated alias. Stage 3 writes per-run audit receipt to ~/.gstack/analytics/CJ_goal_auto.jsonl; --audit/--list-handoffs prints the last 10. Every-run retro AUQ for first 5 auto-merges, then every-5th. Halt-on-red default with structured stop block. Workbench-only (macOS). v1.0 single user-story; multi-story/headless-office-hours/Approach C/Copilot bundle all deferred.",
+    "version": "5.0.6",
+    "description": "DEPRECATED ALIAS (F000027, sunsets v6.0.0) — superseded by the two-verb refactor. This thin alias prints a one-line deprecation banner then routes to /cj_goal_feature. Use /cj_goal_feature to build a feature end-to-end (topic → reviewable PR) or /cj_goal_defect to fix a bug (description → shipped fix). Removal is deferred to v6.0.0; in-flight items finish under the old skill via skills-deploy install --include-deprecated.",
     "source": "local",
     "depends": {
       "skills": [
-        "CJ_goal_run"
+        "cj_goal_feature"
       ],
       "tools": [
         "bash",
@@ -326,7 +326,7 @@
       "scripts/cj-handoff-gate.sh"
     ],
     "templates": [],
-    "status": "experimental"
+    "status": "deprecated"
   },
   {
     "name": "cj_goal_defect",
