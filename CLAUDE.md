@@ -247,6 +247,75 @@ _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
+## Doc-sync check mechanism (F000028 follow-up)
+
+The three `cj_goal` orchestrator preambles (`/cj_goal_feature`, `/cj_goal_defect`,
+`/CJ_goal_investigate`) emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
+`post-merge` / `post-rewrite` git hook has dropped a doc-sync marker since the
+operator's last pull. The orchestrator interprets the line and surfaces an AUQ
+asking whether to run `/document-release` inline now, snooze, or skip — closing
+the loop F000028 opened (the hook writes markers; this mechanism consumes them).
+
+**Novel pattern callout.** F000009's `skills-update-check` prints
+`SKILLS_UPGRADE_AVAILABLE` as a user-facing banner with no AUQ. F000029's
+`skills-doc-sync-check` goes further: the script output (`DOC_SYNC_PENDING <path>`)
+drives an orchestrator AUQ. The script's job is detection only ("is there a
+marker, and if so, print its path"); the SKILL.md prose owns the AUQ template,
+branch-aware option ordering (A on main, B on a feature branch — A would run
+`/document-release` on the wrong branch state), and per-option follow-through
+(especially A's auto-commit of touched doc files, required to avoid the next-step
+Step 1.9 isolation gate halting on a dirty checkout). Branch detection lives in
+the prose, NOT in the script. Future skills wanting a similar
+detection-then-AUQ shape should mirror this split.
+
+State files (`~/.gstack/`):
+- `doc-sync-pending/<repo-slug>.json` — marker. Written by F000028's hook on
+  non-trivial main-moving merges. Fields: `repo`, `head_sha`, `main_moved_at`,
+  `diff_base`, `changed_files`. Read by `skills-doc-sync-check`, deleted by
+  `--resolved`.
+- `doc-sync-cache.json` — cache: `snooze_until`, `skip_head_sha`. Atomic writes
+  via `mktemp` + `mv`. NO `prompted_session` field (reviewer-flagged P0:
+  `$$` is not stable across SKILL.md bash fences, so per-shell PID dedup is
+  unreliable; natural dedup via `--resolved` / `--snooze` / `--skip` is used
+  instead).
+
+Subcommand surface (mirrors `skills-update-check`):
+- `skills-doc-sync-check` — default check, emits `DOC_SYNC_PENDING <path>` on hit.
+- `skills-doc-sync-check --snooze [hours]` — suppress for N hours (default 24).
+- `skills-doc-sync-check --skip <head_sha>` — suppress this specific marker
+  forever (different `head_sha` re-fires).
+- `skills-doc-sync-check --resolved` — delete marker + clear snooze/skip cache;
+  idempotent silent-success when marker already absent. Called after a
+  successful `/document-release` on the A path.
+
+Stale-marker self-clean: if the marker's `head_sha` is unreachable from current
+HEAD (force-push wiped the commit, operator did `git reset --hard` past it, or
+the marker JSON is corrupted and `head_sha` reads empty), the script silently
+deletes the marker via `git cat-file -e` and exits 0 — no AUQ for a non-existent
+state. Stale markers self-clean instead of accumulating.
+
+The script lives in the user's clone at `$source/scripts/skills-doc-sync-check`
+— same path-resolution shape as `skills-update-check`. The preamble snippet in
+each instrumented SKILL.md does:
+
+```bash
+_DSC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_DSC_OUT=$([ -n "$_DSC" ] && [ -x "$_DSC/scripts/skills-doc-sync-check" ] && "$_DSC/scripts/skills-doc-sync-check" 2>/dev/null || true)
+[ -n "$_DSC_OUT" ] && echo "$_DSC_OUT"
+```
+
+Manual override: `rm ~/.gstack/doc-sync-cache.json` clears snooze/skip state;
+`rm ~/.gstack/doc-sync-pending/<slug>.json` discards a pending marker without
+running `/document-release`. The script does not surface either file via
+`skills-deploy doctor` — operator inspection via `ls ~/.gstack/` is the
+intended discovery path.
+
+Out of scope for v1: `/CJ_goal_todo_fix` / `/CJ_suggest` / `/CJ_system-health`
+preamble calls (separate follow-up — `/CJ_goal_todo_fix` is in the same family
+but deferred to a follow-up PR; `/CJ_suggest` / `/CJ_system-health` are
+informational utilities, not work-starters, so they're out of the trigger
+surface entirely). Per-marker snooze (current design is global `snooze_until`).
+
 ## TODOS.md hygiene conventions
 
 `TODOS.md` is the workbench's active backlog. `/CJ_suggest` ranks rows from it for
