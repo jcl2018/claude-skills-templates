@@ -340,10 +340,10 @@ All other mentions are drift findings. Examples of legitimate annotated mentions
 
 ### New-skills check
 
-Extract the set of currently-active skill names:
+Extract the set of currently-active **routable** skill names (entries with a non-empty `files` array — empty `files` indicates a tooling-only catalog entry like `templates` that owns templates but has no SKILL.md and isn't invocable as a skill):
 
 ```
-jq -r '.[] | select(.status=="active") | .name' skills-catalog.json
+jq -r '.[] | select(.status=="active") | select((.files | length) > 0) | .name' skills-catalog.json
 ```
 
 For each name returned, grep `doc/PHILOSOPHY.md` for a case-sensitive literal match within the `## Decision tree` heading + its body up to the next `##` heading. Missing → drift finding (`active skill not in decision tree: <name>`). This check runs on `doc/PHILOSOPHY.md` only; `doc/ARCHITECTURE.md` deliberately does not duplicate the decision tree (see ARCHITECTURE's `## Decision tree mirror` section).
