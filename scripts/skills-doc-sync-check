@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# skills-doc-sync-check — passive detector for ~/.gstack/doc-sync-pending markers.
+#
+# Emits DOC_SYNC_PENDING <path> to stdout when a marker for the current repo
+# exists AND is not snoozed AND not skip-listed by head_sha. Silent otherwise.
+# Exit 0 always (non-blocking, advisory). Mirrors scripts/skills-update-check
+# structure (F000009 architectural precedent).
+#
+# Subcommands (mirror skills-update-check shape):
+#   (no args)            check + emit
+#   --snooze [hours]     write snooze_until to cache (default 24h)
+#   --skip <head_sha>    write skip_head_sha to cache (suppress this marker forever)
+#   --resolved           delete marker file + clear snooze/skip cache fields
+#                         (called after /document-release green or by operator)
+#                         Idempotent silent-success when marker is already absent.
+#
+# Cache file:  ~/.gstack/doc-sync-cache.json (atomic mktemp + mv writes)
+# Marker file: ~/.gstack/doc-sync-pending/<repo-slug>.json (written by F000028 hook)
+#
+# NOTE: NO session-scoped dedup. $$ is not stable across SKILL.md bash fences
+# (each fence is a fresh bash subprocess with a fresh PID — reviewer-flagged P0).
+# Dedup is achieved naturally: on operator Y, --resolved deletes the marker
+# (so next preamble check is silent); on operator S, --snooze 24h suppresses;
+# on operator K, --skip <head_sha> suppresses until a new marker writes. The
+# only un-deduped case is "operator hit Y, /document-release ran successfully,
+# then operator runs another cj_goal in the same shell" — that case is silent
+# because --resolved deleted the marker.
+
+set -eu
+
+MARKER_DIR="${DOC_SYNC_MARKER_DIR:-$HOME/.gstack/doc-sync-pending}"
+CACHE="${DOC_SYNC_CACHE:-$HOME/.gstack/doc-sync-cache.json}"
+
+# Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
+jq() { command jq "$@" | tr -d '\r'; }
+
+# Resolve repo slug from current git repo. Silent exit if not in a repo.
+_REPO_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+[ -z "$_REPO_TOP" ] && exit 0
+_REPO_SLUG=$(basename "$_REPO_TOP")
+MARKER="$MARKER_DIR/${_REPO_SLUG}.json"
+
+# --- helpers ---
+
+now_epoch() { date +%s; }
+
+# Atomic write: mktemp adjacent to target, then mv. Mirrors skills-update-check.
+cache_write() {
+  local payload tmp
+  payload=$(cat)
+  mkdir -p "$(dirname "$CACHE")"
+  tmp=$(mktemp "$CACHE.tmp.XXXXXX") || return 1
+  printf '%s\n' "$payload" > "$tmp"
+  mv "$tmp" "$CACHE"
+}
+
+cache_read() {
+  if [ ! -f "$CACHE" ]; then
+    echo '{}'
+    return 0
+  fi
+  # Self-heal corrupt cache: if jq can't parse it, return empty object so
+  # subcommands don't wedge under set -eu. Same defense as skills-update-check.
+  local raw
+  raw=$(cat "$CACHE" 2>/dev/null) || { echo '{}'; return 0; }
+  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then
+    printf '%s' "$raw"
+  else
+    echo '{}'
+  fi
+}
+
+# --- subcommands ---
+
+cmd_snooze() {
+  local hours="${1:-24}"
+  # Guard: numeric input only.
+  case "$hours" in
+    ''|*[!0-9]*) hours=24 ;;
+  esac
+  local until_ts
+  until_ts=$(( $(now_epoch) + hours * 3600 ))
+  cache_read | jq --argjson u "$until_ts" '. + {snooze_until: $u}' | cache_write
+}
+
+cmd_skip() {
+  local sha="${1:-}"
+  if [ -z "$sha" ]; then
+    echo "skills-doc-sync-check: --skip requires <head_sha>" >&2
+    exit 2
+  fi
+  cache_read | jq --arg s "$sha" '. + {skip_head_sha: $s}' | cache_write
+}
+
+cmd_resolved() {
+  # Idempotent silent-success when marker is already absent.
+  rm -f "$MARKER" 2>/dev/null || true
+  if [ -f "$CACHE" ]; then
+    cache_read | jq 'del(.snooze_until, .skip_head_sha)' | cache_write
+  fi
+}
+
+# --- default action: check + emit ---
+
+cmd_default() {
+  # No marker → silent.
+  [ -f "$MARKER" ] || exit 0
+
+  local cache snooze_until skip_sha marker_sha now_ts
+  cache=$(cache_read)
+  snooze_until=$(printf '%s' "$cache" | jq -r '.snooze_until // empty' 2>/dev/null || echo "")
+  skip_sha=$(printf '%s' "$cache" | jq -r '.skip_head_sha // empty' 2>/dev/null || echo "")
+  now_ts=$(now_epoch)
+
+  # Snooze check (clock-based). Guard non-numeric snooze_until.
+  case "$snooze_until" in ''|*[!0-9]*) snooze_until="" ;; esac
+  if [ -n "$snooze_until" ] && [ "$now_ts" -lt "$snooze_until" ]; then
+    exit 0
+  fi
+
+  # Read marker's head_sha. Corrupted JSON returns empty → falls into stale path.
+  marker_sha=$(jq -r '.head_sha // empty' "$MARKER" 2>/dev/null || echo "")
+
+  # Skip-by-sha check.
+  if [ -n "$skip_sha" ] && [ -n "$marker_sha" ] && [ "$skip_sha" = "$marker_sha" ]; then
+    exit 0
+  fi
+
+  # Stale-marker self-clean: if head_sha is unreachable from HEAD (force-push
+  # wiped the commit, or operator did `git reset --hard` past it), the marker
+  # references a non-existent commit. Silent delete + no AUQ. Empty/corrupted
+  # head_sha also falls into this path (cat-file -e on empty input fails).
+  #
+  # Use `git cat-file -e` (object-existence check) NOT `rev-parse --verify`.
+  # rev-parse --verify accepts any well-formed 40-char hex string as a valid
+  # object name without checking the object store, so a fabricated SHA like
+  # 0000000000000000000000000000000000000000 (or a SHA from a discarded
+  # branch) would pass --verify silently and incorrectly emit DOC_SYNC_PENDING
+  # for a non-existent commit. `cat-file -e` actually reads the object store.
+  if [ -z "$marker_sha" ] || ! git -C "$_REPO_TOP" cat-file -e "$marker_sha" 2>/dev/null; then
+    rm -f "$MARKER" 2>/dev/null || true
+    exit 0
+  fi
+
+  # Emit: hit case.
+  echo "DOC_SYNC_PENDING $MARKER"
+}
+
+# --- entry point ---
+
+main() {
+  if [ "$#" -eq 0 ]; then
+    cmd_default
+    exit 0
+  fi
+
+  local cmd="$1"; shift
+  case "$cmd" in
+    --snooze)   cmd_snooze "$@" ;;
+    --skip)     cmd_skip "$@" ;;
+    --resolved) cmd_resolved "$@" ;;
+    --help|-h)
+      cat <<'USAGE'
+skills-doc-sync-check — passive detector for ~/.gstack/doc-sync-pending markers.
+
+Usage:
+  skills-doc-sync-check                  # default check; emits DOC_SYNC_PENDING <path> on hit
+  skills-doc-sync-check --snooze [hours] # suppress for N hours (default 24)
+  skills-doc-sync-check --skip <sha>     # suppress this specific marker (by head_sha) forever
+  skills-doc-sync-check --resolved       # delete marker + clear snooze/skip; idempotent
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "skills-doc-sync-check: unknown subcommand '$cmd'" >&2
+      echo "  see --help" >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
