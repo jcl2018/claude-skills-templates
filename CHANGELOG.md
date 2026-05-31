@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.8] - 2026-05-30
+
+### Added
+
+- **F000028 / S000061: post-merge + post-rewrite doc-sync trigger via `scripts/setup-hooks.sh`.** Extends `scripts/setup-hooks.sh` to install a doc-sync trigger block as a third section of the existing post-merge hook (after D000013 skills-deploy auto-sync and F000011/S000020 Phase 3 lifecycle-gate auto-update) AND as a new standalone post-rewrite hook (covering `git pull --rebase` flows). When `main` moves non-trivially, the hook atomically writes a marker to `~/.gstack/doc-sync-pending/<repo-slug>.json` with `repo`, `head_sha`, `main_moved_at` (ISO-8601 UTC), `diff_base`, and `changed_files` — so the next Claude session can surface a `/document-release` AUQ. The doc-sync reframe is the actual symmetric answer to "step at end of three cj_goal skills": all three pipelines eventually result in `main` moving (defect/investigate via `/land-and-deploy`, feature via operator-merged PR), so the hook fires regardless of HOW main moved, with zero per-skill drift surface — **no changes to `skills/cj_goal_feature/`, `skills/cj_goal_defect/`, or `skills/CJ_goal_investigate/`**. Idempotency via `.doc-sync-last-head` in `--git-common-dir` (correctly shared across worktrees); triviality filter skips doc-only merges (anchored regex on `README.md|CHANGELOG.md|CLAUDE.md|CONTRIBUTING.md|ARCHITECTURE.md|docs/`); `DOC_SYNC_FORCE=1` overrides the triviality filter; initial-commit edge case falls back to the empty-tree hash. Best-effort: every hook block is wrapped in `{ ... } || true` so a doc-sync failure never interrupts the user's git operations. New flat-convention test file `tests/setup-hooks.test.sh` covers six rows (a) main-moving merge writes marker, (b) same HEAD is idempotent, (c) doc-only merge skips, (d) `DOC_SYNC_FORCE=1` overrides skip, (e) initial-commit empty-tree fallback, (f) post-rewrite writes the same marker. Marker-pickup AUQ in the three cj_goal skills is a deliberate follow-up (out of scope here); v1 markers accumulate silently for manual `/document-release` consumption. Known gap: `git reset --hard origin/main` fires no hook (uncoverable by git).
+
 ## [5.0.7] - 2026-05-21
 
 ### Fixed
