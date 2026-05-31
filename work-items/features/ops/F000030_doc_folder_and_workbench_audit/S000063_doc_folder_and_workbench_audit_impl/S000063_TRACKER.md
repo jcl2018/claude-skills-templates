@@ -67,11 +67,11 @@ If smoke or E2E fails: fix, re-run
 
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -122,6 +122,8 @@ If smoke or E2E fails: fix, re-run
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #180: v5.0.11 feat: F000030 doc/ folder + workbench audit conventions in CLAUDE.md (self-applied on first run)](https://github.com/jcl2018/claude-skills-templates/pull/180) — MERGED
+
 ## Files
 
 <!-- Affected file paths. -->
@@ -157,3 +159,4 @@ If smoke or E2E fails: fix, re-run
 - 2026-05-31 [qa-e2e-deferred] E2 (integration post-ship) — plant unannotated retired-skill reference + run /document-release. Summary: post-ship row per TEST-SPEC convention; verification happens after PR merges (manual `gh workflow run` or post-merge tooling). Not gating this PR.
 - 2026-05-31 [qa-e2e-deferred] E3 (integration post-ship) — add active-skill stub not in decision tree + run /document-release. Summary: post-ship row per TEST-SPEC convention. Not gating this PR.
 - 2026-05-31 [qa-e2e] E1 (usability) — verified semantically by content inspection: Decision tree at PHILOSOPHY:59-124 names `/cj_goal_feature` as the build-a-feature front door (line 7 + 45); doc-sync mechanism explained at lines 124 + 149 + 179 naming F000028 + F000029 marker-pickup AUQ. A fresh reader can answer both routing questions on first read.
+- 2026-05-31 [gates-update] Phase 3: /ship — PR #180,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #180,PRs section: linked PR #180 (MERGED).
