@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.10] - 2026-05-31
+
+### Changed
+
+- **TODOS.md hygiene: `/CJ_goal_auto --auto-merge-small-diffs` dogfood row closed as OBSOLETE (no execution).** The (P2, S) dogfood-row that asked for "one auto-merged PR lands without intervention" was structurally impossible to satisfy after F000027 / S000060 (v5.0.6, PR #173) deprecated `/CJ_goal_auto` — the skill is now a thin alias shim that prints a deprecation banner and routes to `/cj_goal_feature`, and `/cj_goal_feature` PR-stops by design (D3 REVISED at GATE #1; `skills/cj_goal_feature/SKILL.md:336` "Deploy is a separate human step"). The `--auto-merge-small-diffs` path through Stages 1 / 1.5 / 2 + `scripts/cj-handoff-gate.sh` is no longer reachable from any non-deprecated front door, so the dogfood success criterion can't be met. Auto-merge for skill-work is parked indefinitely per the cj-handoff-gate-blocks-every-feature-skill-surface reasoning documented in `skills/cj_goal_feature/SKILL.md:173-181` + CLAUDE.md "Auto-deploy unsafe in this workbench". TODOS.md row strikethrough'd + annotated `OBSOLETE — closed by F000027/S000060 deprecation (v5.0.6, PR #173) without execution` with the archived body preserved below for traceability. Surfaced via `/CJ_goal_todo_fix --max-drain 1` in the F000029 dogfood session: `/CJ_suggest` ranked the row top-1 by P2/S size, blind to the upstream deprecation — exactly the hygiene-debt class CLAUDE.md "TODOS.md hygiene conventions" describes. No code changes; one-file TODOS-hygiene PR matching the post-bundle-cleanup pattern (e.g. PR #119 / v3.6.2 closed TODOS:142+:167 after F000020 shipped).
+
 ## [5.0.9] - 2026-05-30
 
 ### Added
