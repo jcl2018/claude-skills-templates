@@ -316,6 +316,42 @@ but deferred to a follow-up PR; `/CJ_suggest` / `/CJ_system-health` are
 informational utilities, not work-starters, so they're out of the trigger
 surface entirely). Per-marker snooze (current design is global `snooze_until`).
 
+## /document-release workbench audit conventions
+
+This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is: (a) retired-skill references that leak outside the `## Retired skills` subsection of `doc/PHILOSOPHY.md`, and (b) active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.
+
+`/document-release` reads this section as project context at Step 2. The audit rides that existing behavior; no upstream skill modification.
+
+### Retired-skill drift check
+
+Extract the set of currently-deprecated skill names:
+
+```
+jq -r '.[] | select(.status=="deprecated") | .name' skills-catalog.json
+```
+
+For each name returned, `grep -n` for the name in `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. A mention is **annotated** (and skipped, not reported as drift) if ANY of these hold:
+
+- The mention appears inside the `## Retired skills` subsection of `doc/PHILOSOPHY.md` (one paragraph per retired skill is the canonical tombstone home).
+- The mention is inside a `~~strikethrough~~` span.
+- The mention is within 200 characters (case-insensitive substring window) of the words `DEPRECATED`, `sunset`, or `tombstone`.
+
+All other mentions are drift findings. Examples of legitimate annotated mentions: the `## Retired skills` subsection itself, the `### Deprecated` table in `README.md`, this very section's `DEPRECATED` keyword. Examples of drift: a routing example in `doc/PHILOSOPHY.md` body that still names a retired skill as a primary front door, a mechanism reference in `doc/ARCHITECTURE.md` that quotes a deprecated skill without the proximity escape hatch.
+
+### New-skills check
+
+Extract the set of currently-active skill names:
+
+```
+jq -r '.[] | select(.status=="active") | .name' skills-catalog.json
+```
+
+For each name returned, grep `doc/PHILOSOPHY.md` for a case-sensitive literal match within the `## Decision tree` heading + its body up to the next `##` heading. Missing → drift finding (`active skill not in decision tree: <name>`). This check runs on `doc/PHILOSOPHY.md` only; `doc/ARCHITECTURE.md` deliberately does not duplicate the decision tree (see ARCHITECTURE's `## Decision tree mirror` section).
+
+### Reporting
+
+Drift findings surface in the PR body's `## Documentation` section under a new `### Skill-routing drift` subheading. One finding per line. If no findings, emit a single positive line (`Skill-routing drift: none`) so reviewers can tell the audit ran cleanly versus skipped silently.
+
 ## TODOS.md hygiene conventions
 
 `TODOS.md` is the workbench's active backlog. `/CJ_suggest` ranks rows from it for
