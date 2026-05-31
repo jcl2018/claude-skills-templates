@@ -94,6 +94,11 @@ See `CLAUDE.md` for the `.gstack/` (lateral/exploratory) vs `work-items/` (struc
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle in a target repo | 1 on error |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Auto-invoked from instrumented skill preambles. | 0 (advisory) |
 
+## Deeper reading
+
+- [doc/PHILOSOPHY.md](doc/PHILOSOPHY.md) — why this repo exists + design principles + the decision tree for which CJ_ skill to call
+- [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) — mechanism reference for the shared `cj-goal-common.sh` helper, the F000028 doc-sync hooks, the F000029 marker-pickup AUQ, and the three-shape deprecation pattern
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full authoring guide.
