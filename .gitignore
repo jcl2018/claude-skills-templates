@@ -16,3 +16,6 @@
 
 .docs/
 .context/
+
+# /cj_goal_feature resume-state scratch (never committed)
+.cj-goal-feature/
