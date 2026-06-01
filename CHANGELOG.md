@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.13] - 2026-06-01
+
+### Changed
+
+- **TODOS.md hygiene: filed `/cj_goal_feature` preamble doc-sync-AUQ-on-main bug (P3, S).** Surfaced during today's F000031 casing-fix session (v5.0.12): the cj_goal orchestrator preambles (added in F000029, v5.0.9) recommend "A) Run /document-release now" when a `DOC_SYNC_PENDING` marker is present on main, but upstream gstack `/document-release` Step 1 hard-aborts on the base branch ("You're on the base branch. Run from a feature branch."). The preamble's "non-green / errors mid-write" fallback (print error, `--snooze 1h`, continue pipeline) catches this gracefully so users aren't blocked, but the AUQ recommendation is semantically wrong — it labels A as "recommended" when A always aborts on main, and B (snooze) is the only path that actually works. The TODO row enumerates 4 fix candidates and recommends (a) — smallest workbench-local change: update preamble to recommend B on main and flag A as "would abort upstream". Matches the v5.0.10 / v5.0.11 pattern of shipping TODOS-hygiene PRs as their own version slot (one-line edit, no code change). No code in this commit beyond CHANGELOG + VERSION + TODOS row.
+
 ## [5.0.12] - 2026-05-31
 
 ### Changed
