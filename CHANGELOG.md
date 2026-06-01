@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.14] - 2026-06-01
+
+### Fixed
+
+- **D000026: doc-sync AUQ recommendation polarity flipped — on main, `B (snooze)` is now recommended, not `A (run /document-release)`.** Closes the TODOS row filed in v5.0.13 (PR #182). F000029 (PR #178, v5.0.9, commit `39b2ce0`) shipped the doc-sync AUQ template with the branch-aware recommendation polarity inverted: the author's mental model was "doc-sync runs on main after a merge," but upstream gstack `/document-release` Step 1 hard-aborts on the base branch ("You're on the base branch. Run from a feature branch.") — it's designed for feature branches that need to update their docs before shipping a PR. The inverted polarity was duplicated identically across all 3 `cj_goal` SKILL.md preambles AND documented (still inverted) in the CLAUDE.md mechanism note at line 274. The preamble's "non-green / errors mid-write" fallback (snooze 1h + continue pipeline) caught this gracefully so users were never blocked, but the AUQ recommendation was semantically wrong. The fix is workbench-local prose only (no upstream gstack change): on main, A is now flagged `WILL ABORT on main` with the verbatim upstream abort message; B (snooze) is recommended. On a feature branch, A remains recommended (where `/document-release` is designed to run). Also flipped the per-branch follow-through blocks: "On A (when on a feature branch)" now invokes `/document-release` and auto-commits doc updates; "On A (when on main)" now warns and falls back to snooze. Corrected the CLAUDE.md F000029 mechanism note (line 274) to match. New regression test (`tests/cj-goal-doc-sync-auq-recommendation.test.sh`, 17 assertions across positive + negative checks) wired into `scripts/test.sh`. Empirical proof of the bug: 2026-05-31 `/CJ_goal_feature` run for F000031 casing-fix (PR #181) — AUQ fired, A was recommended, `/document-release` aborted with the base-branch error, fallback to snooze 1h saved the pipeline. This defect was the FIRST shipped end-to-end run of `/CJ_goal_defect` (v0.1.0+; previously zero green ships per the `/CJ_goal_investigate` retirement TODO row), and dogfooded the Iron-Law gate + draft → canonical promotion contract.
+
 ## [5.0.13] - 2026-06-01
 
 ### Changed

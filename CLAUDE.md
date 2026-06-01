@@ -271,12 +271,15 @@ the loop F000028 opened (the hook writes markers; this mechanism consumes them).
 `skills-doc-sync-check` goes further: the script output (`DOC_SYNC_PENDING <path>`)
 drives an orchestrator AUQ. The script's job is detection only ("is there a
 marker, and if so, print its path"); the SKILL.md prose owns the AUQ template,
-branch-aware option ordering (A on main, B on a feature branch — A would run
-`/document-release` on the wrong branch state), and per-option follow-through
-(especially A's auto-commit of touched doc files, required to avoid the next-step
-Step 1.9 isolation gate halting on a dirty checkout). Branch detection lives in
-the prose, NOT in the script. Future skills wanting a similar
-detection-then-AUQ shape should mirror this split.
+branch-aware option ordering (B on main, A on a feature branch — upstream
+`/document-release` Step 1 hard-aborts on the base branch with "You're on the
+base branch. Run from a feature branch.", so A on main would always abort;
+a feature branch is exactly where `/document-release` is designed to run),
+and per-option follow-through (especially A's auto-commit of touched doc
+files, required to avoid the next-step Step 1.9 isolation gate halting on a
+dirty checkout). Branch detection lives in the prose, NOT in the script.
+Future skills wanting a similar detection-then-AUQ shape should mirror this
+split.
 
 State files (`~/.gstack/`):
 - `doc-sync-pending/<repo-slug>.json` — marker. Written by F000028's hook on

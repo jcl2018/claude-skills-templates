@@ -35,29 +35,31 @@ _DSC_OUT=$([ -n "$_DSC" ] && [ -x "$_DSC/scripts/skills-doc-sync-check" ] && "$_
 
 1. Read the marker: `jq -r '.head_sha, .main_moved_at, .changed_files' <marker-path>` to extract head_sha, main_moved_at, and changed_files for the AUQ display.
 2. Detect current branch: `_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)`.
-3. Surface this AUQ verbatim (substitute the captured fields). On **main**, "A" is recommended; on a feature branch / worktree, "B" is recommended (A would run `/document-release` on the non-main branch which produces wrong doc state):
+3. Surface this AUQ verbatim (substitute the captured fields). On **main**, "B" is recommended (upstream `/document-release` Step 1 hard-aborts on the base branch with "You're on the base branch. Run from a feature branch." — A would always abort here); on a feature branch / worktree, "A" is recommended (a feature branch is exactly where `/document-release` runs):
 
 ```
 D? — Doc-sync pending for repo <slug> (main moved <main_moved_at>; <changed_files> files since).
 ELI10: F000028's hook noticed main moved and dropped a marker. /document-release reads
-the merged diff and updates README/ARCHITECTURE/CLAUDE.md. On main, running it now folds
-doc updates into your next commit. On a feature branch, defer (it'd run on the wrong state).
-Stakes if wrong: skip means doc drift continues; A on a feature branch pollutes the branch.
-A) Run /document-release now (recommended on main; NOT recommended on feature branch)
-B) Snooze 1h — bash "<script-path>" --snooze 1   (silences for 1 hour)
+the merged diff and updates README/ARCHITECTURE/CLAUDE.md, but it must run from a
+feature branch (it hard-aborts on main). On main: snooze and let the next feature-branch
+session pick this up. On a feature branch: run it now and fold doc updates into the PR.
+Stakes if wrong: skip means doc drift continues; A on main aborts immediately (no harm
+done, but the AUQ was wasted); B on a feature branch just defers the doc work.
+A) Run /document-release now (recommended on a feature branch; WILL ABORT on main — upstream Step 1 rejects the base branch)
+B) Snooze 1h — bash "<script-path>" --snooze 1   (recommended on main; silences for 1 hour)
 C) Snooze 24h — bash "<script-path>" --snooze 24
 D) Skip this marker forever — bash "<script-path>" --skip <head_sha>
 ```
 
-**On A (and on main):**
-1. Invoke `/document-release` via the Skill tool (no args). It runs at the current cwd (root, on main).
+**On A (when on a feature branch / non-main worktree):**
+1. Invoke `/document-release` via the Skill tool (no args). It runs at the current cwd on the feature branch.
 2. On Skill green: `git status -s` — if uncommitted doc-only changes present (README/CHANGELOG/ARCHITECTURE/CLAUDE.md/CONTRIBUTING.md), auto-commit them:
    `git add <touched-doc-files> && git commit -m "docs: post-merge sync for <slug> (auto via doc-sync-check)"`
    This is REQUIRED to prevent the next-step Step 1.9 isolation gate from HALTing on a dirty checkout (reviewer-flagged P0 collision).
 3. `bash "<script-path>" --resolved` (deletes marker + clears snooze/skip cache).
 4. Continue with the cj_goal pipeline (worktree creation, etc.).
 
-**On A (when on a feature branch / non-main worktree):** print a warning ("/document-release on a non-main branch would produce wrong doc state; recommend Snooze 1h instead"), then fall back to AUQ option B (snooze 1h). Do NOT invoke `/document-release` here.
+**On A (when on main):** print a warning ("/document-release hard-aborts on the base branch — falling back to Snooze 1h; re-pickup will happen on the next feature-branch session"), then fall back to AUQ option B (snooze 1h). Do NOT invoke `/document-release` here — it would just abort and waste a Skill call.
 
 **On B / C / D:** the script subcommand updates cache state; continue with the cj_goal pipeline.
 
