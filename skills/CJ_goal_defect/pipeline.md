@@ -1,8 +1,8 @@
-# /cj_goal_defect — Orchestration
+# /CJ_goal_defect — Orchestration
 
 Single-keystroke orchestrator from a plain `"<bug description>"` → deployed
 fix. A ~80% reshape of `/CJ_goal_investigate` v1.1's flat pipeline; the
-substantive divergence is the front door: `cj_goal_defect` has NO defect
+substantive divergence is the front door: `CJ_goal_defect` has NO defect
 resolver. Every run scaffolds a throwaway `.inbox/<slug>/DRAFT.md` (no D-ID),
 root-causes it under the Iron-Law, and mints a D-ID only at promotion. The
 Iron-Law gate, isolation gate, promotion protocol, artifact writes, chain
@@ -19,10 +19,10 @@ below.
 Accept the following arg shapes:
 
 ```
-/cj_goal_defect "<bug description>"
-/cj_goal_defect --dry-run "<bug description>"
-/cj_goal_defect --no-worktree "<bug description>"
-/cj_goal_defect --verbose "<bug description>"          # optional P2
+/CJ_goal_defect "<bug description>"
+/CJ_goal_defect --dry-run "<bug description>"
+/CJ_goal_defect --no-worktree "<bug description>"
+/CJ_goal_defect --verbose "<bug description>"          # optional P2
 ```
 
 Parser:
@@ -66,7 +66,7 @@ RAW_DIR="$HOME/.gstack/analytics/CJ_goal_defect-runs/$RUN_ID"
 
 ## Step 2: Scaffold the bug report (`.inbox/<slug>/DRAFT.md`)
 
-Unlike `/CJ_goal_investigate`, there is **no defect resolver** — `cj_goal_defect`
+Unlike `/CJ_goal_investigate`, there is **no defect resolver** — `CJ_goal_defect`
 always starts from raw text with no pre-existing defect dir. Every run captures
 a NON-CANONICAL draft under `work-items/defects/.inbox/<slug>/DRAFT.md`. No D-ID
 is allocated here; promotion (Step 7.4) mints the D-ID after the Iron-Law gate
@@ -105,11 +105,11 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: on a populated root cause, would promote to work-items/defects/uncategorized/D<next>_$SLUG"
   echo "DRY RUN: would write RCA + test-plan, then chain /CJ_qa-work-item → /ship (Gate #2) → /land-and-deploy --suppress-readiness-gate"
   echo "DRY RUN: writes nothing. Re-running the same phrase later would resume this draft; reworded text would create a different draft."
-  echo "Suggested resume: /cj_goal_defect \"$BUG_DESC\""
+  echo "Suggested resume: /CJ_goal_defect \"$BUG_DESC\""
   # Telemetry: end_state=dry_run_preview (Step 11 schema; write before exit)
   jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg run_id "$RUN_ID" \
     --arg end_state "dry_run_preview" --arg slug "$SLUG" \
-    '{ts:$ts,run_id:$run_id,end_state:$end_state,slug:$slug,parent_skill:"cj_goal_defect"}' \
+    '{ts:$ts,run_id:$run_id,end_state:$end_state,slug:$slug,parent_skill:"CJ_goal_defect"}' \
     >> "$TELEMETRY" 2>/dev/null || true
   exit 0
 fi
@@ -142,7 +142,7 @@ description: "$DESC_YAML"
 
 # Draft: $BUG_DESC
 
-Captured by /cj_goal_defect on $NOW from a plain bug description.
+Captured by /CJ_goal_defect on $NOW from a plain bug description.
 No D-ID allocated yet. /investigate runs against this draft; on a populated
 root cause it is promoted to work-items/defects/<domain>/D000NNN_<slug>/.
 
@@ -225,13 +225,13 @@ if [ -z "$_HELPER" ]; then
   cat >> "$TRACKER" <<EOF
 - $TS [investigate-not-isolated] worktree helper unreachable (repo-local + manifest .source both absent); cannot verify clean+isolated before source-writing subagent dispatch. HALT (no silent in-place write).
   next_action=Restore scripts/cj-worktree-init.sh (repo-local) or fix \$HOME/.claude/.skills-templates.json .source; then re-run.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=N/A
 EOF
   echo "Why it stopped: the worktree-isolation helper is unreachable, so a clean+isolated checkout can't be verified before /investigate writes the fix to source."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_not_isolated (write per Step 11 schema)
   exit 1
 fi
@@ -252,13 +252,13 @@ if [ "$_GRC" -ne 0 ]; then
   cat >> "$TRACKER" <<EOF
 - $TS [investigate-not-isolated] isolation gate verdict=$VERDICT_STATE — checkout is not clean+isolated; refusing to dispatch the source-writing /investigate subagent (D000024 class).
   next_action=Make the checkout clean+isolated: commit/stash changes, or run from a fresh worktree / clean feature branch; or pass --no-worktree on a clean checkout.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=N/A
 EOF
   echo "Why it stopped: the checkout is not clean+isolated (verdict: $VERDICT_STATE), so /investigate would write the fix on top of unrelated work."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_not_isolated
   exit 1
 fi
@@ -276,7 +276,7 @@ friendliness). Dispatch via the **Agent** tool — this is the depth-2 leaf
 subagent; it does NOT spawn further subagents.
 
 ```
-ROLE: /investigate runner for /cj_goal_defect.
+ROLE: /investigate runner for /CJ_goal_defect.
 
 TASK: Drive /investigate Phases 1-4 against the bug-report draft below.
 Before Phase 4 begins, emit a FIX_PLAN preamble. After Phase 4 completes,
@@ -323,7 +323,7 @@ TRACKER:       <$TRACKER (the draft's DRAFT.md)>
 BUG_REPORT:    <$BUG_DESC>
 ```
 
-Because `cj_goal_defect` always dispatches against a draft, `$DEFECT_ID` is
+Because `CJ_goal_defect` always dispatches against a draft, `$DEFECT_ID` is
 empty (it is minted only at promotion, Step 7.4). The `DEFECT_ID:` line MUST
 read the literal `(draft — none yet; working dir is the draft)` — never an
 empty `DEFECT_ID:` that would confuse `/investigate`.
@@ -349,7 +349,7 @@ if [ -n "$FIX_PLAN_JSON" ]; then
 
 - $TS [investigate-blast-radius] FIX_PLAN reports $FILE_COUNT files; >5 threshold tripped.
   next_action=Decompose the fix into multiple bugs; run /investigate manually per chunk.
-  resume_cmd=# manual: per-chunk /investigate; do NOT re-run /cj_goal_defect on this description until decomposed.
+  resume_cmd=# manual: per-chunk /investigate; do NOT re-run /CJ_goal_defect on this description until decomposed.
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
@@ -375,10 +375,10 @@ resume) PLUS a plain-English 3-line terminal block before `exit 1`:
 ```
 Why it stopped: <one-line plain-English reason for THIS halt>
 State preserved: draft retained at $DEFECT_DIR, no D-ID consumed
-Next: /cj_goal_defect "$DRAFT_DESC"
+Next: /CJ_goal_defect "$DRAFT_DESC"
 ```
 
-The `resume_cmd=` for a draft halt is always `/cj_goal_defect "$DRAFT_DESC"`
+The `resume_cmd=` for a draft halt is always `/CJ_goal_defect "$DRAFT_DESC"`
 (the description is the only stable pre-promotion re-entry key — there is no
 D-ID yet).
 
@@ -393,13 +393,13 @@ if [ -z "$DEBUG_REPORT" ]; then
 
 - $TS [investigate-no-sentinel] /investigate output did not contain DEBUG_REPORT_BEGIN_JSON block.
   next_action=Inspect raw output; if /investigate produced a free-text DEBUG REPORT, hand-author RCA + test-plan from it after promoting manually.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
   echo "Why it stopped: /investigate did not emit the required DEBUG_REPORT sentinel block, so the verdict is unparseable."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_no_sentinel
   exit 1
 fi
@@ -411,13 +411,13 @@ if ! echo "$DEBUG_REPORT" | jq . >/dev/null 2>&1; then
 
 - $TS [investigate-parse-error] DEBUG_REPORT JSON failed to parse.
   next_action=Inspect raw output; hand-fix JSON or re-run /investigate manually.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
   echo "Why it stopped: the DEBUG_REPORT JSON is malformed and cannot be parsed."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_parse_error
   exit 1
 fi
@@ -432,13 +432,13 @@ if [ -z "$ROOT_CAUSE" ] || [[ "$ROOT_CAUSE" =~ ^\[.*\]$ ]]; then
 
 - $TS [investigate-no-root-cause] DEBUG_REPORT.root_cause is empty or matches placeholder pattern. Iron-Law halt — no D-ID minted.
   next_action=Re-run /investigate manually; populate root_cause by hand if iterative refinement fails, then re-run.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
   echo "Why it stopped: /investigate did not produce a root cause, so the Iron-Law gate blocks promotion — no defect number is minted on a guess."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_no_root_cause
   exit 1
 fi
@@ -450,13 +450,13 @@ if [ "$STATUS" = "BLOCKED" ]; then
 
 - $TS [investigate-blocked] /investigate returned status=BLOCKED.
   next_action=Inspect DEBUG_REPORT for the blocker; resolve manually; re-run.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
   echo "Why it stopped: /investigate reported it was BLOCKED before completing the fix."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_blocked
   exit 1
 fi
@@ -468,13 +468,13 @@ if [ "$STATUS" = "DONE_WITH_CONCERNS" ]; then
 
 - $TS [investigate-unverified] /investigate returned status=DONE_WITH_CONCERNS. Fix written but unverified — Iron-Law halt. No D-ID minted.
   next_action=Verify the fix manually; if green, promote + ship by hand, or re-run after the fix verifies.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
   echo "Why it stopped: /investigate wrote a fix but flagged it unverified (DONE_WITH_CONCERNS); the Iron-Law gate refuses to auto-advance."
   echo "State preserved: draft retained at $DEFECT_DIR, no D-ID consumed"
-  echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+  echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
   # Telemetry: end_state=halted_at_investigate_unverified
   exit 1
 fi
@@ -487,7 +487,7 @@ Iron-Law gate has passed. Continue to Step 7.4 (promotion) then Step 7.5.
 
 By the time control reaches here, Step 7 guarantees `STATUS=DONE` and
 `$ROOT_CAUSE` is populated — the Iron-Law gate has passed, so a D-ID may now be
-minted. `cj_goal_defect` ALWAYS promotes (every run is a draft); there is no
+minted. `CJ_goal_defect` ALWAYS promotes (every run is a draft); there is no
 `IS_DRAFT=0` fall-through.
 
 **Atomic promotion protocol (pinned ordering, all inside the mkdir-lock).**
@@ -507,7 +507,7 @@ This ordering is BINDING (the illustrative shell below shows it):
 
 The lock-acquisition timeout is a real halt: it appends a
 `[promote-lock-timeout]` journal entry to the draft's `DRAFT.md` (with
-`next_action=` and `resume_cmd=/cj_goal_defect "$DRAFT_DESC"`), writes a
+`next_action=` and `resume_cmd=/CJ_goal_defect "$DRAFT_DESC"`), writes a
 telemetry line `end_state=halted_at_promote_lock_timeout`, and prints the C7
 3-line terminal block. It is NOT a bare `echo; exit 1`.
 
@@ -523,13 +523,13 @@ while ! mkdir "$LOCK_DIR" 2>/dev/null; do
 
 - $TS [promote-lock-timeout] D-ID allocation lock ($LOCK_DIR) held >10s; promotion aborted.
   next_action=Check for a stale lock dir; rmdir it if no other invocation is live, then re-run.
-  resume_cmd=/cj_goal_defect "$DRAFT_DESC"
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
   pr_url=N/A
   raw_output_path=$RAW_OUTPUT
 EOF
     echo "Why it stopped: another invocation held the D-ID allocation lock for over 10 seconds, so I could not safely mint a defect number."
     echo "State preserved: draft retained at $DRAFT_OLD, no D-ID consumed"
-    echo "Next: /cj_goal_defect \"$DRAFT_DESC\""
+    echo "Next: /CJ_goal_defect \"$DRAFT_DESC\""
     # Telemetry: end_state=halted_at_promote_lock_timeout
     exit 1
   fi
@@ -597,7 +597,7 @@ promoted_from_draft: .inbox/$DRAFT_SLUG
 $DRAFT_DESC
 
 ## Journal
-- $NOW [auto-scaffolded] /cj_goal_defect captured "$DRAFT_DESC" as draft .inbox/$DRAFT_SLUG, then promoted to $DEFECT_ID after /investigate populated the root cause. Domain defaulted to '$DOMAIN'; \`mv\` to a more specific subdir if needed.
+- $NOW [auto-scaffolded] /CJ_goal_defect captured "$DRAFT_DESC" as draft .inbox/$DRAFT_SLUG, then promoted to $DEFECT_ID after /investigate populated the root cause. Domain defaulted to '$DOMAIN'; \`mv\` to a more specific subdir if needed.
 TRK
 
 # step 4 — rebind ALL downstream vars to canonical paths. Step 7.5+ is
@@ -710,7 +710,7 @@ jq -nc \
   --arg end_state "green" \
   --arg pr_url "$PR_URL" \
   --arg slug "$DRAFT_SLUG" \
-  '{ts:$ts,run_id:$run_id,defect_id:$defect_id,defect_dir:$defect_dir,end_state:$end_state,pr_url:$pr_url,slug:$slug,auto_scaffolded:true,parent_skill:"cj_goal_defect"}' \
+  '{ts:$ts,run_id:$run_id,defect_id:$defect_id,defect_dir:$defect_dir,end_state:$end_state,pr_url:$pr_url,slug:$slug,auto_scaffolded:true,parent_skill:"CJ_goal_defect"}' \
   >> "$TELEMETRY"
 ```
 
