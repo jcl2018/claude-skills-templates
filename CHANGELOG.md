@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.17] - 2026-06-01
+
+### Added
+
+- **F000032 per-skill USAGE.md convention + validate.sh Check 13.** Every routable non-deprecated skill now ships a sibling `skills/{name}/USAGE.md` next to its `SKILL.md`, audited at commit time. USAGE.md is the operator + agent best-practice doc — five required H2 sections (When to use / When NOT to use / Mental model / Common pitfalls / Related skills) that answer "should I invoke this?" faster than reading SKILL.md cold did. PHILOSOPHY.md decision-tree entries now link through to each skill's USAGE.md so the chain "decision tree → USAGE.md → SKILL.md" resolves to per-skill best-practice instead of dead-ending at a one-line description. Ships: a new `templates/doc-SKILL-USAGE.md` template (DESIGN.md-shaped frontmatter + the five H2 sections, each with a 2-3 line authoring prompt); 11 backfill USAGE.md files for every existing routable skill (`CJ_system-health`, `CJ_personal-workflow`, `CJ_goal_todo_fix`, `CJ_scaffold-work-item`, `CJ_qa-work-item`, `CJ_implement-from-spec`, `CJ_personal-pipeline`, `CJ_suggest`, `CJ_improve-queue`, `CJ_goal_feature`, `CJ_goal_defect`); a new `doc/PHILOSOPHY.md ## Documentation surfaces` section between `## Key patterns and conventions` and `## Decision tree` documenting the three-doc-per-skill model (SKILL.md required for agent execution, USAGE.md required for routable non-deprecated skills, DESIGN.md optional for developer rationale); `scripts/validate.sh` Check 13, predicate `status != "deprecated"` + non-empty `files` (NOT F000030's `status == "active"`, because operators route to experimental skills today and they need USAGE.md too) with line-anchored `grep -qE "^${H2}[[:space:]]*$"` (rejects substring matches inside code fences); `scripts/test.sh:194` extended to scaffold a templated USAGE.md alongside the synthesized `zzz-test-scaffold` SKILL.md (the EXIT trap's `rm -rf $SKILLS_DIR/zzz-test-scaffold` already covers the new file); `CLAUDE.md` "Skill directory structure" now lists USAGE.md as required, and "Creating a new skill" adds a new step 5 to create USAGE.md from the template.
+
 ## [5.0.16] - 2026-06-01
 
 ### Added

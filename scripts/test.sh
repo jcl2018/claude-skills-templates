@@ -193,6 +193,37 @@ allowed-tools:
 This is a test skill created by the integration test suite.
 SKILLEOF
 
+# Step 1b (F000032): scaffold USAGE.md alongside SKILL.md to satisfy Check 13
+cat > "$SKILLS_DIR/zzz-test-scaffold/USAGE.md" << 'USAGEEOF'
+---
+skill-name: "zzz-test-scaffold"
+version: 0.1.0
+status: experimental
+---
+
+# Skill Usage: zzz-test-scaffold
+
+## When to use
+
+Test fixture only. Created by `scripts/test.sh` integration test.
+
+## When NOT to use
+
+Anywhere. This is a synthesized test skill that is cleaned up after the run.
+
+## Mental model
+
+Fixture for the manual-skill-creation integration test.
+
+## Common pitfalls
+
+None — fixture is removed by EXIT trap + inline cleanup.
+
+## Related skills
+
+None.
+USAGEEOF
+
 # Step 2: add catalog entry
 jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
 
