@@ -4,11 +4,11 @@
 #
 # Why this exists NOW: the F000027 build is defect-first (Approach C). Without
 # an early harness the riskier `feature` tail goes wholly unvalidated until
-# PR #2 (the /cj_goal_feature skill, S000059). This file validates the
-# feature-path SHAPE — worktree entry → shared-plumbing dispatch → the
-# leaf-subagent dispatch targets that exist today — WITHOUT requiring the
-# /cj_goal_feature skill to exist (it does not yet). Every assertion holds on
-# the S000057 branch.
+# PR #2 (the /CJ_goal_feature skill, S000059; uppercase post-F000031 casing-fix).
+# This file validates the feature-path SHAPE — worktree entry → shared-plumbing
+# dispatch → the leaf-subagent dispatch targets that exist today — WITHOUT
+# requiring the /CJ_goal_feature skill to exist (it did not yet at write-time).
+# Every assertion holds on the S000057 branch.
 #
 # Path shape under test (per F000027_DESIGN "Shape of the solution"):
 #   worktree  →  scaffold / impl / qa leaf subagents  →  /ship (PR-stop)
@@ -31,8 +31,8 @@
 #
 # Pure smoke: case (1) uses --dry-run so no real worktree is created; case (2)
 # forwards --dry-run through the common helper; case (4) writes to a mktemp
-# file that is cleaned up. The /cj_goal_feature skill is never invoked — it
-# does not exist yet, by design.
+# file that is cleaned up. The /CJ_goal_feature skill is never invoked — it
+# did not exist yet at write-time, by design.
 
 set -euo pipefail
 
@@ -157,7 +157,7 @@ fi
 # ---------- Case 5: leaf-subagent dispatch targets exist on disk ----------
 # The feature path silently dispatches the workbench-owned leaf skills
 # (scaffold → impl → qa). Assert each exists as a SKILL.md so the dispatch
-# shape points at REAL targets today — without the /cj_goal_feature
+# shape points at REAL targets today — without the /CJ_goal_feature
 # orchestrator existing. (office-hours + ship are gstack skills under
 # ~/.claude/skills/, NOT vendored here — deliberately excluded so this passes
 # in a bare CI checkout.)
@@ -174,18 +174,18 @@ else
   fail_test "Case 5: missing workbench leaf dispatch target(s):$_missing"
 fi
 
-# ---------- Case 6: /cj_goal_feature skill is NOT required to be present ----------
+# ---------- Case 6: /CJ_goal_feature skill is NOT required to be present ----------
 # Documents the contract that this harness runs BEFORE S000059. If the skill
 # dir ever appears, that's fine (no-op); the point is the harness never
 # depends on it. Pure informational assertion (always passes) — kept so a
 # future reader sees the "no skill needed" guarantee is intentional.
 
 echo ""
-echo "Case 6: harness runs without the /cj_goal_feature skill (S000059 not required)..."
-if [ ! -d "$REPO_ROOT/skills/cj_goal_feature" ] && [ ! -d "$REPO_ROOT/skills/CJ_goal_feature" ]; then
-  ok "Case 6: /cj_goal_feature skill absent — feature path shape validated independently (Approach C)"
+echo "Case 6: harness runs without the /CJ_goal_feature skill (S000059 not required)..."
+if [ ! -d "$REPO_ROOT/skills/CJ_goal_feature" ]; then
+  ok "Case 6: /CJ_goal_feature skill absent — feature path shape validated independently (Approach C)"
 else
-  ok "Case 6: /cj_goal_feature skill now present — harness still independent of it (no-op)"
+  ok "Case 6: /CJ_goal_feature skill now present — harness still independent of it (no-op)"
 fi
 
 # ---------- Summary ----------

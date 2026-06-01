@@ -4,7 +4,7 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 ## The shared cj-goal-common.sh helper (S000057)
 
-`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/cj_goal_feature` and `/cj_goal_defect`) plus, on its own adoption cadence, `/CJ_goal_investigate`. It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes.
+`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`) plus, on its own adoption cadence, `/CJ_goal_investigate`. It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes.
 
 **Phases it owns:**
 
@@ -14,14 +14,14 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 **Modes it dispatches on:**
 
-- **feature** — paired with `/cj_goal_feature` (build a feature: topic → reviewable PR). Stops at the PR; deploy is a separate human step.
-- **defect** — paired with `/cj_goal_defect` (fix a bug: description → shipped fix). Runs `/investigate` as a depth-≤2 leaf subagent and only mints a D-ID after the Iron-Law gate passes.
+- **feature** — paired with `/CJ_goal_feature` (build a feature: topic → reviewable PR). Stops at the PR; deploy is a separate human step.
+- **defect** — paired with `/CJ_goal_defect` (fix a bug: description → shipped fix). Runs `/investigate` as a depth-≤2 leaf subagent and only mints a D-ID after the Iron-Law gate passes.
 - **investigate** — paired with `/CJ_goal_investigate` (ship a fix for an already-scaffolded D000NNN defect). Bypasses the from-scratch capture step.
 
 **Consumers:**
 
-- `/cj_goal_feature` (mode=feature) — primary consumer; pulls every phase from the helper.
-- `/cj_goal_defect` (mode=defect) — primary consumer; same phase surface.
+- `/CJ_goal_feature` (mode=feature) — primary consumer; pulls every phase from the helper.
+- `/CJ_goal_defect` (mode=defect) — primary consumer; same phase surface.
 - `/CJ_goal_investigate` (mode=investigate) — on its own adoption cadence (the orchestrator predates the helper and adopts phases incrementally). Telemetry is already routed through the shared schema; worktree adoption is in flight.
 
 The helper is deliberately one shell file, not a directory or a skill. Each phase is a function the orchestrator sources and calls — there is no second layer of orchestration. Treat it as plumbing for the two front doors.

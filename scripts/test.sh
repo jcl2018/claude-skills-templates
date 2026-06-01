@@ -1033,7 +1033,8 @@ fi
 # Regression test (F000025/S000054): /CJ_goal_todo_fix + /CJ_goal_investigate
 # SKILL.md preambles source scripts/cj-worktree-init.sh BEFORE Path Resolution /
 # Routing. (S000060: /CJ_goal_run is now a deprecation shim; its worktree
-# responsibility moved to /cj_goal_feature, so it is guarded as a shim below.)
+# responsibility moved to /CJ_goal_feature, so it is guarded as a shim below.
+# Post-F000031 casing-fix: shim now routes to the uppercase /CJ_goal_feature.)
 # Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
 # Without these, an upstream refactor could silently drop the auto-worktree
 # wiring and the feature would regress to today's "polluting main checkout"
@@ -1041,12 +1042,13 @@ fi
 echo ""
 echo "Regression test (F000025): /CJ_goal_todo_fix + /CJ_goal_investigate SKILL.md wire cj-worktree-init.sh; /CJ_goal_run is a deprecation shim (S000060)..."
 
-# S000060: /CJ_goal_run is now a DEPRECATED alias shim routing to /cj_goal_feature
-# (which owns worktree creation). Guard the shim shape instead of worktree wiring.
-if grep -qE '/cj_goal_feature' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
-  ok "skills/CJ_goal_run/SKILL.md is a deprecation shim routing to /cj_goal_feature (S000060)"
+# S000060 + F000031: /CJ_goal_run is now a DEPRECATED alias shim routing to
+# /CJ_goal_feature (uppercase post-F000031 casing-fix; uppercase canonical owns
+# worktree creation). Guard the shim shape instead of worktree wiring.
+if grep -qE '/CJ_goal_feature' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
+  ok "skills/CJ_goal_run/SKILL.md is a deprecation shim routing to /CJ_goal_feature (S000060 + F000031)"
 else
-  fail_test "skills/CJ_goal_run/SKILL.md should route to /cj_goal_feature (S000060 deprecation shim)"
+  fail_test "skills/CJ_goal_run/SKILL.md should route to /CJ_goal_feature (S000060 deprecation shim, F000031 uppercase canonical)"
 fi
 
 if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # cj-goal-common.sh — deterministic shared plumbing for the two CJ_goal verb
-# skills (/cj_goal_feature, /cj_goal_defect — F000027).
+# skills (/CJ_goal_feature, /CJ_goal_defect — F000027 / casing-fix F000031).
 #
 # The common, deterministic work that would otherwise be duplicated as
 # LLM-followed prose in both verb skills lives here as testable bash, gated by

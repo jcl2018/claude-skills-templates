@@ -1,4 +1,4 @@
-# /cj_goal_feature — Orchestration
+# /CJ_goal_feature — Orchestration
 
 Single-keystroke orchestrator from a plain `"<topic>"` → a reviewable PR. A
 flat reshape of `/CJ_goal_run`: it DROPS the pre-build plan-review phase, DROPS
@@ -19,10 +19,10 @@ follow the steps below.
 Accept the following arg shapes:
 
 ```
-/cj_goal_feature "<topic>"
-/cj_goal_feature --dry-run "<topic>"
-/cj_goal_feature --no-worktree "<topic>"
-/cj_goal_feature                          # no-arg resume on the current branch
+/CJ_goal_feature "<topic>"
+/CJ_goal_feature --dry-run "<topic>"
+/CJ_goal_feature --no-worktree "<topic>"
+/CJ_goal_feature                          # no-arg resume on the current branch
 ```
 
 Parser:
@@ -48,7 +48,7 @@ RUN_ID=$(date +%Y%m%d-%H%M%S)-$$
 # generated) are both live. Shell vars do NOT persist across bash tool calls
 # (CLAUDE.md), so Step 1.9's isolation gate cannot read $NO_WORKTREE; it
 # re-reads this marker via the model-carried RUN_ID (same persistence pattern
-# as TELEMETRY / RAW_DIR). Mirrors /cj_goal_defect Step 1 exactly.
+# as TELEMETRY / RAW_DIR). Mirrors /CJ_goal_defect Step 1 exactly.
 if [ "${NO_WORKTREE:-}" = "1" ]; then
   mkdir -p "$HOME/.gstack/analytics/CJ_goal_feature-runs/$RUN_ID"
   : > "$HOME/.gstack/analytics/CJ_goal_feature-runs/$RUN_ID/.operator-no-worktree"
@@ -99,10 +99,10 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as SILENT leaf Agent subagents (no AUQ)"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR (the merge stays manual; no deploy)"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute; a verbatim re-run resumes from the recorded phase."
-  echo "Suggested resume: /cj_goal_feature \"$TOPIC\""
+  echo "Suggested resume: /CJ_goal_feature \"$TOPIC\""
   jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg run_id "$RUN_ID" \
     --arg end_state "dry_run_preview" --arg topic "$TOPIC" \
-    '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+    '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
     >> "$TELEMETRY" 2>/dev/null || true
   exit 0
 fi
@@ -160,7 +160,7 @@ if [ "$LAST_PHASE" = "ship" ] && [ -n "$PR_NUMBER" ]; then
       echo "Already shipped: PR #$PR_NUMBER is $_PR_STATE. Nothing to do (end_state=already_shipped)."
       jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg run_id "$RUN_ID" \
         --arg end_state "already_shipped" --arg pr "$PR_NUMBER" --arg topic "${TOPIC:-$DESIGN_DOC}" \
-        '{ts:$ts,run_id:$run_id,end_state:$end_state,pr_url:$pr,topic:$topic,parent_skill:"cj_goal_feature"}' \
+        '{ts:$ts,run_id:$run_id,end_state:$end_state,pr_url:$pr,topic:$topic,parent_skill:"CJ_goal_feature"}' \
         >> "$TELEMETRY" 2>/dev/null || true
       exit 0
       ;;
@@ -195,7 +195,7 @@ checkout" shortcut — either the checkout is clean+isolated (a `cj-feat-*`
 worktree, a clean feature branch, or `--no-worktree` on a clean tree) or the run
 HALTs here. The gate is placed before office-hours (not just before the build)
 so an un-isolated run fails fast instead of after the interactive phase. It
-mirrors the proven `/cj_goal_defect` Step 5.0 gate.
+mirrors the proven `/CJ_goal_defect` Step 5.0 gate.
 
 Run this bash block before office-hours. **Shell vars do NOT persist across bash
 tool calls** (only cwd does — see CLAUDE.md), so `$RUN_ID` / `$TELEMETRY` /
@@ -228,15 +228,15 @@ if [ -z "$_HELPER" ]; then
   cat >> "$RESUME_DIR/.resume.log" <<EOF
 - $TS [feature-not-isolated] worktree helper unreachable (repo-local + manifest .source both absent); cannot verify clean+isolated before the source-writing build. HALT (no silent in-place write).
   next_action=Restore scripts/cj-worktree-init.sh (repo-local) or fix \$HOME/.claude/.skills-templates.json .source; then re-run.
-  resume_cmd=/cj_goal_feature "$TOPIC"
+  resume_cmd=/CJ_goal_feature "$TOPIC"
   pr_url=N/A
   raw_output_path=N/A
 EOF
   echo "Why it stopped: the worktree-isolation helper is unreachable, so a clean+isolated checkout can't be verified before the build writes to source."
   echo "State preserved: no work-item scaffolded; resume state under $RESUME_DIR."
-  echo "Next: /cj_goal_feature \"$TOPIC\""
+  echo "Next: /CJ_goal_feature \"$TOPIC\""
   jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_not_isolated" \
-    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
     >> "$TELEMETRY" 2>/dev/null || true
   exit 1
 fi
@@ -256,16 +256,16 @@ if [ "$_GRC" -ne 0 ]; then
   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   cat >> "$RESUME_DIR/.resume.log" <<EOF
 - $TS [feature-not-isolated] isolation gate verdict=$VERDICT_STATE — checkout is not clean+isolated; refusing to run the source-writing build (D000024 class). The cj-feat-* worktree was not created (or was bypassed for a primary-checkout branch).
-  next_action=Run /cj_goal_feature from a clean main checkout (it auto-creates a cj-feat-* worktree), or from a clean feature branch / worktree; or pass --no-worktree on a clean checkout.
-  resume_cmd=/cj_goal_feature "$TOPIC"
+  next_action=Run /CJ_goal_feature from a clean main checkout (it auto-creates a cj-feat-* worktree), or from a clean feature branch / worktree; or pass --no-worktree on a clean checkout.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
   pr_url=N/A
   raw_output_path=N/A
 EOF
   echo "Why it stopped: the checkout is not clean+isolated (verdict: $VERDICT_STATE), so the build would write on top of unrelated work. The mandatory cj-feat-* worktree was not in place."
   echo "State preserved: no work-item scaffolded; resume state under $RESUME_DIR."
-  echo "Next: /cj_goal_feature \"$TOPIC\"  (from a clean main checkout — it creates the worktree automatically)"
+  echo "Next: /CJ_goal_feature \"$TOPIC\"  (from a clean main checkout — it creates the worktree automatically)"
   jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_not_isolated" \
-    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
     >> "$TELEMETRY" 2>/dev/null || true
   exit 1
 fi
@@ -320,17 +320,17 @@ TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$RESUME_DIR"
 cat >> "$RESUME_DIR/.resume.log" <<EOF
 - $TS [officehours-not-approved] /office-hours did not emit an APPROVED design doc (declined / abandoned / Status != APPROVED).
-  next_action=Resume /office-hours, accept the final Approve, then re-run /cj_goal_feature.
-  resume_cmd=/cj_goal_feature "$TOPIC"
+  next_action=Resume /office-hours, accept the final Approve, then re-run /CJ_goal_feature.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
   pr_url=N/A
   raw_output_path=N/A
 EOF
 echo "Why it stopped: /office-hours did not reach an APPROVED design doc, so there is nothing to build yet."
 echo "State preserved: no work-item scaffolded; resume state at $RESUME_STATE."
-echo "Next: /office-hours \"$TOPIC\"  (accept the final Approve), then /cj_goal_feature \"$TOPIC\""
+echo "Next: /office-hours \"$TOPIC\"  (accept the final Approve), then /CJ_goal_feature \"$TOPIC\""
 # Telemetry: end_state=halted_at_officehours (write per Step 6 schema before exit)
 jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_officehours" \
-  --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"cj_goal_feature"}' \
+  --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
   >> "$TELEMETRY" 2>/dev/null || true
 exit 1
 ```
@@ -371,7 +371,7 @@ Dispatch `/CJ_scaffold-work-item` via the **Agent** tool (`subagent_type:
 general-purpose`) with the recorded design-doc path:
 
 ```
-ROLE: /CJ_scaffold-work-item runner for /cj_goal_feature (silent — no AUQ).
+ROLE: /CJ_scaffold-work-item runner for /CJ_goal_feature (silent — no AUQ).
 TASK: Invoke /CJ_scaffold-work-item with the APPROVED design doc in <inputs>.
 If it would ask for a slug/title/scope AUQ you cannot answer mechanically,
 choose the mechanical default from the design doc and proceed (subagents have
@@ -384,7 +384,7 @@ Parse `WORK_ITEM_DIR=<path>` from the subagent's RESULT line into
 non-green status, **HALT** with `[scaffold-red]` (end_state
 `halted_at_scaffold`, `pr_url=N/A`, `raw_output_path=$RAW_DIR/scaffold-raw.txt`)
 + the 3-line terminal block + a telemetry line. resume_cmd is
-`/cj_goal_feature "$TOPIC"`.
+`/CJ_goal_feature "$TOPIC"`.
 
 On green: record the scaffold boundary (same atomic-write as Step 2.5, with
 `last_completed_phase=scaffold`, the new `work_item_dir=$WORK_ITEM_DIR`, and a
@@ -397,7 +397,7 @@ Dispatch `/CJ_implement-from-spec` via the **Agent** tool against
 implement skill runs without AUQ attempts):
 
 ```
-ROLE: /CJ_implement-from-spec runner for /cj_goal_feature (silent — no AUQ).
+ROLE: /CJ_implement-from-spec runner for /CJ_goal_feature (silent — no AUQ).
 TASK: Invoke /CJ_implement-from-spec on the work-item dir in <inputs>, auto
 mode. Return the RESULT line verbatim: RESULT: STATUS=<...>; FILES_CHANGED=<n>.
 <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
@@ -417,7 +417,7 @@ On green: record the impl boundary.
 Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`:
 
 ```
-ROLE: /CJ_qa-work-item runner for /cj_goal_feature (silent — no AUQ).
+ROLE: /CJ_qa-work-item runner for /CJ_goal_feature (silent — no AUQ).
 TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. Return the
 RESULT line verbatim: RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>.
 <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
@@ -485,7 +485,7 @@ jq -nc \
   --arg end_state "green_pr_opened" \
   --arg pr_url "$PR_URL" \
   --arg topic "$TOPIC" \
-  '{ts:$ts,run_id:$run_id,work_item_dir:$work_item_dir,design_doc:$design_doc,end_state:$end_state,pr_url:$pr_url,topic:$topic,parent_skill:"cj_goal_feature"}' \
+  '{ts:$ts,run_id:$run_id,work_item_dir:$work_item_dir,design_doc:$design_doc,end_state:$end_state,pr_url:$pr_url,topic:$topic,parent_skill:"CJ_goal_feature"}' \
   >> "$TELEMETRY"
 ```
 

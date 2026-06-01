@@ -19,7 +19,7 @@ Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 `./scripts/skills-deploy install`. Source of truth: [`rules/skill-routing.md`](rules/skill-routing.md).
 
 The CJ_ skill family in this workbench is fronted by two intent-named verbs:
-`/cj_goal_feature` (build a feature: topic → reviewable PR) and `/cj_goal_defect`
+`/CJ_goal_feature` (build a feature: topic → reviewable PR) and `/CJ_goal_defect`
 (fix a bug: description → shipped fix). Supporting skills: `/CJ_goal_investigate`
 (ship a fix for an existing scaffolded defect), `/CJ_personal-pipeline` (internal
 scaffold→impl→qa engine), workflow validator (/CJ_personal-workflow), per-phase
@@ -29,9 +29,12 @@ standalone utilities (/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix).
 keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
 
 `/CJ_goal_run` + `/CJ_goal_auto` are **DEPRECATED** alias shims (F000027 two-verb
-refactor; sunset v6.0.0) that print a banner then route to `/cj_goal_feature`. Do
-not use them for new work; they stay installable via `skills-deploy install
---include-deprecated` so in-flight pipelines finish.
+refactor; sunset v6.0.0) that print a banner then route to `/CJ_goal_feature`.
+`/cj_goal_feature` + `/cj_goal_defect` are also **DEPRECATED** alias shims
+(F000031 casing-fix follow-up; sunset v6.0.0) that print a banner then route to
+the uppercase canonicals `/CJ_goal_feature` + `/CJ_goal_defect` for family-name
+consistency. Do not use any of these four for new work; they stay installable
+via `skills-deploy install --include-deprecated` so in-flight pipelines finish.
 
 ## CI/CD merge convention
 
@@ -60,7 +63,14 @@ If state is OPEN, the merge silently failed. Do NOT delete the remote branch —
 deleting the branch on an open PR auto-closes the PR (we burned ~5 min recovering
 from this exact failure mode on PR #83 / v2.0.4).
 
-**Auto-worktree on main (F000025):** `/CJ_goal_run`, `/CJ_goal_todo_fix` (single-TODO mode), and `/CJ_goal_investigate` auto-create `.claude/worktrees/cj-{run|todo|inv}-{ts}-{pid}/` when invoked from `main` with arguments — main checkout stays clean and parallel sessions don't collide. Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
+**Auto-worktree on main (F000025 + F000027):** the four current CJ_goal_* orchestrators auto-create a `.claude/worktrees/cj-{prefix}-{ts}-{pid}/` worktree when invoked from `main` with arguments — main checkout stays clean and parallel sessions don't collide. The four orchestrators and their prefixes:
+
+- `/CJ_goal_feature "<topic>"` → `cj-feat-*` (worktree phase: `cj-goal-common.sh --mode feature` → `cj-worktree-init.sh --caller feature`)
+- `/CJ_goal_defect "<bug description>"` → `cj-def-*` (`cj-goal-common.sh --mode defect` → `cj-worktree-init.sh --caller defect`)
+- `/CJ_goal_todo_fix [<T-ID> | "<fragment>"]` (single-TODO mode) → `cj-todo-*` (`cj-worktree-init.sh --caller todo`)
+- `/CJ_goal_investigate <D-id|fragment>` → `cj-inv-*` (`cj-worktree-init.sh --caller investigate`)
+
+Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
 
 **Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
 `.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
@@ -249,7 +259,7 @@ fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
 ## Doc-sync check mechanism (F000028 follow-up)
 
-The three `cj_goal` orchestrator preambles (`/cj_goal_feature`, `/cj_goal_defect`,
+The three `cj_goal` orchestrator preambles (`/CJ_goal_feature`, `/CJ_goal_defect`,
 `/CJ_goal_investigate`) emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
 `post-merge` / `post-rewrite` git hook has dropped a doc-sync marker since the
 operator's last pull. The orchestrator interprets the line and surfaces an AUQ

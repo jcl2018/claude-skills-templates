@@ -1,5 +1,5 @@
 ---
-name: cj_goal_defect
+name: CJ_goal_defect
 description: "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'."
 version: 0.1.0
 allowed-tools:
@@ -69,7 +69,7 @@ Verify this is a git repository:
 git rev-parse --show-toplevel 2>/dev/null || echo "NOT_A_GIT_REPO"
 ```
 
-If `NOT_A_GIT_REPO`: print `Error: /cj_goal_defect requires a git repository.` and stop.
+If `NOT_A_GIT_REPO`: print `Error: /CJ_goal_defect requires a git repository.` and stop.
 
 ## Default-worktree (BEFORE Path Resolution — variables get re-resolved post-cd)
 
@@ -146,15 +146,15 @@ Resolve skill assets using a 2-level fallback chain:
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 _SKILL_DIR=""
 
-if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/cj_goal_defect/pipeline.md" ]; then
-  _SKILL_DIR="$_REPO_ROOT/skills/cj_goal_defect"
+if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/CJ_goal_defect/pipeline.md" ]; then
+  _SKILL_DIR="$_REPO_ROOT/skills/CJ_goal_defect"
 fi
-if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/cj_goal_defect/pipeline.md" ]; then
-  _SKILL_DIR="$HOME/.claude/skills/cj_goal_defect"
+if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/CJ_goal_defect/pipeline.md" ]; then
+  _SKILL_DIR="$HOME/.claude/skills/CJ_goal_defect"
 fi
 
 if [ -z "$_SKILL_DIR" ]; then
-  echo "ERROR: cj_goal_defect skill assets not found."
+  echo "ERROR: CJ_goal_defect skill assets not found."
   echo "Run: ./scripts/skills-deploy install"
   echo "NOT_FOUND"
 else
@@ -166,7 +166,7 @@ If `NOT_FOUND`: surface the error and stop.
 
 ## Overview
 
-`/cj_goal_defect "<bug description>"` is the one-keystroke path from a plain bug
+`/CJ_goal_defect "<bug description>"` is the one-keystroke path from a plain bug
 report — with NO pre-existing defect dir — to a deployed fix. It reshapes
 `/CJ_goal_investigate` v1.1's flat pipeline (~80% reuse) but starts from raw
 text instead of a resolved D-ID, so there is no defect resolver: every run
@@ -223,9 +223,9 @@ from `cj-goal-common.sh` (S000057); the Skill-tool invocations stay inline
 ## Usage
 
 ```
-/cj_goal_defect "login form throws a 500 on empty password"   # scaffold → root-cause → ship
-/cj_goal_defect --dry-run "login form throws a 500"           # preview chain plan + write paths; no writes
-/cj_goal_defect --no-worktree "..."                           # run in place on a clean checkout (opt out of auto-worktree)
+/CJ_goal_defect "login form throws a 500 on empty password"   # scaffold → root-cause → ship
+/CJ_goal_defect --dry-run "login form throws a 500"           # preview chain plan + write paths; no writes
+/CJ_goal_defect --no-worktree "..."                           # run in place on a clean checkout (opt out of auto-worktree)
 ```
 
 **Flags:**
@@ -262,8 +262,8 @@ promotion, artifact writes, the chain dispatch, and telemetry.
 
 | Error | Message | Recovery |
 |-------|---------|----------|
-| Not a git repo | "Error: /cj_goal_defect requires a git repository." | Run inside a repo |
-| Skill assets not found | "Error: cj_goal_defect skill assets not found." | Run `skills-deploy install` |
+| Not a git repo | "Error: /CJ_goal_defect requires a git repository." | Run inside a repo |
+| Skill assets not found | "Error: CJ_goal_defect skill assets not found." | Run `skills-deploy install` |
 | No argument | "Error: a bug description is required." | Pass a quoted bug description |
 | Worktree phase failed | `[worktree] ERROR: ...` | Inspect `cj-goal-common.sh` output; pass `--no-worktree` on a clean checkout |
 | Checkout not clean+isolated (or helper unreachable) | `[investigate-not-isolated]` (Step 5.0 pre-dispatch halt) | Commit/stash changes, run from a fresh worktree / clean feature branch, or pass `--no-worktree` on a clean checkout; re-run via `resume_cmd` |
@@ -290,7 +290,7 @@ the following fields:
 - `pr_url=<url or N/A>` — set when a PR exists (post-/ship halts)
 - `raw_output_path=<path or N/A>` — pointer to raw subagent output where applicable
 
-`cj_goal_defect` always starts from a draft, so the canonical-resolve halts
+`CJ_goal_defect` always starts from a draft, so the canonical-resolve halts
 (`halted_at_resolve_ambiguous`, the retired `halted_at_resolve_zero`) and the
 fix-in-tree anomaly row do not apply — every run is fresh by construction. The
 substantive end-states it inherits unchanged:
@@ -314,7 +314,7 @@ Success end-states: `green`, `dry_run_preview`.
 
 ## Idempotency
 
-`cj_goal_defect` is idempotent across re-invocation of the SAME bug description:
+`CJ_goal_defect` is idempotent across re-invocation of the SAME bug description:
 
 - **Pre-promotion:** the slug is derived deterministically from the description
   (no timestamp in the dir name), so a verbatim re-run resumes the existing

@@ -1,5 +1,5 @@
 ---
-name: cj_goal_feature
+name: CJ_goal_feature
 description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then SILENTLY (zero AUQ) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as depth-≤2 leaf Agent subagents, and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/scaffold/impl/qa/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
 version: 0.1.0
 allowed-tools:
@@ -69,7 +69,7 @@ Verify this is a git repository:
 git rev-parse --show-toplevel 2>/dev/null || echo "NOT_A_GIT_REPO"
 ```
 
-If `NOT_A_GIT_REPO`: print `Error: /cj_goal_feature requires a git repository.` and stop.
+If `NOT_A_GIT_REPO`: print `Error: /CJ_goal_feature requires a git repository.` and stop.
 
 ## Default-worktree (BEFORE Path Resolution — variables get re-resolved post-cd)
 
@@ -84,7 +84,7 @@ through the helper and creates nothing.
 
 The positional-arg guard means a flag-only invocation (e.g. a bare `--dry-run`
 with no topic) skips the helper and errors on the missing argument as usual —
-no empty worktree is spun up. Mirrors the `/cj_goal_defect` wiring exactly; the
+no empty worktree is spun up. Mirrors the `/CJ_goal_defect` wiring exactly; the
 only difference is `--mode feature` (branch prefix `cj-feat`).
 
 **This phase is MANDATORY — not a judgment call.** Do NOT reason about whether a
@@ -157,15 +157,15 @@ Resolve skill assets using a 2-level fallback chain:
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 _SKILL_DIR=""
 
-if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/cj_goal_feature/pipeline.md" ]; then
-  _SKILL_DIR="$_REPO_ROOT/skills/cj_goal_feature"
+if [ -n "$_REPO_ROOT" ] && [ -f "$_REPO_ROOT/skills/CJ_goal_feature/pipeline.md" ]; then
+  _SKILL_DIR="$_REPO_ROOT/skills/CJ_goal_feature"
 fi
-if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/cj_goal_feature/pipeline.md" ]; then
-  _SKILL_DIR="$HOME/.claude/skills/cj_goal_feature"
+if [ -z "$_SKILL_DIR" ] && [ -f "$HOME/.claude/skills/CJ_goal_feature/pipeline.md" ]; then
+  _SKILL_DIR="$HOME/.claude/skills/CJ_goal_feature"
 fi
 
 if [ -z "$_SKILL_DIR" ]; then
-  echo "ERROR: cj_goal_feature skill assets not found."
+  echo "ERROR: CJ_goal_feature skill assets not found."
   echo "Run: ./scripts/skills-deploy install"
   echo "NOT_FOUND"
 else
@@ -177,7 +177,7 @@ If `NOT_FOUND`: surface the error and stop.
 
 ## Overview
 
-`/cj_goal_feature "<topic>"` is the one-keystroke path from a plain feature
+`/CJ_goal_feature "<topic>"` is the one-keystroke path from a plain feature
 topic to a **reviewable PR**. It is the `feature` verb of the F000027 two-verb
 refactor — a flat orchestrator that runs the one interactive design phase up
 front, then silently builds and STOPs at a PR for human review. The chain:
@@ -230,14 +230,14 @@ merge; it ADDS office-hours-inline (the interactive front door) and the
 strengthened resume.
 The deterministic worktree + pr-check phases come from `cj-goal-common.sh`
 (S000057); the Skill-tool invocations stay inline (Approach A, F000027_DESIGN
-Big Decision #4), mirroring `/cj_goal_defect`.
+Big Decision #4), mirroring `/CJ_goal_defect`.
 
 ## Usage
 
 ```
-/cj_goal_feature "<topic>"               # worktree → office-hours → silent build → /ship PR → STOP
-/cj_goal_feature --dry-run "<topic>"     # preview the chain plan + write paths; no writes, no subagents, no Skill calls
-/cj_goal_feature --no-worktree "<topic>" # run in place on a clean checkout (opt out of the auto cj-feat-* worktree)
+/CJ_goal_feature "<topic>"               # worktree → office-hours → silent build → /ship PR → STOP
+/CJ_goal_feature --dry-run "<topic>"     # preview the chain plan + write paths; no writes, no subagents, no Skill calls
+/CJ_goal_feature --no-worktree "<topic>" # run in place on a clean checkout (opt out of the auto cj-feat-* worktree)
 ```
 
 A re-invocation with the SAME topic (or with no positional arg, on the same
@@ -279,12 +279,12 @@ taxonomy, and telemetry.
 
 | Error | Message | Recovery |
 |-------|---------|----------|
-| Not a git repo | "Error: /cj_goal_feature requires a git repository." | Run inside a repo |
-| Skill assets not found | "Error: cj_goal_feature skill assets not found." | Run `skills-deploy install` |
+| Not a git repo | "Error: /CJ_goal_feature requires a git repository." | Run inside a repo |
+| Skill assets not found | "Error: CJ_goal_feature skill assets not found." | Run `skills-deploy install` |
 | No argument | "Error: a feature topic is required." | Pass a quoted topic |
 | Worktree phase failed | `[worktree] ERROR: ...` | Inspect `cj-goal-common.sh` output; pass `--no-worktree` on a clean checkout |
 | Checkout not clean+isolated | `[feature-not-isolated]` (Step 1.9 gate) | Run from a clean `main` checkout (auto-worktree), a clean feature branch / worktree, or pass `--no-worktree` on a clean tree |
-| office-hours not APPROVED / abandoned | `[officehours-not-approved]` (Step 3 halt) | Resume `/office-hours`, accept the final Approve, then re-run `/cj_goal_feature` |
+| office-hours not APPROVED / abandoned | `[officehours-not-approved]` (Step 3 halt) | Resume `/office-hours`, accept the final Approve, then re-run `/CJ_goal_feature` |
 | Resume SHA stale (not ancestor of HEAD) | `[resume-sha-stale]` (restarts the affected phase, not a hard halt) | None — the affected phase re-runs automatically |
 | Resume PR no longer OPEN | `[resume-pr-not-open]` (restarts the ship phase or reports already-shipped) | If MERGED/CLOSED → `already_shipped`; else the ship phase re-runs |
 | scaffold subagent crash / red | `[scaffold-red]` | Inspect subagent output; fix; re-run (resumes from scaffold) |
@@ -323,7 +323,7 @@ There is deliberately **no** deploy-phase or plan-review-phase end-state —
 
 ## Resume (P0 #4 / #5) — validate-before-skip
 
-`/cj_goal_feature` records a resume state file per run (path resolved in
+`/CJ_goal_feature` records a resume state file per run (path resolved in
 pipeline.md Step 1). It tracks:
 
 - `last_completed_phase` ∈ {`none`, `office-hours`, `scaffold`, `impl`, `qa`, `ship`}

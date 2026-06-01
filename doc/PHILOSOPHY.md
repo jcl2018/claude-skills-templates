@@ -6,7 +6,7 @@ Claude Code follows structured instructions reliably. That means the hard part o
 
 The target user is a solo developer using Claude Code who wants lightweight lifecycle management without adopting a project management platform. Work items live in the repo. Templates live in `~/.claude/templates/`. No external service required.
 
-The two intent-named front doors capture the dominant workflows: `/cj_goal_feature` (build a feature: topic → reviewable PR) and `/cj_goal_defect` (fix a bug: description → shipped fix). Everything else is either a specialized orchestrator (`/CJ_goal_investigate` for an already-scaffolded defect, `/CJ_goal_todo_fix` for backlog drain) or a read-only utility (`/CJ_suggest`, `/CJ_system-health`, `/CJ_improve-queue`).
+The two intent-named front doors capture the dominant workflows: `/CJ_goal_feature` (build a feature: topic → reviewable PR) and `/CJ_goal_defect` (fix a bug: description → shipped fix). Everything else is either a specialized orchestrator (`/CJ_goal_investigate` for an already-scaffolded defect, `/CJ_goal_todo_fix` for backlog drain) or a read-only utility (`/CJ_suggest`, `/CJ_system-health`, `/CJ_improve-queue`).
 
 ## Design principles and tradeoffs
 
@@ -63,12 +63,12 @@ The CJ_ family is the workbench's user-facing pipeline. Top-level orchestrators 
 ```
 START: What's your input?
 
-  ┌─ One-line feature topic? ─────► /cj_goal_feature "<topic>"
+  ┌─ One-line feature topic? ─────► /CJ_goal_feature "<topic>"
   │  (build a feature end-to-end)    ├─ stops at the PR (architecture gate)
   │                                  ├─ /office-hours INLINE (1 interactive phase)
   │                                  └─ scaffold → implement → QA (silent leaves)
   │
-  ├─ Bug description (no D-id)? ──► /cj_goal_defect "<bug description>"
+  ├─ Bug description (no D-id)? ──► /CJ_goal_defect "<bug description>"
   │  (description → shipped fix)     ├─ .inbox/<slug>/DRAFT.md scratchpad
   │                                  ├─ /investigate (Iron-Law: no RCA ⇒ HALT)
   │                                  └─ D-ID minted only after RCA gate passes
@@ -101,8 +101,8 @@ START: What's your input?
 
 | Your situation | Call |
 |---|---|
-| One-line topic, want a reviewable PR | `/cj_goal_feature "<topic>"` |
-| Bug description, no defect dir yet | `/cj_goal_defect "<bug>"` |
+| One-line topic, want a reviewable PR | `/CJ_goal_feature "<topic>"` |
+| Bug description, no defect dir yet | `/CJ_goal_defect "<bug>"` |
 | Existing D000NNN defect to ship a fix for | `/CJ_goal_investigate <D-id>` |
 | Backlog has shippable TODOs.md rows | `/CJ_goal_todo_fix` (or `--max-drain N`) |
 | Lost track, what's next? | `/CJ_suggest` |
@@ -114,9 +114,9 @@ START: What's your input?
 | Skill | Called by | Job |
 |---|---|---|
 | `/CJ_personal-pipeline` | `/CJ_goal_todo_fix` per-TODO chain | Chains scaffold → impl → QA in a fresh-context Agent subagent |
-| `/CJ_scaffold-work-item` | `/cj_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree |
-| `/CJ_implement-from-spec` | `/cj_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write |
-| `/CJ_qa-work-item` | `/cj_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_investigate` | Runs TEST-SPEC rows (smoke + E2E subagent per row) |
+| `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree |
+| `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write |
+| `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_investigate` | Runs TEST-SPEC rows (smoke + E2E subagent per row) |
 | `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against `personal-artifact-manifests.json` |
 
 The orchestrators all converge on the same downstream chain (`/ship` → `/land-and-deploy`) — they differ in what they take as input (topic / bug / defect / TODO row). **GATE #1** (final approval before code is written) is always human across all four. **GATE #2** (post-implementation merge) is human-by-default; the handoff-gate denylist blocks exactly the skill surfaces every feature touches, so PR-stop is the correct stopping point for skill-work in this workbench.
@@ -144,7 +144,7 @@ For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F00002
 
 **Claude Code ecosystem:** Skills are discovered from `~/.claude/skills/`. Templates deploy to `~/.claude/templates/`. Rules deploy to `~/.claude/rules/`. The `skills-deploy` script manages symlinks and manifests at `~/.claude/.skills-templates.json`.
 
-**gstack (optional but expected for shipping):** `/cj_goal_feature` and `/cj_goal_defect` compose with gstack's `/office-hours`, `/ship`, and `/land-and-deploy` to take a topic / bug description through to a shipped fix. `/CJ_system-health` optionally invokes waza for config hygiene. Neither is required for core scaffolding/validation.
+**gstack (optional but expected for shipping):** `/CJ_goal_feature` and `/CJ_goal_defect` compose with gstack's `/office-hours`, `/ship`, and `/land-and-deploy` to take a topic / bug description through to a shipped fix. `/CJ_system-health` optionally invokes waza for config hygiene. Neither is required for core scaffolding/validation.
 
 **Doc-sync mechanism (F000028 + F000029):** A `post-merge` / `post-rewrite` git hook writes `~/.gstack/doc-sync-pending/<repo-slug>.json` after non-trivial main-moving merges. Each `cj_goal` orchestrator preamble emits a `DOC_SYNC_PENDING <path>` line picked up as an AUQ (run `/document-release` inline now, snooze, or skip). See [doc/ARCHITECTURE.md](ARCHITECTURE.md) for the full mechanism reference.
 
@@ -160,9 +160,9 @@ The following skills were removed or deprecated as the workbench shape evolved. 
 
 **`/docs`** — was a documentation lifecycle skill (`docs init` / `docs check` / `docs tree`) covering staleness detection, drift flagging, and structural completeness, with a `.docs/claims.json` sidecar mapping doc sections to evidence files. Retired by commit `e6951aa` ("refactor: remove /docs skill, repo-root templates, and global rules"); the work-item validation it carried graduated into a dedicated workflow skill (PR #30, "restructure /docs into /personal-workflow"). Why retired: a workflow skill owning its own templates + manifest cleanly was a better factor than a single `/docs` skill straddling staleness, drift, and structural checks. What replaced it: `/CJ_personal-workflow` owns work-item validation; `/document-release` (upstream gstack) handles post-ship documentation update; the workbench audit conventions section in `CLAUDE.md` rides `/document-release` to catch workbench-specific drift.
 
-**`/CJ_goal_auto`** — was the one-line-idea-to-deployed orchestrator with an opt-in `--auto-merge-small-diffs` path gated by the handoff sentinel (introduced PR #166 / v5.0.1 as F000026/S000056). Deprecated by PR #173 / v5.0.6 (commit `e837776`, "F000027/S000060 deprecate /CJ_goal_run + /CJ_goal_auto") as part of the F000027 two-verb refactor. Sunset target: v6.0.0. Why deprecated: the two-verb shape (`/cj_goal_feature` for build-a-feature, `/cj_goal_defect` for fix-a-bug) is clearer than a single front door that branches internally on classifier output, and the auto-merge path's denylist coverage made it unsafe-by-construction for the skill surfaces every feature touches. What replaced it: `/cj_goal_feature` (today's experimental front door for building a feature end-to-end, stops at the PR for human review). The skill remains in the catalog as a thin alias shim (`status: deprecated`) so in-flight pipelines finish via `skills-deploy install --include-deprecated`.
+**`/CJ_goal_auto`** — was the one-line-idea-to-deployed orchestrator with an opt-in `--auto-merge-small-diffs` path gated by the handoff sentinel (introduced PR #166 / v5.0.1 as F000026/S000056). Deprecated by PR #173 / v5.0.6 (commit `e837776`, "F000027/S000060 deprecate /CJ_goal_run + /CJ_goal_auto") as part of the F000027 two-verb refactor. Sunset target: v6.0.0. Why deprecated: the two-verb shape (`/CJ_goal_feature` for build-a-feature, `/CJ_goal_defect` for fix-a-bug) is clearer than a single front door that branches internally on classifier output, and the auto-merge path's denylist coverage made it unsafe-by-construction for the skill surfaces every feature touches. What replaced it: `/CJ_goal_feature` (today's experimental front door for building a feature end-to-end, stops at the PR for human review). The skill remains in the catalog as a thin alias shim (`status: deprecated`) so in-flight pipelines finish via `skills-deploy install --include-deprecated`.
 
-**`/CJ_goal_run`** — was the canonical full-pipeline orchestrator (autoplan → CJ_personal-pipeline → ship → land-and-deploy) accepting either an approved design doc or a work-item dir as input, with branch-aware resume. Deprecated together with `/CJ_goal_auto` by PR #173 / v5.0.6 (commit `e837776`). Sunset target: v6.0.0. Why deprecated: same F000027 two-verb shape; the orchestrator stays in place but is no longer the user-facing front door. What replaced it: `/cj_goal_feature` (build) and `/cj_goal_defect` (bug) as the top-level verbs; `/CJ_goal_investigate` remains separately for shipping a fix on an already-scaffolded defect; `/CJ_personal-pipeline` (still active, not deprecated) handles the scaffold → impl → QA chain as an internal step. The skill remains in the catalog as a thin alias shim (`status: deprecated`) for in-flight migration.
+**`/CJ_goal_run`** — was the canonical full-pipeline orchestrator (autoplan → CJ_personal-pipeline → ship → land-and-deploy) accepting either an approved design doc or a work-item dir as input, with branch-aware resume. Deprecated together with `/CJ_goal_auto` by PR #173 / v5.0.6 (commit `e837776`). Sunset target: v6.0.0. Why deprecated: same F000027 two-verb shape; the orchestrator stays in place but is no longer the user-facing front door. What replaced it: `/CJ_goal_feature` (build) and `/CJ_goal_defect` (bug) as the top-level verbs; `/CJ_goal_investigate` remains separately for shipping a fix on an already-scaffolded defect; `/CJ_personal-pipeline` (still active, not deprecated) handles the scaffold → impl → QA chain as an internal step. The skill remains in the catalog as a thin alias shim (`status: deprecated`) for in-flight migration.
 
 ## Failure modes and maintenance risks
 
