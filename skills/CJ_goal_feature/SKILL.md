@@ -1,7 +1,7 @@
 ---
 name: CJ_goal_feature
-description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then SILENTLY (zero AUQ) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as depth-≤2 leaf Agent subagents, and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/scaffold/impl/qa/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
-version: 0.1.0
+description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive design phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then shows a design-summary approval gate in chat (a concise digest of the APPROVED doc + a single go/no-go before the autonomous build budget is spent — Abort HALTs as halted_at_design_gate and preserves the doc for resume), then SILENTLY (zero AUQ past the gate) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as depth-≤2 leaf Agent subagents, and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob; the design-summary gate re-fires on resume while still parked at the office-hours boundary and is skipped once the build has progressed. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/design_gate/scaffold/impl/qa/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
@@ -193,7 +193,10 @@ front, then silently builds and STOPs at a PR for human review. The chain:
    ▼
 capture doc path → resume state file: last_completed_phase + HEAD SHA + PR#
    │
-   ▼  SILENT, NO AUQ — depth-≤2 leaf Agent subagents
+   ▼
+design-summary approval gate   [INLINE AUQ — digest of the APPROVED doc + go/no-go]
+   │   ↳ Abort → HALT (halted_at_design_gate; doc preserved; re-run re-shows the gate)
+   ▼  Approve & build →  SILENT, NO AUQ — depth-≤2 leaf Agent subagents
 /CJ_scaffold-work-item  →  /CJ_implement-from-spec  →  /CJ_qa-work-item
    │
    ▼
@@ -206,11 +209,21 @@ STOP at PR   (human reviews + merges on GitHub; /land-and-deploy is a SEPARATE h
 telemetry append → ~/.gstack/analytics/CJ_goal_feature.jsonl
 ```
 
-**Why office-hours runs inline (not as a subagent).** office-hours is the one
-interactive phase — six forcing questions, a premise gate, a terminal Approve.
-Subagents have no AskUserQuestion tool, so office-hours MUST run at the
-orchestrator (top) level. The leaf build skills (scaffold/impl/qa) emit no AUQ
-in subagent context, so they dispatch as silent depth-2 leaf subagents.
+**Why office-hours runs inline (not as a subagent).** office-hours is the
+primary interactive phase — six forcing questions, a premise gate, a terminal
+Approve. Subagents have no AskUserQuestion tool, so office-hours MUST run at the
+orchestrator (top) level. The same is true of the Step 2.7 design-summary
+approval gate, which also runs inline at the top level (the operator is still at
+the keyboard from office-hours). The leaf build skills (scaffold/impl/qa) emit
+no AUQ in subagent context, so they dispatch as silent depth-2 leaf subagents.
+
+**Why a design-summary gate after office-hours.** office-hours' terminal Approve
+approves the *design doc content*; the orchestrator then used to proceed
+silently ("doc is done") into the autonomous build. Step 2.7 replaces that
+silent hand-off with a chat digest of the APPROVED doc + a single go/no-go — the
+operator's explicit green-light to spend the build budget (scaffold → implement
+→ qa → `/ship`) without re-reading the full doc. It is the only AUQ between the
+office-hours Approve and the PR; past it the build is silent.
 
 **Why PR-stop, no plan-review phase, no automatic merge.** Auto-deploy of
 skill-work is unsafe-by-construction here: `scripts/cj-handoff-gate.sh`'s
@@ -261,7 +274,7 @@ design):
   touches). No feature-specific gate profile, no automatic-merge or deploy path
   in v1. Re-opened only by the author at approval (Open Question 1).
 - **`/CJ_goal_auto`'s no-office-hours fast path** — office-hours always runs
-  inline as the one interactive phase.
+  inline as the interactive design phase (followed by the Step 2.7 gate).
 - **A machine-readable design-doc pointer from office-hours** — deferred
   follow-up; v1 recovers the doc by the recorded path + `Status: APPROVED`
   re-confirm.
@@ -273,9 +286,11 @@ design):
 Read [pipeline.md](pipeline.md) and follow the step-by-step orchestration. The
 pipeline file owns: arg parsing, the office-hours inline phase + its halt, the
 resume state file (`last_completed_phase` + per-phase HEAD SHA + PR number)
-with validate-before-skip, the silent scaffold/impl/qa leaf-subagent dispatch,
-the inline `/ship` with the diff-review AUQ suppressed, the PR-stop, the halt
-taxonomy, and telemetry.
+with validate-before-skip, the Step 2.7 design-summary approval gate (digest of
+the APPROVED doc + go/no-go, with its `[design-gate-declined]` halt and
+skip-on-resume), the silent scaffold/impl/qa leaf-subagent dispatch, the inline
+`/ship` with the diff-review AUQ suppressed, the PR-stop, the halt taxonomy, and
+telemetry.
 
 ## Error Handling
 
@@ -287,6 +302,7 @@ taxonomy, and telemetry.
 | Worktree phase failed | `[worktree] ERROR: ...` | Inspect `cj-goal-common.sh` output; pass `--no-worktree` on a clean checkout |
 | Checkout not clean+isolated | `[feature-not-isolated]` (Step 1.9 gate) | Run from a clean `main` checkout (auto-worktree), a clean feature branch / worktree, or pass `--no-worktree` on a clean tree |
 | office-hours not APPROVED / abandoned | `[officehours-not-approved]` (Step 3 halt) | Resume `/office-hours`, accept the final Approve, then re-run `/CJ_goal_feature` |
+| Design-summary gate declined | `[design-gate-declined]` (Step 2.7 halt) | Re-run `/CJ_goal_feature` to re-show the summary + gate; edit the doc / re-run `/office-hours` first if the design needs changes |
 | Resume SHA stale (not ancestor of HEAD) | `[resume-sha-stale]` (restarts the affected phase, not a hard halt) | None — the affected phase re-runs automatically |
 | Resume PR no longer OPEN | `[resume-pr-not-open]` (restarts the ship phase or reports already-shipped) | If MERGED/CLOSED → `already_shipped`; else the ship phase re-runs |
 | scaffold subagent crash / red | `[scaffold-red]` | Inspect subagent output; fix; re-run (resumes from scaffold) |
@@ -312,6 +328,7 @@ exists) with the family contract fields:
 | `halted_at_no_arg` | (no journal — usage halt; output on stderr) | No topic passed |
 | `halted_at_not_isolated` | `[feature-not-isolated]` | Step 1.9 isolation gate: checkout not clean+isolated (verdict `dirty`/`not_isolated`/`not_a_repo`) OR the worktree helper is unreachable after both probes. Pre-build halt; the source-writing scaffold/implement subagents are provably NOT dispatched. |
 | `halted_at_officehours` | `[officehours-not-approved]` | office-hours did not emit an APPROVED design doc (declined / abandoned / `Status` != APPROVED) |
+| `halted_at_design_gate` | `[design-gate-declined]` | Step 2.7 design-summary approval gate: operator chose Abort. The APPROVED doc + office-hours boundary are preserved; the silent build never started. Re-run re-shows the gate. |
 | `halted_at_scaffold` | `[scaffold-red]` | scaffold leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_impl` | `[impl-red]` | implement leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_qa` | `[qa-red]` | /CJ_qa-work-item red |
@@ -349,6 +366,11 @@ trusting the flag:
    doc body. If the recorded doc still reads APPROVED, office-hours is **not**
    re-run — the build proceeds from scaffold. If the recorded path is missing
    or no longer APPROVED, office-hours restarts.
+4. **Design-summary gate re-fire (Step 2.7).** While the validated resume point
+   is still `office-hours` (the doc was approved but the build never started —
+   e.g. a prior Abort at the gate), the design-summary gate **re-fires** on
+   resume. Once the build has progressed (`last_completed_phase ∈ {scaffold,
+   impl, qa, ship}`), the gate is skipped — the operator already green-lit it.
 
 ## Idempotency
 
@@ -366,11 +388,13 @@ trusting the flag:
 
 ## Notes
 
-- **No AUQ between the office-hours Approve and the PR.** office-hours itself is
-  interactive (the one human checkpoint up front); the silent build emits no
-  AUQ (subagents have no AUQ tool), and `/ship` runs with its diff-review AUQ
-  suppressed — the PR itself is the review. The two human touchpoints are the
-  office-hours Approve and the PR.
+- **One AUQ between the office-hours Approve and the PR: the design-summary
+  gate.** office-hours itself is interactive (the design checkpoint up front);
+  Step 2.7 then shows a digest of the APPROVED doc + a single go/no-go before
+  the build budget is spent. Past that gate the silent build emits no AUQ
+  (subagents have no AUQ tool), and `/ship` runs with its diff-review AUQ
+  suppressed — the PR itself is the review. The three human touchpoints are the
+  office-hours Approve, the Step 2.7 design-summary gate, and the PR.
 - **`/ship` diff-review AUQ is suppressed** on this path because the opened PR
   is the human review. This is NOT a bypass of review — it relocates the review
   from a mid-flight AUQ to the PR on GitHub.
