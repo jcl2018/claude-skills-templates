@@ -1137,6 +1137,23 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# D000NNN regression — cj_goal preamble doc-sync AUQ recommendation polarity.
+# The 3 cj_goal SKILL.md preambles labelled A as "recommended on main", but
+# upstream /document-release Step 1 hard-aborts on the base branch — so A
+# always aborts on main; B (snooze) is the only path that works. The test
+# asserts the literal AUQ-template wording matches the corrected polarity:
+# B is recommended on main, A is recommended on a feature branch (and flagged
+# as "WILL ABORT on main"). Also checks the CLAUDE.md mechanism note.
+echo ""
+echo "Running tests/cj-goal-doc-sync-auq-recommendation.test.sh (preamble AUQ polarity)..."
+if bash "$REPO_ROOT/tests/cj-goal-doc-sync-auq-recommendation.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-doc-sync-auq-recommendation.test.sh: all 3 SKILL.md preambles + CLAUDE.md match corrected polarity"
+else
+  _cgdsar_rc=$?
+  fail_test "tests/cj-goal-doc-sync-auq-recommendation.test.sh failed (rc=$_cgdsar_rc) — run \`bash tests/cj-goal-doc-sync-auq-recommendation.test.sh\` directly to see"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — /CJ_goal_auto + scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.
 # Each test crafts a minimal git-diff fixture (raw + numstat) and feeds it to
