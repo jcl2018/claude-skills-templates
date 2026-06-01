@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.16] - 2026-06-01
+
+### Added
+
+- **`/CJ_goal_feature`: design-summary approval gate after office-hours (Step 2.7).** Previously the orchestrator recorded the office-hours boundary and proceeded **silently** into the autonomous build ("doc is done") — the operator got no digest of what was about to be built and no chance to stop before the build budget (scaffold → implement → qa → `/ship`) was spent. This release inserts a new **Step 2.7 design-summary approval gate** in `skills/CJ_goal_feature/pipeline.md`, between the office-hours boundary record (Step 2.5) and the silent build (Step 3): the orchestrator reads the APPROVED design doc and prints a concise chat summary (topic, goal, approach, scope, test plan, open questions — ~10–15 lines, NOT a file dump and NOT a bare "doc is done"), then surfaces a single go/no-go AUQ (**A) Approve & build** / **B) Abort**). Abort HALTs with a new `[design-gate-declined]` marker (end_state `halted_at_design_gate`), preserving the APPROVED doc + office-hours boundary so a re-run short-circuits office-hours and re-shows the gate. The gate runs inline at the orchestrator level (AUQ-capable; the operator is still at the keyboard from office-hours) and is **skip-on-resume**: it fires only while the validated `last_completed_phase` is exactly `office-hours`, and is skipped once the build has progressed (`scaffold`/`impl`/`qa`/`ship`) so an already-approved run is never re-asked. This amends the prior P0 #2 "zero AUQ between the office-hours Approve and the PR" contract to "exactly one AUQ — the design-summary gate"; past the gate the build stays silent and `/ship` keeps its diff-review AUQ suppressed (the PR is still the review). The three human touchpoints are now the office-hours Approve, the Step 2.7 gate, and the PR. Skill version `0.1.0` → `0.2.0`; SKILL.md frontmatter + `skills-catalog.json` description/version synced; halt-taxonomy table, error-handling table, Overview chain diagram, Routing, Resume, and Idempotency contracts all updated to carry the new gate + halt state. (Re-applied onto the uppercase `CJ_goal_feature` skill after the v5.0.12 F000031 casing rename.)
+
 ## [5.0.15] - 2026-05-31
 
 ### Changed

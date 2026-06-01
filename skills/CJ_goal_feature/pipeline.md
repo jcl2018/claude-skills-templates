@@ -3,8 +3,8 @@
 Single-keystroke orchestrator from a plain `"<topic>"` → a reviewable PR. A
 flat reshape of `/CJ_goal_run`: it DROPS the pre-build plan-review phase, DROPS
 the `/land-and-deploy` tail, and DROPS the automatic merge; it ADDS
-`/office-hours` inline (the one interactive phase) and a strengthened resume
-state file. office-hours + `/ship` run inline at the top level; scaffold /
+`/office-hours` inline (the interactive design phase) + a Step 2.7
+design-summary approval gate, and a strengthened resume state file. office-hours + `/ship` run inline at the top level; scaffold /
 implement / qa run as depth-≤2 leaf Agent subagents. The pipeline STOPs at the
 PR — the PR is the human architecture gate.
 
@@ -275,9 +275,10 @@ echo "Isolation gate: verdict=$VERDICT_STATE — clean+isolated; proceeding to o
 
 Only on a green (`isolated`, exit 0) verdict does control proceed to Step 2.
 
-## Step 2: /office-hours (INLINE — the one interactive phase)
+## Step 2: /office-hours (INLINE — the interactive design phase)
 
-office-hours is the single human checkpoint up front. It runs INLINE at the
+office-hours is the design checkpoint up front (Step 2.7's gate is the second
+human touchpoint). It runs INLINE at the
 orchestrator (top) level — NOT as a subagent — because it is AUQ-heavy (six
 forcing questions, a premise gate, a terminal Approve) and subagents have no
 AskUserQuestion tool.
@@ -356,6 +357,92 @@ mv "$_TMP" "$RESUME_STATE"
 echo "[resume] recorded office-hours boundary (doc=$DESIGN_DOC, sha=$HEAD_SHA)"
 ```
 
+## Step 2.7: Design-summary approval gate (the post-office-hours checkpoint)
+
+Runs immediately after the office-hours boundary is recorded, before the silent
+build. office-hours emits the APPROVED doc and the orchestrator used to proceed
+**silently** ("doc is done") straight into scaffold/implement/qa — this gate
+replaces that silent hand-off with a **chat summary of the design + an explicit
+go/no-go**. It is the operator's go-ahead to spend the autonomous build budget
+(scaffold → implement → qa → `/ship`), a distinct decision from the office-hours
+Approve (which approved the *design doc content*). The orchestrator runs at the
+top level, so AskUserQuestion is available here (subagents are not yet
+dispatched).
+
+**Skip-on-resume.** Run this gate ONLY while the build has not yet started —
+i.e. the validated `LAST_PHASE` (Step 1.5) is exactly `office-hours`. If
+`LAST_PHASE ∈ {scaffold, impl, qa, ship}` the operator already approved on an
+earlier invocation and the build progressed; do NOT re-ask — skip to Step 3. A
+fresh office-hours run sets `LAST_PHASE=office-hours` at Step 2.5, so the gate
+fires once after a fresh design doc and re-fires on every resume still parked at
+the gate.
+
+```bash
+# Gate applies only while parked at the office-hours boundary (build not started).
+RUN_DESIGN_GATE=0
+[ "$LAST_PHASE" = "office-hours" ] && RUN_DESIGN_GATE=1
+```
+
+When `RUN_DESIGN_GATE=1`:
+
+1. **Read the APPROVED design doc** at `$DESIGN_DOC` (recorded at Step 2.5).
+2. **Print a concise chat summary** — NOT a dump of the file, and NOT a bare
+   "doc is done". Distill it to the decision-relevant headlines the operator
+   needs to green-light an autonomous build:
+   - **Topic / title** — the one-line feature.
+   - **Goal / problem** — what it solves (1–2 sentences).
+   - **Approach** — the chosen design in 2–4 bullets.
+   - **Scope** — the components / files / skills it will touch.
+   - **Test plan** — how it will be verified (the headline cases).
+   - **Open questions / risks** — anything the doc flagged unresolved.
+
+   Pull these from the design-doc body (office-hours docs carry these sections;
+   fall back to the nearest heading when a label differs). Keep it to ~10–15
+   lines so it reads at a glance.
+3. **Surface the approval AUQ** (AskUserQuestion). Recommend A:
+
+```
+Design ready for "<topic>" — APPROVED doc at <DESIGN_DOC>.
+The summary above is the digest; the full doc has the detail.
+Proceeding kicks off the SILENT autonomous build (scaffold → implement → qa)
+and opens a PR via /ship. Nothing merges automatically — the PR is the review.
+
+A) Approve & build (Recommended) — run the silent build and open the PR.
+B) Abort — stop here; the APPROVED doc + office-hours boundary are saved.
+   Resume later with /CJ_goal_feature "<topic>" (this gate re-fires on resume).
+```
+
+**On A (Approve & build):** continue to Step 3. No state change is needed — the
+office-hours boundary is already recorded, and Step 3 records the scaffold
+boundary once the build starts, which moves the resume point past this gate (so
+a later resume skips it).
+
+**On B (Abort):** HALT with `[design-gate-declined]` (end_state
+`halted_at_design_gate`). The APPROVED doc and the recorded office-hours
+boundary are preserved, so a re-run short-circuits office-hours (Step 2 resume:
+recorded doc still APPROVED) and re-shows this gate — the build never started:
+
+```bash
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+mkdir -p "$RESUME_DIR"
+cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [design-gate-declined] operator declined the design-summary approval gate; the silent build was not dispatched. APPROVED design doc preserved at $DESIGN_DOC.
+  next_action=Re-run /CJ_goal_feature to re-show the summary + gate; edit the doc (or re-run /office-hours) first if the design needs changes.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=N/A
+EOF
+echo "Why it stopped: you declined the design-summary approval gate, so the autonomous build was not started."
+echo "State preserved: APPROVED design doc at $DESIGN_DOC; office-hours boundary recorded at $RESUME_STATE."
+echo "Next: /CJ_goal_feature \"$TOPIC\"  (re-shows the summary + gate; the build has not started)."
+jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_design_gate" \
+  --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
+  >> "$TELEMETRY" 2>/dev/null || true
+exit 1
+```
+
+Only on A (Approve & build) does control proceed to Step 3.
+
 ## Step 3: Silent build — scaffold → implement → qa (leaf Agent subagents)
 
 The build runs with **zero AUQ** (P0 #2). Each phase is a depth-2 leaf Agent
@@ -432,8 +519,9 @@ On green: record the qa boundary, then continue to Step 4.
 ## Step 4: /ship (INLINE — diff-review AUQ suppressed; opens a PR)
 
 Invoke `/ship` via the **Skill** tool with the diff-review AUQ **suppressed**.
-The opened PR is the human review (P0 #2: zero AUQ between the office-hours
-Approve and the PR), so `/ship`'s mid-flight diff-review AUQ is relocated to the
+The opened PR is the human review (P0 #2 amended: the only AUQ between the
+office-hours Approve and the PR is the Step 2.7 design-summary gate; past it the
+build is silent), so `/ship`'s mid-flight diff-review AUQ is relocated to the
 PR on GitHub rather than fired inline. This is NOT a bypass of review.
 
 > Invoke /ship with its pre-PR diff-review AUQ suppressed (the opened PR is the
@@ -528,7 +616,8 @@ Every exit path (success OR halt) writes a single telemetry line to
 `~/.gstack/analytics/CJ_goal_feature.jsonl`. Success states: `green_pr_opened`,
 `already_shipped`, `dry_run_preview`. Halt states (P1 #6):
 `halted_at_no_arg`, `halted_at_not_isolated`, `halted_at_officehours`,
-`halted_at_scaffold`, `halted_at_impl`, `halted_at_qa`, `halted_at_ship`.
+`halted_at_design_gate`, `halted_at_scaffold`, `halted_at_impl`,
+`halted_at_qa`, `halted_at_ship`.
 
 Add any new halt with: (a) a journal / `.resume.log` entry in the appropriate
 Step, (b) a telemetry write before exit, (c) a row in SKILL.md's halt-taxonomy
@@ -546,9 +635,12 @@ table.
 - **office-hours never re-runs on an unchanged APPROVED doc (P0 #5).** Resume
   re-locates the doc by the recorded path and re-confirms `Status: APPROVED`;
   recovery is a recorded-path lookup, not a blind newest-glob.
-- **No AUQ between the office-hours Approve and the PR (P0 #2).** office-hours is
-  the one interactive phase; the silent build emits no AUQ; `/ship` runs with
-  its diff-review AUQ suppressed (the PR is the review).
+- **One approval gate between the office-hours Approve and the PR (P0 #2,
+  amended).** office-hours is the interactive design phase; Step 2.7 then shows a
+  design summary + a single go/no-go gate before the build budget is spent. Past
+  that gate the build is silent (no AUQ) and `/ship` runs with its diff-review
+  AUQ suppressed (the PR is the review). The human touchpoints are: the
+  office-hours Approve, the Step 2.7 design-summary gate, and the PR.
 - **No automatic rollback.** Halts write entries with `next_action=`,
   `resume_cmd=`, and `pr_url=` — the operator drives recovery.
 - **Halt-on-red end-to-end.** Any red status from office-hours, scaffold,
