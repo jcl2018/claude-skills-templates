@@ -1030,17 +1030,20 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   fi
 fi
 
-# Regression test (F000025/S000054): /CJ_goal_todo_fix + /CJ_goal_investigate
-# SKILL.md preambles source scripts/cj-worktree-init.sh BEFORE Path Resolution /
-# Routing. (S000060: /CJ_goal_run is now a deprecation shim; its worktree
-# responsibility moved to /CJ_goal_feature, so it is guarded as a shim below.
-# Post-F000031 casing-fix: shim now routes to the uppercase /CJ_goal_feature.)
+# Regression test (F000025/S000054): /CJ_goal_todo_fix SKILL.md preamble sources
+# scripts/cj-worktree-init.sh BEFORE Path Resolution / Routing. (S000060:
+# /CJ_goal_run is now a deprecation shim; its worktree responsibility moved to
+# /CJ_goal_feature, so it is guarded as a shim below. Post-F000031 casing-fix:
+# shim now routes to the uppercase /CJ_goal_feature. T000035 / v5.0.15:
+# /CJ_goal_investigate is now a thin alias shim under deprecated/, so its
+# worktree wiring assertion is retired — investigate no longer owns a
+# source-writing dispatch boundary.)
 # Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
 # Without these, an upstream refactor could silently drop the auto-worktree
 # wiring and the feature would regress to today's "polluting main checkout"
 # behavior with no test signal.
 echo ""
-echo "Regression test (F000025): /CJ_goal_todo_fix + /CJ_goal_investigate SKILL.md wire cj-worktree-init.sh; /CJ_goal_run is a deprecation shim (S000060)..."
+echo "Regression test (F000025): /CJ_goal_todo_fix SKILL.md wires cj-worktree-init.sh; /CJ_goal_run is a deprecation shim (S000060); /CJ_goal_investigate is a deprecation shim (T000035 / v5.0.15)..."
 
 # S000060 + F000031: /CJ_goal_run is now a DEPRECATED alias shim routing to
 # /CJ_goal_feature (uppercase post-F000031 casing-fix; uppercase canonical owns
@@ -1057,10 +1060,15 @@ else
   fail_test "skills/CJ_goal_todo_fix/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
 fi
 
-if grep -qE 'cj-worktree-init\.sh.*--caller investigate' "$REPO_ROOT/skills/CJ_goal_investigate/SKILL.md"; then
-  ok "skills/CJ_goal_investigate/SKILL.md sources cj-worktree-init.sh (--caller investigate)"
+# T000035 / v5.0.15: /CJ_goal_investigate is now a DEPRECATED alias shim under
+# deprecated/CJ_goal_investigate/ that routes non-D-id args to /CJ_goal_defect
+# and rejects bare D-id args (^D[0-9]{6}$). Guard the shim shape instead of
+# worktree wiring (investigate no longer owns a source-writing dispatch
+# boundary, so the F000025 isolation gate moot for this skill).
+if grep -qE '/CJ_goal_defect' "$REPO_ROOT/deprecated/CJ_goal_investigate/SKILL.md"; then
+  ok "deprecated/CJ_goal_investigate/SKILL.md is a deprecation shim routing to /CJ_goal_defect (T000035 / v5.0.15)"
 else
-  fail_test "skills/CJ_goal_investigate/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
+  fail_test "deprecated/CJ_goal_investigate/SKILL.md should route to /CJ_goal_defect (T000035 deprecation shim)"
 fi
 
 if grep -q 'cj-worktree-init\.sh' "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh" \
@@ -1147,10 +1155,26 @@ fi
 echo ""
 echo "Running tests/cj-goal-doc-sync-auq-recommendation.test.sh (preamble AUQ polarity)..."
 if bash "$REPO_ROOT/tests/cj-goal-doc-sync-auq-recommendation.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-doc-sync-auq-recommendation.test.sh: all 3 SKILL.md preambles + CLAUDE.md match corrected polarity"
+  ok "tests/cj-goal-doc-sync-auq-recommendation.test.sh: 2 live SKILL.md preambles (feature + defect) + CLAUDE.md match corrected polarity"
 else
   _cgdsar_rc=$?
   fail_test "tests/cj-goal-doc-sync-auq-recommendation.test.sh failed (rc=$_cgdsar_rc) — run \`bash tests/cj-goal-doc-sync-auq-recommendation.test.sh\` directly to see"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T000035 / v5.0.15 regression — /CJ_goal_investigate deprecation shim contract.
+# After T000035 (F000027 closure), /CJ_goal_investigate retired as a thin alias
+# shim under deprecated/CJ_goal_investigate/. The shim must (1) emit the
+# deprecation banner, (2) reject bare D-id args (regex ^D[0-9]{6}$) before
+# delegation — forwarding a bare D-id would mint a new D-id via /CJ_goal_defect's
+# slug logic, (3) delegate non-D-id args to /CJ_goal_defect via the Skill tool.
+echo ""
+echo "Running tests/cj-goal-investigate-shim.test.sh (T000035 shim contract: banner + D-id rejection + non-D-id delegation)..."
+if bash "$REPO_ROOT/tests/cj-goal-investigate-shim.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-investigate-shim.test.sh: shim has banner + D-id rejection regex + recovery-path message + /CJ_goal_defect delegation"
+else
+  _cgis_rc=$?
+  fail_test "tests/cj-goal-investigate-shim.test.sh failed (rc=$_cgis_rc) — run \`bash tests/cj-goal-investigate-shim.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

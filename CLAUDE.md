@@ -20,21 +20,23 @@ Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
 
 The CJ_ skill family in this workbench is fronted by two intent-named verbs:
 `/CJ_goal_feature` (build a feature: topic → reviewable PR) and `/CJ_goal_defect`
-(fix a bug: description → shipped fix). Supporting skills: `/CJ_goal_investigate`
-(ship a fix for an existing scaffolded defect), `/CJ_personal-pipeline` (internal
-scaffold→impl→qa engine), workflow validator (/CJ_personal-workflow), per-phase
-skills (/CJ_scaffold-work-item, /CJ_implement-from-spec, /CJ_qa-work-item), and
-standalone utilities (/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix).
-/CJ_goal_todo_fix bridges TODOS.md rows to the shipping pipeline in one
-keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
+(fix a bug: description → shipped fix). Supporting skills: `/CJ_personal-pipeline`
+(internal scaffold→impl→qa engine), workflow validator (/CJ_personal-workflow),
+per-phase skills (/CJ_scaffold-work-item, /CJ_implement-from-spec,
+/CJ_qa-work-item), and standalone utilities (/CJ_system-health, /CJ_suggest,
+/CJ_goal_todo_fix). /CJ_goal_todo_fix bridges TODOS.md rows to the shipping
+pipeline in one keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
 
 `/CJ_goal_run` + `/CJ_goal_auto` are **DEPRECATED** alias shims (F000027 two-verb
 refactor; sunset v6.0.0) that print a banner then route to `/CJ_goal_feature`.
 `/cj_goal_feature` + `/cj_goal_defect` are also **DEPRECATED** alias shims
 (F000031 casing-fix follow-up; sunset v6.0.0) that print a banner then route to
 the uppercase canonicals `/CJ_goal_feature` + `/CJ_goal_defect` for family-name
-consistency. Do not use any of these four for new work; they stay installable
-via `skills-deploy install --include-deprecated` so in-flight pipelines finish.
+consistency. `/CJ_goal_investigate` is a **DEPRECATED** alias shim (F000027
+closure, sunset v6.0.0) routing non-D-id args to `/CJ_goal_defect` and rejecting
+bare D-id args (`^D[0-9]{6}$`). Do not use any of these five for new work; they
+stay installable via `skills-deploy install --include-deprecated` so in-flight
+pipelines finish.
 
 ## CI/CD merge convention
 
@@ -63,12 +65,12 @@ If state is OPEN, the merge silently failed. Do NOT delete the remote branch —
 deleting the branch on an open PR auto-closes the PR (we burned ~5 min recovering
 from this exact failure mode on PR #83 / v2.0.4).
 
-**Auto-worktree on main (F000025 + F000027):** the four current CJ_goal_* orchestrators auto-create a `.claude/worktrees/cj-{prefix}-{ts}-{pid}/` worktree when invoked from `main` with arguments — main checkout stays clean and parallel sessions don't collide. The four orchestrators and their prefixes:
+**Auto-worktree on main (F000025 + F000027):** the three current CJ_goal_* orchestrators auto-create a `.claude/worktrees/cj-{prefix}-{ts}-{pid}/` worktree when invoked from `main` with arguments — main checkout stays clean and parallel sessions don't collide. The three orchestrators and their prefixes:
 
 - `/CJ_goal_feature "<topic>"` → `cj-feat-*` (worktree phase: `cj-goal-common.sh --mode feature` → `cj-worktree-init.sh --caller feature`)
 - `/CJ_goal_defect "<bug description>"` → `cj-def-*` (`cj-goal-common.sh --mode defect` → `cj-worktree-init.sh --caller defect`)
 - `/CJ_goal_todo_fix [<T-ID> | "<fragment>"]` (single-TODO mode) → `cj-todo-*` (`cj-worktree-init.sh --caller todo`)
-- `/CJ_goal_investigate <D-id|fragment>` → `cj-inv-*` (`cj-worktree-init.sh --caller investigate`)
+- ~~`/CJ_goal_investigate <D-id|fragment>` → `cj-inv-*` (`cj-worktree-init.sh --caller investigate`)~~ **DEPRECATED** (F000027 closure, sunset v6.0.0; investigate is now a thin alias shim routing to `/CJ_goal_defect`; the `cj-inv-*` prefix remains reachable only via `skills-deploy install --include-deprecated`).
 
 Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
 
@@ -259,10 +261,13 @@ fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
 ## Doc-sync check mechanism (F000028 follow-up)
 
-The three `cj_goal` orchestrator preambles (`/CJ_goal_feature`, `/CJ_goal_defect`,
-`/CJ_goal_investigate`) emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
+The two `cj_goal` orchestrator preambles (`/CJ_goal_feature` + `/CJ_goal_defect`)
+emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
 `post-merge` / `post-rewrite` git hook has dropped a doc-sync marker since the
-operator's last pull. The orchestrator interprets the line and surfaces an AUQ
+operator's last pull. (`/CJ_goal_investigate`'s preamble is no longer in
+the live trigger surface — the skill is now a DEPRECATED alias shim under
+`deprecated/CJ_goal_investigate/` and only emits the line when installed via
+`--include-deprecated`.) The orchestrator interprets the line and surfaces an AUQ
 asking whether to run `/document-release` inline now, snooze, or skip — closing
 the loop F000028 opened (the hook writes markers; this mechanism consumes them).
 

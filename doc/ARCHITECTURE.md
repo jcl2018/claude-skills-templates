@@ -4,25 +4,25 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 ## The shared cj-goal-common.sh helper (S000057)
 
-`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`) plus, on its own adoption cadence, `/CJ_goal_investigate`. It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes.
+`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`). It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes. (Historically a third mode existed for `/CJ_goal_investigate` ~~before that skill was DEPRECATED~~ at v5.0.15; the mode's invocation surface is no longer reachable from any live front door — see `## Deprecation tombstones` below.)
 
 **Phases it owns:**
 
-- **worktree** — auto-creates `.claude/worktrees/cj-{feat|defect|inv}-<ts>-<pid>/` when invoked from `main` with arguments, no-ops inside an existing Conductor-managed worktree, and exposes `--assert-isolated` so each orchestrator's Step 1.9 isolation gate can refuse to proceed on a dirty working tree.
+- **worktree** — auto-creates `.claude/worktrees/cj-{feat|defect}-<ts>-<pid>/` when invoked from `main` with arguments, no-ops inside an existing Conductor-managed worktree, and exposes `--assert-isolated` so each orchestrator's Step 1.9 isolation gate can refuse to proceed on a dirty working tree.
 - **pr-check** — polls `gh pr view` for the merge state of an open PR, captures the PR URL into the per-branch state file, and produces a deterministic `next_action=` / `resume_cmd=` / `pr_url=` line that the orchestrator can drop directly into its journal entry.
-- **telemetry** — appends a single JSONL line per run to `~/.gstack/analytics/<skill>.jsonl` (one file per front door: `CJ_goal_feature.jsonl`, `CJ_goal_defect.jsonl`, `CJ_goal_investigate.jsonl`), with fields normalized across modes so cross-skill retrospectives stay simple.
+- **telemetry** — appends a single JSONL line per run to `~/.gstack/analytics/<skill>.jsonl` (one file per front door: `CJ_goal_feature.jsonl`, `CJ_goal_defect.jsonl`). The historical ~~`CJ_goal_investigate.jsonl`~~ stream is DEPRECATED — investigate retired at v5.0.15; the file remains on operator machines as archived state and is not written by any live skill.
 
 **Modes it dispatches on:**
 
 - **feature** — paired with `/CJ_goal_feature` (build a feature: topic → reviewable PR). Stops at the PR; deploy is a separate human step.
 - **defect** — paired with `/CJ_goal_defect` (fix a bug: description → shipped fix). Runs `/investigate` as a depth-≤2 leaf subagent and only mints a D-ID after the Iron-Law gate passes.
-- **investigate** — paired with `/CJ_goal_investigate` (ship a fix for an already-scaffolded D000NNN defect). Bypasses the from-scratch capture step.
+- ~~**investigate** — paired with `/CJ_goal_investigate` (ship a fix for an already-scaffolded D000NNN defect).~~ **DEPRECATED at v5.0.15** (sunset v6.0.0); investigate is now a thin alias shim under `deprecated/CJ_goal_investigate/` that routes non-D-id args to `/CJ_goal_defect` and rejects bare D-id args. Reachable only via `skills-deploy install --include-deprecated`.
 
 **Consumers:**
 
 - `/CJ_goal_feature` (mode=feature) — primary consumer; pulls every phase from the helper.
 - `/CJ_goal_defect` (mode=defect) — primary consumer; same phase surface.
-- `/CJ_goal_investigate` (mode=investigate) — on its own adoption cadence (the orchestrator predates the helper and adopts phases incrementally). Telemetry is already routed through the shared schema; worktree adoption is in flight.
+- ~~`/CJ_goal_investigate` (mode=investigate)~~ — **DEPRECATED at v5.0.15** (sunset v6.0.0). Historical adoption-cadence note retained for the post-mortem: investigate predated the helper and adopted phases incrementally (telemetry already routed through the shared schema; worktree adoption was in flight when the skill retired). See `## Deprecation tombstones` below + [PHILOSOPHY.md ## Retired skills](PHILOSOPHY.md#retired-skills) for the canonical tombstone.
 
 The helper is deliberately one shell file, not a directory or a skill. Each phase is a function the orchestrator sources and calls — there is no second layer of orchestration. Treat it as plumbing for the two front doors.
 
