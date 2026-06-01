@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/cj-goal-doc-sync-auq-recommendation.test.sh
 #
-# Regression test for D000NNN (defect): the 3 cj_goal orchestrator preamble
+# Regression test for D000026 (v5.0.14): the cj_goal orchestrator preamble
 # AUQ templates labelled option A ("Run /document-release now") as
 # "recommended on main", but upstream gstack /document-release Step 1
 # hard-aborts on the base branch ("You're on the base branch. Run from a
@@ -11,9 +11,14 @@
 #   - on a feature branch: A is recommended (that's exactly where
 #     /document-release runs)
 #
-# This test asserts the literal text in all 3 SKILL.md files matches the
-# corrected polarity. It does NOT exercise the runtime AUQ (no Skill
+# This test asserts the literal text in the live cj_goal SKILL.md files matches
+# the corrected polarity. It does NOT exercise the runtime AUQ (no Skill
 # invocation) — pure grep against source.
+#
+# Coverage narrowed at v5.0.15 (T000035, F000027 closure): /CJ_goal_investigate
+# was retired as a thin alias shim under deprecated/CJ_goal_investigate/ and
+# no longer carries the doc-sync AUQ preamble. The 2 live cj_goal SKILL.md
+# files (feature + defect) remain on the corrected polarity.
 #
 # Pattern: per-file string-presence + string-absence assertions. The "absence"
 # assertions catch a regression that re-introduces the pre-fix wording.
@@ -30,10 +35,9 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SKILLS=(
   "$REPO_ROOT/skills/CJ_goal_feature/SKILL.md"
   "$REPO_ROOT/skills/CJ_goal_defect/SKILL.md"
-  "$REPO_ROOT/skills/CJ_goal_investigate/SKILL.md"
 )
 
-echo "=== cj-goal-doc-sync-auq-recommendation: 3 SKILL.md preambles ==="
+echo "=== cj-goal-doc-sync-auq-recommendation: 2 SKILL.md preambles ==="
 
 for skill in "${SKILLS[@]}"; do
   rel="${skill#$REPO_ROOT/}"

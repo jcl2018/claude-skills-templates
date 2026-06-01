@@ -395,7 +395,7 @@ trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" 
 
 echo ""
 echo "pipeline.md Step 5 regression: --assert-isolated gate + draft-aware resume_cmd present..."
-_PIPELINE_MD="$REPO_ROOT/skills/CJ_goal_investigate/pipeline.md"
+_PIPELINE_MD="$REPO_ROOT/deprecated/CJ_goal_investigate/pipeline.md"
 # Three independent fixed-string signals must all be present (the helper is
 # invoked via a re-resolved $_HELPER var, so the F000025 single-line
 # `helper.sh.*--flag` idiom does not apply — assert the signals separately):

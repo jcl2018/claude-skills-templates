@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/cj-goal-investigate-did-allocator.test.sh
 #
-# Regression test for the D000022 defect: skills/CJ_goal_investigate/pipeline.md
+# Regression test for the D000022 defect: deprecated/CJ_goal_investigate/pipeline.md (relocated by T000035 / v5.0.15)
 # D-ID allocator + resolver used `find ... -maxdepth 2`, which only reached
 # work-items/defects/<domain>/D######_* (2 levels below work-items/defects) and
 # MISSED nested 2-segment domains like work-items/defects/ops/skills-deploy/
@@ -36,7 +36,7 @@ fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-PIPELINE_MD="$REPO_ROOT/skills/CJ_goal_investigate/pipeline.md"
+PIPELINE_MD="$REPO_ROOT/deprecated/CJ_goal_investigate/pipeline.md"
 
 [ -f "$PIPELINE_MD" ] || { echo "FAIL: $PIPELINE_MD not found"; exit 1; }
 
