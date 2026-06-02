@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.20] - 2026-06-02
+
+### Fixed
+
+- **F000034 follow-up (D000027): `doc/SKILL-CATALOG.md` missing the work-copilot companion bundle.** The F000034 catalog (PR #189, v5.0.19) backfilled every routable Claude skill but stopped at the catalog boundary defined by `skills-catalog.json` — the `work-copilot/` Copilot bundle (a self-contained companion surface deployed via `scripts/copilot-deploy.py`, not a Claude skill) was missing entirely, so the operator-facing catalog under-reported the workbench's surface area. This release adds a new `## Companion surfaces (non-skill)` section to `doc/SKILL-CATALOG.md` with a `### work-copilot` subsection: status, source paths (`work-copilot/README.md` · `work-copilot/WORKFLOW.md` · `scripts/copilot-deploy.py`), "Invoke when" trigger (operator wants to install/update/doctor/remove the bundle in a target repo), and a `(non-skill bundle)` tag line — visually distinct from the closed-enum skill tags (`(single-step utility)` / `(validator)` / `(phase-step …)`) that Check 15 enforces. The catalog preamble (line 3) is relaxed to mention companion surfaces alongside skills and explicitly notes that companion-surface sections are NOT enforced by `validate.sh` Check 15 (the check is one-way: `skills-catalog.json` → catalog file), so they are conventionally — but not mechanically — kept in sync. Validate.sh continues to PASS (0 errors, 0 warnings); no upstream `/document-release` modification; no new Check rules. Tracked as defect `D000027` under `work-items/defects/uncategorized/`.
+
 ## [5.0.19] - 2026-06-02
 
 ### Added
