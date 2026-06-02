@@ -1186,12 +1186,24 @@ fi
 # and documents the halt-marker shape + branch + clean-tree refusal prose. Unit-shape
 # tests (file content greps) covering the skill itself.
 echo ""
-echo "Running tests/cj-document-release.test.sh (F000035 skill structure + body assertions)..."
+echo "Running tests/cj-document-release.test.sh (F000035 skill structure + body assertions; F000037 helper+JSON assertions)..."
 if bash "$REPO_ROOT/tests/cj-document-release.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-document-release.test.sh: CJ_document-release skill structure + frontmatter + USAGE.md + catalog + halt markers all present"
+  ok "tests/cj-document-release.test.sh: CJ_document-release skill structure + frontmatter + USAGE.md + catalog + halt markers + F000037 config helper all present"
 else
   _cdr_rc=$?
   fail_test "tests/cj-document-release.test.sh failed (rc=$_cdr_rc) — run \`bash tests/cj-document-release.test.sh\` directly to see"
+fi
+
+# Regression test (F000037): cj-document-release.json file assertions —
+# schema_version, whitelist_patterns shape, categories shape, identifier-shape
+# category names, F000036-compat category presence.
+echo ""
+echo "Running tests/cj-document-release-config.test.sh (F000037 JSON file assertions)..."
+if bash "$REPO_ROOT/tests/cj-document-release-config.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-document-release-config.test.sh: cj-document-release.json schema_version + whitelist_patterns + categories + identifier shape all PASS"
+else
+  _cdrc_rc=$?
+  fail_test "tests/cj-document-release-config.test.sh failed (rc=$_cdrc_rc) — run \`bash tests/cj-document-release-config.test.sh\` directly to see"
 fi
 
 # Regression test (F000035): all 3 cj_goal orchestrators (CJ_goal_feature,

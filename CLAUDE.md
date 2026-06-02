@@ -405,6 +405,35 @@ Drift findings surface in the PR body's `## Documentation` section under a new `
 
 Doc/ manifest drift findings (Check 15) appear under a sibling `### Doc/ manifest drift` subheading, same one-per-line shape. Positive line: `Doc/ manifest drift: none`.
 
+## cj-document-release.json convention (F000037)
+
+`/CJ_document-release` reads a strict-required per-repo config from
+`cj-document-release.json` at repo root. The file declares which docs the
+auto-commit whitelist gate honors AND which categories the `--docs <token>`
+flag resolves against.
+
+Schema (v1):
+
+```json
+{
+  "schema_version": 1,
+  "whitelist_patterns": ["glob", ...],
+  "categories": { "name": ["glob", ...], ... }
+}
+```
+
+Globs use `**` for any-depth recursion (`doc/**/*.md`). `validate.sh` Check 16
+enforces schema when the file exists. CJ_document-release HALTs with
+`[doc-sync-no-config]` when the file is missing/invalid/schema_version-unsupported.
+
+The workbench's own JSON seeds with the F000036 hardcoded set + workbench-specific
+paths (doc/**, templates/doc-*). Other repos adopting `/CJ_document-release`
+declare their own.
+
+Per-verb overrides (`categories_by_verb`), audit_class enum mirror from F000030's
+tracked-doc/ manifest, --docs negation, and multi-repo federation are all
+DEFERRED to future v2 schema bumps.
+
 ## TODOS.md hygiene conventions
 
 `TODOS.md` is the workbench's active backlog. `/CJ_suggest` ranks rows from it for

@@ -177,6 +177,88 @@ else
   fail_test "SKILL.md missing --docs all explicit token documentation"
 fi
 
+# --- F000037 extensions: cj-document-release.json + helper assertions ---
+
+CONFIG_JSON="$REPO_ROOT/cj-document-release.json"
+HELPER="$REPO_ROOT/scripts/cj-document-release-config.sh"
+
+# 17. cj-document-release.json exists at repo root (F000037)
+if [ -f "$CONFIG_JSON" ]; then
+  ok "cj-document-release.json exists at repo root"
+else
+  fail_test "cj-document-release.json missing at repo root (F000037 strict-required)"
+fi
+
+# 18. Helper script exists + executable
+if [ -x "$HELPER" ]; then
+  ok "scripts/cj-document-release-config.sh exists and is executable"
+else
+  fail_test "scripts/cj-document-release-config.sh missing or not executable"
+fi
+
+# 19. Helper --validate exits 0
+if [ -x "$HELPER" ] && bash "$HELPER" --validate >/dev/null 2>&1; then
+  ok "helper --validate exits 0 against workbench JSON"
+else
+  fail_test "helper --validate did not exit 0"
+fi
+
+# 20. Helper --parse returns valid JSON with required keys
+if [ -x "$HELPER" ]; then
+  _PARSE_OUT=$(bash "$HELPER" --parse 2>/dev/null || echo "")
+  if printf '%s' "$_PARSE_OUT" | jq -e '.schema_version == 1 and (.whitelist_patterns | type == "array") and (.categories | type == "object")' >/dev/null 2>&1; then
+    ok "helper --parse returns valid JSON with schema_version/whitelist_patterns/categories"
+  else
+    fail_test "helper --parse output missing required keys or wrong shape"
+  fi
+else
+  fail_test "helper --parse skipped (helper not executable)"
+fi
+
+# 21. Helper --expand-whitelist returns ≥6 lines (sanity check on seed values)
+if [ -x "$HELPER" ]; then
+  _COUNT=$(bash "$HELPER" --expand-whitelist 2>/dev/null | grep -c '.' || true)
+  if [ "${_COUNT:-0}" -ge 6 ]; then
+    ok "helper --expand-whitelist returns $_COUNT files (>=6 expected)"
+  else
+    fail_test "helper --expand-whitelist returned $_COUNT files (expected >=6)"
+  fi
+else
+  fail_test "helper --expand-whitelist skipped (helper not executable)"
+fi
+
+# 22. Helper --resolve readme returns README.md
+if [ -x "$HELPER" ]; then
+  _README_OUT=$(bash "$HELPER" --resolve readme 2>/dev/null || echo "")
+  if echo "$_README_OUT" | grep -qx 'README.md'; then
+    ok "helper --resolve readme returns README.md"
+  else
+    fail_test "helper --resolve readme did not return README.md (got: $_README_OUT)"
+  fi
+else
+  fail_test "helper --resolve skipped (helper not executable)"
+fi
+
+# 23. Helper --resolve nonexistent-category exits 1 with [doc-sync-no-config]
+if [ -x "$HELPER" ]; then
+  _BAD_OUT=$(bash "$HELPER" --resolve nonexistent-category-zzz 2>&1 || true)
+  _BAD_RC=$(bash "$HELPER" --resolve nonexistent-category-zzz >/dev/null 2>&1; echo $?)
+  if [ "$_BAD_RC" = "1" ] && echo "$_BAD_OUT" | grep -qF '[doc-sync-no-config]'; then
+    ok "helper --resolve nonexistent-category exits 1 with [doc-sync-no-config]"
+  else
+    fail_test "helper --resolve nonexistent-category did not halt as expected (rc=$_BAD_RC out=$_BAD_OUT)"
+  fi
+else
+  fail_test "helper --resolve nonexistent-category skipped (helper not executable)"
+fi
+
+# 24. SKILL.md mentions cj-document-release.json (post-rewrite check)
+if grep -qF 'cj-document-release.json' "$SKILL_MD" 2>/dev/null; then
+  ok "SKILL.md references cj-document-release.json (F000037 rewrite)"
+else
+  fail_test "SKILL.md does not reference cj-document-release.json (F000037 rewrite missing)"
+fi
+
 echo
 if [ "$ERRORS" -eq 0 ]; then
   echo "PASS: cj-document-release"

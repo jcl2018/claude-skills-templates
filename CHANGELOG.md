@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.2] - 2026-06-02
+
+### Added
+
+- **F000037 strict-required `cj-document-release.json` per-repo config.** F000036's hardcoded whitelist + `--docs` token map (which docs to track + which categories the flag honors) moves to a new JSON file at repo root. Schema v1: `whitelist_patterns` (globs like `doc/**/*.md`) + `categories` ({token: [globs]}). **Strict-required**: `/CJ_document-release` HALTs with new `[doc-sync-no-config]` marker when the file is missing/invalid/schema_version-unsupported — no fallback to hardcoded defaults. New helper `scripts/cj-document-release-config.sh` (parse/validate/expand-whitelist/resolve subcommands; mirrors F000029's `skills-doc-sync-check` shape; bash 3.2-compatible via `find` for `**` globs since macOS lacks `globstar`). New `validate.sh` Check 16 enforces the JSON schema when the file exists. The workbench's own `cj-document-release.json` ships seeded with F000036's existing whitelist + workbench-specific paths (README, CHANGELOG, CLAUDE.md, ARCHITECTURE.md, doc/**, templates/doc-*) and 6 categories (readme/changelog/claude/architecture/philosophy/skill-catalog) — zero day-1 breakage. **Adopting repos in the future declare their own**: a Rails app might map `--docs models` → `app/models/**/*.rb`; a Python lib might map `--docs sphinx` → `docs/source/**/*.rst`. The `--docs <token>` flag resolves against THE REPO'S categories, not F000036's hardcoded list — this is the genuinely new capability that earns the per-repo config cost. F000036 BD#5 (hardcoded SKILL.md regex) is superseded. CLAUDE.md gains a "cj-document-release.json convention (F000037)" section between F000034's tracked-doc/ manifest and TODOS.md hygiene. New halt class `[doc-sync-no-config]` added to all 3 cj_goal SKILL.md halt-taxonomy tables. Portability stays workbench in v1; flip to standalone is a separate decision after at least one downstream adoption.
+
 ## [6.0.1] - 2026-06-02
 
 ### Added
