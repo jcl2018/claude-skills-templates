@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-02T12:35:00Z"
+last-updated: "2026-06-02T19:50:36Z"
 ---
 
 # Skill Usage: CJ_document-release
