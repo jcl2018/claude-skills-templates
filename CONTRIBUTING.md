@@ -1,5 +1,7 @@
 # Contributing
 
+This repo ships **two surfaces** from one source of truth: Claude Code skills under `skills/`, and a self-contained **GitHub Copilot** bundle under `work-copilot/`. Contributing guides for both follow.
+
 ## Creating a new skill
 
 1. **Design:** Use `/office-hours` to produce a design doc, or create `skills/your-skill-name/DESIGN.md` manually using `templates/doc-SKILL-DESIGN.md`
@@ -30,6 +32,20 @@
 5. **Validate:** Run `./scripts/validate.sh` to check catalog consistency
 
 6. **Ship:** Use `/ship` to commit and create a PR
+
+## Contributing to the Copilot bundle (`work-copilot/`)
+
+`work-copilot/` is a self-contained GitHub Copilot bundle — **not** a Claude skill (no `SKILL.md`, no `skills-catalog.json` entry). It is the canonical source (no upstream sync), deployed to non-Claude target repos via `scripts/copilot-deploy.py`.
+
+1. **Edit in place.** The canonical files live under `work-copilot/`: `templates/`, `WORKFLOW.md`, `copilot-artifact-manifests.json`, `prompts/` (the `/wc-*` + `/validate` commands), `reference/`, `philosophy/`, `examples/`, `fixtures/`, `domain/`, and `instructions/copilot-instructions.md`.
+
+2. **Adding a bundle file:** create it under the right `work-copilot/<subdir>/`, then **append one entry** to the `EXPECTED_BUNDLE_FILES` array in `scripts/validate.sh` (Error check 10). That array is the registration point — a new file not listed there fails `validate.sh`.
+
+3. **Keep `copilot-instructions.md` under budget.** `scripts/test.sh` enforces a size budget on `work-copilot/instructions/copilot-instructions.md` (≤ 8 KB).
+
+4. **Validate + test:** `./scripts/validate.sh` (bundle integrity) and `./scripts/test.sh` (size budget + install round-trip). To dry-run a deploy: `python3 scripts/copilot-deploy.py install <target>` then `python3 scripts/copilot-deploy.py doctor <target>`.
+
+5. **Ship:** use `/ship` to commit and open a PR, same as skill changes.
 
 ## Naming conventions
 
@@ -69,3 +85,4 @@ Before pushing:
 - [ ] `doctor.sh` shows no errors (recommended)
 - [ ] New skill has SKILL.md with valid frontmatter
 - [ ] `skills-catalog.json` updated if skill added/modified
+- [ ] If you touched `work-copilot/`, every new file is listed in `EXPECTED_BUNDLE_FILES` (validate.sh Error check 10)

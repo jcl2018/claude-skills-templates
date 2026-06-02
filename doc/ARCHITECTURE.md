@@ -1,6 +1,6 @@
 # Architecture
 
-Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOPHY.md](PHILOSOPHY.md) — that doc explains *why* this workbench exists and which CJ_ skill to call; this doc explains *how* the mechanisms underneath those skills work.
+Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOPHY.md](PHILOSOPHY.md) — that doc explains *why* this workbench exists and which CJ_ skill to call; this doc explains *how* the mechanisms underneath those skills work. Most layers below are Claude-side; the final section documents the parallel **GitHub Copilot** delivery surface (`work-copilot/`).
 
 ## The shared cj-goal-common.sh helper (S000057)
 
@@ -117,6 +117,30 @@ F000037 externalizes the F000036 hardcoded doc whitelist + `--docs <token>` map 
 **Separation from F000034's tracked-doc/ manifest.** F000034's manifest in CLAUDE.md declares `audit_class` per `doc/*.md` file (closed enum: `skill-routing-drift` / `skill-catalog-completeness` / `static-reference` / `auto-generated`). F000037's JSON declares the doc-sync whitelist + categories (open set, machine-parseable, schema-versionable). Different concerns, separate surfaces — the design deliberately resisted "consolidate into one file" because the shapes don't align. The CLAUDE.md `## cj-document-release.json convention (F000037)` section is the operator-facing reference; this section is the mechanism-reference companion.
 
 **Portability stays `workbench` in v1.** F000037 is the enabler for future portability (downstream repos can now declare their own doc surface), but the actual flip to `standalone` requires at least one downstream repo successfully consuming the JSON first.
+
+## The work-copilot Copilot bundle (parallel delivery surface)
+
+Everything above is Claude-side plumbing. `work-copilot/` is the workbench's *other* delivery surface: a self-contained **GitHub Copilot** bundle that carries the doc-first work-item contract to machines without Claude Code. It is NOT a Claude skill — no `SKILL.md`, no `USAGE.md`, no entry in `skills-catalog.json` — and it is not `/`-invoked. It is driven by a Python CLI and consumed by Copilot's own prompt surface.
+
+**What it carries (canonical source, no upstream sync):**
+
+- `work-copilot/templates/` — the work-item templates (`tracker-*`, `doc-*`), mirroring the `CJ_personal-workflow` set.
+- `work-copilot/WORKFLOW.md` + `work-copilot/copilot-artifact-manifests.json` — the structural rules + artifact manifest (the Copilot-side analogue of `personal-artifact-manifests.json`).
+- `work-copilot/prompts/` — the Copilot slash-command surface: `/wc-investigate`, `/wc-scaffold`, `/wc-implement`, `/wc-qa`, `/wc-ship`, `/wc-pipeline`, and `/validate`.
+- `work-copilot/reference/`, `philosophy/`, `examples/`, `fixtures/`, `domain/` skeletons, and `instructions/copilot-instructions.md` — ambient guidance + worked examples + validation fixtures.
+
+**Deploy mechanism — `scripts/copilot-deploy.py`:**
+
+- `find_bundle_dir()` resolves the bundle at `<repo-root>/work-copilot/` (the script directory's parent), so the bundle lives at the repo root **by design** — not under `skills/`, which is reserved for Claude skills.
+- `python3 scripts/copilot-deploy.py install <target>` copies the bundle into the target repo under `.github/` (e.g. `.github/work-copilot/`) and installs the Copilot instructions file; `doctor` and `remove` use the same CLI.
+- It is one-way distribution: the workbench is the source of truth, target repos receive a copy.
+
+**Bundle integrity — `scripts/validate.sh` Error check 10:**
+
+- The `EXPECTED_BUNDLE_FILES` array (currently 61 entries) lists every required bundle file; the check ERRORs if any is missing. `scripts/test.sh` adds a size budget on `copilot-instructions.md` and an install round-trip test.
+- **To add a bundle file:** create it under `work-copilot/<subdir>/` and append one entry to `EXPECTED_BUNDLE_FILES`. That single array is the registration point.
+
+**Relationship to the Claude side.** Same doc-first *contract* (templates + validation + ambient conventions), different runtime. The `CJ_` orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, …) do NOT port — they are Claude-only. What ports is the structure a contributor scaffolds against and the `/validate` pass that checks it. See [PHILOSOPHY.md → Two delivery surfaces, one contract](PHILOSOPHY.md#two-delivery-surfaces-one-contract) for the why, and [doc/SKILL-CATALOG.md → work-copilot](SKILL-CATALOG.md#work-copilot) for the operator-facing catalog entry.
 
 ## Decision tree mirror
 
