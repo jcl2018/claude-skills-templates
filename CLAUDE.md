@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A skill development workbench for Claude Code. Contains 2 custom skills (CJ_personal-workflow, CJ_system-health), a template library for doc-first development, a self-contained GitHub Copilot bundle (`work-copilot/`) carrying the work-item template + validation set for non-Claude machines, and tooling to validate, test, and distribute skills.
+A doc-first development workbench. Its primary surface is **Claude Code skills** (the `CJ_` workflow family + utilities under `skills/`), but it is deliberately **not Claude-only**: it also ships a self-contained **GitHub Copilot** bundle (`work-copilot/`) that carries the same work-item templates + validation set to non-Claude machines, plus a template library for doc-first development and tooling to validate, test, and distribute everything.
 
 ## Quick start
 

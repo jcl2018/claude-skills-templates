@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.2] - 2026-06-02
+
+### Changed
+
+- **Docs reframe: the workbench is multi-target (Claude skills + the `work-copilot` GitHub Copilot bundle), not Claude-skill-only.** Broadens the repo's stated identity and gives the `work-copilot/` Copilot bundle first-class billing across the documentation surface, closing the gap where only `CLAUDE.md` and `doc/SKILL-CATALOG.md` acknowledged it while `README.md`, `doc/PHILOSOPHY.md`, `doc/ARCHITECTURE.md`, and `CONTRIBUTING.md` still read Claude-only. **No code or validator changes; `work-copilot/` stays a top-level peer of `skills/`** — physically moving the bundle under `skills/` was considered and rejected at the design gate, because it would contradict the "not Claude-only" goal (the folder literally named `skills` becoming *more* the organizing principle) and churn four coupled files (`validate.sh` `EXPECTED_BUNDLE_FILES`, `scripts/copilot-deploy.py`, `scripts/test.sh`, `CLAUDE.md`) for a conceptually backwards move. Specifics: `scripts/generate-readme.sh` broadens the identity line and adds a "Delivery surfaces" callout (README.md regenerated from it); `doc/PHILOSOPHY.md` gains a "Two delivery surfaces, one contract" section, lifts work-copilot out of the "What this intentionally does NOT optimize for" burial, and adds a Copilot pointer beside the decision tree; `doc/ARCHITECTURE.md` gains a "work-copilot Copilot bundle (parallel delivery surface)" mechanism section (deploy via `copilot-deploy.py`, bundle integrity via `validate.sh` Error check 10) plus an intro note; `CONTRIBUTING.md` gains a "Contributing to the Copilot bundle" section and a PR-checklist row; `CLAUDE.md`'s "What this repo is" opening sentence now leads multi-target (and drops a stale "2 custom skills" count). `validate.sh` + `test.sh` stay green (0 errors, 0 warnings; the work-copilot bundle-integrity tests 8-10 are unaffected since the bundle did not move).
+
 ## [6.0.1] - 2026-06-02
 
 ### Added

@@ -8,6 +8,10 @@ The target user is a solo developer using Claude Code who wants lightweight life
 
 The two intent-named front doors capture the dominant workflows: `/CJ_goal_feature` (build a feature: topic → reviewable PR) and `/CJ_goal_defect` (fix a bug: description → shipped fix). Everything else is either a read-only utility (`/CJ_suggest`, `/CJ_system-health`, `/CJ_improve-queue`) or a backlog drainer (`/CJ_goal_todo_fix`).
 
+## Two delivery surfaces, one contract
+
+The templates and validation surface reach two kinds of consumer, and the repo is deliberately not Claude-only. On Claude Code, the `CJ_` skills orchestrate the doc-first workflow directly. On machines without Claude — where the contributor drives **GitHub Copilot** instead — the self-contained `work-copilot/` bundle carries the same work-item templates + `/validate` workflow + ambient guidance, deployed via `scripts/copilot-deploy.py`. What ports across both is the doc-first *contract* (templates + validation + conventions); what does NOT port is the pipeline automation — the `CJ_` orchestrators are Claude-only by design. `work-copilot/` is canonical (no upstream sync) and its integrity is enforced by `scripts/validate.sh` Error check 10. See [doc/ARCHITECTURE.md](ARCHITECTURE.md#the-work-copilot-copilot-bundle-parallel-delivery-surface) for the deploy mechanism and [doc/SKILL-CATALOG.md](SKILL-CATALOG.md#work-copilot) for the operator-facing entry.
+
 ## Design principles and tradeoffs
 
 **1. Templates over orchestration.** The repo started with 7 skills orchestrating a 4-phase workflow pipeline. After real usage, 5 were deleted. The logic that survived moved to CLAUDE.md rules and the `personal-artifact-manifests.json` declarations consumed by `/CJ_personal-workflow`. The tradeoff: less guardrail enforcement in exchange for less code to maintain. Today's `/CJ_personal-workflow` carries the validation surface; the orchestration shape is enforced by the templates the operator scaffolds against, not by per-phase wrapper skills.
@@ -23,7 +27,7 @@ The two intent-named front doors capture the dominant workflows: `/CJ_goal_featu
 ## What this intentionally does NOT optimize for
 
 - **Teams or collaboration.** Work items have no assignee field. No locking, no merge conflict resolution for trackers. This is a solo dev tool.
-- **Universal portability.** Templates assume CLAUDE.md conventions, gstack patterns, and the `work-items/` directory structure. They won't work in an arbitrary repo without adaptation. The `work-copilot/` bundle ports the work-item template + validation surface to non-Claude (GitHub Copilot) targets; it does NOT port the CJ_ orchestrators.
+- **Universal portability.** Templates assume CLAUDE.md conventions, gstack patterns, and the `work-items/` directory structure. They won't work in an arbitrary repo without adaptation. (The `work-copilot/` bundle is the deliberate, maintained exception — it ports the template + validation surface to GitHub Copilot targets, as described in *Two delivery surfaces, one contract* above; it does NOT port the CJ_ orchestrators.)
 - **Runtime enforcement.** CLAUDE.md rules are passive instructions. Nothing prevents a developer from scaffolding a feature without a SPEC. `/CJ_personal-workflow check` catches drift after the fact, not before.
 - **Scalability beyond ~50 work items.** The directory-nesting model with max depth 3 works for solo projects. It would not work for a 200-person engineering org.
 - **Headless autonomous merge across the whole workbench.** `/ship` Gate #2 is human-by-default across every front door. The handoff-gate denylist (`scripts/cj-handoff-gate.sh`) blocks exactly the skill surfaces every feature touches, so an auto-merge path here is unsafe-by-construction. PR-stop is the correct stopping point for skill-work.
@@ -120,6 +124,8 @@ START: What's your input?
 | Lost track, what's next? | `/CJ_suggest` — [USAGE](../skills/CJ_suggest/USAGE.md) |
 | Health check the workbench | `/CJ_system-health` — [USAGE](../skills/CJ_system-health/USAGE.md) |
 | Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` — [USAGE](../skills/CJ_improve-queue/USAGE.md) |
+
+> **Not on Claude Code?** The decision tree above is the Claude-skill surface. If your machine runs **GitHub Copilot** instead, the `work-copilot/` bundle mirrors the same work-item + `/validate` workflow — see [doc/SKILL-CATALOG.md → work-copilot](SKILL-CATALOG.md#work-copilot). The `CJ_` orchestrators themselves are Claude-only.
 
 ### Internal phase-step skills — called transitively, do not route directly
 
