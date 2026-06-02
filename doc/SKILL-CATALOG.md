@@ -1,6 +1,6 @@
 # Skill Catalog
 
-Consolidated index of every routable non-deprecated skill in this workbench. Each section gives status, source paths, an "Invoke when" trigger, and either a fenced ASCII workflow chart (orchestrators + phase-step chain) or a tag line (single-step skills) so a reader can see the shape of every skill at a glance without opening its SKILL.md. Sections are hand-written and audited by `scripts/validate.sh` Check 15 — every routable non-deprecated skill in `skills-catalog.json` must have a section, and every section must have either a chart or a closed-enum tag (no silent omission). For the routing decision tree (which skill to pick for a given intent), see [`doc/PHILOSOPHY.md`](PHILOSOPHY.md). For per-skill operator + agent best-practice, see each skill's `USAGE.md`.
+Consolidated index of every routable non-deprecated skill in this workbench, plus the non-skill companion surfaces (the Copilot bundle) that the operator manages alongside skills. Each section gives status, source paths, an "Invoke when" trigger, and either a fenced ASCII workflow chart (orchestrators + phase-step chain) or a tag line (single-step skills + companion surfaces) so a reader can see the shape of every surface at a glance without opening its SKILL.md (or README.md, for companion surfaces). Sections are hand-written and audited by `scripts/validate.sh` Check 15 — every routable non-deprecated skill in `skills-catalog.json` must have a section, and every section must have either a chart or a closed-enum tag (no silent omission). Companion-surface sections are NOT enforced by Check 15 (the check is one-way: catalog → catalog file), so they are conventionally — but not mechanically — kept in sync. For the routing decision tree (which skill to pick for a given intent), see [`doc/PHILOSOPHY.md`](PHILOSOPHY.md). For per-skill operator + agent best-practice, see each skill's `USAGE.md`.
 
 ## Orchestrators
 
@@ -208,6 +208,19 @@ Single-step skills with no chain. Validator or single-step-utility tag.
 **Invoke when:** the operator wants to evaluate a Claude best-practices URL against existing workbench skills, run an offline audit of stale skills + missing frontmatter, or research a topic with WebSearch + per-result evaluation. Common phrasings: "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "audit the workbench skills".
 
 `(single-step utility)` — Three modes: `evaluate <url>` (fetch + classify + draft TODOS.md row if novel), `audit` (offline repo self-scan), `research <topic>` (WebSearch + per-result evaluate with privacy gate). All TODOS rows land with `<!--impr-draft-->` markers; promotion is operator-gated.
+
+## Companion surfaces (non-skill)
+
+Workbench artifacts that aren't Claude skills (no SKILL.md, no entry in `skills-catalog.json`) but ARE operator-facing surfaces the workbench produces, distributes, or manages. Tagged `(non-skill bundle)` to visually distinguish from the Check-15-enforced closed-enum skill tags. These sections are NOT enforced by `scripts/validate.sh` Check 15 — they are by-hand entries that exist so the catalog reflects the full surface of the workbench, not just the slice of it that is Claude-skill-shaped.
+
+### work-copilot
+
+**Status:** active (self-contained GitHub Copilot bundle; deployed to non-Claude target repos to mirror the `CJ_personal-workflow` `/validate` workflow + ambient knowledge for Copilot users)
+**Source:** `work-copilot/README.md` · `work-copilot/WORKFLOW.md` · `scripts/copilot-deploy.py`
+
+**Invoke when:** the operator wants to install, update, doctor, or remove the Copilot bundle in a target repo (any repo whose contributors use GitHub Copilot instead of Claude Code). NOT a Claude skill — driven by the `scripts/copilot-deploy.py` CLI, not by `/`-invocation. Common phrasings: "set up Copilot in repo X", "install work-copilot", "deploy the Copilot bundle", "doctor the Copilot bundle".
+
+`(non-skill bundle)` — Self-contained Copilot bundle mirroring the personal-workflow `/validate` workflow + ambient knowledge for non-Claude machines. Carries its own templates (`work-copilot/templates/*.md`), `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/`, `copilot-artifact-manifests.json`, `prompts/` (`/wc-investigate`, `/wc-scaffold`, `/wc-implement`, `/wc-qa`, `/wc-ship`, `/wc-pipeline`, `/validate`), `domain/` skeletons, and `instructions/copilot-instructions.md`. Deployed via `python3 scripts/copilot-deploy.py install <target>`; doctor + remove via the same CLI. Bundle integrity enforced by `scripts/validate.sh` Error check 10 (`EXPECTED_BUNDLE_FILES` array). Add a new bundle file by appending one entry to that array.
 
 ## See also
 
