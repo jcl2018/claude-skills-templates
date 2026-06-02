@@ -514,7 +514,85 @@ If QA returns red: **HALT** with `[qa-red]` (re-use the existing CJ_qa-work-item
 halt marker — do NOT mint a new one), end_state `halted_at_qa`, `pr_url=N/A`,
 `raw_output_path=$RAW_DIR/qa-raw.txt`, + the 3-line block + telemetry.
 
-On green: record the qa boundary, then continue to Step 4.
+On green: record the qa boundary, then continue to Step 5.5 (Doc-sync), then Step 4 (/ship).
+
+### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
+
+Doc-sync runs INLINE between the QA-green boundary and `/ship`, so any doc
+updates fold into the SAME code PR as the implementation. This closes the
+F000028+F000029 marker-AUQ drift window for orchestrator-driven paths
+(F000029's marker-AUQ stays as fallback for non-orchestrator paths).
+
+Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
+(v1 orchestrator wiring runs a full audit; the per-doc subset flag is for
+manual operator invocations). The skill returns one of three RESULTs:
+
+- `RESULT: green` — `/document-release` ran clean and the wrapper
+  auto-committed doc-only changes (whitelist: `README|CHANGELOG|CLAUDE|
+  ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`). Continue to
+  Step 4 (/ship). The next phase will see a clean tree with a doc commit
+  already present.
+- `RESULT: green-noop` — `/document-release` ran clean and no doc changes
+  were needed. Continue to Step 4 (/ship). The PR will be code-only.
+- `RESULT: red; HALT_MARKER=[doc-sync-red]` — `/document-release` itself
+  returned non-green (audit error, mid-write failure, hard-abort, base-
+  branch refusal, or a pre-run non-doc dirty tree). **HALT** with halt
+  class `halted_at_doc_sync`; the orchestrator writes a journal entry and
+  exits.
+- `RESULT: red; HALT_MARKER=[doc-sync-non-doc-write]` — `/document-release`
+  succeeded but wrote files OUTSIDE the doc-only whitelist (upstream-
+  misbehaved). **HALT** with halt class `halted_at_doc_sync_non_doc_write`;
+  the orchestrator writes a journal entry naming the non-doc files and
+  exits.
+
+Halt-marker shape (mirrors the family contract — `next_action=` /
+`resume_cmd=` / `pr_url=`):
+
+```bash
+# Pseudocode — the orchestrator's Step 5.5 dispatch handler:
+case "$DOC_SYNC_RESULT" in
+  green|green-noop)
+    echo "[doc-sync] $DOC_SYNC_RESULT — continuing to /ship"
+    # No state change beyond the doc commit /CJ_document-release made.
+    ;;
+  *red*\[doc-sync-red\]*)
+    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [doc-sync-red] /CJ_document-release returned RESULT=red; halt class halted_at_doc_sync.
+  next_action=Inspect /document-release output; fix doc errors; re-run /CJ_document-release manually, then resume /CJ_goal_feature.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+    echo "Why it stopped: /CJ_document-release failed (upstream /document-release non-green or pre-run gate refused)."
+    echo "State preserved: code commits intact; doc-sync did NOT commit doc files; resume state at $RESUME_STATE."
+    echo "Next: inspect the failure, fix manually, then /CJ_goal_feature \"$TOPIC\""
+    jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_doc_sync" \
+      --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
+      >> "$TELEMETRY" 2>/dev/null || true
+    exit 1
+    ;;
+  *red*\[doc-sync-non-doc-write\]*)
+    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [doc-sync-non-doc-write] /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist.
+  next_action=Inspect uncommitted non-doc files; revert if unexpected; re-run /CJ_document-release manually, then resume /CJ_goal_feature.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+    echo "Why it stopped: /CJ_document-release refused — upstream /document-release wrote files outside the doc-only whitelist."
+    echo "State preserved: code commits intact; nothing auto-committed; resume state at $RESUME_STATE."
+    echo "Next: inspect the non-doc files, revert if unexpected, then /CJ_goal_feature \"$TOPIC\""
+    jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_doc_sync_non_doc_write" \
+      --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
+      >> "$TELEMETRY" 2>/dev/null || true
+    exit 1
+    ;;
+esac
+```
+
+Only on green or green-noop does control proceed to Step 4 (/ship).
 
 ## Step 4: /ship (INLINE — diff-review AUQ suppressed; opens a PR)
 

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.1] - 2026-06-02
+
+### Added
+
+- **F000036 `CJ_document-release` skill — wraps `/document-release` with a `--docs <subset>` flag for per-invocation doc subset, halt-on-red contract, and auto-commit of doc-only changes.** The 3 cj_goal orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) now invoke it inline between QA pass and `/ship` (a new Step 5.5 in each pipeline.md), folding doc updates into the same code PR rather than a separate post-merge cycle. Adds two new halt classes to each orchestrator's halt taxonomy: `[doc-sync-red]` (upstream `/document-release` returned non-green) and `[doc-sync-non-doc-write]` (upstream modified files outside the conservative doc-only whitelist `README|CHANGELOG|CLAUDE|ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`). Operators can manually invoke `/CJ_document-release --docs README,CHANGELOG` from any feature branch for narrow audits — the per-invocation `--docs` subset filter is the genuinely new capability the catalog cost earns. F000029's marker-AUQ stays as fallback for non-orchestrator paths (raw `git push`, manual `/ship`). F000029 BD#1 (rejected "new /CJ_doc_sync skill in catalog") was reopened and superseded — the `--docs` parameterization + halt-on-red + auto-commit weren't expressible in F000029's detection-only script; supersession is annotated in-place in `F000029_DESIGN.md`. Note: /ship's existing Step 18 also dispatches `/document-release` post-push, so the Step 5.5 inline call is partially redundant for the auto-trigger use case under squash-merges (idempotent harmless re-run); the operator-callable `/-command` surface is what the new skill is really for. Bundles a 1-line `scripts/test-deploy.sh` Test 8 assertion relaxation (`Health: OK` → `Health: (OK|0 errors)`) to tolerate the worktree-only T000025 "source directory missing in repo" warning class for new uncommitted-in-main_toplevel skills.
+
 ## [6.0.0] - 2026-06-02
 
 ### Removed

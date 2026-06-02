@@ -208,6 +208,7 @@
     "portability": "standalone",
     "files": [
       "skills/CJ_goal_todo_fix/SKILL.md",
+      "skills/CJ_goal_todo_fix/pipeline.md",
       "skills/CJ_goal_todo_fix/scripts/todo_fix.sh",
       "skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"
     ],
@@ -297,6 +298,28 @@
     "files": [
       "skills/CJ_goal_feature/SKILL.md",
       "skills/CJ_goal_feature/pipeline.md"
+    ],
+    "templates": [],
+    "status": "experimental"
+  },
+  {
+    "name": "CJ_document-release",
+    "version": "0.1.0",
+    "description": "Workbench wrapper around upstream gstack /document-release (upstream skill, not in this catalog — invoked via Skill tool). Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a conservative doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR. F000036 closes the F000028+F000029 marker-AUQ drift window for orchestrator-driven paths; F000029's marker-AUQ stays as fallback for non-orchestrator paths.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "Bash",
+        "Read",
+        "Glob",
+        "Grep",
+        "Skill"
+      ]
+    },
+    "portability": "workbench",
+    "files": [
+      "skills/CJ_document-release/SKILL.md"
     ],
     "templates": [],
     "status": "experimental"
