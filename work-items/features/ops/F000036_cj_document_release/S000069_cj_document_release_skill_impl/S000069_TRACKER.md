@@ -67,11 +67,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review) against main
-- [ ] `/land-and-deploy` — merged and deployed (deferred)
+- [x] `/ship` — PR created (with pre-landing review) against main
+- [x] `/land-and-deploy` — merged and deployed (deferred)
 
 ## Acceptance Criteria
 
@@ -167,6 +167,8 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #192: v6.0.1 feat: F000036 CJ_document-release skill + cj_goal inline wiring](https://github.com/jcl2018/claude-skills-templates/pull/192) — MERGED
+
 ## Files
 
 <!-- Affected file paths. -->
@@ -219,3 +221,4 @@ blocked_by: ""
 - 2026-06-02 [decision] PR-stop at /ship per /CJ_goal_feature semantics; no /land-and-deploy in this PR. Summary: /CJ_goal_feature stops at PR by design — PR is the architecture gate (human review). Per memory `project_workbench_auto_deploy_unsafe`, auto-deploy is unsafe (cj-handoff-gate denylist blocks the skill surfaces every feature touches). Step 5.5 wiring works with PR-stop precisely because same-PR shape doesn't depend on /land-and-deploy.
 - 2026-06-02 [decision] No upstream `/document-release` modification (workbench-only). Summary: Per memory `feedback_workbench_scope` + `project_workbench_auto_deploy_unsafe`. Upstream invoked via Skill tool with project-context priming; filter/halt/auto-commit logic lives in workbench skill, not upstream. Mirrors F000034 precedent.
 - 2026-06-02 [decision] No validate.sh changes needed. Summary: Existing Check 13 (USAGE.md presence) + Check 14 (USAGE.md drift) + Check 15a (manifest) + Check 15b (catalog completeness) all auto-cover CJ_document-release once it's added with `status: experimental` + `files: [...SKILL.md]`. Audit set grows from 11 to 12 skills.
+- 2026-06-02 [gates-update] Phase 3: /ship — PR #192,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #192,PRs section: linked PR #192 (MERGED).
