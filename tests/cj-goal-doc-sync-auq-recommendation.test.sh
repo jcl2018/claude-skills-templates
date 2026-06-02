@@ -15,10 +15,8 @@
 # the corrected polarity. It does NOT exercise the runtime AUQ (no Skill
 # invocation) — pure grep against source.
 #
-# Coverage narrowed at v5.0.15 (T000035, F000027 closure): /CJ_goal_investigate
-# was retired as a thin alias shim under deprecated/CJ_goal_investigate/ and
-# no longer carries the doc-sync AUQ preamble. The 2 live cj_goal SKILL.md
-# files (feature + defect) remain on the corrected polarity.
+# Covers the 2 live cj_goal SKILL.md files (feature + defect) on the corrected
+# polarity.
 #
 # Pattern: per-file string-presence + string-absence assertions. The "absence"
 # assertions catch a regression that re-introduces the pre-fix wording.

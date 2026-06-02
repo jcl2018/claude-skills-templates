@@ -27,17 +27,6 @@ per-phase skills (/CJ_scaffold-work-item, /CJ_implement-from-spec,
 /CJ_goal_todo_fix). /CJ_goal_todo_fix bridges TODOS.md rows to the shipping
 pipeline in one keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
 
-`/CJ_goal_run` + `/CJ_goal_auto` are **DEPRECATED** alias shims (F000027 two-verb
-refactor; sunset v6.0.0) that print a banner then route to `/CJ_goal_feature`.
-`/cj_goal_feature` + `/cj_goal_defect` are also **DEPRECATED** alias shims
-(F000031 casing-fix follow-up; sunset v6.0.0) that print a banner then route to
-the uppercase canonicals `/CJ_goal_feature` + `/CJ_goal_defect` for family-name
-consistency. `/CJ_goal_investigate` is a **DEPRECATED** alias shim (F000027
-closure, sunset v6.0.0) routing non-D-id args to `/CJ_goal_defect` and rejecting
-bare D-id args (`^D[0-9]{6}$`). Do not use any of these five for new work; they
-stay installable via `skills-deploy install --include-deprecated` so in-flight
-pipelines finish.
-
 ## CI/CD merge convention
 
 This repo uses **squash merges**. When `/ship` or `/land-and-deploy` reaches the
@@ -70,7 +59,6 @@ from this exact failure mode on PR #83 / v2.0.4).
 - `/CJ_goal_feature "<topic>"` → `cj-feat-*` (worktree phase: `cj-goal-common.sh --mode feature` → `cj-worktree-init.sh --caller feature`)
 - `/CJ_goal_defect "<bug description>"` → `cj-def-*` (`cj-goal-common.sh --mode defect` → `cj-worktree-init.sh --caller defect`)
 - `/CJ_goal_todo_fix [<T-ID> | "<fragment>"]` (single-TODO mode) → `cj-todo-*` (`cj-worktree-init.sh --caller todo`)
-- ~~`/CJ_goal_investigate <D-id|fragment>` → `cj-inv-*` (`cj-worktree-init.sh --caller investigate`)~~ **DEPRECATED** (F000027 closure, sunset v6.0.0; investigate is now a thin alias shim routing to `/CJ_goal_defect`; the `cj-inv-*` prefix remains reachable only via `skills-deploy install --include-deprecated`).
 
 Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
 
@@ -163,17 +151,14 @@ fires the hook), the check treats USAGE_CT as `date +%s`, so the override commit
 NOT blocked by the very check it is trying to silence. No `--no-verify` needed.
 
 ### Template naming
-Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills, when any exist):
+Templates live in `templates/`:
 - `templates/CJ_personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
 - `templates/doc-SKILL-DESIGN.md` — skill authoring template (not tied to a workflow skill)
 - `work-copilot/` — Self-contained GitHub Copilot bundle deployed via `scripts/copilot-deploy.py` to non-Claude target repos. Carries its own templates (`work-copilot/templates/*.md`), WORKFLOW.md, reference/, philosophy/, examples/, fixtures/, copilot-artifact-manifests.json, prompts/, and domain/ — no upstream sync. `validate.sh` Error check 10 (`EXPECTED_BUNDLE_FILES` array, 61 entries) enforces every required bundle file is present. Add a new bundle file by appending one entry to that array.
 
-### Deprecated skills convention
-Skills with `status: deprecated` in `skills-catalog.json` live under `deprecated/{name}/` instead of `skills/{name}/`. The catalog is the source of truth for paths — consumer scripts (`skills-deploy`, `validate.sh`, `test.sh`) derive `dirname(files[0])` for the source root and an optional `templates_source` field for the templates source. Future relocations are a one-line catalog change. See `deprecated/README.md` for what belongs there and what doesn't.
-
 ### Template deployment
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
-Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for active skills, or `$REPO_ROOT/{templates_source}/` when the catalog entry sets `templates_source` (e.g., `deprecated/{name}/templates/`). Then fall back to `~/.claude/templates/{skill-name}/`.
+Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for active skills, or `$REPO_ROOT/{templates_source}/` when the catalog entry sets `templates_source`. Then fall back to `~/.claude/templates/{skill-name}/`.
 - Drifted templates and rules are overwritten by default (`skills-deploy install` is treated as a sync from workbench source → `~/.claude/`); pass `--no-overwrite` to preserve deployed copies that differ from source. `--overwrite` is accepted as a no-op for backwards compatibility with pre-v1.6 callers (D000013's post-merge hook, etc.).
 - `skills-deploy doctor` reports template health (missing, drifted, orphaned)
 - `skills-deploy remove` cleans up templates when no installed skill needs them
@@ -184,11 +169,7 @@ Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for act
 name, version, description, source, depends, portability, files, templates, status.
 The catalog is for validation only. The plugin system auto-discovers `skills/`.
 
-`status` is a closed enum enforced by `validate.sh`: `active`, `experimental`, or `deprecated`.
-Entries with `status: deprecated` stay in the repo (e.g. as upstream truth for byte-mirrored
-bundles like `work-copilot/`) but are skipped by `scripts/skills-deploy install` with a
-WARN line. Pass `--include-deprecated` to install them anyway. `skills-deploy doctor`
-reports deprecated skills as INFO, not WARN.
+`status` is a closed enum enforced by `validate.sh`: `active` or `experimental`.
 
 ### Frontmatter requirements
 Every SKILL.md must have YAML frontmatter with at least `name` and `description`.
@@ -307,10 +288,7 @@ fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 The two `cj_goal` orchestrator preambles (`/CJ_goal_feature` + `/CJ_goal_defect`)
 emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
 `post-merge` / `post-rewrite` git hook has dropped a doc-sync marker since the
-operator's last pull. (`/CJ_goal_investigate`'s preamble is no longer in
-the live trigger surface — the skill is now a DEPRECATED alias shim under
-`deprecated/CJ_goal_investigate/` and only emits the line when installed via
-`--include-deprecated`.) The orchestrator interprets the line and surfaces an AUQ
+operator's last pull. The orchestrator interprets the line and surfaces an AUQ
 asking whether to run `/document-release` inline now, snooze, or skip — closing
 the loop F000028 opened (the hook writes markers; this mechanism consumes them).
 
@@ -379,25 +357,9 @@ surface entirely). Per-marker snooze (current design is global `snooze_until`).
 
 ## /document-release workbench audit conventions
 
-This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is: (a) retired-skill references that leak outside the `## Retired skills` subsection of `doc/PHILOSOPHY.md`, and (b) active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.
+This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.
 
 `/document-release` reads this section as project context at Step 2. The audit rides that existing behavior; no upstream skill modification.
-
-### Retired-skill drift check
-
-Extract the set of currently-deprecated skill names:
-
-```
-jq -r '.[] | select(.status=="deprecated") | .name' skills-catalog.json
-```
-
-For each name returned, `grep -n` for the name in `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. A mention is **annotated** (and skipped, not reported as drift) if ANY of these hold:
-
-- The mention appears inside the `## Retired skills` subsection of `doc/PHILOSOPHY.md` (one paragraph per retired skill is the canonical tombstone home).
-- The mention is inside a `~~strikethrough~~` span.
-- The mention is within 200 characters (case-insensitive substring window) of the words `DEPRECATED`, `sunset`, or `tombstone`.
-
-All other mentions are drift findings. Examples of legitimate annotated mentions: the `## Retired skills` subsection itself, the `### Deprecated` table in `README.md`, this very section's `DEPRECATED` keyword. Examples of drift: a routing example in `doc/PHILOSOPHY.md` body that still names a retired skill as a primary front door, a mechanism reference in `doc/ARCHITECTURE.md` that quotes a deprecated skill without the proximity escape hatch.
 
 ### New-skills check
 
@@ -472,18 +434,6 @@ The `~~strikethrough~~` is required so `/CJ_suggest` excludes the row. Without
 it, `/loop /CJ_goal_todo_fix` will keep ranking the row as active and burning iterations
 to discover the work is already partly done. Example: TODOS:108 (T000027 / PR
 #114) — addressed sub-item (b) only; (a)/(c)/(d) deferred.
-
-### Edge case 2: multi-PR bundles via `/CJ_goal_run` need a post-bundle cleanup PR
-
-`/CJ_goal_run`'s Branch (b) auto-iterate ships per-child PRs against `origin/main`
-without bundling them in a single `/ship` invocation. `/ship` Step 14 sees only
-each child's narrow diff and has no cross-PR view of which TODOs the bundle as
-a whole closes. Result: TODOS rows that the bundle addresses end up unmarked
-even after every child has merged. Operator action after the last child PR
-merges: ship a small `chore: TODOS.md post-bundle cleanup for F000NNN` PR that
-hand-edits the addressed rows to add `~~strikethrough~~ DONE — closed by
-S000NNN (vX.Y.Z, PR #NNN)` annotations. Example: PR #119 (v3.6.2) cleaned up
-TODOS:142 + :167 after PR #117 + #118 shipped the F000020 polish bundle.
 
 ### When in doubt
 

@@ -4,25 +4,23 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 ## The shared cj-goal-common.sh helper (S000057)
 
-`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`). It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes. (Historically a third mode existed for `/CJ_goal_investigate` ~~before that skill was DEPRECATED~~ at v5.0.15; the mode's invocation surface is no longer reachable from any live front door — see `## Deprecation tombstones` below.)
+`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`). It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes.
 
 **Phases it owns:**
 
 - **worktree** — auto-creates `.claude/worktrees/cj-{feat|defect}-<ts>-<pid>/` when invoked from `main` with arguments, no-ops inside an existing Conductor-managed worktree, and exposes `--assert-isolated` so each orchestrator's Step 1.9 isolation gate can refuse to proceed on a dirty working tree.
 - **pr-check** — polls `gh pr view` for the merge state of an open PR, captures the PR URL into the per-branch state file, and produces a deterministic `next_action=` / `resume_cmd=` / `pr_url=` line that the orchestrator can drop directly into its journal entry.
-- **telemetry** — appends a single JSONL line per run to `~/.gstack/analytics/<skill>.jsonl` (one file per front door: `CJ_goal_feature.jsonl`, `CJ_goal_defect.jsonl`). The historical ~~`CJ_goal_investigate.jsonl`~~ stream is DEPRECATED — investigate retired at v5.0.15; the file remains on operator machines as archived state and is not written by any live skill.
+- **telemetry** — appends a single JSONL line per run to `~/.gstack/analytics/<skill>.jsonl` (one file per front door: `CJ_goal_feature.jsonl`, `CJ_goal_defect.jsonl`).
 
 **Modes it dispatches on:**
 
 - **feature** — paired with `/CJ_goal_feature` (build a feature: topic → reviewable PR). Stops at the PR; deploy is a separate human step.
 - **defect** — paired with `/CJ_goal_defect` (fix a bug: description → shipped fix). Runs `/investigate` as a depth-≤2 leaf subagent and only mints a D-ID after the Iron-Law gate passes.
-- ~~**investigate** — paired with `/CJ_goal_investigate` (ship a fix for an already-scaffolded D000NNN defect).~~ **DEPRECATED at v5.0.15** (sunset v6.0.0); investigate is now a thin alias shim under `deprecated/CJ_goal_investigate/` that routes non-D-id args to `/CJ_goal_defect` and rejects bare D-id args. Reachable only via `skills-deploy install --include-deprecated`.
 
 **Consumers:**
 
 - `/CJ_goal_feature` (mode=feature) — primary consumer; pulls every phase from the helper.
 - `/CJ_goal_defect` (mode=defect) — primary consumer; same phase surface.
-- ~~`/CJ_goal_investigate` (mode=investigate)~~ — **DEPRECATED at v5.0.15** (sunset v6.0.0). Historical adoption-cadence note retained for the post-mortem: investigate predated the helper and adopted phases incrementally (telemetry already routed through the shared schema; worktree adoption was in flight when the skill retired). See `## Deprecation tombstones` below + [PHILOSOPHY.md ## Retired skills](PHILOSOPHY.md#retired-skills) for the canonical tombstone.
 
 The helper is deliberately one shell file, not a directory or a skill. Each phase is a function the orchestrator sources and calls — there is no second layer of orchestration. Treat it as plumbing for the two front doors.
 
@@ -82,19 +80,3 @@ Together the F000028 hook layer and the F000029 pickup-AUQ layer close the doc-s
 The active-skill routing diagram lives in [PHILOSOPHY.md ## Decision tree](PHILOSOPHY.md#decision-tree) — that is the single source of truth. This document does not duplicate the diagram. If you landed on ARCHITECTURE.md first looking for "which CJ_ skill do I call?", follow the link to PHILOSOPHY's Decision tree section; the routing prose and the "Quick rule of thumb" table both live there.
 
 The split is intentional: PHILOSOPHY answers *which skill to call*; ARCHITECTURE answers *how the mechanism underneath works*. The workbench audit (CLAUDE.md `## /document-release workbench audit conventions`) reads PHILOSOPHY only for its new-skills check — adding a skill here without adding it to PHILOSOPHY's Decision tree would still produce a drift finding.
-
-## Deprecation tombstones
-
-The list of retired skills lives in [PHILOSOPHY.md ## Retired skills](PHILOSOPHY.md#retired-skills) — that is the canonical tombstone home (one paragraph per retired skill, naming what it was, when it retired, why, and what replaced it). This document does not duplicate that list; the workbench audit (CLAUDE.md `## /document-release workbench audit conventions`) reads PHILOSOPHY's `## Retired skills` subsection to suppress drift findings for legitimate post-mortem references.
-
-**Three-shape deprecation pattern.** When a skill retires in this workbench, three paired layers move together:
-
-1. **Catalog status** — `skills-catalog.json` flips the entry's `status` from `active` (or `experimental`) to `deprecated`. `validate.sh` enforces the closed enum (`active` / `experimental` / `deprecated`). `skills-deploy install` skips deprecated entries by default with a WARN line; `--include-deprecated` opts in for in-flight migration.
-
-2. **Skill source relocation** — the skill's source moves from `skills/<name>/` to `deprecated/<name>/`. The catalog entry is the source of truth for the path: consumer scripts derive `dirname(files[0])` for the source root, and an optional `templates_source` field handles templates that relocate alongside. Functional alias shims (e.g., the F000027 `/CJ_goal_run` and `/CJ_goal_auto` shims) are a documented exception — they stay in `skills/` because they must remain invocable until the v6.0.0 removal.
-
-3. **Work-item history relocation** — work items whose primary subject is the retired skill move from `work-items/<domain>/` to `deprecated/work-items/<domain>/`. Future archaeology stays discoverable but doesn't pollute the active work-item view.
-
-**Original instances.** F000005 (PR #52, "deprecated skill status + company-workflow migration") introduced the catalog `status: deprecated` layer; F000006 (PR #53) relocated the skill source out of `skills/`; F000007 (PR #54) relocated the matching work-item history. Together they established the three-shape pattern as a coherent deprecation convention rather than three ad-hoc moves.
-
-**Recent instance.** F000027/S000060 (PR #173 / v5.0.6) applied a *modified* form of the pattern to `/CJ_goal_run` and `/CJ_goal_auto`: catalog flipped to `deprecated`, but the skill source stayed in `skills/` (the functional-alias-shim exception above) so in-flight pipelines could finish under `--include-deprecated`. The sunset target is v6.0.0; at removal the source will relocate to `deprecated/` per the standard pattern.

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.0] - 2026-06-02
+
+### Removed
+
+- **F000035 v6.0.0 sunset wave — full nuke of deprecated shims + deprecation infrastructure.** Removed 5 deprecated alias shims (`CJ_goal_run`, `CJ_goal_auto`, `CJ_goal_investigate`, `cj_goal_feature`, `cj_goal_defect`) along with their catalog entries — they were thin banner-and-route shims kept installable for in-flight migration after F000027 (two-verb refactor), F000031 (casing-fix follow-up), and T000035 (F000027 closure). Removed the deprecation infrastructure that supported them: `deprecated/` directory deleted entirely; `--include-deprecated` flag removed from `scripts/skills-deploy`; `status: deprecated` removed from `scripts/validate.sh`'s closed enum (now `{active, experimental}`); F000030 "Retired-skill drift check" convention removed from `CLAUDE.md`; `## Retired skills` section removed from `doc/PHILOSOPHY.md`; `## Deprecation tombstones` section removed from `doc/ARCHITECTURE.md`; deprecated-section generator removed from `scripts/generate-readme.sh`. **Breaking change.** Anyone with `/CJ_goal_run`, `/CJ_goal_auto`, `/CJ_goal_investigate`, `/cj_goal_feature`, or `/cj_goal_defect` in muscle memory will get "skill not found" — use the canonical verbs `/CJ_goal_feature` (build a feature: topic → reviewable PR) and `/CJ_goal_defect` (fix a bug: description → shipped fix) instead. Solo-project rationale: no other operators, no in-flight pipelines, so the backward-compat window the infrastructure existed to provide collapsed to zero. Future deprecations will re-introduce whatever infrastructure the next retirement actually needs, designed around its specifics. Git history (commit messages + PR titles for F000027 / F000031 / T000035 / F000035) and this CHANGELOG entry are the audit trail.
+
 ## [5.0.20] - 2026-06-02
 
 ### Fixed
