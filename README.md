@@ -1,6 +1,11 @@
 # claude-skills-templates
 
-Work lifecycle pipeline, doc contract enforcement, and skill authoring workbench for Claude Code.
+A doc-first development workbench: a work lifecycle pipeline, doc-contract enforcement, and authoring tooling. It ships from one source of truth to **two delivery surfaces** — Claude Code skills, and a self-contained GitHub Copilot bundle (`work-copilot/`) for machines without Claude. It is deliberately not Claude-skill-only.
+
+## Delivery surfaces
+
+- **`skills/`** — Claude Code skills (the `CJ_` workflow family + utilities), auto-discovered and listed below.
+- **`work-copilot/`** — a self-contained **GitHub Copilot** bundle carrying the same work-item templates + `/validate` workflow to non-Claude machines. Deploy with `python3 scripts/copilot-deploy.py install <target>`; see [`work-copilot/README.md`](work-copilot/README.md).
 
 ## Skills
 
