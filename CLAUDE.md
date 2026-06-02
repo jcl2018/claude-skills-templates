@@ -122,6 +122,40 @@ skills/{skill-name}/
   *.md              # optional supporting files
 ```
 
+### USAGE.md drift detection
+
+`scripts/validate.sh` Check 14 detects USAGE.md content drift: if SKILL.md has a more
+recent commit than USAGE.md, the audit flags USAGE.md as stale. The check uses git
+commit timestamps (`git log -1 --format=%ct`), not filesystem mtimes — deterministic
+across worktrees, fresh clones, and CI runners.
+
+When the drift signal is real, update USAGE.md to match the new SKILL.md behavior
+(this is the normal path). When SKILL.md changed cosmetically (typo, version bump,
+comment edit) and USAGE.md is still accurate, bump the `last-updated:` field in
+USAGE.md's frontmatter to an ISO-8601 second-resolution timestamp and commit:
+
+```bash
+sed -i.bak 's/^last-updated:.*/last-updated: "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' skills/{name}/USAGE.md && rm skills/{name}/USAGE.md.bak
+git add skills/{name}/USAGE.md && git commit -m "docs: verify USAGE.md current for {name}"
+```
+
+The ISO-8601 second-resolution timestamp (`2026-06-01T16:25:32Z`) is mandatory, not
+a stylistic choice: a date-only override (`2026-06-01`) is a no-op when the existing
+`last-updated:` field already shows today's date, sed produces no change, git finds
+nothing staged, the commit doesn't happen, drift stays flagged. Second-resolution
+makes the override idempotent in the practical sense — two runs in the same second
+are pathological and the operator just re-runs.
+
+The real content change makes `git log -1` pick up the new commit so USAGE.md's `%ct`
+advances past SKILL.md's. The `last-updated:` field is the audit trail. **Do NOT use
+`git commit --allow-empty`** — `git log -1 -- <path>` only returns commits that
+touched the path, and empty commits touch no paths.
+
+The pre-commit hook runs validate.sh; Check 14 is **staged-aware**: when USAGE.md
+appears in `git diff --cached --name-only` (which it does at the moment `git commit -a`
+fires the hook), the check treats USAGE_CT as `date +%s`, so the override commit is
+NOT blocked by the very check it is trying to silence. No `--no-verify` needed.
+
 ### Template naming
 Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills, when any exist):
 - `templates/CJ_personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)

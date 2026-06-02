@@ -1569,6 +1569,66 @@ else
   fail_test "Test 12: gate should have exited 0 on green-path fixture, but halted; output: $_OUT"
 fi
 
+# Test 13: Check 14 USAGE.md drift fires and is overridable
+# F000033/S000066: prove that validate.sh Check 14 detects SKILL.md > USAGE.md
+# drift (ERRORs with the documented override command), and that bumping the
+# last-updated frontmatter field silences it. Cleanup via PRIOR_SHA reset.
+#
+# Clean-tree gate (F000033 QA-reverify): the test creates temp commits via
+# `git commit -am` and resets with `git reset --hard`. On an uncommitted tree
+# the `-am` would sweep unrelated work into the temp commit, and the reset
+# would then discard it. Skip in that context with a code-presence check so
+# Check 14's source still gets verified. The full test runs in CI and in any
+# post-/ship invocation (clean tree).
+echo ""
+echo "Test 13: Check 14 USAGE.md drift fires and is overridable"
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  if grep -q '^echo "=== Check 14:' scripts/validate.sh \
+     && grep -q 'is stale' scripts/validate.sh \
+     && grep -q 'last-updated' scripts/validate.sh; then
+    ok "Test 13: SKIP (uncommitted working tree); Check 14 source present (=== Check 14:, is stale, last-updated)"
+  else
+    fail_test "Test 13: SKIP requested (uncommitted working tree) but Check 14 source missing one of: '=== Check 14:', 'is stale', 'last-updated'"
+  fi
+else
+  PRIOR_SHA=$(git rev-parse HEAD)
+  trap 'git reset --hard "$PRIOR_SHA" >/dev/null 2>&1 || true; rm -f skills/CJ_system-health/USAGE.md.bak skills/CJ_system-health/SKILL.md.bak' EXIT
+  # (a) Advance CJ_system-health/SKILL.md's %ct via trailing newline + commit
+  echo "" >> skills/CJ_system-health/SKILL.md
+  git commit -am "TEST: temp SKILL.md edit" >/dev/null 2>&1
+  # (b) Re-run validate.sh; assert non-zero exit AND drift ERROR in output
+  if _T13_OUT=$(./scripts/validate.sh 2>&1); then
+    fail_test "Test 13: validate.sh should have exited non-zero after SKILL.md drift, but exited 0"
+  else
+    if echo "$_T13_OUT" | grep -qF "ERROR: skills/CJ_system-health/USAGE.md is stale"; then
+      ok "Test 13a: validate.sh exited non-zero with stale-USAGE.md ERROR (drift detected)"
+    else
+      fail_test "Test 13a: validate.sh exited non-zero but missing 'ERROR: skills/CJ_system-health/USAGE.md is stale' substring; output: $_T13_OUT"
+    fi
+  fi
+  # (c) Apply the documented override — ISO-8601 second-resolution timestamp.
+  # Date-only would be a no-op when USAGE.md already shows today's date (common
+  # case immediately after a freshly-created USAGE.md gets a sibling SKILL.md
+  # edit). The pre-commit hook accepts the override commit because Check 14 is
+  # staged-aware: USAGE.md appears in `git diff --cached --name-only` and is
+  # treated as current.
+  sed -i.bak 's/^last-updated:.*/last-updated: "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' skills/CJ_system-health/USAGE.md && rm skills/CJ_system-health/USAGE.md.bak
+  git commit -am "TEST: apply override" >/dev/null 2>&1
+  # (d) Re-run validate.sh; assert exit 0 AND PASS line in output
+  if _T13_OUT2=$(./scripts/validate.sh 2>&1); then
+    if echo "$_T13_OUT2" | grep -qF "PASS: skills/CJ_system-health/USAGE.md is current"; then
+      ok "Test 13b: validate.sh exited 0 with USAGE.md current PASS (override silences drift)"
+    else
+      fail_test "Test 13b: validate.sh exited 0 but missing 'PASS: skills/CJ_system-health/USAGE.md is current' substring"
+    fi
+  else
+    fail_test "Test 13b: validate.sh should have exited 0 after override, but exited non-zero; output: $_T13_OUT2"
+  fi
+  # (e) Cleanup — restore worktree via PRIOR_SHA reset (trap handles this on EXIT too)
+  git reset --hard "$PRIOR_SHA" >/dev/null 2>&1
+  trap - EXIT
+fi
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
