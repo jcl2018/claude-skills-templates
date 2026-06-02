@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.18] - 2026-06-01
+
+### Added
+
+- **F000033 USAGE.md drift detection (validate.sh Check 14).** Pairs with F000032 (PR #186) to close the content-freshness gap: F000032 enforces USAGE.md *exists* with five required H2 sections; F000033 enforces it stays at least as recent as its sibling SKILL.md. The check uses `git log -1 --format=%ct` (committer Unix timestamp), not filesystem mtimes — deterministic across worktrees, fresh clones, and CI runners. Same predicate as Check 13 (`status != "deprecated"` + non-empty `files`). When SKILL.md changed cosmetically and USAGE.md is still accurate, the documented override bumps USAGE.md's `last-updated:` frontmatter field and commits — a real one-line content change that advances USAGE.md's `%ct` past SKILL.md's. Check 14 is staged-aware: when USAGE.md appears in `git diff --cached --name-only`, the check treats USAGE_CT as `date +%s` so the pre-commit hook does NOT block the override commit (the staged change IS the operator's confirmation that USAGE.md is current). New `### USAGE.md drift detection` subsection in `CLAUDE.md ## Conventions` documents the override; new paragraph in `doc/PHILOSOPHY.md ## Documentation surfaces` documents the drift rule. New `Test 13` in `scripts/test.sh` proves Check 14 fires on drift, the documented override silences it, and cleanup restores the worktree — the test is clean-tree-gated (skips with a code-presence check when the working tree has uncommitted changes, so pre-/ship QA runs against in-flight feature work don't sweep into the test's temp commit and get reset away). Stacked on PR #186 (F000032); merge order is #186 first, then this PR.
+
 ## [5.0.17] - 2026-06-01
 
 ### Added
