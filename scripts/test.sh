@@ -1181,6 +1181,32 @@ fi
 # runner block — the test exercised the T000035 deprecation-shim contract for
 # /CJ_goal_investigate, which has now been fully retired and deleted from disk.)
 
+# Regression test (F000035): the CJ_document-release skill exists, has valid
+# frontmatter + USAGE.md, is registered in skills-catalog.json + doc/SKILL-CATALOG.md,
+# and documents the halt-marker shape + branch + clean-tree refusal prose. Unit-shape
+# tests (file content greps) covering the skill itself.
+echo ""
+echo "Running tests/cj-document-release.test.sh (F000035 skill structure + body assertions)..."
+if bash "$REPO_ROOT/tests/cj-document-release.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-document-release.test.sh: CJ_document-release skill structure + frontmatter + USAGE.md + catalog + halt markers all present"
+else
+  _cdr_rc=$?
+  fail_test "tests/cj-document-release.test.sh failed (rc=$_cdr_rc) — run \`bash tests/cj-document-release.test.sh\` directly to see"
+fi
+
+# Regression test (F000035): all 3 cj_goal orchestrators (CJ_goal_feature,
+# CJ_goal_defect, CJ_goal_todo_fix) have the Step 5.5 doc-sync subsection wired
+# into pipeline.md AND both [doc-sync-red] / [doc-sync-non-doc-write] halt-taxonomy
+# rows in SKILL.md, with correct row ordering (after qa, before ship).
+echo ""
+echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035 3-way symmetric Step 5.5 wiring)..."
+if bash "$REPO_ROOT/tests/cj-goal-doc-sync-wiring.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-doc-sync-wiring.test.sh: Step 5.5 + halt-taxonomy rows present in all 3 cj_goal orchestrators with correct ordering"
+else
+  _cgdsw_rc=$?
+  fail_test "tests/cj-goal-doc-sync-wiring.test.sh failed (rc=$_cgdsw_rc) — run \`bash tests/cj-goal-doc-sync-wiring.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.
