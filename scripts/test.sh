@@ -174,7 +174,8 @@ cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
 [ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
 [ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"' EXIT
+[ -f "$REPO_ROOT/doc/SKILL-CATALOG.md" ] && cp "$REPO_ROOT/doc/SKILL-CATALOG.md" "/tmp/skill-catalog-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; [ -f "/tmp/skill-catalog-backup-$$" ] && cp "/tmp/skill-catalog-backup-$$" "$REPO_ROOT/doc/SKILL-CATALOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$" "/tmp/skill-catalog-backup-$$"' EXIT
 
 # Step 1: manually create a skill directory + SKILL.md (the CLAUDE.md-guided way)
 mkdir -p "$SKILLS_DIR/zzz-test-scaffold"
@@ -224,6 +225,26 @@ None — fixture is removed by EXIT trap + inline cleanup.
 None.
 USAGEEOF
 
+# Step 1c (F000034): append a stub section to doc/SKILL-CATALOG.md so Check 15
+# finds zzz-test-scaffold listed (the catalog entry below makes it routable; the
+# `status != "deprecated"` + non-empty `files` predicate matches; Check 15 then
+# expects a `### zzz-test-scaffold` section with chart-or-tag). Tag-only stub
+# uses the closed-enum `(single-step utility)` value. EXIT trap + Step 5 inline
+# cleanup restore the catalog from /tmp/skill-catalog-backup-$$.
+if [ -f "$REPO_ROOT/doc/SKILL-CATALOG.md" ]; then
+  cat >> "$REPO_ROOT/doc/SKILL-CATALOG.md" << 'CATALOGEOF'
+
+### zzz-test-scaffold
+
+**Status:** experimental (integration-test fixture; cleaned up after the test runs)
+**Source:** `skills/zzz-test-scaffold/SKILL.md` · `skills/zzz-test-scaffold/USAGE.md`
+
+**Invoke when:** Never. This is a synthesized test skill — the manual-skill-creation integration test creates it, validates the workbench accepts it, then tears it down.
+
+`(single-step utility)` — Fixture for the manual-skill-creation integration test; removed by EXIT trap + Step 5 inline cleanup.
+CATALOGEOF
+fi
+
 # Step 2: add catalog entry
 jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
 
@@ -253,6 +274,7 @@ fi
 # missing in repo`. Cleaning up inline keeps the EXIT trap as a defense-in-depth
 # fallback for unexpected exits.
 cp "/tmp/catalog-backup-$$" "$CATALOG"
+[ -f "/tmp/skill-catalog-backup-$$" ] && cp "/tmp/skill-catalog-backup-$$" "$REPO_ROOT/doc/SKILL-CATALOG.md"
 rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold"
 
 # Template content smoke tests (S000002 TEST-SPEC)
