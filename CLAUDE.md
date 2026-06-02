@@ -118,6 +118,7 @@ Scaffolding conventions live in each skill's WORKFLOW.md (or `work-copilot/WORKF
 ```
 skills/{skill-name}/
   SKILL.md          # required, has name + description frontmatter
+  USAGE.md          # required, has When-to-use / When-NOT / Mental model / Pitfalls / Related skills
   *.md              # optional supporting files
 ```
 
@@ -201,9 +202,10 @@ To create a new skill, create the directory and files manually (no scaffolding s
      "status": "experimental"
    }
    ```
-4. Optionally create `skills/{name}/DESIGN.md` using `templates/doc-SKILL-DESIGN.md`
-5. Run `./scripts/validate.sh` to verify everything is consistent
-6. Use `/ship` to commit and create a PR
+4. Optionally create `skills/{name}/DESIGN.md` for design rationale if the skill is complex enough to warrant a developer-facing doc (template: `templates/doc-SKILL-DESIGN.md`)
+5. Create `skills/{name}/USAGE.md` using `templates/doc-SKILL-USAGE.md` and fill in all five required H2 sections (When to use / When NOT to use / Mental model / Common pitfalls / Related skills)
+6. Run `./scripts/validate.sh` to verify everything is consistent
+7. Use `/ship` to commit and create a PR
 
 ## Scripts reference
 

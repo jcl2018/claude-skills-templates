@@ -530,6 +530,35 @@ else
   echo "  WARN: pipeline.md not found at $PIPELINE_MD (skipping check)"
 fi
 
+# Check 13: USAGE.md present + has required H2 sections (every routable non-deprecated skill)
+# F000032/S000065: per-skill USAGE.md is the operator + agent best-practice surface.
+# Predicate intentionally diverges from Check 11 / F000030's new-skills check:
+# F000030 uses `status == "active"` (gates decision-tree placement, ship-stable only);
+# Check 13 uses `status != "deprecated"` (operators route to experimental skills today,
+# so USAGE.md must cover them). The 5 deprecated shims + tooling-only `templates` entry
+# (files: []) are excluded automatically.
+echo ""
+echo "=== Check 13: per-skill USAGE.md present + required sections ==="
+REQUIRED_H2=("## When to use" "## When NOT to use" "## Mental model" "## Common pitfalls" "## Related skills")
+while IFS= read -r SKILL_NAME; do
+  USAGE_PATH="skills/$SKILL_NAME/USAGE.md"
+  if [ ! -f "$USAGE_PATH" ]; then
+    echo "  ERROR: $USAGE_PATH missing"
+    ERRORS=$((ERRORS+1))
+    continue
+  fi
+  MISSING=0
+  for H2 in "${REQUIRED_H2[@]}"; do
+    # Line-anchored heading match — reject substring matches inside code fences.
+    if ! grep -qE "^${H2}[[:space:]]*\$" "$USAGE_PATH"; then
+      echo "  ERROR: $USAGE_PATH missing section heading: $H2"
+      ERRORS=$((ERRORS+1))
+      MISSING=$((MISSING+1))
+    fi
+  done
+  [ "$MISSING" -eq 0 ] && echo "  PASS: $USAGE_PATH has all required sections"
+done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

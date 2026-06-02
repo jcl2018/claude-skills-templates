@@ -58,7 +58,7 @@ blocked_by: ""
 - [ ] `/CJ_personal-workflow check` — validation passed
 - [ ] Test-plan verified (all scenarios passing)
 - [ ] `/ship` — PR created
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Todos
 
@@ -91,6 +91,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #185: v5.0.15 refactor: T000035 retire /CJ_goal_investigate per F000031 relocation pattern](https://github.com/jcl2018/claude-skills-templates/pull/185) — MERGED
 
 ## Files
 
@@ -134,3 +136,4 @@ blocked_by: ""
 - 2026-05-31 [finding] Summary: TODOS:37 retirement gate met. /CJ_goal_defect telemetry: 5 runs, 1 green ship (D000026 / v5.0.14 / PR #184). /CJ_goal_investigate: 4 runs, last on 2026-05-21, no activity since. The 9-day quiescence + defect's proven green ship satisfies the "≥1-2 real green ships first" gate.
 
 - 2026-06-01T04:12:48Z [qa-reverify] qa subagent returned red (tests/cj-worktree-init.test.sh:398 hardcoded stale path skills/CJ_goal_investigate/pipeline.md, missed by impl-subagent's path-relocation sweep). Orchestrator applied one-line fix (skills/ → deprecated/) at line 398. Re-ran ./scripts/test.sh → RESULT: PASS (Failures: 0). The new tests/cj-goal-investigate-shim.test.sh 7/7 OK. Validate.sh GREEN. did-allocator.test.sh:4 historical comment kept (describes original D000022 defect location; non-functional).
+- 2026-06-01 [gates-update] Phase 3: /land-and-deploy — PR merged,PRs section: linked PR #185 (MERGED).

@@ -56,6 +56,16 @@ The two intent-named front doors capture the dominant workflows: `/CJ_goal_featu
 - `.gstack/` — lateral / exploratory. gstack skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/context-save`) write here.
 - `work-items/` — structured per-feature. The `/CJ_personal-workflow` taxonomy that drives `/CJ_implement-from-spec` and `/CJ_qa-work-item`.
 
+## Documentation surfaces
+
+Each routable non-deprecated skill ships three documentation surfaces, in three intended audiences:
+
+- **`SKILL.md`** (required) — the agent's execution instructions. Loaded into agent context on every skill invocation. Keep operator-facing best-practice prose OUT of this file; every line here pays a per-turn token cost.
+- **`USAGE.md`** (required for routable non-deprecated skills) — the operator + agent best-practice surface: When to use / When NOT to use / Mental model / Common pitfalls / Related skills. Five required H2 sections. Human-reading; NOT deployed to `~/.claude/skills/{name}/` (the agent gets SKILL.md at runtime; USAGE.md stays in-repo). Authored from `templates/doc-SKILL-USAGE.md`.
+- **`DESIGN.md`** (optional) — developer-facing design rationale: Purpose / Behavior / Design Decisions / Dependencies / Security Boundaries / Test Criteria. Useful for skills complex enough to warrant the rationale doc. Authored from `templates/doc-SKILL-DESIGN.md`.
+
+`scripts/validate.sh` **Check 13** enforces the USAGE.md surface: every entry in `skills-catalog.json` with `status != "deprecated"` AND a non-empty `files` array MUST have a sibling `skills/{name}/USAGE.md` AND that file MUST contain the five required H2 section headings (`## When to use`, `## When NOT to use`, `## Mental model`, `## Common pitfalls`, `## Related skills`), line-anchored. Missing file or missing heading = ERROR. The predicate intentionally diverges from F000030's new-skills check (`status == "active"`, which gates `## Decision tree` placement) because operators route to `experimental` skills today, so USAGE.md must cover them too. The 5 deprecated shims and the tooling-only `templates` catalog entry are excluded automatically.
+
 ## Decision tree
 
 The CJ_ family is the workbench's user-facing pipeline. Top-level orchestrators take different inputs (topic, bug description, defect, TODO row) and converge on the same downstream chain (`/ship` → `/land-and-deploy`). Internal phase-step skills are called transitively — route to the top-level ones.
@@ -97,22 +107,22 @@ START: What's your input?
 
 | Your situation | Call |
 |---|---|
-| One-line topic, want a reviewable PR | `/CJ_goal_feature "<topic>"` |
-| Bug — description or existing defect dir | `/CJ_goal_defect "<bug>"` |
-| Backlog has shippable TODOs.md rows | `/CJ_goal_todo_fix` (or `--max-drain N`) |
-| Lost track, what's next? | `/CJ_suggest` |
-| Health check the workbench | `/CJ_system-health` |
-| Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` |
+| One-line topic, want a reviewable PR | `/CJ_goal_feature "<topic>"` — [USAGE](../skills/CJ_goal_feature/USAGE.md) |
+| Bug — description or existing defect dir | `/CJ_goal_defect "<bug>"` — [USAGE](../skills/CJ_goal_defect/USAGE.md) |
+| Backlog has shippable TODOs.md rows | `/CJ_goal_todo_fix` (or `--max-drain N`) — [USAGE](../skills/CJ_goal_todo_fix/USAGE.md) |
+| Lost track, what's next? | `/CJ_suggest` — [USAGE](../skills/CJ_suggest/USAGE.md) |
+| Health check the workbench | `/CJ_system-health` — [USAGE](../skills/CJ_system-health/USAGE.md) |
+| Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` — [USAGE](../skills/CJ_improve-queue/USAGE.md) |
 
 ### Internal phase-step skills — called transitively, do not route directly
 
 | Skill | Called by | Job |
 |---|---|---|
-| `/CJ_personal-pipeline` | `/CJ_goal_todo_fix` per-TODO chain | Chains scaffold → impl → QA in a fresh-context Agent subagent |
-| `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree |
-| `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write |
-| `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_defect` Step 8 | Runs TEST-SPEC rows (smoke + E2E subagent per row) |
-| `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against `personal-artifact-manifests.json` |
+| `/CJ_personal-pipeline` | `/CJ_goal_todo_fix` per-TODO chain | Chains scaffold → impl → QA in a fresh-context Agent subagent — [USAGE](../skills/CJ_personal-pipeline/USAGE.md) |
+| `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree — [USAGE](../skills/CJ_scaffold-work-item/USAGE.md) |
+| `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write — [USAGE](../skills/CJ_implement-from-spec/USAGE.md) |
+| `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_defect` Step 8 | Runs TEST-SPEC rows (smoke + E2E subagent per row) — [USAGE](../skills/CJ_qa-work-item/USAGE.md) |
+| `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against `personal-artifact-manifests.json` — [USAGE](../skills/CJ_personal-workflow/USAGE.md) |
 
 The orchestrators all converge on the same downstream chain (`/ship` → `/land-and-deploy`) — they differ in what they take as input (topic / bug / defect / TODO row). **GATE #1** (final approval before code is written) is always human across all four. **GATE #2** (post-implementation merge) is human-by-default; the handoff-gate denylist blocks exactly the skill surfaces every feature touches, so PR-stop is the correct stopping point for skill-work in this workbench.
 
