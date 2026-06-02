@@ -75,6 +75,22 @@ The branch detection lives in the SKILL.md prose, not the script. Future skills 
 
 Together the F000028 hook layer and the F000029 pickup-AUQ layer close the doc-sync loop: hooks write markers when main advances; orchestrator preambles pick up markers and surface the AUQ; `/document-release` runs against the right state; `--resolved` cleans up the marker.
 
+## F000036 inline doc-sync wrapper (`/CJ_document-release` Step 5.5)
+
+F000036 closes the orchestrator-driven half of the doc-sync loop. F000028+F000029 surface doc-sync as a marker-AUQ on the NEXT session after main moves, which is correct for non-orchestrator paths (raw `git push`, manual `/ship`) but leaves a one-PR drift window for the cj_goal pipelines: by the time the marker fires, the code PR has already opened with stale docs. F000036 folds the doc update into the same PR by invoking the wrapper inline at a new pipeline Step 5.5, between the QA pass and `/ship`.
+
+**The wrapper, not the upstream skill.** `/CJ_document-release` is a workbench skill that wraps upstream gstack `/document-release` (invoked via the Skill tool). It adds three workbench-specific behaviors that aren't expressible in the upstream skill or in F000029's detection-only script:
+
+- **`--docs <comma-list>` subset filter** — per-invocation doc subset selection (e.g. `--docs README,CHANGELOG`), best-effort via a project-context block. The genuinely new capability that earns the catalog cost.
+- **Halt-on-red contract** — upstream non-green result emits `[doc-sync-red]` to the orchestrator's halt taxonomy, so the orchestrator can stop the pipeline instead of barreling into `/ship` with broken docs.
+- **Doc-only auto-commit whitelist** — gated by the conservative regex `README|CHANGELOG|CLAUDE|ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`. Non-whitelist writes HALT with `[doc-sync-non-doc-write]` — the wrapper refuses to absorb code edits into a "docs" commit.
+
+**Pipeline insertion point.** Each of the three cj_goal orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) has a Step 5.5 between the QA-pass gate and `/ship`. The wrapper runs inline, the halt classes feed into the orchestrator's existing halt taxonomy, and the auto-commit lands as a separate `docs:` commit ahead of the code PR push. F000029's marker-AUQ stays as fallback for non-orchestrator paths — when a code PR ships without going through the cj_goal pipeline, the marker still fires on the next session.
+
+**Why a new skill, not just upstream skill prose.** F000029 BD#1 considered exactly this question and rejected it ("new /CJ_doc_sync skill in catalog" was rejected) on the grounds that the F000029 marker-AUQ flow covered all real needs. F000036 reopened that decision and superseded it: the `--docs` parameterization, the halt-on-red contract, and the auto-commit whitelist are all wrapper behaviors that the upstream skill doesn't own and the detection-only script can't carry. Supersession is annotated in-place in `work-items/features/ops/F000029_marker_pickup_auq/F000029_DESIGN.md` so future readers see why the reversal happened.
+
+**Idempotent re-run with `/ship` Step 18.** `/ship`'s existing Step 18 also dispatches `/document-release` post-push. Under squash-merges, the Step 5.5 inline call and the Step 18 post-push call are partially redundant for the auto-trigger use case (Step 18 has nothing fresh to do after Step 5.5 already absorbed doc updates), but the re-run is idempotent and harmless. The operator-callable `/-command` surface (`/CJ_document-release --docs <subset>`) is what F000036 is really for — point-in-time doc audits on a feature branch outside the cj_goal pipeline.
+
 ## Decision tree mirror
 
 The active-skill routing diagram lives in [PHILOSOPHY.md ## Decision tree](PHILOSOPHY.md#decision-tree) — that is the single source of truth. This document does not duplicate the diagram. If you landed on ARCHITECTURE.md first looking for "which CJ_ skill do I call?", follow the link to PHILOSOPHY's Decision tree section; the routing prose and the "Quick rule of thumb" table both live there.

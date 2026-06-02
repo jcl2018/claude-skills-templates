@@ -129,11 +129,12 @@ START: What's your input?
 | `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree — [USAGE](../skills/CJ_scaffold-work-item/USAGE.md) |
 | `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write — [USAGE](../skills/CJ_implement-from-spec/USAGE.md) |
 | `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_defect` Step 8 | Runs TEST-SPEC rows (smoke + E2E subagent per row) — [USAGE](../skills/CJ_qa-work-item/USAGE.md) |
+| `/CJ_document-release` | `/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix` all at Step 5.5 (between QA pass and `/ship`) | Wraps upstream `/document-release` with `--docs <subset>` filter, halt-on-red, and doc-only auto-commit whitelist — folds doc updates into the same code PR (F000036) — [USAGE](../skills/CJ_document-release/USAGE.md) |
 | `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against `personal-artifact-manifests.json` — [USAGE](../skills/CJ_personal-workflow/USAGE.md) |
 
 The orchestrators all converge on the same downstream chain (`/ship` → `/land-and-deploy`) — they differ in what they take as input (topic / bug / defect / TODO row). **GATE #1** (final approval before code is written) is always human across all four. **GATE #2** (post-implementation merge) is human-by-default; the handoff-gate denylist blocks exactly the skill surfaces every feature touches, so PR-stop is the correct stopping point for skill-work in this workbench.
 
-For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F000028 doc-sync hooks, the F000029 marker-pickup AUQ), see [doc/ARCHITECTURE.md](ARCHITECTURE.md).
+For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F000028 doc-sync hooks, the F000029 marker-pickup AUQ, the F000036 inline doc-sync wrapper), see [doc/ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## How to extend without breaking its character
 
