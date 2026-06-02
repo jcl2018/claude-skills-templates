@@ -333,6 +333,7 @@ exists) with the family contract fields:
 | `halted_at_impl` | `[impl-red]` | implement leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_qa` | `[qa-red]` | /CJ_qa-work-item red |
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green (upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) |
+| `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: cj-document-release.json missing/invalid/schema_version-unsupported (F000037 strict-required) |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist (upstream-misbehaved) |
 | `halted_at_ship` | `[ship-declined]` | /ship declined (the merge stays manual — the PR review is the gate) or pre-landing review red |
 | `already_shipped` | (no journal — idempotency exit; summary printed) | Resume found a MERGED/CLOSED PR for this work; nothing to do |

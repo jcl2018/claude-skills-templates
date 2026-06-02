@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-02"
+last-updated: "2026-06-02T19:50:36Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -46,15 +46,34 @@ adds three workbench-specific concerns: (1) `--docs <comma-list>` per-doc
 subset (best-effort filter via project-context block; documentation-only,
 not enforced); (2) halt-on-red contract that emits `[doc-sync-red]` on
 upstream failure so the calling orchestrator HALTs instead of silently
-continuing; (3) doc-only auto-commit gated by a conservative whitelist
-(`README|CHANGELOG|CLAUDE|ARCHITECTURE.md` + `doc/.+\.md` +
-`templates/doc-.*\.md`), with a `[doc-sync-non-doc-write]` HALT if upstream
-writes anything outside that whitelist. The result is that orchestrator
-sessions can call CJ_document-release after QA, and `/ship` (next pipeline
-step) sees a clean tree where any doc updates are pre-committed.
+continuing; (3) doc-only auto-commit gated by a per-repo whitelist loaded
+from `cj-document-release.json` (F000037), with a `[doc-sync-non-doc-write]`
+HALT if upstream writes anything outside that whitelist. The result is that
+orchestrator sessions can call CJ_document-release after QA, and `/ship`
+(next pipeline step) sees a clean tree where any doc updates are pre-committed.
+
+### Per-repo config
+
+The wrapper reads `cj-document-release.json` at the repo root (sibling of
+`skills-catalog.json`) on every run. The JSON declares (a) the
+`whitelist_patterns` that gate the auto-commit step (globs against the
+working tree, e.g. `doc/**/*.md`), and (b) the `categories` map that
+resolves `--docs <token>` flags into concrete file lists (e.g.
+`"readme": ["README.md"]`). Schema is versioned (`schema_version: 1`); the
+helper at `scripts/cj-document-release-config.sh` parses + validates +
+expands. Strict-required posture (no fallback): the wrapper HALTs with
+`[doc-sync-no-config]` BEFORE any audit when the JSON is missing, invalid,
+or schema_version-unsupported. Every adopting repo declares its own JSON;
+the workbench's bundled JSON seeds the F000036-compat set.
 
 ## Common pitfalls
 
+- `[doc-sync-no-config]` halt means `cj-document-release.json` is missing,
+  not valid JSON, schema_version-unsupported, or missing required fields
+  (`whitelist_patterns` / `categories`). Copy the workbench's seed JSON
+  (root of `claude-skills-templates`) as a starting point and adjust for
+  your repo's doc surface. F000037 strict-required posture: no fallback to
+  hardcoded defaults — every adopting repo declares intent upfront.
 - Invoking on main: refuses fast with `[doc-sync-red]`; switch to a feature
   branch and re-run.
 - Working tree dirty with non-doc files: refuses fast with `[doc-sync-red]`;

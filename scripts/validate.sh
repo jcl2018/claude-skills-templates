@@ -680,6 +680,54 @@ if [ -f "$CATALOG_FILE" ]; then
   done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 fi
 
+# Check 16: cj-document-release.json schema enforcement (F000037)
+# Skip silently when the file is missing (non-adopting repos). When present,
+# enforce schema_version=1, whitelist_patterns non-empty array, categories
+# non-empty object with array values per entry, and cross-check via the
+# helper's --validate subcommand.
+echo ""
+echo "=== Check 16: cj-document-release.json schema ==="
+CONFIG_JSON="cj-document-release.json"
+if [ -f "$CONFIG_JSON" ]; then
+  # JSON validity (block other checks if this fails to avoid cascade noise).
+  if ! jq empty "$CONFIG_JSON" 2>/dev/null; then
+    echo "  ERROR: $CONFIG_JSON is not valid JSON"
+    ERRORS=$((ERRORS+1))
+  else
+    # schema_version must be exactly 1 (v1 reader)
+    SV=$(jq -r '.schema_version // empty' "$CONFIG_JSON")
+    if [ -z "$SV" ] || [ "$SV" != "1" ]; then
+      echo "  ERROR: $CONFIG_JSON schema_version missing or unsupported (expected 1, got '$SV')"
+      ERRORS=$((ERRORS+1))
+    fi
+    # whitelist_patterns must be a non-empty array
+    if ! jq -e '.whitelist_patterns | type == "array" and length > 0' "$CONFIG_JSON" >/dev/null 2>&1; then
+      echo "  ERROR: $CONFIG_JSON whitelist_patterns must be a non-empty array"
+      ERRORS=$((ERRORS+1))
+    fi
+    # categories must be a non-empty object
+    if ! jq -e '.categories | type == "object" and (length > 0)' "$CONFIG_JSON" >/dev/null 2>&1; then
+      echo "  ERROR: $CONFIG_JSON categories must be a non-empty object"
+      ERRORS=$((ERRORS+1))
+    fi
+    # Each category value must be a non-empty array of strings
+    if ! jq -e '[.categories | to_entries[] | .value | type == "array" and length > 0] | all' "$CONFIG_JSON" >/dev/null 2>&1; then
+      echo "  ERROR: $CONFIG_JSON each category value must be a non-empty array of glob patterns"
+      ERRORS=$((ERRORS+1))
+    fi
+    # Final cross-check: helper --validate must exit 0.
+    if [ -x "scripts/cj-document-release-config.sh" ]; then
+      if ! HELPER_OUT=$(bash scripts/cj-document-release-config.sh --validate 2>&1); then
+        echo "  ERROR: cj-document-release-config.sh --validate failed: $HELPER_OUT"
+        ERRORS=$((ERRORS+1))
+      fi
+    fi
+    echo "  PASS: $CONFIG_JSON schema_version=$SV"
+  fi
+else
+  echo "  SKIP: $CONFIG_JSON not present (non-adopting repo; check is conditional)"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "whitelist_patterns": [
+    "README.md",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "ARCHITECTURE.md",
+    "doc/**/*.md",
+    "templates/doc-*.md"
+  ],
+  "categories": {
+    "readme": ["README.md"],
+    "changelog": ["CHANGELOG.md"],
+    "claude": ["CLAUDE.md"],
+    "architecture": ["ARCHITECTURE.md", "doc/ARCHITECTURE.md"],
+    "philosophy": ["doc/PHILOSOPHY.md"],
+    "skill-catalog": ["doc/SKILL-CATALOG.md"]
+  }
+}

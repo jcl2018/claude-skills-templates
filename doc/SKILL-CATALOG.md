@@ -171,12 +171,12 @@ Called transitively by orchestrators (depth-2 leaf subagents). Their "chart" is 
 
 ### CJ_document-release
 
-**Status:** experimental (new, F000036; inline doc-sync wrapper for the cj_goal orchestrator family)
+**Status:** experimental (F000036 inline doc-sync wrapper for the cj_goal orchestrator family; F000037 strict-required per-repo config)
 **Source:** `skills/CJ_document-release/SKILL.md` · `skills/CJ_document-release/USAGE.md`
 
 **Invoke when:** auto-invoked by all 3 cj_goal orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) at Step 5.5 — between QA pass and `/ship` — so doc updates fold into the same code PR. Manual invocation: `/CJ_document-release [--docs <subset>]` on a feature branch when README/CHANGELOG/CLAUDE.md drift after a code change needs to be folded into the next commit. Common phrasings: "sync docs inline", "fold doc updates into this PR". For non-orchestrator paths (raw `git push`, manual `/ship` outside the cj_goal pipeline), F000029's marker-AUQ on next-session is the right surface instead.
 
-`(phase-step in /CJ_goal_feature chain)` — Workbench wrapper around upstream `/document-release`. Adds a `--docs <comma-list>` filter (best-effort via project-context block), halt-on-red contract (`[doc-sync-red]` on upstream failure), and doc-only auto-commit gated by a conservative whitelist (`README|CHANGELOG|CLAUDE|ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`); non-whitelist writes HALT with `[doc-sync-non-doc-write]`. No upstream modification.
+`(phase-step in /CJ_goal_feature chain)` — Workbench wrapper around upstream `/document-release`. Adds a `--docs <comma-list>` filter (best-effort via project-context block) that resolves tokens against the per-repo `cj-document-release.json`'s `categories` map (F000037 strict-required — unknown tokens HALT with `[doc-sync-no-config]`, not warn-and-skip), halt-on-red contract (`[doc-sync-red]` on upstream failure), and doc-only auto-commit gated by the JSON's `whitelist_patterns` globs; non-whitelist writes HALT with `[doc-sync-non-doc-write]`. Config missing/invalid/schema-unsupported HALTs with `[doc-sync-no-config]` BEFORE any audit runs. No upstream modification.
 
 ## Validators / utilities
 

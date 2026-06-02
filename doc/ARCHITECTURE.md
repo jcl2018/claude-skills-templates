@@ -91,6 +91,33 @@ F000036 closes the orchestrator-driven half of the doc-sync loop. F000028+F00002
 
 **Idempotent re-run with `/ship` Step 18.** `/ship`'s existing Step 18 also dispatches `/document-release` post-push. Under squash-merges, the Step 5.5 inline call and the Step 18 post-push call are partially redundant for the auto-trigger use case (Step 18 has nothing fresh to do after Step 5.5 already absorbed doc updates), but the re-run is idempotent and harmless. The operator-callable `/-command` surface (`/CJ_document-release --docs <subset>`) is what F000036 is really for — point-in-time doc audits on a feature branch outside the cj_goal pipeline.
 
+## F000037 strict-required `cj-document-release.json` per-repo config
+
+F000037 externalizes the F000036 hardcoded doc whitelist + `--docs <token>` map to a per-repo JSON file at the repo root, with a strict-required posture: the wrapper HALTs before any audit runs when the config is missing or invalid. F000036's hardcoded list is now seed-only — every adopting repo declares its own doc surface.
+
+**Config file (`cj-document-release.json` at repo root):**
+
+- `schema_version` — integer, currently `1`. Future v2 bumps add migration steps; v1 readers refuse v2 with `[doc-sync-no-config]` (schema_version_unsupported).
+- `whitelist_patterns` — array of globs (e.g. `["README.md", "doc/**/*.md", "templates/doc-*.md"]`). Used by Step 2 (clean-tree gate) and Step 6 (auto-commit gate). `**` recursion is bash-globstar via `find` (macOS bash 3.2 lacks `shopt -s globstar`); the helper isolates the quirks.
+- `categories` — map of `{token: [glob, ...]}`. The `--docs <token>` flag resolves against this map, NOT against a hardcoded list. A Rails app can map `--docs models` → `app/models/**/*.rb`; a Python lib can map `--docs sphinx` → `docs/source/**/*.rst`. This is the genuinely new capability F000037 adds over F000036.
+
+**Helper script (`scripts/cj-document-release-config.sh`):** Mirrors F000029's `skills-doc-sync-check` shape (one bash file, subcommands, isolated test surface). Subcommands:
+
+- `--parse` — pretty-print the JSON for debug/inspection.
+- `--validate` — exit 0 if schema is OK; exit 1 + emit `[doc-sync-no-config] <reason>` otherwise. The `/CJ_document-release` skill calls this at Step 0.5.
+- `--expand-whitelist` — emit the expanded file list (globs resolved against the working tree; sorted, unique). Step 2 (clean-tree gate) and Step 6 (auto-commit gate) both consume this.
+- `--resolve <token>` — emit the file list for one `--docs` category. Unknown tokens exit 1 with `[doc-sync-no-config]`; the wrapper passes that through (no warn-and-skip fallback for unknown tokens).
+
+**Strict-required vs F000036 backward-compat fallback.** F000037 deliberately rejected the "fallback to F000036's hardcoded defaults when JSON is missing" option. The strict posture (Big Decision #2 in `F000037_DESIGN.md`) trades a one-time authoring cost on adoption for a compounding clarity win: every repo's doc surface is declared up front, not implicit. Bundled-in-same-PR with the workbench's own seed JSON ensures zero day-1 breakage; downstream adoption requires authoring the JSON.
+
+**Validator (`validate.sh` Check 16):** Enforces the JSON schema when `cj-document-release.json` exists at repo root. PASS lines emit `cj-document-release.json schema_version=1`. The check is one-way: it does not require the file to exist (a repo that doesn't use `/CJ_document-release` won't ship the file), but if present the schema must validate.
+
+**New halt class `[doc-sync-no-config]`.** Added to all 3 cj_goal SKILL.md halt-taxonomy tables (between F000036's `[doc-sync-red]` and `[doc-sync-non-doc-write]`). Three orthogonal failure modes now live on the doc-sync surface: config-missing/invalid (F000037), audit-failed (F000036), upstream-misbehaved (F000036) — each has its own halt class for diagnostic clarity in the journal.
+
+**Separation from F000034's tracked-doc/ manifest.** F000034's manifest in CLAUDE.md declares `audit_class` per `doc/*.md` file (closed enum: `skill-routing-drift` / `skill-catalog-completeness` / `static-reference` / `auto-generated`). F000037's JSON declares the doc-sync whitelist + categories (open set, machine-parseable, schema-versionable). Different concerns, separate surfaces — the design deliberately resisted "consolidate into one file" because the shapes don't align. The CLAUDE.md `## cj-document-release.json convention (F000037)` section is the operator-facing reference; this section is the mechanism-reference companion.
+
+**Portability stays `workbench` in v1.** F000037 is the enabler for future portability (downstream repos can now declare their own doc surface), but the actual flip to `standalone` requires at least one downstream repo successfully consuming the JSON first.
+
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
 Everything above is Claude-side plumbing. `work-copilot/` is the workbench's *other* delivery surface: a self-contained **GitHub Copilot** bundle that carries the doc-first work-item contract to machines without Claude Code. It is NOT a Claude skill — no `SKILL.md`, no `USAGE.md`, no entry in `skills-catalog.json` — and it is not `/`-invoked. It is driven by a Python CLI and consumed by Copilot's own prompt surface.

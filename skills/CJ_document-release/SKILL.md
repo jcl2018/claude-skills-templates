@@ -1,6 +1,6 @@
 ---
 name: CJ_document-release
-description: "Workbench wrapper around upstream /document-release. Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a conservative doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR. F000036 closes the F000028+F000029 marker-AUQ drift window for orchestrator-driven paths; F000029's marker-AUQ stays as fallback for non-orchestrator paths."
+description: "Workbench wrapper around upstream /document-release. Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a per-repo doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). F000037: whitelist + --docs categories load from a strict-required cj-document-release.json at repo root; missing/invalid config HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR. F000036 closes the F000028+F000029 marker-AUQ drift window for orchestrator-driven paths; F000029's marker-AUQ stays as fallback for non-orchestrator paths."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -49,20 +49,24 @@ orchestrator family needs:
 
 3. **Doc-only auto-commit (whitelist gate).** After a green `/document-release`,
    the wrapper inspects the working tree and auto-commits doc-only changes so
-   `/ship` (the next pipeline step) sees a clean tree. The whitelist is
-   conservative on purpose:
+   `/ship` (the next pipeline step) sees a clean tree. The whitelist is loaded
+   from `cj-document-release.json` at the repo root (F000037 strict-required):
 
-   ```
-   ^(README|CHANGELOG|CLAUDE|ARCHITECTURE)\.md$     # root-level convention docs
-   ^doc/.+\.md$                                     # doc/ folder
-   ^templates/doc-.*\.md$                           # F000032/F000033/F000034 template-doc convention
+   ```json
+   {
+     "schema_version": 1,
+     "whitelist_patterns": ["README.md", "doc/**/*.md", ...],
+     "categories": { "readme": ["README.md"], ... }
+   }
    ```
 
    If any non-whitelist file is dirty after `/document-release` runs, the
    wrapper refuses to auto-commit and HALTs with `[doc-sync-non-doc-write]`
    (halt class `halted_at_doc_sync_non_doc_write`). Stealth code edits via the
    doc-sync surface are a serious surface; the conservative whitelist closes
-   that door without an operator-override.
+   that door without an operator-override. If `cj-document-release.json` is
+   missing/invalid/schema_version-unsupported, the wrapper HALTs with
+   `[doc-sync-no-config]` BEFORE any audit runs.
 
 The orchestrator invocation shape:
 
@@ -105,10 +109,42 @@ PR includes BOTH code + doc commits
 (`--docs README,UNKNOWN_DOC` audits README only and prints a one-line warn
 for `UNKNOWN_DOC`). Empty subset (no flag, or `--docs ""`) is a full audit.
 
+## Step 0.5: Read config (F000037 strict-required)
+
+Before any audit runs, validate the per-repo config at `cj-document-release.json`
+via the helper script. The helper exits 1 + emits `[doc-sync-no-config] <reason>`
+when the file is missing / invalid JSON / schema_version-unsupported / required
+fields missing. The wrapper HALTs immediately on non-zero exit — no fallback to
+hardcoded defaults.
+
+```bash
+CONFIG_OUT=$(bash scripts/cj-document-release-config.sh --validate 2>&1)
+CONFIG_RC=$?
+if [ "$CONFIG_RC" -ne 0 ]; then
+  # Helper already emitted [doc-sync-no-config] <reason>; pass it through
+  # verbatim so the orchestrator's halt-class detector matches.
+  echo "$CONFIG_OUT"
+  echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
+  echo "next_action=author or repair cj-document-release.json at repo root; copy the workbench's seed JSON as a starting point; re-run /CJ_document-release"
+  echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
+  echo "pr_url=N/A"
+  exit 1
+fi
+```
+
+The helper supports four subcommands the rest of this skill consumes:
+
+- `--parse` — pretty-print the JSON (debug/inspection).
+- `--expand-whitelist` — emit the expanded whitelist file list (globs resolved
+  against the working tree; sorted, unique). Step 2 + Step 6 use this.
+- `--resolve <token>` — emit the file list for one category. Step 4 uses this
+  when `--docs <token>` is set.
+- `--validate` — exit 0 if schema is OK; exit 1 + halt-emit otherwise.
+
 ## Step 1: Parse arguments
 
 Parse the optional `--docs <comma-list>` flag (case-insensitive; whitespace
-trimmed; unknown values warn-and-skip):
+trimmed; resolved against the config's `categories` map at Step 4):
 
 ```bash
 DOCS_RAW=""
@@ -149,11 +185,17 @@ if [ "$DOCS_SUBSET" = "all" ]; then
 fi
 ```
 
-The known doc tokens v1 honors via the project-context block are:
-`readme`, `changelog`, `claude`, `architecture`, `philosophy`, `skill-catalog`.
-Other values warn-and-skip (printed but otherwise pass through to upstream as
-documentation-only intent). The whitelist of known tokens is documentation
-only — upstream `/document-release` decides what to actually audit.
+The set of known `--docs` tokens is no longer hardcoded — it is whatever the
+repo's `cj-document-release.json` declares under `categories` (F000037
+strict-required). Step 4 resolves each requested token via
+`bash scripts/cj-document-release-config.sh --resolve <token>`; tokens NOT
+declared in `categories` cause the helper to exit 1 with `[doc-sync-no-config]`,
+which the wrapper passes through verbatim. The workbench's bundled JSON seeds
+the F000036-compat set (`readme`, `changelog`, `claude`, `architecture`,
+`philosophy`, `skill-catalog`) so day-1 behavior is unchanged; other repos
+adopting `/CJ_document-release` declare their own categories. Upstream
+`/document-release` still decides what to actually audit — the filter is
+best-effort communication of operator intent via the project-context block.
 
 ## Step 2: Branch + clean-tree gate
 
@@ -176,17 +218,23 @@ esac
 Clean-tree gate: `/document-release` itself writes doc files. The wrapper
 refuses if the working tree already has uncommitted NON-DOC changes (those
 must commit first; doc-only dirtiness is OK because the wrapper will
-auto-commit it later):
+auto-commit it later). The doc-only set is derived from the helper-expanded
+whitelist (F000037), not a hardcoded regex:
 
 ```bash
-# Whitelist regex (conservative doc-only)
-DOC_WHITELIST_RE='^(README\.md|CHANGELOG\.md|CLAUDE\.md|ARCHITECTURE\.md|doc/.+\.md|templates/doc-.*\.md)$'
+# Build doc-only file set from the config's whitelist_patterns (F000037).
+DOC_WHITELIST_SET=$(bash scripts/cj-document-release-config.sh --expand-whitelist)
 
-# Inspect uncommitted files; refuse if any are non-doc
-NON_DOC_DIRTY=$(git status --porcelain 2>/dev/null \
-  | awk '{print $2}' \
-  | grep -Ev "$DOC_WHITELIST_RE" \
-  | head -5 || true)
+# Inspect uncommitted files; refuse if any are NOT in the whitelist set.
+DIRTY_FILES=$(git status --porcelain 2>/dev/null | awk '{print $2}')
+NON_DOC_DIRTY=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if ! printf '%s\n' "$DOC_WHITELIST_SET" | grep -qFx "$f"; then
+    NON_DOC_DIRTY="$NON_DOC_DIRTY$f"$'\n'
+  fi
+done <<< "$DIRTY_FILES"
+NON_DOC_DIRTY=$(printf '%s' "$NON_DOC_DIRTY" | head -5)
 
 if [ -n "$NON_DOC_DIRTY" ]; then
   echo "CJ_document-release: Working tree has uncommitted non-doc changes — refusing to run /document-release on top of them."
@@ -205,11 +253,35 @@ is filtered (or unfiltered). Upstream may honor the filter or audit
 everything — both outcomes are fine; the wrapper auto-commits whatever
 upstream produces (gated by the whitelist).
 
+When `--docs <token>` is set, the wrapper resolves each token to a concrete
+file list via `bash scripts/cj-document-release-config.sh --resolve <token>`.
+A token NOT declared in the JSON's `categories` map causes the helper to exit
+1 with `[doc-sync-no-config]` — the wrapper passes that through verbatim
+(F000037 strict-required posture; no warn-and-skip fallback for unknown
+tokens).
+
 ```bash
+AUDIT_FILES=""
 if [ -n "$DOCS_SUBSET" ]; then
+  # Resolve each comma-separated token via the helper.
+  while IFS= read -r token; do
+    [ -n "$token" ] || continue
+    RESOLVED=$(bash scripts/cj-document-release-config.sh --resolve "$token" 2>&1)
+    RC=$?
+    if [ "$RC" -ne 0 ]; then
+      echo "$RESOLVED"
+      echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
+      echo "next_action=declare token '$token' in cj-document-release.json categories, or use a different --docs token"
+      echo "resume_cmd=/CJ_document-release --docs $DOCS_SUBSET"
+      echo "pr_url=N/A"
+      exit 1
+    fi
+    AUDIT_FILES="$AUDIT_FILES$RESOLVED"$'\n'
+  done < <(printf '%s' "$DOCS_SUBSET" | tr ',' '\n')
+  AUDIT_FILES=$(printf '%s' "$AUDIT_FILES" | sort -u | grep -v '^$' || true)
   CONTEXT_BLOCK="CJ_document-release: running with --docs filter = '$DOCS_SUBSET'.
-This invocation should audit only the named doc categories where possible.
-Skip ARCHITECTURE / PHILOSOPHY / CLAUDE.md audits unless they appear in the filter.
+This invocation should audit only the following files (resolved via cj-document-release.json):
+$AUDIT_FILES
 The filter is best-effort communication of operator intent — upstream behavior
 is authoritative."
 else
@@ -251,12 +323,26 @@ exit 1
 
 After a green `/document-release`, inspect the working tree. If any dirty
 file is OUTSIDE the doc-only whitelist, refuse to auto-commit and HALT — this
-is the upstream-misbehaved case (or an unexpected stealth-write surface):
+is the upstream-misbehaved case (or an unexpected stealth-write surface).
+The whitelist set comes from `bash scripts/cj-document-release-config.sh
+--expand-whitelist` (F000037; reuses Step 2's expansion):
 
 ```bash
+DOC_WHITELIST_SET=$(bash scripts/cj-document-release-config.sh --expand-whitelist)
 DIRTY=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep -v '^$')
-DOC_DIRTY=$(printf '%s\n' "$DIRTY" | grep -E "$DOC_WHITELIST_RE" || true)
-NON_DOC_DIRTY=$(printf '%s\n' "$DIRTY" | grep -Ev "$DOC_WHITELIST_RE" | grep -v '^$' || true)
+
+DOC_DIRTY=""
+NON_DOC_DIRTY=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if printf '%s\n' "$DOC_WHITELIST_SET" | grep -qFx "$f"; then
+    DOC_DIRTY="$DOC_DIRTY$f"$'\n'
+  else
+    NON_DOC_DIRTY="$NON_DOC_DIRTY$f"$'\n'
+  fi
+done <<< "$DIRTY"
+DOC_DIRTY=$(printf '%s' "$DOC_DIRTY" | grep -v '^$' || true)
+NON_DOC_DIRTY=$(printf '%s' "$NON_DOC_DIRTY" | grep -v '^$' || true)
 
 if [ -n "$NON_DOC_DIRTY" ]; then
   echo "CJ_document-release: upstream wrote files outside the doc-only whitelist — refusing to auto-commit."
@@ -330,11 +416,12 @@ silently swallowing doc-sync failures would defeat the purpose.
 | Error | Marker | Recovery |
 |-------|--------|----------|
 | Not a git repo | (no marker — usage halt) | Run inside a repo |
+| `cj-document-release.json` missing / invalid JSON / schema_version unsupported / required fields missing (F000037 strict-required) | `[doc-sync-no-config]` | Author or repair `cj-document-release.json` at repo root; copy the workbench's seed JSON as a starting point; re-run |
 | On main / base branch (refuses on the base branch) | `[doc-sync-red]` | Run from a feature branch |
 | Working tree has uncommitted non-doc changes (pre-run) | `[doc-sync-red]` | Commit or stash non-doc changes; re-run |
 | Upstream `/document-release` returned non-green | `[doc-sync-red]` | Inspect upstream output; fix doc errors; re-run |
 | Upstream wrote files outside the doc-only whitelist | `[doc-sync-non-doc-write]` | Inspect uncommitted non-doc files; revert if unexpected; re-run |
-| `--docs UNKNOWN_VALUE` | (warn-and-skip, no halt) | Spelling typo; rerun with a known token (`readme`, `changelog`, `claude`, `architecture`, `philosophy`, `skill-catalog`) |
+| `--docs UNKNOWN_VALUE` (token not declared in `categories`) | `[doc-sync-no-config]` | Declare the token in `cj-document-release.json` under `categories`, or use a known token (whatever the repo's JSON declares) |
 
 ## Notes
 
