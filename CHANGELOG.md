@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.4] - 2026-06-02
+
+### Added
+
+- **F000038 root-doc placement convention + validate.sh Check 17.** The workbench now declares which `*.md` files are allowed at the repo root in a "Tracked root docs allowlist" in CLAUDE.md (README, CLAUDE, CHANGELOG, CONTRIBUTING, TODOS — each with a stated reason). New `validate.sh` Check 17 enforces it: a root `*.md` not on the allowlist ERRORs (move it to `doc/` or allowlist it with a reason). Symmetric with F000034's tracked-doc/ manifest — together they partition the top-level doc surface so no human-readable doc lands at root by accident. No files moved; config files (`skills-catalog.json`, `cj-document-release.json`, `template-registry.json`, `VERSION`) stay at root because tooling hardcodes `./` paths to them (the convention documents that placement but adds no config-file enforcement in v1). The Check 17 parser is byte-for-byte the same flag-based awk shape as F000034's Check 15 (arm on the literal `### Tracked root docs allowlist` heading, disarm on any `^#` line); two load-bearing constraints are stated in CLAUDE.md prose deliberately OUTSIDE the YAML fence (no `#`-leading comment lines inside the block; the heading text is matched literally). `scripts/test.sh` gains a zzz-test-scaffold integration assertion — synthesize a `STRAY.md` root doc → assert validate.sh exits non-zero with the orphan `  ERROR:` prefix, then remove it → assert exit 0 again — closing the known blind spot where Checks 13/14/15/16 each shipped without the parallel test-surface assertion.
+
 ## [6.0.3] - 2026-06-02
 
 ### Added
