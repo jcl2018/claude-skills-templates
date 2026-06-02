@@ -106,7 +106,7 @@ telemetry → ~/.gstack/analytics/CJ_goal_todo_fix.jsonl
 
 ### CJ_personal-pipeline
 
-**Status:** active (internal scaffold→impl→qa engine; depended on by /CJ_goal_todo_fix and historically by /CJ_goal_run)
+**Status:** active (internal scaffold→impl→qa engine; depended on by /CJ_goal_todo_fix + /CJ_goal_feature)
 **Source:** `skills/CJ_personal-pipeline/SKILL.md` · `skills/CJ_personal-pipeline/USAGE.md`
 
 **Invoke when:** an orchestrator (`/CJ_goal_todo_fix` or another) needs to drive scaffold → implement → QA on a design doc or already-scaffolded work-item dir. NOT typically called directly by the operator — it's the internal phase-2-to-4 loop engine. Common phrasings (from inside orchestrators): "run the pipeline", "drive scaffold/impl/qa".

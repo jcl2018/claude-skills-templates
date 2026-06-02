@@ -135,7 +135,7 @@
   {
     "name": "CJ_personal-pipeline",
     "version": "1.1.0",
-    "description": "INTERNAL -- invoked by /CJ_goal_run. Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent; sunset criterion built in.",
+    "description": "INTERNAL — invoked transitively by /CJ_goal_todo_fix (and by /CJ_goal_feature for the silent build phase). Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent.",
     "source": "local",
     "depends": {
       "skills": [
@@ -156,29 +156,6 @@
     ],
     "templates": [],
     "status": "experimental"
-  },
-  {
-    "name": "CJ_goal_run",
-    "version": "5.0.6",
-    "description": "DEPRECATED ALIAS (F000027, sunsets v6.0.0) — superseded by the two-verb refactor. This thin alias prints a one-line deprecation banner then routes to /CJ_goal_feature. Use /CJ_goal_feature to build a feature end-to-end (topic → reviewable PR) or /CJ_goal_defect to fix a bug (description → shipped fix). Removal is deferred to v6.0.0; in-flight pipelines finish under the old skill via skills-deploy install --include-deprecated.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_feature"
-      ],
-      "tools": [
-        "git",
-        "gh",
-        "jq"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/CJ_goal_run/SKILL.md",
-      "skills/CJ_goal_run/run.md"
-    ],
-    "templates": [],
-    "status": "deprecated"
   },
   {
     "name": "CJ_suggest",
@@ -267,58 +244,9 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_goal_investigate",
-    "version": "5.0.15",
-    "description": "DEPRECATED ALIAS (F000027 closure, sunsets v6.0.0) — superseded by /CJ_goal_defect once defect proved out (D000026 / v5.0.14 / PR #184). Thin alias prints a one-line deprecation banner then delegates to /CJ_goal_defect for non-D-id args. Bare D-id args (^D[0-9]{6}$) are rejected — forwarding would slug the D-id as a description and mint a new D-id. To ship a fix for an existing D-id, install the deprecated skill directly via skills-deploy install --include-deprecated. Removal at v6.0.0.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_defect"
-      ],
-      "tools": [
-        "Skill"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "deprecated/CJ_goal_investigate/SKILL.md"
-    ],
-    "templates": [],
-    "status": "deprecated"
-  },
-  {
-    "name": "CJ_goal_auto",
-    "version": "5.0.6",
-    "description": "DEPRECATED ALIAS (F000027, sunsets v6.0.0) — superseded by the two-verb refactor. This thin alias prints a one-line deprecation banner then routes to /CJ_goal_feature. Use /CJ_goal_feature to build a feature end-to-end (topic → reviewable PR) or /CJ_goal_defect to fix a bug (description → shipped fix). Removal is deferred to v6.0.0; in-flight items finish under the old skill via skills-deploy install --include-deprecated.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_feature"
-      ],
-      "tools": [
-        "bash",
-        "awk",
-        "grep",
-        "sed",
-        "jq",
-        "git",
-        "gh",
-        "find"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/CJ_goal_auto/SKILL.md",
-      "skills/CJ_goal_auto/auto.md",
-      "scripts/cj-handoff-gate.sh"
-    ],
-    "templates": [],
-    "status": "deprecated"
-  },
-  {
     "name": "CJ_goal_defect",
     "version": "0.1.0",
-    "description": "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'.",
+    "description": "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. Flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'.",
     "source": "local",
     "depends": {
       "skills": [
@@ -372,45 +300,5 @@
     ],
     "templates": [],
     "status": "experimental"
-  },
-  {
-    "name": "cj_goal_feature",
-    "version": "5.0.12",
-    "description": "DEPRECATED ALIAS (casing-fix follow-up to F000027, sunsets v6.0.0) — superseded by /CJ_goal_feature. Thin alias prints a deprecation banner then routes to the uppercase canonical.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_feature"
-      ],
-      "tools": [
-        "Skill"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "deprecated/cj_goal_feature/SKILL.md"
-    ],
-    "templates": [],
-    "status": "deprecated"
-  },
-  {
-    "name": "cj_goal_defect",
-    "version": "5.0.12",
-    "description": "DEPRECATED ALIAS (casing-fix follow-up to F000027, sunsets v6.0.0) — superseded by /CJ_goal_defect. Thin alias prints a deprecation banner then routes to the uppercase canonical.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_goal_defect"
-      ],
-      "tools": [
-        "Skill"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "deprecated/cj_goal_defect/SKILL.md"
-    ],
-    "templates": [],
-    "status": "deprecated"
   }
 ]

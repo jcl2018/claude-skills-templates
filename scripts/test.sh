@@ -1084,44 +1084,20 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
 fi
 
 # Regression test (F000025/S000054): /CJ_goal_todo_fix SKILL.md preamble sources
-# scripts/cj-worktree-init.sh BEFORE Path Resolution / Routing. (S000060:
-# /CJ_goal_run is now a deprecation shim; its worktree responsibility moved to
-# /CJ_goal_feature, so it is guarded as a shim below. Post-F000031 casing-fix:
-# shim now routes to the uppercase /CJ_goal_feature. T000035 / v5.0.15:
-# /CJ_goal_investigate is now a thin alias shim under deprecated/, so its
-# worktree wiring assertion is retired — investigate no longer owns a
-# source-writing dispatch boundary.)
+# scripts/cj-worktree-init.sh BEFORE Path Resolution / Routing.
 # Mirrors the D000013 setup-hooks idiom — single grep per target SKILL.md.
 # Without these, an upstream refactor could silently drop the auto-worktree
-# wiring and the feature would regress to today's "polluting main checkout"
+# wiring and the feature would regress to "polluting main checkout"
 # behavior with no test signal.
+# (F000035 v6.0.0 sunset: dropped the /CJ_goal_run + /CJ_goal_investigate shim
+# assertions — both skills retired, files deleted.)
 echo ""
-echo "Regression test (F000025): /CJ_goal_todo_fix SKILL.md wires cj-worktree-init.sh; /CJ_goal_run is a deprecation shim (S000060); /CJ_goal_investigate is a deprecation shim (T000035 / v5.0.15)..."
-
-# S000060 + F000031: /CJ_goal_run is now a DEPRECATED alias shim routing to
-# /CJ_goal_feature (uppercase post-F000031 casing-fix; uppercase canonical owns
-# worktree creation). Guard the shim shape instead of worktree wiring.
-if grep -qE '/CJ_goal_feature' "$REPO_ROOT/skills/CJ_goal_run/SKILL.md"; then
-  ok "skills/CJ_goal_run/SKILL.md is a deprecation shim routing to /CJ_goal_feature (S000060 + F000031)"
-else
-  fail_test "skills/CJ_goal_run/SKILL.md should route to /CJ_goal_feature (S000060 deprecation shim, F000031 uppercase canonical)"
-fi
+echo "Regression test (F000025): /CJ_goal_todo_fix SKILL.md wires cj-worktree-init.sh..."
 
 if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then
   ok "skills/CJ_goal_todo_fix/SKILL.md sources cj-worktree-init.sh (--caller todo)"
 else
   fail_test "skills/CJ_goal_todo_fix/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
-fi
-
-# T000035 / v5.0.15: /CJ_goal_investigate is now a DEPRECATED alias shim under
-# deprecated/CJ_goal_investigate/ that routes non-D-id args to /CJ_goal_defect
-# and rejects bare D-id args (^D[0-9]{6}$). Guard the shim shape instead of
-# worktree wiring (investigate no longer owns a source-writing dispatch
-# boundary, so the F000025 isolation gate moot for this skill).
-if grep -qE '/CJ_goal_defect' "$REPO_ROOT/deprecated/CJ_goal_investigate/SKILL.md"; then
-  ok "deprecated/CJ_goal_investigate/SKILL.md is a deprecation shim routing to /CJ_goal_defect (T000035 / v5.0.15)"
-else
-  fail_test "deprecated/CJ_goal_investigate/SKILL.md should route to /CJ_goal_defect (T000035 deprecation shim)"
 fi
 
 if grep -q 'cj-worktree-init\.sh' "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh" \
@@ -1178,24 +1154,11 @@ else
   fail_test "tests/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/drain-one-todo-helper-unavailable.test.sh\` directly to see"
 fi
 
-# Regression test (CJ_goal_investigate D-ID allocator + resolver shallow find
-# -maxdepth 2): pipeline.md's Step 7.4 highest-N allocator + Step 2 exact-D-ID
-# / BASENAME_HITS resolvers used `find ... -maxdepth 2`, which only reached
-# work-items/defects/<domain>/D######_* and missed nested 2-segment domains
-# (ops/skills-deploy/, ops/ship/, ops/workflow/ — depth 3). Real impact: the
-# allocator re-minted D000022 over an existing depth-3 D000022 (renumbered to
-# D000024 mid-ship, PR #161). Second gap: filesystem-only highest-N ignored
-# D-IDs that live only in git log / TODOS.md (e.g. deferred D000023). The fix
-# removes the depth cap on all 3 sites and unions filesystem + git-log +
-# TODOS.md D-IDs for allocation. Test uses a fully isolated mktemp fixture.
-echo ""
-echo "Running tests/cj-goal-investigate-did-allocator.test.sh (nested-domain + git/TODOS union)..."
-if bash "$REPO_ROOT/tests/cj-goal-investigate-did-allocator.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-investigate-did-allocator.test.sh: deep find reaches nested domains; allocator unions fs+git+TODOS"
-else
-  _cgida_rc=$?
-  fail_test "tests/cj-goal-investigate-did-allocator.test.sh failed (rc=$_cgida_rc) — run \`bash tests/cj-goal-investigate-did-allocator.test.sh\` directly to see"
-fi
+# (F000035 v6.0.0 sunset: removed the `tests/cj-goal-investigate-did-allocator.test.sh`
+# runner block — the test exercised the /CJ_goal_investigate pipeline's D-ID
+# allocator, which retired with the skill itself. The depth-3 nested-domain
+# bug it guarded against is now CJ_goal_defect-territory; if that path
+# regresses, a fresh test in the defect skill's TEST-SPEC owns the guard.)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # D000NNN regression — cj_goal preamble doc-sync AUQ recommendation polarity.
@@ -1214,24 +1177,12 @@ else
   fail_test "tests/cj-goal-doc-sync-auq-recommendation.test.sh failed (rc=$_cgdsar_rc) — run \`bash tests/cj-goal-doc-sync-auq-recommendation.test.sh\` directly to see"
 fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# T000035 / v5.0.15 regression — /CJ_goal_investigate deprecation shim contract.
-# After T000035 (F000027 closure), /CJ_goal_investigate retired as a thin alias
-# shim under deprecated/CJ_goal_investigate/. The shim must (1) emit the
-# deprecation banner, (2) reject bare D-id args (regex ^D[0-9]{6}$) before
-# delegation — forwarding a bare D-id would mint a new D-id via /CJ_goal_defect's
-# slug logic, (3) delegate non-D-id args to /CJ_goal_defect via the Skill tool.
-echo ""
-echo "Running tests/cj-goal-investigate-shim.test.sh (T000035 shim contract: banner + D-id rejection + non-D-id delegation)..."
-if bash "$REPO_ROOT/tests/cj-goal-investigate-shim.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-investigate-shim.test.sh: shim has banner + D-id rejection regex + recovery-path message + /CJ_goal_defect delegation"
-else
-  _cgis_rc=$?
-  fail_test "tests/cj-goal-investigate-shim.test.sh failed (rc=$_cgis_rc) — run \`bash tests/cj-goal-investigate-shim.test.sh\` directly to see"
-fi
+# (F000035 v6.0.0 sunset: removed the `tests/cj-goal-investigate-shim.test.sh`
+# runner block — the test exercised the T000035 deprecation-shim contract for
+# /CJ_goal_investigate, which has now been fully retired and deleted from disk.)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# F000026 / S000056 — /CJ_goal_auto + scripts/cj-handoff-gate.sh test rows
+# F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.
 # Each test crafts a minimal git-diff fixture (raw + numstat) and feeds it to
 # scripts/cj-handoff-gate.sh via --diff-from-file / --numstat-from-file +
@@ -1480,97 +1431,6 @@ for _key in PIPELINE_END_STATE SMOKE E2E PHASE2_GATES; do
   fi
 done
 
-# Test 8 (S8): lint — no `auto-approve autoplan` markers in skills/CJ_goal_auto/auto.md
-# or skills/CJ_goal_run/run.md (GATE #1 untouched).
-echo ""
-echo "Test 8 (S8): lint — no code path auto-approves the autoplan final gate"
-_T8_HITS=0
-for _f in "$REPO_ROOT/skills/CJ_goal_auto/auto.md" "$REPO_ROOT/skills/CJ_goal_run/run.md"; do
-  [ ! -f "$_f" ] && continue
-  if grep -qE 'auto-approve.*autoplan|autoplan.*auto-approve|suppress.*autoplan.*(final|gate)' "$_f"; then
-    fail_test "Test 8: '$_f' contains autoplan-auto-approve marker (GATE #1 must stay human)"
-    _T8_HITS=1
-  fi
-done
-[ "$_T8_HITS" = "0" ] && ok "Test 8: no autoplan auto-approve markers in auto.md / run.md (GATE #1 intact)"
-
-# Test 9 (S9): sentinel co-located with gate call within N lines in run.md
-echo ""
-echo "Test 9 (S9): sentinel co-located with gate call in run.md (distance ≤ 20)"
-_RUN_MD="$REPO_ROOT/skills/CJ_goal_run/run.md"
-if [ ! -f "$_RUN_MD" ]; then
-  fail_test "Test 9: skills/CJ_goal_run/run.md not found"
-else
-  # Match the actual gate INVOCATION (variable expansion + arg flag), NOT
-  # the script's name in a comment. The invocation form
-  # `"$_GATE_HELPER" --markers-file` is the load-bearing call site that
-  # test 9 anchors to; comments / variable assignments are excluded so the
-  # sentinel co-location metric tracks the real gate call.
-  # shellcheck disable=SC2016  # literal '$_GATE_HELPER' is a grep pattern, not a var to expand
-  _GATE_LINE=$(grep -n '"\$_GATE_HELPER" --markers-file' "$_RUN_MD" | head -1 | cut -d: -f1)
-  # Find the CLOSEST sentinel to the gate invocation. The sentinel may appear
-  # in multiple places (e.g. prose anchor + inline comment); we want the one
-  # nearest the actual call site, because that's the structural co-location
-  # the test is enforcing.
-  _SENT_LINE=$(grep -n 'CJ_GOAL_AUTO_HANDOFF_SENTINEL=v1' "$_RUN_MD" \
-    | awk -F: -v g="$_GATE_LINE" 'BEGIN{best=-1; mind=999999} {d=$1-g; if(d<0)d=-d; if(d<mind){mind=d; best=$1}} END{if(best>=0) print best}')
-  if [ -z "$_SENT_LINE" ]; then
-    fail_test "Test 9: sentinel CJ_GOAL_AUTO_HANDOFF_SENTINEL=v1 not found in run.md"
-  elif [ -z "$_GATE_LINE" ]; then
-    fail_test "Test 9: cj-handoff-gate.sh invocation not found in run.md"
-  else
-    _DIST=$(( _GATE_LINE - _SENT_LINE ))
-    [ "$_DIST" -lt 0 ] && _DIST=$(( -_DIST ))
-    if [ "$_DIST" -le 20 ]; then
-      ok "Test 9: sentinel at line $_SENT_LINE, gate call at line $_GATE_LINE (distance=$_DIST ≤ 20)"
-    else
-      fail_test "Test 9: sentinel-to-gate distance=$_DIST > 20 (sentinel must co-locate with gate call)"
-    fi
-  fi
-fi
-
-# Test 10 (S10): Stage 1.5 abort — auto.md must contain a structurally enforced
-# fail-closed gate that prevents Stage 2 invocation when the doc gate fails.
-# We assert by source-pattern: the auto.md text must contain BOTH the
-# `[doc-gate-fail]` halt marker AND an `exit 1` adjacent to it AND no
-# "/CJ_goal_run" invocation that is NOT guarded by the doc-gate pass.
-echo ""
-echo "Test 10 (S10): Stage 1.5 fail-closed contract present in auto.md"
-_AUTO_MD="$REPO_ROOT/skills/CJ_goal_auto/auto.md"
-if [ ! -f "$_AUTO_MD" ]; then
-  fail_test "Test 10: skills/CJ_goal_auto/auto.md not found"
-else
-  if grep -q '\[doc-gate-fail\]' "$_AUTO_MD" && grep -qE 'exit 1' "$_AUTO_MD"; then
-    if grep -q 'Stage 2 NEVER invoked\|Stage 2 is NEVER invoked\|NEVER invoke Stage 2' "$_AUTO_MD"; then
-      ok "Test 10: [doc-gate-fail] + exit 1 + 'NEVER invoke Stage 2' all present (fail-closed contract intact)"
-    else
-      fail_test "Test 10: [doc-gate-fail] + exit 1 present but no 'NEVER invoke Stage 2' contract language"
-    fi
-  else
-    fail_test "Test 10: auto.md missing [doc-gate-fail] halt marker or exit 1"
-  fi
-fi
-
-# Test 11 (S11): classifier spot-check (deliberately advisory; non-blocking).
-# The TEST-SPEC explicitly notes this is "a bounded sanity check, NOT a
-# false-negative proof". v1 ships without a live classifier driver in CI;
-# we assert only that the auto.md contains the classifier-prompt skeleton
-# (subagent invocation + RESULT contract). Live classifier evaluation is
-# manual per dogfood per TEST-SPEC E1.
-echo ""
-echo "Test 11 (S11): classifier prompt skeleton present in auto.md"
-if [ -f "$_AUTO_MD" ]; then
-  if grep -q 'small-unambiguous' "$_AUTO_MD" \
-     && grep -q 'needs-human-taste' "$_AUTO_MD" \
-     && grep -q 'too-big' "$_AUTO_MD" \
-     && grep -q 'RESULT: VERDICT=' "$_AUTO_MD"; then
-    ok "Test 11: classifier prompt skeleton complete (3 verdicts + RESULT contract)"
-  else
-    fail_test "Test 11: classifier prompt skeleton incomplete (missing one of: 3 verdicts, RESULT: VERDICT=)"
-  fi
-else
-  fail_test "Test 11: auto.md not found"
-fi
 
 # Test 12: green-path positive — denylist clean, ≤5 files, ≤120 lines, markers green → exit 0
 echo ""

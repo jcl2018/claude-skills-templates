@@ -7,7 +7,7 @@
 # static-grep regression assertions (Step 5 gate; --no-worktree marker-file wiring).
 # Extended by F000027/S000057 with the caller→prefix matrix block: asserts the two
 # NEW callers (feature→cj-feat, defect→cj-def) resolve + exit 0, AND that the three
-# existing callers (run→cj-run, todo→cj-todo, investigate→cj-inv) resolve unchanged
+# existing callers (run→cj-run, todo→cj-todo) resolve unchanged
 # (non-regression — SPEC P1 #4).
 #
 # Mutating-mode cases (F000025):
@@ -32,7 +32,6 @@
 #   (h2) --caller defect      → state=created, cj-def-*  branch  (NEW)
 #   (h3) --caller run         → state=created, cj-run-*  branch  (non-regression)
 #   (h4) --caller todo        → state=created, cj-todo-* branch  (non-regression)
-#   (h5) --caller investigate → state=created, cj-inv-*  branch  (non-regression)
 #   (h6) --caller bogus       → state=failed, exit 1            (validator still rejects unknown)
 #
 # Plus a static-grep regression assertion that pipeline.md Step 5 wires the
@@ -236,7 +235,7 @@ trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" 
   git worktree add -q -b ai-wt-branch ".claude/worktrees/ai-wt" >/dev/null 2>&1
   cd ".claude/worktrees/ai-wt"
   assert_verdict "Case (a)" "isolated" "zero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -248,7 +247,7 @@ SBXB=$(mk_sandbox)
 (
   cd "$SBXB"
   assert_verdict "Case (b)" "not_isolated" "nonzero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -263,7 +262,7 @@ SBXC=$(mk_sandbox)
   git checkout -q -b feat/some-work
   echo "dirty" >> seed.txt
   assert_verdict "Case (c)" "dirty" "nonzero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -276,7 +275,7 @@ SBXD=$(mk_sandbox)
   cd "$SBXD"
   git checkout -q -b feat/clean-work
   assert_verdict "Case (d)" "isolated" "zero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -288,7 +287,7 @@ SBXE=$(mk_sandbox)
 (
   cd "$SBXE"
   assert_verdict "Case (e1)" "isolated" "zero" \
-    bash "$HELPER" --caller investigate --assert-isolated --no-worktree
+    bash "$HELPER" --caller defect --assert-isolated --no-worktree
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -301,7 +300,7 @@ echo "Case (e2): --assert-isolated --no-worktree + dirty → dirty / ≠0 (hatch
   cd "$SBXE"
   echo "dirty" >> seed.txt
   assert_verdict "Case (e2)" "dirty" "nonzero" \
-    bash "$HELPER" --caller investigate --assert-isolated --no-worktree
+    bash "$HELPER" --caller defect --assert-isolated --no-worktree
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -313,7 +312,7 @@ NONGIT=$(mktemp -d -t cj-wi-nongit.XXXXXX)
 (
   cd "$NONGIT"
   assert_verdict "Case (f)" "not_a_repo" "nonzero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 rm -rf "$NONGIT"
@@ -328,7 +327,7 @@ SBXG=$(mk_sandbox)
   _HEAD_SHA=$(git rev-parse HEAD)
   git checkout -q "$_HEAD_SHA" 2>/dev/null   # detach
   assert_verdict "Case (g)" "not_isolated" "nonzero" \
-    bash "$HELPER" --caller investigate --assert-isolated
+    bash "$HELPER" --caller defect --assert-isolated
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
@@ -373,7 +372,6 @@ trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" 
   # EXISTING callers — must resolve unchanged (SPEC P1 #4 non-regression)
   assert_caller_prefix "Case (h3)" run         cj-run
   assert_caller_prefix "Case (h4)" todo        cj-todo
-  assert_caller_prefix "Case (h5)" investigate cj-inv
 
   # Unknown caller still rejected: state=failed, exit 1.
   OUT_BOGUS=$(bash "$HELPER" --caller bogus --dry-run 2>&1) && RC_BOGUS=0 || RC_BOGUS=$?
@@ -386,64 +384,12 @@ trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" 
 )
 [ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
 
-# ---------- pipeline.md Step 5 static-grep regression assertion ----------
-#
-# T000033 + F000025 one-grep-per-SKILL.md idiom (applied to pipeline.md):
-# guards that pipeline.md Step 5 keeps the --assert-isolated isolation gate
-# AND the draft-aware resume_cmd. An upstream refactor that drops either
-# silently reopens the D000024 silent-in-place-source-write class.
-
-echo ""
-echo "pipeline.md Step 5 regression: --assert-isolated gate + draft-aware resume_cmd present..."
-_PIPELINE_MD="$REPO_ROOT/deprecated/CJ_goal_investigate/pipeline.md"
-# Three independent fixed-string signals must all be present (the helper is
-# invoked via a re-resolved $_HELPER var, so the F000025 single-line
-# `helper.sh.*--flag` idiom does not apply — assert the signals separately):
-#   (1) the gate invokes the helper with --assert-isolated;
-#   (2) the gate re-resolves the helper as scripts/cj-worktree-init.sh
-#       (the 2-level probe — workbench-self-dev + manifest .source);
-#   (3) the gate's halt uses a draft-aware resume_cmd (the C2 shared-halt
-#       idiom: branch on IS_DRAFT, emit $DRAFT_FRAGMENT — never a bare
-#       empty-$DEFECT_ID command).
-if grep -qF -- '--assert-isolated' "$_PIPELINE_MD" \
-   && grep -qF 'scripts/cj-worktree-init.sh' "$_PIPELINE_MD" \
-   && grep -qF 'resume_cmd=$([ "${IS_DRAFT:-0}" = "1" ]' "$_PIPELINE_MD" \
-   && grep -qF 'DRAFT_FRAGMENT' "$_PIPELINE_MD"; then
-  ok "pipeline.md Step 5 wires --assert-isolated gate + helper re-resolution + draft-aware resume_cmd"
-else
-  fail_test "pipeline.md Step 5 missing --assert-isolated gate, helper re-resolution, or draft-aware resume_cmd (T000033 regression guard)"
-fi
-
-# ---------- pipeline.md --no-worktree marker-file wiring (T000033 P1 fix) ----------
-#
-# The operator --no-worktree opt-out cannot ride a shell var (vars do NOT
-# persist across bash tool calls — CLAUDE.md). The first cut read an
-# always-unset ${NO_WORKTREE:-0}, making the documented escape hatch dead
-# code: `/CJ_goal_investigate --no-worktree` on a clean checkout false-halted
-# at Step 5.0. The fix persists the opt-out RUN_ID-scoped in Step 1 (where
-# NO_WORKTREE + RUN_ID are both live) and re-reads the marker at Step 5.0 via
-# the model-carried RUN_ID. Guard all three signals AND the absence of the
-# dead shell-var conditional.
-
-echo ""
-echo "pipeline.md --no-worktree marker-file wiring present (T000033 P1 regression)..."
-if grep -qF -- '--no-worktree) NO_WORKTREE=1' "$_PIPELINE_MD" \
-   && grep -qF '/.operator-no-worktree' "$_PIPELINE_MD" \
-   && grep -qF 'CJ_goal_investigate-runs/$RUN_ID/.operator-no-worktree' "$_PIPELINE_MD" \
-   && ! grep -qF '"${NO_WORKTREE:-0}" = "1"' "$_PIPELINE_MD"; then
-  ok "pipeline.md --no-worktree opt-out persisted RUN_ID-scoped + re-read via marker (no dead shell-var read)"
-else
-  fail_test "pipeline.md --no-worktree marker-file wiring missing OR dead \${NO_WORKTREE:-0} shell-var read reintroduced (T000033 P1 regression guard)"
-fi
-
 # ---------- CJ_goal_feature/pipeline.md Step 1.9 isolation-gate guard ----------
 #
 # F000027 parity: the `feature` verb's silent build (Step 3) dispatches
-# source-writing scaffold/implement subagents, so it needs the same
-# --assert-isolated gate the `defect` / investigate verbs got from T000033. An
-# upstream refactor that drops it silently reopens the D000024
-# in-place-source-write class on the feature path. Mirrors the investigate
-# guards above, adapted for the feature verb (no IS_DRAFT/draft concept).
+# source-writing scaffold/implement subagents, so it needs the
+# --assert-isolated gate. An upstream refactor that drops it silently reopens
+# the D000024 in-place-source-write class on the feature path.
 # (Post-F000031 casing-fix: the skill dir is now skills/CJ_goal_feature/.)
 
 echo ""
