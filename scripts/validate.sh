@@ -559,6 +559,51 @@ while IFS= read -r SKILL_NAME; do
   [ "$MISSING" -eq 0 ] && echo "  PASS: $USAGE_PATH has all required sections"
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
+# Check 14: USAGE.md content freshness (git-log %ct comparison)
+# F000033/S000066: USAGE.md must be at least as recent as its sibling SKILL.md,
+# measured by committer Unix timestamp from `git log -1 --format=%ct`. Drift
+# means SKILL.md changed in a more recent commit than USAGE.md — the audit
+# flags USAGE.md as stale. Same predicate as Check 13 (status != "deprecated"
+# + non-empty files). When SKILL.md changed cosmetically and USAGE.md is still
+# accurate, the operator bumps USAGE.md's `last-updated:` frontmatter field
+# (real content change, so %ct advances) — see CLAUDE.md "USAGE.md drift
+# detection" for the override command.
+echo ""
+echo "=== Check 14: USAGE.md content freshness ==="
+while IFS= read -r SKILL_NAME; do
+  SKILL_PATH="skills/$SKILL_NAME/SKILL.md"
+  USAGE_PATH="skills/$SKILL_NAME/USAGE.md"
+  if [ ! -f "$SKILL_PATH" ] || [ ! -f "$USAGE_PATH" ]; then
+    # Check 13 already errored on missing USAGE.md; SKILL.md missing is a different bug.
+    continue
+  fi
+  SKILL_CT=$(git log -1 --format=%ct -- "$SKILL_PATH" 2>/dev/null)
+  USAGE_CT=$(git log -1 --format=%ct -- "$USAGE_PATH" 2>/dev/null)
+  # Pre-commit-hook escape: if USAGE.md is staged (in the about-to-land diff),
+  # treat it as current. Otherwise the documented override commit gets blocked
+  # by the same Check 14 that the override is trying to silence (chicken-and-egg).
+  # The staged change IS the operator's confirmation that USAGE.md is up-to-date.
+  if git diff --cached --name-only 2>/dev/null | grep -qx "$USAGE_PATH"; then
+    USAGE_CT=$(date +%s)
+  fi
+  if [ -z "$SKILL_CT" ] || [ -z "$USAGE_CT" ]; then
+    # Untracked-or-staged-only: git log returns empty. Skip drift check (Check 13 covers presence).
+    echo "  SKIP: $USAGE_PATH (file untracked or staged-only; drift check requires committed history)"
+    continue
+  fi
+  if [ "$SKILL_CT" -gt "$USAGE_CT" ]; then
+    SKILL_SHA=$(git log -1 --format=%h -- "$SKILL_PATH")
+    USAGE_SHA=$(git log -1 --format=%h -- "$USAGE_PATH")
+    echo "  ERROR: $USAGE_PATH is stale (SKILL.md last updated at $SKILL_SHA, USAGE.md last updated at $USAGE_SHA)."
+    echo "         If USAGE.md is still accurate, bump its last-updated frontmatter field and commit:"
+    echo "           sed -i.bak 's/^last-updated:.*/last-updated: \"'\"\$(date +%Y-%m-%d)\"'\"/' $USAGE_PATH && rm ${USAGE_PATH}.bak"
+    echo "           git add $USAGE_PATH && git commit -m \"docs: verify USAGE.md current for $SKILL_NAME\""
+    ERRORS=$((ERRORS+1))
+  else
+    echo "  PASS: $USAGE_PATH is current (SKILL.md $SKILL_CT <= USAGE.md $USAGE_CT)"
+  fi
+done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

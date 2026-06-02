@@ -66,6 +66,13 @@ Each routable non-deprecated skill ships three documentation surfaces, in three 
 
 `scripts/validate.sh` **Check 13** enforces the USAGE.md surface: every entry in `skills-catalog.json` with `status != "deprecated"` AND a non-empty `files` array MUST have a sibling `skills/{name}/USAGE.md` AND that file MUST contain the five required H2 section headings (`## When to use`, `## When NOT to use`, `## Mental model`, `## Common pitfalls`, `## Related skills`), line-anchored. Missing file or missing heading = ERROR. The predicate intentionally diverges from F000030's new-skills check (`status == "active"`, which gates `## Decision tree` placement) because operators route to `experimental` skills today, so USAGE.md must cover them too. The 5 deprecated shims and the tooling-only `templates` catalog entry are excluded automatically.
 
+**Drift rule**: USAGE.md must be at least as recent as its sibling SKILL.md, measured
+by `git log -1 --format=%ct`. validate.sh Check 14 enforces this. When SKILL.md changes
+cosmetically and USAGE.md is still accurate, the documented override is bumping the
+`last-updated:` frontmatter field in USAGE.md and committing — a one-line content change
+that advances USAGE.md's `%ct` past SKILL.md's. The `last-updated:` field is the
+human-readable audit trail.
+
 ## Decision tree
 
 The CJ_ family is the workbench's user-facing pipeline. Top-level orchestrators take different inputs (topic, bug description, defect, TODO row) and converge on the same downstream chain (`/ship` → `/land-and-deploy`). Internal phase-step skills are called transitively — route to the top-level ones.

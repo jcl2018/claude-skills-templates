@@ -122,6 +122,29 @@ skills/{skill-name}/
   *.md              # optional supporting files
 ```
 
+### USAGE.md drift detection
+
+`scripts/validate.sh` Check 14 detects USAGE.md content drift: if SKILL.md has a more
+recent commit than USAGE.md, the audit flags USAGE.md as stale. The check uses git
+commit timestamps (`git log -1 --format=%ct`), not filesystem mtimes — deterministic
+across worktrees, fresh clones, and CI runners.
+
+When the drift signal is real, update USAGE.md to match the new SKILL.md behavior
+(this is the normal path). When SKILL.md changed cosmetically (typo, version bump,
+comment edit) and USAGE.md is still accurate, bump the `last-updated:` field in
+USAGE.md's frontmatter and commit:
+
+```bash
+sed -i.bak 's/^last-updated:.*/last-updated: "'"$(date +%Y-%m-%d)"'"/' skills/{name}/USAGE.md && rm skills/{name}/USAGE.md.bak
+git add skills/{name}/USAGE.md && git commit -m "docs: verify USAGE.md current for {name}"
+```
+
+This is a real content change (one frontmatter line bumped), so `git log -1` picks up
+the new commit and USAGE.md's `%ct` advances past SKILL.md's. The `last-updated:` field
+is the audit trail — it records when the operator confirmed USAGE.md was still current.
+**Do NOT use `git commit --allow-empty`** — `git log -1 -- <path>` only returns commits
+that touched the path, and empty commits touch no paths, so they don't advance `%ct`.
+
 ### Template naming
 Templates live in `templates/` (active skills) and `deprecated/{name}/templates/` (deprecated skills, when any exist):
 - `templates/CJ_personal-workflow/` — personal-dev work item templates (tracker-*.md, doc-*.md)
