@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.19] - 2026-06-02
+
+### Added
+
+- **F000034 `doc/SKILL-CATALOG.md` + tracked-doc/ manifest (validate.sh Check 15).** New consolidated catalog at `doc/SKILL-CATALOG.md` with a section per routable non-deprecated skill: status, source paths, "Invoke when" trigger, and EITHER a fenced ASCII workflow chart (4 orchestrators) OR a closed-enum tag line (7 single-step skills / phase-step skills / validators). 11 backfill sections; chart-or-tag is mandatory (no silent omission). New CLAUDE.md `### Tracked doc/ files manifest` subsection inside `## /document-release workbench audit conventions`: every `doc/*.md` file is registered with an `audit_class` (`skill-routing-drift` / `skill-catalog-completeness` / `static-reference` / `auto-generated` — closed enum). New `validate.sh` Check 15: 15a fires ERROR on orphan files (in `doc/` but not in manifest) and missing-from-disk entries (manifest pointing nowhere); 15b fires ERROR when a routable skill is missing its catalog section or when a section has neither chart nor tag. New `templates/doc-SKILL-CATALOG-section.md` for authors to copy when adding a new skill (CLAUDE.md "Creating a new skill" step 6, renumbering existing 6+ to 7+). Extends the F000030 (`doc/` folder) + F000032 (USAGE.md) + F000033 (USAGE.md drift) pattern: hand-written, ERROR-strict, validate.sh-enforced, no upstream `/document-release` modification. `/document-release` reads the manifest as project context (existing F000030 Step 2 pattern) and surfaces drift findings under a new `### Doc/ manifest drift` PR-body subheading.
+
 ## [5.0.18] - 2026-06-01
 
 ### Added

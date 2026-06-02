@@ -605,6 +605,81 @@ while IFS= read -r SKILL_NAME; do
   fi
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
+# Check 15: doc/ manifest + SKILL-CATALOG.md completeness
+# F000034: every doc/*.md must be registered in the CLAUDE.md manifest; the
+# SKILL-CATALOG.md entry must list every active routable skill with at least
+# one of (a) a fenced ASCII workflow chart, or (b) an explicit tag line
+# matching one of `(single-step utility)` / `(validator)` / `(phase-step in
+# /CJ_goal_feature chain)`. No silent omission.
+echo ""
+echo "=== Check 15: doc/ manifest + SKILL-CATALOG.md completeness ==="
+
+# 15a: enumerate manifest entries (parse the YAML block under
+# `### Tracked doc/ files manifest` in CLAUDE.md).
+# Flag-based, NOT awk's `/start/,/end/` range — same collapse-on-overlap reason
+# as Check 15b's section parser (both start and end patterns match `^### `).
+MANIFEST_PATHS=$(awk '
+  /^### Tracked doc\/ files manifest$/ {flag=1; next}
+  /^### / {flag=0}
+  flag && /^- path:/ {print $3}
+' CLAUDE.md)
+DOC_FILES_ON_DISK=$(find doc -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+
+# 15a-orphan: doc/ files on disk that aren't in the manifest
+for f in $DOC_FILES_ON_DISK; do
+  if ! echo "$MANIFEST_PATHS" | grep -qFx "$f"; then
+    echo "  ERROR: $f is in doc/ but not registered in CLAUDE.md tracked-doc/ manifest"
+    ERRORS=$((ERRORS+1))
+  fi
+done
+
+# 15a-missing: manifest entries pointing to missing files
+for p in $MANIFEST_PATHS; do
+  if [ ! -f "$p" ]; then
+    echo "  ERROR: $p is in CLAUDE.md manifest but missing from disk"
+    ERRORS=$((ERRORS+1))
+  fi
+done
+
+# 15b: SKILL-CATALOG.md per-skill completeness (only if catalog file exists)
+CATALOG_FILE="doc/SKILL-CATALOG.md"
+if [ -f "$CATALOG_FILE" ]; then
+  # Tag regex: matches the tag anywhere in the line (markdown often wraps it in
+  # backticks for inline-code styling: `(validator)`, `(single-step utility)`,
+  # etc.). Anchored `^\(` would reject the backticked form. The closed enum on
+  # the inner alternation makes anywhere-in-line matching safe against false
+  # positives — the four exact phrases would rarely appear in prose.
+  TAG_RE='\((single-step utility|validator|phase-step in /CJ_goal_feature chain)\)'
+  while IFS= read -r SKILL_NAME; do
+    # Section heading is `### <name>` line-anchored
+    if ! grep -qE "^### ${SKILL_NAME}$" "$CATALOG_FILE"; then
+      echo "  ERROR: $CATALOG_FILE missing section: ### $SKILL_NAME"
+      ERRORS=$((ERRORS+1))
+      continue
+    fi
+    # Extract the section body (between this ### and the next ###).
+    # Flag-based, NOT awk's `/start/,/end/` range: the range collapses to a single
+    # line when start and end patterns overlap (both match `^### `), so the body
+    # comes out empty. Flag pattern reads: arm when we see the section heading
+    # (and skip the heading line itself via `next`), disarm at the next `^### `,
+    # print everything in between.
+    SECTION=$(awk -v skill="$SKILL_NAME" '
+      $0 == "### " skill {flag=1; next}
+      /^### / {flag=0}
+      flag {print}
+    ' "$CATALOG_FILE")
+    # Section must have EITHER a fenced ``` block (ASCII chart) OR a tag line
+    HAS_CHART=$(echo "$SECTION" | grep -cE '^```' || true)
+    HAS_TAG=$(echo "$SECTION"   | grep -cE "$TAG_RE" || true)
+    if [ "$HAS_CHART" -lt 2 ] && [ "$HAS_TAG" -lt 1 ]; then
+      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' has neither ASCII chart (fenced block) nor a tag line; one is required"
+      ERRORS=$((ERRORS+1))
+    else
+      echo "  PASS: $CATALOG_FILE has section for $SKILL_NAME"
+    fi
+  done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="
