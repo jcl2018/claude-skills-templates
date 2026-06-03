@@ -197,6 +197,8 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID; idempotent — same phrase resumes t
    │
    ▼  /CJ_qa-work-item <defect-dir>           (Skill / leaf subagent)
    │
+   ▼  /CJ_document-release                     (Step 5.5 doc-sync; halt-on-red)
+   │
    ▼  /ship                                    (Gate #2 fires; halt on [ship-declined])
    │
    ▼  /land-and-deploy --suppress-readiness-gate   (Skill invocation)

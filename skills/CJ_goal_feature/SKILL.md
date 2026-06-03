@@ -200,6 +200,9 @@ design-summary approval gate   [INLINE AUQ — digest of the APPROVED doc + go/n
 /CJ_scaffold-work-item  →  /CJ_implement-from-spec  →  /CJ_qa-work-item
    │
    ▼
+/CJ_document-release   [INLINE Step 5.5 — doc-sync folds doc edits into the PR; halt-on-red]
+   │
+   ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens a PR]
    │
    ▼
