@@ -1,6 +1,6 @@
 # Skill Catalog
 
-Consolidated index of every routable non-deprecated skill in this workbench, plus the non-skill companion surfaces (the Copilot bundle) that the operator manages alongside skills. Each section gives status, source paths, an "Invoke when" trigger, and either a fenced ASCII workflow chart (orchestrators + phase-step chain) or a tag line (single-step skills + companion surfaces) so a reader can see the shape of every surface at a glance without opening its SKILL.md (or README.md, for companion surfaces). Sections are hand-written and audited by `scripts/validate.sh` Check 15 — every routable non-deprecated skill in `skills-catalog.json` must have a section, and every section must have either a chart or a closed-enum tag (no silent omission). Companion-surface sections are NOT enforced by Check 15 (the check is one-way: catalog → catalog file), so they are conventionally — but not mechanically — kept in sync. For the routing decision tree (which skill to pick for a given intent), see [`doc/PHILOSOPHY.md`](PHILOSOPHY.md). For per-skill operator + agent best-practice, see each skill's `USAGE.md`.
+Consolidated index of every routable non-deprecated skill in this workbench, plus the non-skill companion surfaces (the Copilot bundle) that the operator manages alongside skills. Each section gives status, source paths, an "Invoke when" trigger, and either a fenced ASCII workflow chart (orchestrators + phase-step chain) or a tag line (single-step skills + companion surfaces) — a companion surface with a real multi-step workflow (e.g. work-copilot) carries both a chart and its tag — so a reader can see the shape of every surface at a glance without opening its SKILL.md (or README.md, for companion surfaces). Sections are hand-written and audited by `scripts/validate.sh` Check 15 — every routable non-deprecated skill in `skills-catalog.json` must have a section, and every section must have either a chart or a closed-enum tag (no silent omission). Companion-surface sections are NOT enforced by Check 15 (the check is one-way: catalog → catalog file), so they are conventionally — but not mechanically — kept in sync. For the routing decision tree (which skill to pick for a given intent), see [`doc/PHILOSOPHY.md`](PHILOSOPHY.md). For per-skill operator + agent best-practice, see each skill's `USAGE.md`.
 
 ## Orchestrators
 
@@ -225,11 +225,57 @@ Workbench artifacts that aren't Claude skills (no SKILL.md, no entry in `skills-
 ### work-copilot
 
 **Status:** active (self-contained GitHub Copilot bundle; deployed to non-Claude target repos to mirror the `CJ_personal-workflow` `/validate` workflow + ambient knowledge for Copilot users)
-**Source:** `work-copilot/README.md` · `work-copilot/WORKFLOW.md` · `scripts/copilot-deploy.py`
+**Source:** `work-copilot/README.md` · `work-copilot/WORKFLOW.md` · `work-copilot/prompts/*.prompt.md` · `scripts/copilot-deploy.py`
 
-**Invoke when:** the operator wants to install, update, doctor, or remove the Copilot bundle in a target repo (any repo whose contributors use GitHub Copilot instead of Claude Code). NOT a Claude skill — driven by the `scripts/copilot-deploy.py` CLI, not by `/`-invocation. Common phrasings: "set up Copilot in repo X", "install work-copilot", "deploy the Copilot bundle", "doctor the Copilot bundle".
+**Invoke when:** *(workbench side)* the operator wants to install, update, doctor, or remove the Copilot bundle in a target repo (any repo whose contributors use GitHub Copilot instead of Claude Code). NOT a Claude skill — driven by the `scripts/copilot-deploy.py` CLI, not by `/`-invocation. Common phrasings: "set up Copilot in repo X", "install work-copilot", "deploy the Copilot bundle", "doctor the Copilot bundle". *(target-repo side)* once installed, a Copilot user drives the work-item lifecycle with the `/wc-*` slash commands below, from VS Code Copilot Chat.
 
-`(non-skill bundle)` — Self-contained Copilot bundle mirroring the personal-workflow `/validate` workflow + ambient knowledge for non-Claude machines. Carries its own templates (`work-copilot/templates/*.md`), `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/`, `copilot-artifact-manifests.json`, `prompts/` (`/wc-investigate`, `/wc-scaffold`, `/wc-implement`, `/wc-qa`, `/wc-ship`, `/wc-pipeline`, `/validate`), `domain/` skeletons, and `instructions/copilot-instructions.md`. Deployed via `python3 scripts/copilot-deploy.py install <target>`; doctor + remove via the same CLI. Bundle integrity enforced by `scripts/validate.sh` Error check 10 (`EXPECTED_BUNDLE_FILES` array). Add a new bundle file by appending one entry to that array.
+**Workflow** *(the `/wc-*` pipeline, run in the target repo's Copilot Chat — it mirrors the Claude `CJ_*` chain, but Copilot can't push, so it stops at a clipboard-ready PR body):*
+
+```
+big-picture idea  (engineer, in VS Code Copilot Chat — target repo)
+   │  python3 scripts/copilot-deploy.py install <target>   (one-time bundle install, workbench side)
+   ▼
+/wc-investigate   [scoping conversation → design doc]
+   │   loads domain/*.md ambient context, greps the codebase, walks a 4-question scope
+   │   → writes designs/<slug>-design-<ts>.md + receipts.investigate
+   ▼
+/wc-scaffold      [design doc → work-item directory tree]
+   │   picks the next ID per type, writes the per-type artifact set, runs /validate
+   │   → copies receipts.investigate into the tracker, writes receipts.scaffold, design status: SCAFFOLDED
+   ▼
+/wc-implement     [per-type code walkthrough — propose → confirm → edit, never auto]
+   │   reads per-type spec (user-story: PRD+ARCHITECTURE+TEST-SPEC; defect: RCA+test-plan; task: TRACKER+test-plan)
+   │   → writes code + receipts.implement
+   ▼
+/wc-qa            [test-row checklist + AC coverage + diff audit]
+   │   runs test-plan / TEST-SPEC rows, enforces the Working-Tree Rule
+   │   → writes receipts.qa  (the schema the other phases conform to)
+   ▼
+/wc-ship          [PR-description synthesis]
+   │   runs /validate, builds a clipboard-ready PR body from receipts.* + journal + AC coverage
+   │   → writes receipts.ship (pr_opened: false; user flips it true after opening the PR)
+   ▼
+open PR on GitHub  (manual — Copilot has no push / PR capability)
+
+  /validate     ─ structural compliance gate (file or directory mode); callable standalone at any step
+  /wc-pipeline  ─ read-only status overlay: reads receipts.* → 5 drift rules + Next Legal (zero writes)
+```
+
+Every step writes a `receipts.<phase>` block into the work-item tracker's YAML frontmatter; that receipts chain is how the otherwise-stateless Copilot prompts hand off to each other and how `/wc-pipeline` reconstructs progress without re-running anything. Underneath, the bundle follows `WORKFLOW.md`'s 3-step doc-driven method (generate docs → align the big picture → implement) across a 4-phase lifecycle (Track → Implement → Review → Ship).
+
+**What each command does:**
+
+| Command | Role in a work workflow | Writes |
+|---------|-------------------------|--------|
+| `/wc-investigate` | Scoping conversation → structured design doc. Loads `domain/*.md` ambient context, greps the codebase for entities in the prompt, walks a 4-question scope (problem / target user / narrowest wedge / key risks). | `designs/<slug>-design-<ts>.md` + `receipts.investigate` |
+| `/wc-scaffold` | Design doc → work-item directory tree. Picks the next ID per type, writes the per-type artifact set, runs `/validate` as a structural gate, propagates `receipts.investigate` as lineage. | work-item dir + `receipts.scaffold` |
+| `/wc-implement` | Per-type implementation walkthrough (propose → confirm → edit; never auto). Reads different input artifacts per tracker `type:` (user-story / defect / task / feature / review). | code + `receipts.implement` |
+| `/wc-qa` | QA walkthrough — runs the test-row checklist, cross-references AC coverage, audits the diff since the last `[qa-*]` journal entry, enforces the Working-Tree Rule. Locks the `receipts` schema the other phases conform to. | `receipts.qa` |
+| `/wc-ship` | PR-description synthesis. Runs `/validate`, then builds a clipboard-ready PR body from `receipts.*` + journal + AC coverage (Copilot can't open the PR itself). | `PR-DESCRIPTION.md` + `receipts.ship` |
+| `/wc-pipeline` | Read-only status compiler — reads `receipts.*` across phases, computes 5 drift rules (Missing / Stale / Coverage holes / Diff audit / Ship-not-opened) + Next Legal. The read-only capstone over all phase receipts. | — *(read-only)* |
+| `/validate` | Structural compliance gate, file or directory mode. Rules are derived at runtime from the matching template — templates are the single source of truth. Callable standalone at any step. | — *(read-only)* |
+
+`(non-skill bundle)` — Self-contained Copilot bundle mirroring the personal-workflow `/validate` workflow + ambient knowledge for non-Claude machines. Beyond the `prompts/` table above, it carries its own templates (`work-copilot/templates/*.md`), `WORKFLOW.md`, `reference/`, `philosophy/`, `examples/`, `fixtures/`, `copilot-artifact-manifests.json`, `domain/` skeletons, and `instructions/copilot-instructions.md`. Deployed via `python3 scripts/copilot-deploy.py install <target>`; doctor + remove via the same CLI. Bundle integrity enforced by `scripts/validate.sh` Error check 10 (`EXPECTED_BUNDLE_FILES` array). Add a new bundle file by appending one entry to that array.
 
 ## See also
 
