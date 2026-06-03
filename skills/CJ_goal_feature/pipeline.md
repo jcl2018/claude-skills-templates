@@ -97,6 +97,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: would create a cj-feat-* worktree (cj-goal-common.sh --mode feature)"
   echo "DRY RUN: would run /office-hours INLINE; on Approve, record the APPROVED design doc path + HEAD SHA to $RESUME_STATE"
   echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as SILENT leaf Agent subagents (no AUQ)"
+  echo "DRY RUN: would run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red) to fold doc updates into the same PR"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR (the merge stays manual; no deploy)"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute; a verbatim re-run resumes from the recorded phase."
   echo "Suggested resume: /CJ_goal_feature \"$TOPIC\""
