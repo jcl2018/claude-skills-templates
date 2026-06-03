@@ -311,7 +311,7 @@ the subagent (Step 7) or runs parent-inline (Step 7.5).
 | `read-only` | Row can be verified using only Read / Bash / Grep / Glob (e.g., file exists at path, function is exported, exit code of a script) | Subagent (Step 7) |
 | `skill-invoking` | Row requires invoking a `/skill` command (e.g., the Expected Outcome mentions running `/CJ_*`, `/qa`, etc.) | Subagent (Step 7) — the subagent has the Skill tool |
 | `interactive` | Row requires AskUserQuestion (e.g., Expected Outcome describes a user-decision prompt the QA must answer to proceed) | Parent-inline (Step 7.5) |
-| `recursive` | Row requires dispatching an Agent / spawning subagents (e.g., row verifies `/CJ_personal-pipeline` which itself spawns Phase 1/2/3 subagents) | Parent-inline (Step 7.5) |
+| `recursive` | Row requires dispatching an Agent / spawning subagents (e.g., row verifies an orchestrator that itself dispatches phase subagents) | Parent-inline (Step 7.5) |
 
 **Classification heuristic:**
 
@@ -319,8 +319,8 @@ the subagent (Step 7) or runs parent-inline (Step 7.5).
    token `e2e-parent`, classify as `interactive` (parent-inline) regardless of
    content. This is the deterministic escape hatch for ambiguous rows.
 2. **Recursive signal:** If the row's `Steps` or `Expected Outcome` mentions
-   dispatching an Agent / spawning a subagent / running `/CJ_personal-pipeline`,
-   classify as `recursive`.
+   dispatching an Agent / spawning a subagent / running an orchestrator that
+   itself dispatches phase subagents, classify as `recursive`.
 3. **Interactive signal:** If the row's `Steps` or `Expected Outcome` mentions
    AskUserQuestion / answering a prompt / picking an option mid-flow, classify
    as `interactive`.
@@ -589,8 +589,8 @@ For each row in `E2E_ROWS_PARENT`:
    bookkeeping stays uniform. Continue to the next row.
 
 2. **Recursive rows:** invoke the Agent tool per the row's Expected Outcome
-   (e.g., row references `/CJ_personal-pipeline` which itself spawns Phase
-   1/2/3 subagents). Capture the dispatched skill's result. Determine
+   (e.g., row references an orchestrator that itself spawns phase
+   subagents). Capture the dispatched skill's result. Determine
    verdict by inspecting the dispatched skill's RESULT line (lenient parse:
    strip `>` prefixes and code fences) or by inspecting tracker journal
    changes the row's Expected Outcome describes.

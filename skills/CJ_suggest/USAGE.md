@@ -3,7 +3,7 @@ skill-name: "CJ_suggest"
 version: 1.2.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-01"
+last-updated: "2026-06-03T21:47:55Z"
 ---
 
 # Skill Usage: CJ_suggest

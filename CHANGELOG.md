@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.9] - 2026-06-03
+
+### Removed
+
+- **`/CJ_personal-pipeline` retired — `/CJ_goal_todo_fix` now dispatches the build directly (F000039).** `/CJ_goal_todo_fix` was the last caller of the experimental `/CJ_personal-pipeline` orchestrator. It now dispatches `/CJ_implement-from-spec` → `/CJ_qa-work-item` as direct leaf subagents (the same flattened shape `/CJ_goal_feature` and `/CJ_goal_defect` adopted in F000027), so the middle orchestrator layer was deleted outright. All three cj_goal orchestrators now share ONE dispatch shape — top-level orchestrator → depth-≤2 leaf subagents — instead of two-flat-plus-one-nested, which is one fewer indirection layer to reason about when a TODO-drain run misbehaves. Per-TODO worktree isolation is unaffected: it was always owned by `drain-one-todo.sh` (`cj-worktree-init.sh --caller todo --force-create`), never the deleted skill. `/CJ_goal_todo_fix`'s halt taxonomy renames `halted_at_pipeline_implement` / `halted_at_pipeline_qa` → `halted_at_impl` / `halted_at_qa`, and `--suppress-final-gate` (a personal-pipeline-only flag) is dropped. Cleanup spanned ~18 reference surfaces (CLAUDE.md, README, `doc/PHILOSOPHY.md`, `doc/SKILL-CATALOG.md`, `skills-catalog.json` `depends.skills`, `CJ_suggest`'s `INTERNAL_SKILL_RE` filter, four sibling `USAGE.md` / `qa.md` files, the `cj-handoff-gate.sh` denylist); `validate.sh` Check 12 — which existed only to guard the now-deleted `pipeline.md` for the T000028/T000029 workbench-coupling boundary — was removed, and `scripts/test.sh` reconciled in the same change (the validate.sh↔test.sh blind spot). `/CJ_personal-workflow` (the validator) is untouched. Closes F000039 [via /CJ_goal_feature].
+
 ## [6.0.8] - 2026-06-03
 
 ### Fixed

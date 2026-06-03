@@ -3,8 +3,10 @@
 #
 # Per F000025/S000054 design (Decision Audit Trail #10): replaces the "one grep
 # is theatrical" assertion with real behavior tests for the worktree helper.
-# Extended by T000033 with the 8 --assert-isolated verdict cases + two pipeline.md
-# static-grep regression assertions (Step 5 gate; --no-worktree marker-file wiring).
+# Extended by T000033 with the 8 --assert-isolated verdict cases + a
+# CJ_goal_feature/pipeline.md Step 1.9 static-grep regression assertion
+# (--assert-isolated gate; --no-worktree marker-file wiring). (F000039 retired the
+# companion guard assertion on the now-deleted middle-layer pipeline skill.)
 # Extended by F000027/S000057 with the caller→prefix matrix block: asserts the two
 # NEW callers (feature→cj-feat, defect→cj-def) resolve + exit 0, AND that the three
 # existing callers (run→cj-run, todo→cj-todo) resolve unchanged
@@ -34,9 +36,9 @@
 #   (h4) --caller todo        → state=created, cj-todo-* branch  (non-regression)
 #   (h6) --caller bogus       → state=failed, exit 1            (validator still rejects unknown)
 #
-# Plus a static-grep regression assertion that pipeline.md Step 5 wires the
-# --assert-isolated gate AND the draft-aware resume_cmd (F000025's
-# one-grep-per-SKILL.md idiom, applied to pipeline.md here).
+# Plus a static-grep regression assertion that CJ_goal_feature/pipeline.md
+# Step 1.9 wires the --assert-isolated gate AND the --no-worktree marker
+# (F000025's one-grep-per-SKILL.md idiom, applied to the feature pipeline.md here).
 #
 # Pure smoke: uses --dry-run for the F000025 "create" cases so no real
 # worktrees are left behind. The --assert-isolated cases are inherently

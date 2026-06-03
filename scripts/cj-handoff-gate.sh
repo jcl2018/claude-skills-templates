@@ -63,7 +63,8 @@ NUMSTAT_FROM_FILE=""
 # Denylist globs (rename/symlink-safe via `git diff --no-renames --raw`).
 # Tested in scripts/test.sh tests 1, 3, 5.
 DENYLIST_GLOBS=(
-  # Reused sensitive surfaces (mirror /CJ_personal-pipeline Step 5.1)
+  # Reused sensitive surfaces (the workbench's load-bearing catalog / manifest /
+  # validator / git-hook surfaces — edits here cascade to every other skill)
   'skills-catalog.json'
   'personal-artifact-manifests.json'
   'company-artifact-manifests.json'
@@ -78,7 +79,6 @@ DENYLIST_GLOBS=(
   'fixtures/'
   # Sibling skill SKILL.md files (workflow / pipeline skills are infrastructure)
   'skills/CJ_personal-workflow/'
-  'skills/CJ_personal-pipeline/'
   'skills/CJ_goal_run/SKILL.md'
   'skills/CJ_goal_auto/SKILL.md'
   'skills/CJ_implement-from-spec/'

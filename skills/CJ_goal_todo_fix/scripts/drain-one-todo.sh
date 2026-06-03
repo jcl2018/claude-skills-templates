@@ -11,7 +11,7 @@
 #         (env) DRAIN_SESSION_ID=<id>  optional, shared lockfile session id
 #         (env) DRAIN_LOG=<path>       optional, append per-call result lines
 #
-#   Returns RESULT line on stdout (last line of output, per CJ_personal-pipeline contract):
+#   Returns RESULT line on stdout (last line of output, per the impl→qa dispatch contract):
 #     RESULT: STATUS=green; PR_URL=<url>; HEADING=<heading>; T_ID=<id>
 #     RESULT: STATUS=lock_skip; HEADING=<heading>; OWNER=<run_id>
 #     RESULT: STATUS=halted; STAGE=<preflight|scaffold|pipeline|ship|deploy|todos_md>; HEADING=<heading>
@@ -27,12 +27,12 @@
 #   TTL:    per-day (file replaces daily; no GC needed).
 #
 # This helper performs the lock acquire/release and emits the RESULT line.
-# The actual preflight + scaffold + pipeline + ship + deploy + TODOS-mark
+# The actual preflight + scaffold + impl + qa + ship + deploy + TODOS-mark
 # chain remains in todo_fix.sh (delegated below). drain-one-todo.sh is the
 # thin per-TODO wrapper; todo_fix.sh still owns the full chain because the
-# chain itself requires orchestrator-layer Skill-tool invocations
-# (/CJ_personal-pipeline, /ship, /land-and-deploy) that pure bash cannot
-# synchronously dispatch.
+# chain itself requires orchestrator-layer Agent/Skill-tool invocations
+# (/CJ_implement-from-spec, /CJ_qa-work-item, /ship, /land-and-deploy) that pure
+# bash cannot synchronously dispatch.
 #
 # Therefore: this helper's "Returns RESULT line" contract is implemented in
 # two halves:
@@ -318,9 +318,10 @@ case "$SUBCMD" in
     fi
 
     # Live mode: dispatch todo_fix.sh; let it emit the handoff block.
-    # Orchestrator parses the handoff block, drives /CJ_personal-pipeline +
-    # /ship + /land-and-deploy via Skill tool, then calls
-    # `drain-one-todo.sh release "$HEADING"` to drop the lock.
+    # Orchestrator parses the handoff block, dispatches /CJ_implement-from-spec
+    # → /CJ_qa-work-item (leaf Agent subagents, halt-on-red) + /ship +
+    # /land-and-deploy, then calls `drain-one-todo.sh release "$HEADING"` to
+    # drop the lock.
     bash "$TODO_FIX_PATH" "$ARG"
     RC=$?
 

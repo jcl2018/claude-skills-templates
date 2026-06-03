@@ -562,8 +562,8 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # v1.2 (S000044, v3.6.5): added `skills/[^/]+/.+\.md` to catch markdown skill
   # definition files (SKILL.md, pipeline.md, scaffold.md, implement.md, etc.)
   # which are just as load-bearing as scripts under skills/*/scripts/. Surfaced
-  # by /loop /CJ_goal_todo_fix iter 3 on 2026-05-15 — T000031 picked /CJ_personal-pipeline
-  # work which lives in pipeline.md (no scripts/ subdir) and didn't trip the gate.
+  # by /loop /CJ_goal_todo_fix iter 3 on 2026-05-15 — T000031 picked skill-pipeline
+  # work which lives in a pipeline.md (no scripts/ subdir) and didn't trip the gate.
   SENSITIVE_MATCH=""
   if echo "$RESOLVED_BODY" | grep -qE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/|skills/[^/]+/.+\.md|\.git/hooks/|templates/CJ_personal-workflow/'; then
     SENSITIVE_MATCH=$(echo "$RESOLVED_BODY" | grep -oE 'skills-catalog\.json|[a-z_-]+-artifact-manifests\.json|scripts/(validate|test|test-deploy)\.sh|skills/[^/]+/scripts/[^[:space:]]*|skills/[^/]+/[^[:space:]]+\.md|\.git/hooks/[^[:space:]]*|templates/CJ_personal-workflow/[^[:space:]]*' | head -3 | tr '\n' ' ')
@@ -578,8 +578,8 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
   # Gate 5: design-needed keywords.
   # v1.2 (S000044, v3.6.5): added `redesign|re-?do|re-?ground|rewrite|rescope`
   # plus the literal `/office-hours` command reference to catch "this needs
-  # design rework, not implementation" signals. T000031 ("Re-do brief-mode for
-  # /CJ_personal-pipeline") had step (1) literally say `/office-hours from a
+  # design rework, not implementation" signals. T000031 (a "Re-do brief-mode"
+  # TODO) had step (1) literally say `/office-hours from a
   # new worktree` but slipped past the original regex (only caught bare-word
   # `investigate|spike|unclear|...`). Surfaced by /loop /CJ_goal_todo_fix iter 3 on
   # 2026-05-15. NB: re-?do matches `redo|re-do` not `rename|refactor` (keeps
@@ -675,7 +675,7 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     echo "Planned T-ID:     $NEW_ID"
     echo "Planned dir:      $WORK_ITEM_DIR"
     echo "Body length:      $BODY_LEN chars"
-    echo "Dispatch chain:   /CJ_personal-pipeline --work-item-dir <dir> --suppress-final-gate"
+    echo "Dispatch chain:   /CJ_implement-from-spec <dir> → /CJ_qa-work-item <dir>"
     echo "                  → /ship → /land-and-deploy --suppress-readiness-gate"
     write_telemetry "dry_run" "$NAKED_HEADING" "$NEW_ID"
     exit 0
@@ -819,12 +819,12 @@ if [ "$IDEMPOTENT_SKIP" -eq 0 ]; then
     { print }
   ' "$TEST_PLAN_OUT" > "$TEST_TMP" && mv "$TEST_TMP" "$TEST_PLAN_OUT"
 
-  # Post-scaffold boundary check is handled downstream by /CJ_personal-pipeline
-  # Step 6: portable `/CJ_personal-workflow check` (works in any repo) + the
-  # workbench-only `scripts/validate.sh` re-run (silently skipped when absent
-  # or non-executable). See T000028 / Approach D — the original validate.sh
-  # call here was workbench-coupled (exit 127 in downstream repos) and was
-  # duplicate work in the workbench (pipeline Step 6 re-runs it seconds later).
+  # Post-scaffold boundary check is handled downstream by the dispatched leaf
+  # phase skills (/CJ_implement-from-spec + /CJ_qa-work-item each run the
+  # portable `/CJ_personal-workflow check` at their start/end boundaries — works
+  # in any repo). See T000028 / Approach D — the original validate.sh call here
+  # was workbench-coupled (exit 127 in downstream repos) and duplicated work the
+  # phase skills' boundary checks already do.
 fi
 
 # At this point either $WORK_ITEM_DIR (new scaffold) or $EXISTING_WORK_ITEM_DIR
@@ -842,15 +842,17 @@ fi
 
 # ---- Dispatch chain -----------------------------------------------------------
 
-# The actual dispatch must reach /CJ_personal-pipeline + /ship +
-# /land-and-deploy. From inside a bash subshell launched by SKILL.md routing,
-# we cannot synchronously invoke /skill commands. Instead, /CJ_goal_todo_fix prints a
-# structured handoff block and exits with a marker end_state. The wrapping
-# Claude agent (which loaded /CJ_goal_todo_fix via the Skill tool) reads stdout,
-# parses the handoff block, and invokes the three sub-skills in sequence.
+# The actual dispatch must reach /CJ_implement-from-spec + /CJ_qa-work-item +
+# /ship + /land-and-deploy. From inside a bash subshell launched by SKILL.md
+# routing, we cannot synchronously invoke /skill commands. Instead,
+# /CJ_goal_todo_fix prints a structured handoff block and exits with a marker
+# end_state. The wrapping Claude agent (which loaded /CJ_goal_todo_fix via the
+# Skill tool) reads stdout, parses the handoff block, dispatches the two leaf
+# phase subagents (impl→qa, halt-on-red between — see pipeline.md Step 4), then
+# runs /ship + /land-and-deploy.
 #
-# This is the same pattern /CJ_goal_run uses internally for sub-skill chains —
-# the orchestration lives at the agent layer, the script emits the directive.
+# This is the same flatten /CJ_goal_feature Steps 3.2-3.3 use — the
+# orchestration lives at the agent layer, the script emits the directive.
 #
 # Handoff block contract:
 #   CJ_GOAL_HANDOFF_BEGIN
@@ -867,7 +869,8 @@ echo "T_ID=${NEW_ID:-unknown}"
 echo "HEADING=${NAKED_HEADING:-unknown}"
 echo "IDEMPOTENT_SKIP=$IDEMPOTENT_SKIP"
 echo "PRE_HASH=$PRE_HASH"
-echo "DISPATCH_CHAIN=/CJ_personal-pipeline --work-item-dir $WORK_ITEM_DIR --suppress-final-gate"
+echo "DISPATCH_CHAIN=/CJ_implement-from-spec $WORK_ITEM_DIR  (Agent subagent, halt-on-red → halted_at_impl)"
+echo "                /CJ_qa-work-item $WORK_ITEM_DIR  (Agent subagent, halt-on-red → halted_at_qa)"
 echo "                /ship"
 echo "                /land-and-deploy --suppress-readiness-gate #<PR_NUM>"
 echo "POST_SUCCESS_TODOS_MD_HEADING=$NAKED_HEADING"
