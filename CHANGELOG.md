@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.8] - 2026-06-03
+
+### Fixed
+
+- **cj_goal Step 5.5 doc-sync node now shows in the last two prose surfaces it was missing from.** PR #196 added the `/CJ_document-release` (Step 5.5) node to every cj_goal workflow chart and USAGE flow line, but two prose surfaces still narrated the chain as QA → `/ship` with the doc-sync hop missing: the `--dry-run` preview echoes in `CJ_goal_defect/pipeline.md` + `CJ_goal_feature/pipeline.md` (and `--dry-run`'s whole job is to print the planned chain), and the `description:` frontmatter of both orchestrators' `SKILL.md`. All four now render the `… → /CJ_document-release (Step 5.5 doc-sync) → /ship …` hop, matching each pipeline.md's actual Step 5.5 block and the F000036 wiring. `CJ_goal_todo_fix` was already consistent. Docs-only, no runtime change; `USAGE.md` `last-updated` bumped on both edited skills to keep `validate.sh` Check 14 green.
+
 ## [6.0.7] - 2026-06-02
 
 ### Removed

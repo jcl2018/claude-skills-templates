@@ -103,7 +103,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   fi
   echo "DRY RUN: would dispatch /investigate against the draft (Agent subagent, sentinel JSON)"
   echo "DRY RUN: on a populated root cause, would promote to work-items/defects/uncategorized/D<next>_$SLUG"
-  echo "DRY RUN: would write RCA + test-plan, then chain /CJ_qa-work-item → /ship (Gate #2) → /land-and-deploy --suppress-readiness-gate"
+  echo "DRY RUN: would write RCA + test-plan, then chain /CJ_qa-work-item → /CJ_document-release (Step 5.5 doc-sync) → /ship (Gate #2) → /land-and-deploy --suppress-readiness-gate"
   echo "DRY RUN: writes nothing. Re-running the same phrase later would resume this draft; reworded text would create a different draft."
   echo "Suggested resume: /CJ_goal_defect \"$BUG_DESC\""
   # Telemetry: end_state=dry_run_preview (Step 11 schema; write before exit)
