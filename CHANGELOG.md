@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.10] - 2026-06-03
+
+### Removed
+
+- **F000039 retire the F000028/F000029 doc-sync marker + preamble-AUQ mechanism.** The post-merge/post-rewrite git hook that dropped a doc-sync marker when `main` moved (F000028) and the `DOC_SYNC_PENDING` marker-pickup AUQ in the `CJ_goal_feature` + `CJ_goal_defect` preambles (F000029) are gone — redundant now that doc-sync runs inline on every common main-moving path: orchestrator Step 5.5 (`/CJ_document-release`) and `/ship` Step 18 (`/document-release`) both fold doc updates into the same PR before merge, so the marker AUQ kept firing for drift already handled. Deleted `scripts/skills-doc-sync-check` + its standalone test + the AUQ-recommendation test; removed the preamble block from both orchestrators; surgically stripped the post-merge doc-sync section + the standalone post-rewrite hook from `setup-hooks.sh` (pre-commit validate + post-merge auto-sync untouched); struck the "F000029 fallback" language from the three `pipeline.md` Step 5.5 lines, `CJ_document-release` SKILL/USAGE, `doc/SKILL-CATALOG.md`, and `skills-catalog.json` (README regenerated); and rewrote the `CLAUDE.md` / `doc/ARCHITECTURE.md` / `doc/PHILOSOPHY.md` doc-sync sections. CLAUDE.md gains a "Doc-sync coverage" note recording the one accepted gap: a main-move that bypasses BOTH the orchestrators AND `/ship` (a raw `git push` to `main`, or a hand-rolled `gh pr create` + `gh pr merge`) is not auto-flagged for doc drift — run `/document-release` by hand to recover. The surviving F000036 Step 5.5 inline mechanism, the F000037 `cj-document-release.json` config, and `tests/cj-goal-doc-sync-wiring.test.sh` are untouched (the "doc-sync" name covers two mechanisms — only the marker-AUQ one is retired). Operators with leftover state can `rm` the now-orphaned `~/.gstack/doc-sync-pending/*.json` + `~/.gstack/doc-sync-cache.json`. `validate.sh` + `test.sh` green; both completeness greps empty. (Version skips 6.0.9 — claimed by an in-flight PR per `check-version-queue.sh`.)
+
 ## [6.0.8] - 2026-06-03
 
 ### Fixed
