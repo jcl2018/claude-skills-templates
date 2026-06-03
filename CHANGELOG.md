@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.5] - 2026-06-02
+
+### Fixed
+
+- **cj_goal workflow charts now show the Step 5.5 doc-sync node.** The three orchestrator ASCII workflow charts (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) in `doc/SKILL-CATALOG.md`, each skill's `SKILL.md` overview chart, and the `USAGE.md` mental-model flow prose all jumped straight from QA to `/ship` — hiding the `/CJ_document-release` doc-sync step that F000036 wired in between (Step 5.5). Every other surface (the three `pipeline.md` files, `doc/PHILOSOPHY.md` decision tree, the catalog) already ran or listed it; the charts were the lone blind spot. All six chart blocks plus the three USAGE flow lines now render `… → QA → /CJ_document-release (Step 5.5 doc-sync) → /ship …`. Chart annotations read `halt-on-red` instead of citing the internal `[doc-sync-red]` marker — overview charts describe behavior while the halt-taxonomy table owns the marker IDs, and this also stops the chart line from shadowing `tests/cj-goal-doc-sync-wiring.test.sh`'s first-`[doc-sync-red]` ordering anchor (the wiring test flagged the collision; full suite green). No code or runtime behavior change.
+
 ## [6.0.4] - 2026-06-02
 
 ### Added

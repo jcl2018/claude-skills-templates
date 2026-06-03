@@ -24,7 +24,7 @@ Per-TODO chain (both modes share this):
 
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold → /CJ_personal-pipeline
-   → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark → telemetry line
+   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark → telemetry line
 ```
 
 Net new logic vs the upstream pipeline: pre-flight gate stack, TODOS.md parser
@@ -72,7 +72,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator drives /CJ_personal-pipeline → /ship → /land-and-deploy
+      └── orchestrator drives /CJ_personal-pipeline → /CJ_document-release → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."

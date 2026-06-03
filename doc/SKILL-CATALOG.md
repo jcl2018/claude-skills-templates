@@ -31,6 +31,9 @@ design-summary approval gate   [INLINE AUQ — go/no-go]
 /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item
    │
    ▼
+/CJ_document-release   [INLINE Step 5.5 — doc-sync folds doc edits into the PR; halt-on-red]
+   │
+   ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens PR]
    │
    ▼
@@ -65,6 +68,8 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID yet; idempotent)
    │
    ▼  write RCA.md + test-plan.md → /CJ_qa-work-item (leaf subagent)
    │
+   ▼  /CJ_document-release                   (Step 5.5 doc-sync; halt-on-red)
+   │
    ▼  /ship                                  (Gate #2 fires; halt on [ship-declined])
    │
    ▼  /land-and-deploy --suppress-readiness-gate
@@ -91,6 +96,9 @@ T-task scaffold (TRACKER + test-plan)
    ▼
 /CJ_personal-pipeline
    │  scaffold → implement → qa (depth-≤2 leaf subagents)
+   ▼
+/CJ_document-release   (Step 5.5 doc-sync; halt-on-red)
+   │
    ▼
 /ship   (Gate #2 fires per drained TODO — human approves diff)
    │
