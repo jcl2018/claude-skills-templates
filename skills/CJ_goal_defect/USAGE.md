@@ -31,7 +31,8 @@ A 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad → `/investigate`
 as Agent subagent (Iron-Law: no RCA ⇒ HALT) → on populated RCA, write
 RCA+test-plan and promote draft to a canonical
 `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted ONLY after
-the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent → `/ship` (Gate
+the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent →
+`/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (Gate
 #2 always human) → `/land-and-deploy --suppress-readiness-gate`. A ~80%
 reshape of the retired `/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no
 subagent-spawns-subagent).

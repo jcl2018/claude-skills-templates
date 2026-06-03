@@ -29,7 +29,8 @@ last-updated: "2026-06-03T04:15:49Z"
 ## Mental model
 
 A TODOS.md backlog drainer that chains `/CJ_suggest` (rank) →
-`/CJ_personal-pipeline` (scaffold → impl → QA) → `/ship` (open PR) →
+`/CJ_personal-pipeline` (scaffold → impl → QA) → `/CJ_document-release`
+(Step 5.5 doc-sync) → `/ship` (open PR) →
 `/land-and-deploy` (merge + verify) per drained row. Drain mode creates one
 worktree per TODO inside `scripts/drain-one-todo.sh`; single mode creates one
 `cj-todo-*` worktree on `main`. Halt-on-red stops the loop and writes the

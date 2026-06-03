@@ -30,7 +30,8 @@ last-updated: "2026-06-02T19:35:31Z"
 ## Mental model
 
 One interactive phase (`/office-hours` inline, emits APPROVED design doc) then
-silent leaf subagents (scaffold → implement → QA) then `/ship` inline (with
+silent leaf subagents (scaffold → implement → QA), then `/CJ_document-release`
+(Step 5.5 doc-sync) inline, then `/ship` inline (with
 diff-review AUQ suppressed) → STOPS at the open PR. The PR is the architecture
 gate (human review). Worktree-on-main creates `cj-feat-*` worktree
 automatically. Halt taxonomy: `green_pr_opened`, `halted_at_*`,
