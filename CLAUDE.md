@@ -286,77 +286,31 @@ _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
-## Doc-sync check mechanism (F000028 follow-up)
+## Doc-sync coverage (F000028/F000029 marker mechanism retired by F000039)
 
-The two `cj_goal` orchestrator preambles (`/CJ_goal_feature` + `/CJ_goal_defect`)
-emit a `DOC_SYNC_PENDING <marker-path>` line when F000028's
-`post-merge` / `post-rewrite` git hook has dropped a doc-sync marker since the
-operator's last pull. The orchestrator interprets the line and surfaces an AUQ
-asking whether to run `/document-release` inline now, snooze, or skip — closing
-the loop F000028 opened (the hook writes markers; this mechanism consumes them).
+Doc-sync now runs INLINE on every common main-moving path:
 
-**Novel pattern callout.** F000009's `skills-update-check` prints
-`SKILLS_UPGRADE_AVAILABLE` as a user-facing banner with no AUQ. F000029's
-`skills-doc-sync-check` goes further: the script output (`DOC_SYNC_PENDING <path>`)
-drives an orchestrator AUQ. The script's job is detection only ("is there a
-marker, and if so, print its path"); the SKILL.md prose owns the AUQ template,
-branch-aware option ordering (B on main, A on a feature branch — upstream
-`/document-release` Step 1 hard-aborts on the base branch with "You're on the
-base branch. Run from a feature branch.", so A on main would always abort;
-a feature branch is exactly where `/document-release` is designed to run),
-and per-option follow-through (especially A's auto-commit of touched doc
-files, required to avoid the next-step Step 1.9 isolation gate halting on a
-dirty checkout). Branch detection lives in the prose, NOT in the script.
-Future skills wanting a similar detection-then-AUQ shape should mirror this
-split.
+- **Orchestrator paths** — each `cj_goal` orchestrator (`/CJ_goal_feature`,
+  `/CJ_goal_defect`, `/CJ_goal_todo_fix`) folds doc updates into the same code PR
+  at **Step 5.5** (`/CJ_document-release`, between QA pass and `/ship`).
+- **`/ship` paths** — `/ship` Step 18 dispatches `/document-release` on every
+  invocation, after the push and before the PR exists, so a manual `/ship` still
+  lands doc updates in the PR.
 
-State files (`~/.gstack/`):
-- `doc-sync-pending/<repo-slug>.json` — marker. Written by F000028's hook on
-  non-trivial main-moving merges. Fields: `repo`, `head_sha`, `main_moved_at`,
-  `diff_base`, `changed_files`. Read by `skills-doc-sync-check`, deleted by
-  `--resolved`.
-- `doc-sync-cache.json` — cache: `snooze_until`, `skip_head_sha`. Atomic writes
-  via `mktemp` + `mv`. NO `prompted_session` field (reviewer-flagged P0:
-  `$$` is not stable across SKILL.md bash fences, so per-shell PID dedup is
-  unreliable; natural dedup via `--resolved` / `--snooze` / `--skip` is used
-  instead).
+**Accepted gap (manually recovered).** The one path NOT auto-covered is a
+main-move that bypasses BOTH the orchestrators AND `/ship` — a raw `git push` to
+`main`, or a hand-rolled `gh pr create` + `gh pr merge`. This is rare in this
+workbench and manually recoverable: run `/document-release` by hand from a
+feature branch to fold the drift into a follow-up PR. We accept this gap rather
+than keep a post-merge marker mechanism alive for it.
 
-Subcommand surface (mirrors `skills-update-check`):
-- `skills-doc-sync-check` — default check, emits `DOC_SYNC_PENDING <path>` on hit.
-- `skills-doc-sync-check --snooze [hours]` — suppress for N hours (default 24).
-- `skills-doc-sync-check --skip <head_sha>` — suppress this specific marker
-  forever (different `head_sha` re-fires).
-- `skills-doc-sync-check --resolved` — delete marker + clear snooze/skip cache;
-  idempotent silent-success when marker already absent. Called after a
-  successful `/document-release` on the A path.
-
-Stale-marker self-clean: if the marker's `head_sha` is unreachable from current
-HEAD (force-push wiped the commit, operator did `git reset --hard` past it, or
-the marker JSON is corrupted and `head_sha` reads empty), the script silently
-deletes the marker via `git cat-file -e` and exits 0 — no AUQ for a non-existent
-state. Stale markers self-clean instead of accumulating.
-
-The script lives in the user's clone at `$source/scripts/skills-doc-sync-check`
-— same path-resolution shape as `skills-update-check`. The preamble snippet in
-each instrumented SKILL.md does:
-
-```bash
-_DSC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-_DSC_OUT=$([ -n "$_DSC" ] && [ -x "$_DSC/scripts/skills-doc-sync-check" ] && "$_DSC/scripts/skills-doc-sync-check" 2>/dev/null || true)
-[ -n "$_DSC_OUT" ] && echo "$_DSC_OUT"
-```
-
-Manual override: `rm ~/.gstack/doc-sync-cache.json` clears snooze/skip state;
-`rm ~/.gstack/doc-sync-pending/<slug>.json` discards a pending marker without
-running `/document-release`. The script does not surface either file via
-`skills-deploy doctor` — operator inspection via `ls ~/.gstack/` is the
-intended discovery path.
-
-Out of scope for v1: `/CJ_goal_todo_fix` / `/CJ_suggest` / `/CJ_system-health`
-preamble calls (separate follow-up — `/CJ_goal_todo_fix` is in the same family
-but deferred to a follow-up PR; `/CJ_suggest` / `/CJ_system-health` are
-informational utilities, not work-starters, so they're out of the trigger
-surface entirely). Per-marker snooze (current design is global `snooze_until`).
+The retired F000028/F000029 mechanism (a `post-merge`/`post-rewrite` git hook
+that dropped a per-repo marker JSON under `~/.gstack/`, the reader script that
+consumed it, and the preamble AUQ in the orchestrators that surfaced it) was
+removed by F000039 once F000036's inline Step 5.5 made it redundant — the marker
+AUQ kept firing for drift already folded into the same PR. Operators with
+leftover state can safely delete the orphaned marker + cache JSON files under
+`~/.gstack/` (inspect via `ls ~/.gstack/`).
 
 ## Doc placement convention (root vs doc/)
 

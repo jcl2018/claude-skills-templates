@@ -24,70 +24,23 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 The helper is deliberately one shell file, not a directory or a skill. Each phase is a function the orchestrator sources and calls — there is no second layer of orchestration. Treat it as plumbing for the two front doors.
 
-## F000028 doc-sync hooks (post-merge + post-rewrite)
+## Doc-sync (F000036 inline Step 5.5 + `/ship` Step 18)
 
-F000028 wired two git hooks that drop a marker file every time `main` advances by a non-trivial merge, so the next `cj_goal` orchestrator invocation can prompt the operator to run `/document-release`.
-
-**Marker file:**
-
-- Path schema: `~/.gstack/doc-sync-pending/<repo-slug>.json` (one marker per repo; new merges overwrite the previous marker atomically via `mktemp` + `mv`).
-- Fields:
-  - `repo` — repo slug for cross-checking.
-  - `head_sha` — the SHA at which the hook fired; the marker self-cleans when this SHA is unreachable from current HEAD (force-push, `git reset --hard`).
-  - `main_moved_at` — ISO timestamp.
-  - `diff_base` — the SHA the doc-release auditor should diff against (typically the previous main tip).
-  - `changed_files` — list of touched files at the merge boundary, used by `/document-release` Step 2 to scope its audit pass.
-
-**Hooks that fire it:**
-
-- **post-merge** — fires on every merge into the local checkout, including `git pull` fast-forwards. Skipped on trivial merges where the diff doesn't move the documentable surface (e.g., a merge that only touches `.gitignore` or a hidden cache file is not worth surfacing as doc-sync drift).
-- **post-rewrite** — fires on rebase / amend operations that rewrite history, catching the case where `main` moves via rewrite rather than fast-forward.
-
-**What they don't fire on:**
-
-- Trivial main-moving merges (the changed-file filter drops zero-impact diffs before writing a marker).
-- Branch-local commits that don't move `main`.
-- Stash / cherry-pick operations that don't trigger either hook.
-
-The hook layer is detection only — it writes the marker and exits. The pickup-and-AUQ layer lives in the orchestrator preambles (see next section).
-
-## F000029 marker-pickup AUQ (cj_goal preambles)
-
-F000029 added the consumer side of the F000028 marker layer: each `cj_goal` orchestrator preamble emits a `DOC_SYNC_PENDING <path>` line and prompts the operator to handle it via AskUserQuestion.
-
-**Script-output-drives-AUQ split.** This is the novel architectural pattern (called out explicitly in CLAUDE.md). The script `scripts/skills-doc-sync-check` does *detection only* — it checks for the marker file, validates that the recorded `head_sha` is reachable from current HEAD (else stale-self-cleans), and prints exactly one line of output: `DOC_SYNC_PENDING <marker-path>`. The script does NOT own the AUQ template, the branch-aware option ordering, or any post-AUQ follow-through. Those live in the SKILL.md prose of each `cj_goal` orchestrator.
-
-This split is load-bearing because the AUQ shape depends on context that the script can't observe cleanly: which branch the operator is on, whether the AUQ should run `/document-release` inline now, and what to do after the operator picks option A (auto-commit the touched doc files, required to keep the next-step Step 1.9 isolation gate from halting on a dirty working tree).
-
-**Branch-aware A/B ordering:**
-
-- **On `main`** — option A is "run `/document-release` inline now." Option A is correct because the operator's checkout is on main; `/document-release` runs against the right branch state.
-- **On a feature branch** — option B is presented first (snooze / skip / defer). Option A on a feature branch would run `/document-release` against the wrong branch state, so the prose deliberately reorders.
-
-The branch detection lives in the SKILL.md prose, not the script. Future skills that want a similar detection-then-AUQ shape mirror this split.
-
-**Lifecycle subcommands** (mirror `skills-update-check`):
-
-- `skills-doc-sync-check` (no subcommand) — default check; emits `DOC_SYNC_PENDING <path>` on hit, silent otherwise.
-- `skills-doc-sync-check --snooze [hours]` — suppress for N hours (default 24); writes `snooze_until` into `~/.gstack/doc-sync-cache.json`.
-- `skills-doc-sync-check --skip <head_sha>` — suppress this specific marker forever; a different `head_sha` re-fires the check.
-- `skills-doc-sync-check --resolved` — delete the marker + clear snooze/skip cache; idempotent silent-success when the marker is already absent. Called by the orchestrator after a successful `/document-release` on the A path.
-
-Together the F000028 hook layer and the F000029 pickup-AUQ layer close the doc-sync loop: hooks write markers when main advances; orchestrator preambles pick up markers and surface the AUQ; `/document-release` runs against the right state; `--resolved` cleans up the marker.
+F000028 (post-merge/post-rewrite git hooks that dropped a per-repo doc-sync marker JSON under `~/.gstack/`) and F000029 (a detection script + a marker-pickup AskUserQuestion in the `cj_goal` orchestrator preambles that consumed the marker on the next session) were **retired by F000039** once F000036 made doc-sync run inline. They are gone from the codebase; this section documents only the surviving inline mechanism. For the operator-facing accepted-gap note, see CLAUDE.md `## Doc-sync coverage`.
 
 ## F000036 inline doc-sync wrapper (`/CJ_document-release` Step 5.5)
 
-F000036 closes the orchestrator-driven half of the doc-sync loop. F000028+F000029 surface doc-sync as a marker-AUQ on the NEXT session after main moves, which is correct for non-orchestrator paths (raw `git push`, manual `/ship`) but leaves a one-PR drift window for the cj_goal pipelines: by the time the marker fires, the code PR has already opened with stale docs. F000036 folds the doc update into the same PR by invoking the wrapper inline at a new pipeline Step 5.5, between the QA pass and `/ship`.
+F000036 folds the doc update into the same PR as the code by invoking the `/CJ_document-release` wrapper inline at pipeline Step 5.5, between the QA pass and `/ship`. Earlier the only doc-sync surface was a post-merge marker picked up on the NEXT session, which left a one-PR drift window for the cj_goal pipelines: by the time the marker fired, the code PR had already opened with stale docs. Step 5.5 closes that window — the doc update ships in the same PR.
 
-**The wrapper, not the upstream skill.** `/CJ_document-release` is a workbench skill that wraps upstream gstack `/document-release` (invoked via the Skill tool). It adds three workbench-specific behaviors that aren't expressible in the upstream skill or in F000029's detection-only script:
+**The wrapper, not the upstream skill.** `/CJ_document-release` is a workbench skill that wraps upstream gstack `/document-release` (invoked via the Skill tool). It adds three workbench-specific behaviors that aren't expressible in the upstream skill:
 
 - **`--docs <comma-list>` subset filter** — per-invocation doc subset selection (e.g. `--docs README,CHANGELOG`), best-effort via a project-context block. The genuinely new capability that earns the catalog cost.
 - **Halt-on-red contract** — upstream non-green result emits `[doc-sync-red]` to the orchestrator's halt taxonomy, so the orchestrator can stop the pipeline instead of barreling into `/ship` with broken docs.
 - **Doc-only auto-commit whitelist** — gated by the conservative regex `README|CHANGELOG|CLAUDE|ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`. Non-whitelist writes HALT with `[doc-sync-non-doc-write]` — the wrapper refuses to absorb code edits into a "docs" commit.
 
-**Pipeline insertion point.** Each of the three cj_goal orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) has a Step 5.5 between the QA-pass gate and `/ship`. The wrapper runs inline, the halt classes feed into the orchestrator's existing halt taxonomy, and the auto-commit lands as a separate `docs:` commit ahead of the code PR push. F000029's marker-AUQ stays as fallback for non-orchestrator paths — when a code PR ships without going through the cj_goal pipeline, the marker still fires on the next session.
+**Pipeline insertion point.** Each of the three cj_goal orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) has a Step 5.5 between the QA-pass gate and `/ship`. The wrapper runs inline, the halt classes feed into the orchestrator's existing halt taxonomy, and the auto-commit lands as a separate `docs:` commit ahead of the code PR push. Non-orchestrator paths are covered by `/ship` Step 18 (which dispatches `/document-release` on every invocation); the only uncovered path is a main-move that bypasses both the orchestrators and `/ship`, recovered manually (see CLAUDE.md `## Doc-sync coverage`).
 
-**Why a new skill, not just upstream skill prose.** F000029 BD#1 considered exactly this question and rejected it ("new /CJ_doc_sync skill in catalog" was rejected) on the grounds that the F000029 marker-AUQ flow covered all real needs. F000036 reopened that decision and superseded it: the `--docs` parameterization, the halt-on-red contract, and the auto-commit whitelist are all wrapper behaviors that the upstream skill doesn't own and the detection-only script can't carry. Supersession is annotated in-place in `work-items/features/ops/F000029_marker_pickup_auq/F000029_DESIGN.md` so future readers see why the reversal happened.
+**Why a new skill, not just upstream skill prose.** The retired F000029 design (BD#1) considered exactly this question and rejected a new doc-sync skill on the grounds that its (now-retired) preamble flow covered all real needs. F000036 reopened that decision and superseded it: the `--docs` parameterization, the halt-on-red contract, and the auto-commit whitelist are all wrapper behaviors that the upstream skill doesn't own and a detection-only script can't carry. Supersession is annotated in-place in `work-items/features/ops/F000029_marker_pickup_auq/F000029_DESIGN.md` so future readers see why the reversal happened.
 
 **Idempotent re-run with `/ship` Step 18.** `/ship`'s existing Step 18 also dispatches `/document-release` post-push. Under squash-merges, the Step 5.5 inline call and the Step 18 post-push call are partially redundant for the auto-trigger use case (Step 18 has nothing fresh to do after Step 5.5 already absorbed doc updates), but the re-run is idempotent and harmless. The operator-callable `/-command` surface (`/CJ_document-release --docs <subset>`) is what F000036 is really for — point-in-time doc audits on a feature branch outside the cj_goal pipeline.
 
@@ -101,7 +54,7 @@ F000037 externalizes the F000036 hardcoded doc whitelist + `--docs <token>` map 
 - `whitelist_patterns` — array of globs (e.g. `["README.md", "doc/**/*.md", "templates/doc-*.md"]`). Used by Step 2 (clean-tree gate) and Step 6 (auto-commit gate). `**` recursion is bash-globstar via `find` (macOS bash 3.2 lacks `shopt -s globstar`); the helper isolates the quirks.
 - `categories` — map of `{token: [glob, ...]}`. The `--docs <token>` flag resolves against this map, NOT against a hardcoded list. A Rails app can map `--docs models` → `app/models/**/*.rb`; a Python lib can map `--docs sphinx` → `docs/source/**/*.rst`. This is the genuinely new capability F000037 adds over F000036.
 
-**Helper script (`scripts/cj-document-release-config.sh`):** Mirrors F000029's `skills-doc-sync-check` shape (one bash file, subcommands, isolated test surface). Subcommands:
+**Helper script (`scripts/cj-document-release-config.sh`):** Follows the workbench's single-bash-file helper shape (one bash file, subcommands, isolated test surface — the same shape as `skills-update-check`). Subcommands:
 
 - `--parse` — pretty-print the JSON for debug/inspection.
 - `--validate` — exit 0 if schema is OK; exit 1 + emit `[doc-sync-no-config] <reason>` otherwise. The `/CJ_document-release` skill calls this at Step 0.5.
