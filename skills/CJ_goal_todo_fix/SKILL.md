@@ -248,14 +248,10 @@ entries are also appended to `~/.gstack/analytics/CJ_goal_todo_fix-sessions.json
 This is the post-cron-readable replacement for the suppressed Phase 3
 summary AUQ.
 
-**Fallback read (v4.2.0+).** Sunset-trip-wire consumers MUST also read
-`~/.gstack/analytics/CJ_goal.jsonl` (the pre-rename path) so historical
-invocations across the v4.0.0 rename window are not lost. The
-`telemetry_invocation_count` helper in `scripts/todo_fix.sh` performs the
-merged read; current-run writes go only to the new path.
-
-Used for v1.1 sunset trip-wire calibration (deferred until 8+ real invocations
-exist; threshold TBD).
+**Sunset trip-wire.** The `telemetry_invocation_count` helper in
+`scripts/todo_fix.sh` counts invocation lines in the primary file for v1.1
+sunset trip-wire calibration (deferred until 8+ real invocations exist;
+threshold TBD).
 
 ## Notes
 
