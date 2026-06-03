@@ -178,3 +178,4 @@ PRESERVED (verified untouched):
 - 2026-06-03 [qa-e2e] E5 (AC-6, AC-7): green — CLAUDE.md "## Doc-sync coverage" note covers Step 5.5 + /ship Step 18 + manual-by-hand recovery; generate-readme.sh produces zero diff vs on-disk README.md.
 - 2026-06-03 [qa-e2e-summary] green (0s subagent; 0 rows parent-inline; 0 deferred): All 5 E2E criteria green (E1-E5). Executed leaf-inline by the QA runner (all rows read-only). Tracker journal updated.
 - 2026-06-03 [qa-pass] S000072 (user-story): green smoke + green E2E. Phase 2 gates transitioned.
+- 2026-06-03 [feature-pr-opened] F000039/S000072 v6.0.10 — PR #201 opened (https://github.com/jcl2018/claude-skills-templates/pull/201); /CJ_goal_feature pipeline STOPPED at the PR (merge + deploy are separate human steps). Doc-sync Step 5.5 caught + fixed 2 post-commit drifts (USAGE.md Check-14 + CLAUDE.md Scripts-table). pr_url=https://github.com/jcl2018/claude-skills-templates/pull/201
