@@ -358,6 +358,47 @@ but deferred to a follow-up PR; `/CJ_suggest` / `/CJ_system-health` are
 informational utilities, not work-starters, so they're out of the trigger
 surface entirely). Per-marker snooze (current design is global `snooze_until`).
 
+## Doc placement convention (root vs doc/)
+
+Human-readable **explanation** docs live in `doc/` and are registered in the
+tracked-doc/ manifest (enforced by `validate.sh` Check 15 — see the `### Tracked
+doc/ files manifest` section below). Root-level `*.md` is limited to the allowlist
+below: each entry is pinned at the repo root for an external-tool or operational
+reason, not because it is "explanation" content. **Config files** stay at root
+(`skills-catalog.json`, `cj-document-release.json`, `template-registry.json`,
+`VERSION`) because tooling hardcodes `./` paths to them — the convention documents
+that placement but adds no config-file enforcement in v1. Docs under `skills/`,
+`templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own
+conventions (per-skill USAGE.md, template naming, the work-item taxonomy) and are
+out of this convention's scope.
+
+This allowlist and F000034's tracked-doc/ manifest are symmetric — together they
+partition the top-level doc surface: a new explanation doc goes to `doc/` + a
+tracked-doc manifest entry (Check 15 catches an unregistered `doc/` file); a new
+root `*.md` must be justified + added to the allowlist below with a `reason:`
+(Check 17 catches an un-allowlisted root file). Drift on either side fails
+`validate.sh`.
+
+Two load-bearing constraints on the YAML block below (stated here in prose,
+deliberately OUTSIDE the fence): (1) the block must contain **no `#`-leading
+comment lines** — Check 17's parser disarms on any line starting with `#`, so a
+mid-block comment would silently drop every entry below it; (2) the `### Tracked
+root docs allowlist` heading text is **matched literally** by Check 17 — renaming
+it parses to an empty allowlist, which cascades to an orphan ERROR for every root
+`*.md` (it fails loudly, never silently passes, but the heading is load-bearing).
+
+### Tracked root docs allowlist
+- path: README.md
+  reason: GitHub renders it as the repo landing page
+- path: CLAUDE.md
+  reason: Claude Code auto-loads ./CLAUDE.md; moving to doc/ breaks auto-load
+- path: CHANGELOG.md
+  reason: /ship + /document-release write ./CHANGELOG.md (keep-a-changelog convention)
+- path: CONTRIBUTING.md
+  reason: GitHub surfaces it from root / docs/ / .github/ (not doc/)
+- path: TODOS.md
+  reason: operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship Step 14
+
 ## /document-release workbench audit conventions
 
 This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.

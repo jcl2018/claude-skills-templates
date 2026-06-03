@@ -728,6 +728,48 @@ else
   echo "  SKIP: $CONFIG_JSON not present (non-adopting repo; check is conditional)"
 fi
 
+echo ""
+echo "=== Check 17: root-doc placement allowlist ==="
+# Parse the allowlist from CLAUDE.md. Flag-based parser, same shape as Check 15,
+# BUT disarm on ANY heading (^#...), not just ^### — the allowlist is the last
+# ### subsection under its ## section, so disarming only on ### would over-capture
+# `- path:` lines from a following ## section.
+# CONSTRAINT: the YAML block must contain NO `#`-leading lines (comments). A
+# mid-block `#` line trips the `/^#/` disarm and silently drops every entry below
+# it. The `### Tracked root docs allowlist` heading text is also load-bearing —
+# it is matched literally, so renaming it parses to an empty allowlist and every
+# root *.md cascades to an orphan ERROR. The CLAUDE.md block carries the same
+# warning.
+ALLOWED_ROOT_MD=$(awk '
+  /^### Tracked root docs allowlist$/ {flag=1; next}
+  /^#/ {flag=0}
+  flag && /^- path:/ {print $3}
+' CLAUDE.md)
+ROOT_MD_ON_DISK=$(find . -maxdepth 1 -type f -name '*.md' 2>/dev/null | sed 's#^\./##' | sort)
+
+# 17-orphan: root *.md on disk that isn't allowlisted. Use the inline
+# echo+ERRORS form (prefix `  ERROR:`) to match Checks 15/16 exactly — NOT the
+# older fail() helper (prefix `  FAIL:`), which the newer checks abandoned.
+for f in $ROOT_MD_ON_DISK; do
+  if ! echo "$ALLOWED_ROOT_MD" | grep -qFx "$f"; then
+    echo "  ERROR: root doc $f is not in the CLAUDE.md 'Tracked root docs allowlist'; move it to doc/ (and register in the tracked-doc/ manifest) or add it to the root allowlist with a reason"
+    ERRORS=$((ERRORS+1))
+  fi
+done
+# 17-missing: allowlist entry that points to a missing file.
+for p in $ALLOWED_ROOT_MD; do
+  if [ ! -f "$p" ]; then
+    echo "  ERROR: $p is in the CLAUDE.md root-docs allowlist but missing from disk"
+    ERRORS=$((ERRORS+1))
+  fi
+done
+# Empty allowlist is not separately guarded: it surfaces as an orphan ERROR for
+# every root *.md (acceptable — the heading + entries are required and present;
+# a renamed heading or empty block fails loudly via orphan errors, never silently
+# passes). Count once into a var; `|| true` keeps it safe under set -euo pipefail.
+N_ALLOW=$(echo "$ALLOWED_ROOT_MD" | grep -c . || true)
+[ "$N_ALLOW" -gt 0 ] && echo "  PASS: root *.md allowlist parsed ($N_ALLOW entries)"
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

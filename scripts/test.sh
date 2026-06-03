@@ -255,6 +255,33 @@ else
   fail_test "validate.sh fails after manual skill creation"
 fi
 
+# Step 3b (F000038 / S000071): Check 17 root-doc placement allowlist.
+# KNOWN BLIND SPOT — every prior new validate.sh check (Check 13/14/15/16) needed
+# this parallel zzz-test-scaffold assertion and it was forgotten each time. Run
+# validate.sh from $REPO_ROOT so Check 17's `find . -maxdepth 1` resolves against
+# the repo root deterministically regardless of the launch cwd. Synthesize a
+# STRAY.md root doc NOT on the allowlist → assert validate.sh exits non-zero AND
+# emits the literal Check 17 orphan prefix (`  ERROR: root doc STRAY.md is not in
+# the CLAUDE.md` — the `  ERROR:` form Checks 15/16/17 use, NOT `  FAIL:`). Then
+# rm it → assert validate.sh exits 0 again. STRAY.md is removed before Step 4 so
+# it never leaks into a later test or a dirty checkout.
+touch "$REPO_ROOT/STRAY.md"
+if _C17_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 17: validate.sh should have exited non-zero with a stray root doc (STRAY.md), but exited 0"
+else
+  if echo "$_C17_OUT" | grep -qF "  ERROR: root doc STRAY.md is not in the CLAUDE.md"; then
+    ok "Check 17: stray root doc STRAY.md triggers orphan ERROR + non-zero exit"
+  else
+    fail_test "Check 17: validate.sh exited non-zero but missing '  ERROR: root doc STRAY.md is not in the CLAUDE.md' substring; output: $_C17_OUT"
+  fi
+fi
+rm -f "$REPO_ROOT/STRAY.md"
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 17: validate.sh exits 0 again after the stray root doc is removed"
+else
+  fail_test "Check 17: validate.sh should have exited 0 after STRAY.md removed, but exited non-zero"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
