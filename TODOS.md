@@ -287,7 +287,7 @@ Approach E follow-up from T000028 / Approach D ship. Surfaced by the autoplan CE
 <!-- source-quote: "The description is critical for skill selection: Claude uses it to choose the right Skill from potentially 100+ available Skills." -->
 <!-- impr-sig=432d0480aa0d58e5 impr-conf=8/10 -->
 
-### Post-v5.0.0: rip out legacy telemetry fallback-reads (P3, S)
+### ~~Post-v5.0.0: rip out legacy telemetry fallback-reads (P3, S)~~ DONE — closed by this PR (legacy-telemetry cleanup): ripped the `CJ_goal.jsonl` fallback-read from `skills/CJ_goal_todo_fix/scripts/todo_fix.sh` (removed `TELEMETRY_LEGACY` + the v4.2.0 migration comment; `telemetry_invocation_count()` now counts only the primary `CJ_goal_todo_fix.jsonl`) and deleted its "Fallback read" paragraph in `skills/CJ_goal_todo_fix/SKILL.md`. **Scope correction:** the row listed 4 files / ~20 LOC, but `skills/CJ_goal_run/SKILL.md` + `skills/CJ_goal_run/run.md` were already deleted in v6.0.0 (F000035 nuke wave) — only the 2 `CJ_goal_todo_fix` sites were live. No behavior change: legacy `CJ_goal.jsonl` is a pre-v4.0.0-rename file with no live consumer; operator-machine analytics under `~/.gstack/analytics/` are untouched, and CHANGELOG + shipped work-item artifacts (F000019/F000021/T000034) are historical records left as-is. Shipped via the light-edit path (no work-item scaffold). Archival body preserved below.
 
 Now that `/CJ_run` and `/CJ_goal` are deleted (v5.0.0, T000034, this PR), the
 legacy telemetry fallback-read paths (`CJ_run.jsonl` / `CJ_goal.jsonl`) in the

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.6] - 2026-06-02
+
+### Removed
+
+- **Legacy `CJ_goal.jsonl` telemetry fallback-read (`/CJ_goal_todo_fix`).** Dropped the pre-v4.0.0-rename fallback-read path from `scripts/todo_fix.sh`: removed the `TELEMETRY_LEGACY` variable + the S000046 migration comment, and simplified `telemetry_invocation_count()` to count only the primary `CJ_goal_todo_fix.jsonl`. The legacy file has no live consumer (the sunset trip-wire is still deferred until 8+ invocations exist), and operator-machine analytics under `~/.gstack/analytics/` are untouched — the helper now reflects the canonical path only. Closes the "Post-v5.0.0: rip out legacy telemetry fallback-reads" TODO; the row's two other listed targets (`skills/CJ_goal_run/SKILL.md` + `run.md`) were already deleted in v6.0.0's F000035 nuke wave, so only the two `CJ_goal_todo_fix` sites were live. SKILL.md's telemetry section and USAGE.md were updated to match.
+
 ## [6.0.4] - 2026-06-02
 
 ### Added

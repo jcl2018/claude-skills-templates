@@ -35,29 +35,15 @@ if [ -f "$TODOS" ]; then
   PRE_HASH=$(shasum -a 256 "$TODOS" | awk '{print $1}')
 fi
 
-# Telemetry path migration (S000046, v4.2.0):
-#   Primary write target:     ~/.gstack/analytics/CJ_goal_todo_fix.jsonl
-#   Fallback read (legacy):   ~/.gstack/analytics/CJ_goal.jsonl  (pre-rename)
-#
-# Sunset-trip-wire consumers MUST read both files and merge (older invocations
-# pre-date the v4.0.0 rename window). telemetry_invocation_count below is the
-# shared reader; the current run's write goes only to the new path.
-TELEMETRY_LEGACY="$HOME/.gstack/analytics/CJ_goal.jsonl"  # fallback-read only
-
-# Count invocation lines across both telemetry files (post-rename + legacy).
-# Used by sunset trip-wire calibration so the v4.0.0 rename doesn't reset the
-# trip-wire window. Read-only; never writes to either file.
+# Count invocation lines in the telemetry file. Used by sunset trip-wire
+# calibration. Read-only; never writes.
 # shellcheck disable=SC2329  # intentionally exposed for external sunset consumers
 telemetry_invocation_count() {
-  local n_new=0
-  local n_old=0
+  local n=0
   if [ -f "$TELEMETRY" ]; then
-    n_new=$(wc -l < "$TELEMETRY" | tr -d ' ')
+    n=$(wc -l < "$TELEMETRY" | tr -d ' ')
   fi
-  if [ -f "$TELEMETRY_LEGACY" ]; then
-    n_old=$(wc -l < "$TELEMETRY_LEGACY" | tr -d ' ')
-  fi
-  echo $((n_new + n_old))
+  echo "$n"
 }
 
 # Telemetry writer. Called from every exit path; idempotent within a run.
