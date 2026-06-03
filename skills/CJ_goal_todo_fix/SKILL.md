@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_todo_fix
-description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_personal-pipeline + /ship + /land-and-deploy. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
+description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item + /ship + /land-and-deploy. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
 version: 2.2.0
 allowed-tools:
   - Bash
@@ -23,15 +23,23 @@ allowed-tools:
 Per-TODO chain (both modes share this):
 
 ```
-TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold → /CJ_personal-pipeline
+TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
+   → /CJ_implement-from-spec → /CJ_qa-work-item (leaf Agent subagents, halt-on-red between)
    → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark → telemetry line
 ```
 
-Net new logic vs the upstream pipeline: pre-flight gate stack, TODOS.md parser
-(handles both `## Active work` and domain-grouped shapes), T-task scaffold
-writes (TRACKER + test-plan), direct-dispatch chain, per-session skip-list
-mechanic, hash-verify TODOS.md DONE-mark, shared lockfile (cross-skill drain
-race protection), and telemetry. Everything else is reuse.
+The T-task scaffold runs in pure bash (`todo_fix.sh:608-693` — ID picker +
+`tracker-task.md` template), so the dispatched chain is exactly
+`/CJ_implement-from-spec` → `/CJ_qa-work-item` (the `/CJ_goal_feature` Steps
+3.2-3.3 pattern, minus the scaffold step). Both run as depth-≤2 leaf Agent
+subagents (silent / no-AUQ); a non-green RESULT from either HALTs the chain
+(`halted_at_impl` / `halted_at_qa`).
+
+Net new logic vs the upstream phase skills: pre-flight gate stack, TODOS.md
+parser (handles both `## Active work` and domain-grouped shapes), T-task
+scaffold writes (TRACKER + test-plan), the impl→qa direct-dispatch chain,
+per-session skip-list mechanic, hash-verify TODOS.md DONE-mark, shared lockfile
+(cross-skill drain race protection), and telemetry. Everything else is reuse.
 
 **Input shapes:**
 - `/CJ_goal_todo_fix` — no args; drain mode; enumerates via /CJ_suggest and drains up to `--max-drain` (default 10).
@@ -72,7 +80,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator drives /CJ_personal-pipeline → /CJ_document-release → /ship → /land-and-deploy
+      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item (leaf subagents, halt-on-red) → /CJ_document-release → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."
@@ -93,7 +101,7 @@ lockfile entry before scaffolding. Loser of a cross-skill race emits
 - Missing `(P[1-4], [SMLX]+)` suffix on heading
 - Priority P1 OR size in {L, XL} (run /office-hours instead)
 - Sensitive surface AUQ (catalog / manifest / validator / `skills/*/scripts/` / `skills/*/*.md` / git-hook / templates) — v1.2 (S000044) added markdown skill files (SKILL.md, pipeline.md, etc.) since editing them is just as load-bearing as editing scripts
-- Design-needed keyword (`needs design` / `investigate` / `spike` / `redesign` / `re-do` / `re-ground` / `rewrite` / `rescope` / `/office-hours` / etc.) — v1.2 (S000044) added the re-design-rework signals after T000031 ("Re-do brief-mode for /CJ_personal-pipeline", body step 1: "/office-hours from a new worktree") slipped past the original `investigate|spike|...` regex
+- Design-needed keyword (`needs design` / `investigate` / `spike` / `redesign` / `re-do` / `re-ground` / `rewrite` / `rescope` / `/office-hours` / etc.) — v1.2 (S000044) added the re-design-rework signals after a "Re-do brief-mode" TODO (T000031; body step 1: "/office-hours from a new worktree") slipped past the original `investigate|spike|...` regex
 - Idempotency hit (T-tracker already exists for this heading)
 
 **Loop semantics.** `/loop /CJ_goal_todo_fix` continues on `end_state ∈ {green,
@@ -101,7 +109,7 @@ idempotent_skip, halted_at_preflight, halted_at_sensitive_surface_auto_declined}
 The sensitive-surface auto-default joins `halted_at_preflight` in the continue
 set because under bash there is no AUQ tool — the gate fires regardless of
 whether a human is present, so `/loop` should defer the row (skip-list) and
-keep iterating. Substantive halts (`halted_at_pipeline_*`, `halted_at_ship`,
+keep iterating. Substantive halts (`halted_at_impl`, `halted_at_qa`, `halted_at_ship`,
 `halted_at_deploy`, `halted_at_sensitive_surface_user_declined` (reserved for
 future interactive AUQ; not emitted in v1.1), `halted_at_resolve`,
 `halted_at_scaffold`, `halted_at_todos_md`) stop the loop. Per-session
@@ -201,7 +209,8 @@ Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 | `halted_at_sensitive_surface_auto_declined` | Bash auto-default at sensitive-surface gate (no AUQ tool reachable; honest disposition name). Mirrors `halted_at_preflight` semantics for `/loop` continuity. | continue (skip-list) |
 | `halted_at_sensitive_surface_user_declined` | (reserved for future interactive AUQ; not emitted in v1.1) Human at the AUQ explicitly declined the sensitive-surface gate. | STOP |
 | `halted_at_scaffold` | /CJ_personal-workflow check refused the scaffolded dir | STOP |
-| `halted_at_pipeline_implement` / `halted_at_pipeline_qa` | /CJ_personal-pipeline returned non-green | STOP |
+| `halted_at_impl` | /CJ_implement-from-spec leaf subagent returned non-green | STOP |
+| `halted_at_qa` | /CJ_qa-work-item leaf subagent returned non-green | STOP |
 | `halted_at_doc_sync` | Step 5.5 doc-sync: /CJ_document-release returned non-green ([doc-sync-red] — upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) | STOP |
 | `halted_at_doc_sync_no_config` | Step 5.5 doc-sync: cj-document-release.json missing/invalid/schema_version-unsupported ([doc-sync-no-config] — F000037 strict-required) | STOP |
 | `halted_at_doc_sync_non_doc_write` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist ([doc-sync-non-doc-write] — upstream-misbehaved) | STOP |
@@ -259,22 +268,27 @@ threshold TBD).
   per-TODO inner loop, called by BOTH `/CJ_goal_todo_fix` Phase 2 (drain
   mode) AND `/CJ_goal_run` Phase 5 (post-deploy TODO drain). One source of
   truth for: shared lockfile acquire/release, todo_fix.sh delegation, and
-  the CJ_GOAL_HANDOFF block contract that lets the orchestrator drive
-  `/CJ_personal-pipeline` + `/ship` + `/land-and-deploy` via the Skill tool.
+  the CJ_GOAL_HANDOFF block contract that lets the orchestrator dispatch
+  `/CJ_implement-from-spec` → `/CJ_qa-work-item` (leaf subagents) + `/ship` +
+  `/land-and-deploy` via the Agent/Skill tools.
 - **Script-extracted (D000017 pattern).** All load-bearing logic lives in
   `scripts/todo_fix.sh` with a `#!/usr/bin/env bash` shebang. Inline bash blocks
   inside SKILL.md routing crash under zsh (`status=` is read-only).
-- **/CJ_goal_run bypass.** /CJ_goal_run Branch(f) explicitly rejects `type: task`
-  (run.md:214). /CJ_goal_todo_fix follows that guidance and chains /CJ_personal-pipeline
-  + /ship + /land-and-deploy directly.
+- **Task-type chain.** /CJ_goal_todo_fix scaffolds a `type: task` T-task and
+  dispatches /CJ_implement-from-spec → /CJ_qa-work-item (leaf subagents) +
+  /ship + /land-and-deploy directly — the same depth-≤2 flatten as
+  /CJ_goal_feature Steps 3.2-3.3, minus the scaffold step (todo_fix scaffolds
+  in bash).
 - **Workbench is the source-of-truth, but the skill is portable.** v1 was
   developed and tested in the `claude-skills-templates` workbench — `TODOS.md`
   source convention lives here and gets curated here. The skill itself works
   in any repo with a `TODOS.md` and a `work-items/` tree: the post-scaffold
   workbench-coupled `validate.sh` check was removed from `scripts/todo_fix.sh`
-  (T000028 / Approach D), and `/CJ_personal-pipeline` Step 6 silently skips
-  `validate.sh` when the file is absent or non-executable. Downstream
-  `/loop /CJ_goal_todo_fix` drains are supported as of T000028.
+  (T000028 / Approach D); the dispatched leaf phase skills
+  (`/CJ_implement-from-spec`, `/CJ_qa-work-item`) run only the portable
+  `/CJ_personal-workflow check` at their boundaries, so they degrade gracefully
+  in repos without `scripts/validate.sh`. Downstream `/loop /CJ_goal_todo_fix`
+  drains are supported as of T000028.
 - **ID-picker source-of-truth.** v1 copy-pastes /CJ_scaffold-work-item Step 5's
   two-source picker block into `scripts/todo_fix.sh`. v1.1 will extract to
   `scripts/cj-id-picker.sh` (Open Q #1 in source design).

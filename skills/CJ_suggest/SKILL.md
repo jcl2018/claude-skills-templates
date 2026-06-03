@@ -1,6 +1,6 @@
 ---
 name: CJ_suggest
-description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, CJ_personal-pipeline, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix."
+description: "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix."
 version: 1.2.0
 allowed-tools:
   - Bash
@@ -56,9 +56,8 @@ user-facing top-level work. The filter catches:
 
 - `CJ_personal-workflow`, `CJ_company-workflow` (deprecated validator)
 - `CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`
-- `CJ_personal-pipeline`
-- Pre-v4.0 unprefixed forms with leading slash (`/personal-pipeline`,
-  `/scaffold-work-item`, etc.) for legacy TODOs that predate the rename.
+- Pre-v4.0 unprefixed forms with leading slash (`/scaffold-work-item`,
+  `/implement-from-spec`, etc.) for legacy TODOs that predate the rename.
 
 Each excluded row emits one stderr line: `[CJ_suggest] excluded: <id-or-title>
 reason=internal-skill (<matched-name>)`. Pass `--include-internal` to surface

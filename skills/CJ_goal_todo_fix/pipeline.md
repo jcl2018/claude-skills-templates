@@ -1,21 +1,67 @@
-# /CJ_goal_todo_fix — Orchestration (Step 5.5 reference)
+# /CJ_goal_todo_fix — Orchestration (impl→qa dispatch + Step 5.5 reference)
 
 The bulk of `/CJ_goal_todo_fix`'s orchestration lives in
 `scripts/todo_fix.sh` (single-TODO mode) and `scripts/drain-one-todo.sh`
 (drain-mode inner loop). See [SKILL.md](SKILL.md) for the full per-TODO
-chain (TODOS.md row → preflight → T-task scaffold → /CJ_personal-pipeline
-→ /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark → telemetry).
+chain (TODOS.md row → preflight → T-task scaffold → /CJ_implement-from-spec
+→ /CJ_qa-work-item → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark
+→ telemetry).
 
-This file documents the workbench-introduced **Step 5.5: Doc-sync**
-that runs INLINE per-TODO between QA pass (the /CJ_personal-pipeline
-green return) and `/ship`. The wiring matches `/CJ_goal_feature` and
-`/CJ_goal_defect` exactly, modulo the `<verb>` (`todo_fix`) in the
-resume_cmd.
+This file documents the two orchestrator-layer steps the bash scripts
+cannot run themselves: **Step 4** (the flattened impl→qa leaf-subagent
+dispatch, which replaced the retired middle-layer pipeline skill — F000039)
+and the workbench-introduced **Step 5.5: Doc-sync** that runs INLINE
+per-TODO between the QA-green boundary and `/ship`. The wiring matches
+`/CJ_goal_feature` and `/CJ_goal_defect` exactly, modulo the `<verb>`
+(`todo_fix`) in the resume_cmd.
+
+### Step 4: Dispatch impl→qa (flattened — leaf Agent subagents)
+
+`scripts/todo_fix.sh` emits a `CJ_GOAL_HANDOFF_BEGIN/END` block whose
+`WORK_ITEM_DIR=<path>` names the scaffolded T-task dir (the bash scaffold at
+`todo_fix.sh:608-693` already did the scaffold work, so the dispatched chain
+is impl→qa only — no separate scaffold step). The orchestrator parses that
+path, then
+dispatches the two leaf phase skills in sequence — exactly
+`/CJ_goal_feature/pipeline.md` Steps 3.2-3.3 (both **Agent**-tool,
+silent / no-AUQ), minus the scaffold step (3.1):
+
+1. **Implement.** Dispatch `/CJ_implement-from-spec` via the **Agent** tool
+   against `$WORK_ITEM_DIR` in auto-equivalent mode (subagents have no AUQ
+   tool):
+
+   ```
+   ROLE: /CJ_implement-from-spec runner for /CJ_goal_todo_fix (silent — no AUQ).
+   TASK: Invoke /CJ_implement-from-spec on the work-item dir in <inputs>, auto
+   mode. Return the RESULT line verbatim: RESULT: STATUS=<...>; FILES_CHANGED=<n>.
+   <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
+   ```
+
+   On crash / non-green RESULT (including a sensitive-surface AUQ the subagent
+   cannot answer): **HALT** with end_state `halted_at_impl`, write a journal
+   entry to the per-TODO T-task tracker, and stop. In drain mode the loop STOPs
+   on halt-on-red regardless of `--quiet`.
+
+2. **QA.** On impl green, dispatch `/CJ_qa-work-item` via the **Agent** tool
+   against the same `$WORK_ITEM_DIR`:
+
+   ```
+   ROLE: /CJ_qa-work-item runner for /CJ_goal_todo_fix (silent — no AUQ).
+   TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. Return the
+   RESULT line verbatim: RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>.
+   <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
+   ```
+
+   On QA red: **HALT** with end_state `halted_at_qa` (re-use the CJ_qa-work-item
+   halt marker — do NOT mint a new one), write the journal entry, and stop.
+
+Only on QA green does control proceed to Step 5.5 (Doc-sync). Both subagents
+are depth-≤2 leaves (they do NOT spawn further subagents — the F000027 wall).
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
-Doc-sync runs INLINE between the QA-green boundary (returned from
-`/CJ_personal-pipeline`) and `/ship`, so any doc updates fold into the
+Doc-sync runs INLINE between the QA-green boundary (the `/CJ_qa-work-item`
+leaf-subagent green return) and `/ship`, so any doc updates fold into the
 SAME per-TODO PR as the TODO fix. This closes the F000028+F000029
 marker-AUQ drift window for orchestrator-driven paths (F000029's
 marker-AUQ stays as fallback for non-orchestrator paths).

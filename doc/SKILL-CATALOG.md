@@ -91,11 +91,14 @@ TODOS.md row → /CJ_goal_todo_fix preflight
    │  (drain mode: enumerate via /CJ_suggest --for-skill cj-goal --limit 2*max)
    │  (single mode: exact T-ID or fragment match)
    ▼
-T-task scaffold (TRACKER + test-plan)
+T-task scaffold (TRACKER + test-plan, pure bash)
    │
    ▼
-/CJ_personal-pipeline
-   │  scaffold → implement → qa (depth-≤2 leaf subagents)
+/CJ_implement-from-spec   (leaf Agent subagent, halt-on-red → halted_at_impl)
+   │
+   ▼
+/CJ_qa-work-item          (leaf Agent subagent, halt-on-red → halted_at_qa)
+   │
    ▼
 /CJ_document-release   (Step 5.5 doc-sync; halt-on-red)
    │
@@ -112,47 +115,13 @@ TODOS.md DONE-mark (hash-verified row update)
 telemetry → ~/.gstack/analytics/CJ_goal_todo_fix.jsonl
 ```
 
-### CJ_personal-pipeline
-
-**Status:** active (internal scaffold→impl→qa engine; depended on by /CJ_goal_todo_fix + /CJ_goal_feature)
-**Source:** `skills/CJ_personal-pipeline/SKILL.md` · `skills/CJ_personal-pipeline/USAGE.md`
-
-**Invoke when:** an orchestrator (`/CJ_goal_todo_fix` or another) needs to drive scaffold → implement → QA on a design doc or already-scaffolded work-item dir. NOT typically called directly by the operator — it's the internal phase-2-to-4 loop engine. Common phrasings (from inside orchestrators): "run the pipeline", "drive scaffold/impl/qa".
-
-**Workflow:**
-
-```
-<design-doc-path>  OR  --work-item-dir <path>
-   │
-   ▼
-Pre-scaffold idempotency check (footer routing: 4 branches)
-   │
-   ▼  Phase 1 — Agent subagent: /CJ_scaffold-work-item
-   │        Returns: RESULT: WORK_ITEM_DIR=<path>
-   │
-   ▼  Post-scaffold gate: /CJ_personal-workflow check + AUQ confirm shape
-   │
-   ▼  Phase 2 — Agent subagent: /CJ_implement-from-spec
-   │        (pre-collected AUQs threaded in; subagent auto-equivalent)
-   │        Returns: RESULT: STATUS=...; FILES_CHANGED=<n>
-   │
-   ▼  Post-implement gate: /CJ_personal-workflow check + validate.sh
-   │
-   ▼  Phase 3 — Agent subagent: /CJ_qa-work-item
-   │        Returns: RESULT: SMOKE=...; E2E=...; PHASE2_GATES=...
-   │
-   ▼  Post-QA gate: parse tracker journal for [smoke-pass]/[qa-pass]; halt on red
-   │
-   ▼  telemetry → ~/.gstack/analytics/CJ_CJ_personal-pipeline.jsonl
-```
-
 ## Phase-step skills
 
 Called transitively by orchestrators (depth-2 leaf subagents). Their "chart" is one rectangle, so they tag instead.
 
 ### CJ_scaffold-work-item
 
-**Status:** active (phase-1 building block; called by /CJ_personal-pipeline and /CJ_goal_feature)
+**Status:** active (phase-1 building block; called by /CJ_goal_feature)
 **Source:** `skills/CJ_scaffold-work-item/SKILL.md` · `skills/CJ_scaffold-work-item/USAGE.md`
 
 **Invoke when:** an /office-hours design doc exists and needs to be distilled into a `work-items/` directory tree (TRACKER + SPEC + TEST-SPEC + lifecycle gates). Usually dispatched by an orchestrator; can also be called directly when the operator has a doc but wants to stop at scaffolding.
@@ -161,7 +130,7 @@ Called transitively by orchestrators (depth-2 leaf subagents). Their "chart" is 
 
 ### CJ_implement-from-spec
 
-**Status:** active (phase-2 building block; called by /CJ_personal-pipeline and /CJ_goal_feature)
+**Status:** active (phase-2 building block; called by /CJ_goal_feature and /CJ_goal_todo_fix)
 **Source:** `skills/CJ_implement-from-spec/SKILL.md` · `skills/CJ_implement-from-spec/USAGE.md`
 
 **Invoke when:** a scaffolded work-item exists with its per-type spec on disk (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks) and code needs to be written against it. Sensitive-surface AUQ for catalog/manifest/validator edits; `--auto` for trivial ≤2-file changes.
@@ -170,7 +139,7 @@ Called transitively by orchestrators (depth-2 leaf subagents). Their "chart" is 
 
 ### CJ_qa-work-item
 
-**Status:** active (phase-3 building block; called by /CJ_personal-pipeline, /CJ_goal_feature, and /CJ_goal_defect)
+**Status:** active (phase-3 building block; called by /CJ_goal_feature, /CJ_goal_defect, and /CJ_goal_todo_fix)
 **Source:** `skills/CJ_qa-work-item/SKILL.md` · `skills/CJ_qa-work-item/USAGE.md`
 
 **Invoke when:** a scaffolded + implemented work-item is in Phase 2 and needs its test-plan rows run. User-stories get smoke tests + a fresh-context E2E subagent per TEST-SPEC; defects and tasks run their test-plan rows as smoke-equivalent.

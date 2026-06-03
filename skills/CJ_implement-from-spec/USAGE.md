@@ -14,7 +14,7 @@ last-updated: "2026-06-01"
 - A scaffolded work-item exists with the per-type spec already on disk
   (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan
   for tasks)
-- An orchestrator (`/CJ_goal_feature`, `/CJ_personal-pipeline`) is delegating
+- An orchestrator (`/CJ_goal_feature`, `/CJ_goal_todo_fix`) is delegating
   the implementation phase as a leaf subagent
 - Trivial 1-2 file changes: pass `--auto` to skip the propose-and-confirm AUQ
 
@@ -53,7 +53,6 @@ on an already-implemented work-item is NO-OP-shaped.
 
 - `/CJ_scaffold-work-item` — upstream phase: produces the work-item tree
 - `/CJ_qa-work-item` — downstream phase: tests what this skill writes
-- `/CJ_personal-pipeline` — orchestrator that chains scaffold → impl → QA
-- `/CJ_goal_feature` + `/CJ_goal_defect` — top-level orchestrators that call
-  this skill as a leaf subagent
+- `/CJ_goal_feature` + `/CJ_goal_todo_fix` — top-level orchestrators that call
+  this skill as a leaf subagent (impl→qa flatten)
 - `/CJ_personal-workflow` — runs at boundaries to confirm structural shape
