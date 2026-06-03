@@ -3,12 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.5] - 2026-06-02
+## [6.0.6] - 2026-06-02
 
 ### Fixed
 
 - **cj_goal workflow charts now show the Step 5.5 doc-sync node.** The three orchestrator ASCII workflow charts (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) in `doc/SKILL-CATALOG.md`, each skill's `SKILL.md` overview chart, and the `USAGE.md` mental-model flow prose all jumped straight from QA to `/ship` — hiding the `/CJ_document-release` doc-sync step that F000036 wired in between (Step 5.5). Every other surface (the three `pipeline.md` files, `doc/PHILOSOPHY.md` decision tree, the catalog) already ran or listed it; the charts were the lone blind spot. All six chart blocks plus the three USAGE flow lines now render `… → QA → /CJ_document-release (Step 5.5 doc-sync) → /ship …`. Chart annotations read `halt-on-red` instead of citing the internal `[doc-sync-red]` marker — overview charts describe behavior while the halt-taxonomy table owns the marker IDs, and this also stops the chart line from shadowing `tests/cj-goal-doc-sync-wiring.test.sh`'s first-`[doc-sync-red]` ordering anchor (the wiring test flagged the collision; full suite green). No code or runtime behavior change.
+## [6.0.5] - 2026-06-02
 
+### Changed
+
+- **`doc/SKILL-CATALOG.md`: the `work-copilot` companion-surface entry is now documented to the same standard as the Claude orchestrators — ASCII workflow chart + per-command breakdown + richer overview.** The `### work-copilot` section was a single dense `(non-skill bundle)` paragraph that only name-dropped the `/wc-*` prompts inline, while every Claude orchestrator in the same file carried a full ASCII workflow chart — a reader couldn't see the shape of the Copilot pipeline without opening `work-copilot/WORKFLOW.md` plus all 7 prompt files. Adds: (1) a fenced ASCII workflow chart for the F000015 `/wc-*` Copilot pipeline (`/wc-investigate → /wc-scaffold → /wc-implement → /wc-qa → /wc-ship`, with `/validate` as the per-step structural gate and `/wc-pipeline` as the read-only `receipts.*` drift overlay; the chain stops at a clipboard-ready PR body because Copilot can't push); (2) a "What each command does" table (each command's role in a work workflow + what it writes); and (3) overview prose tying the steps together via the `receipts.<phase>` tracker-frontmatter chain and the underlying 3-step / 4-phase `WORKFLOW.md` model. Also a one-clause tweak to the catalog intro so a companion surface with a real multi-step workflow may carry both a chart and its `(non-skill bundle)` tag (the intro previously implied companion surfaces get only a tag line). Docs-only; no skill, validator, template, or bundle changes. `validate.sh` (incl. Check 15 catalog completeness) + `test.sh` stay green (0 errors / 0 warnings, 0 test failures). work-copilot companion-surface sections are not Check-15-enforced, so this is by-hand catalog hygiene.
 ## [6.0.4] - 2026-06-02
 
 ### Added
