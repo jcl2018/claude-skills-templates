@@ -43,7 +43,7 @@ orchestrators dispatch as leaf subagents, and standalone utilities
 TODOS.md rows to the shipping pipeline in one keystroke — see
 `skills/CJ_goal_todo_fix/SKILL.md`.
 /CJ_repo-init verifies/scaffolds the per-repo prerequisites (cj-document-release.json,
-TODOS.md, work-items/) that the CJ_ family needs to run in a given repo.
+CJ-DOC-RELEASE.md, TODOS.md, work-items/) that the CJ_ family needs to run in a given repo.
 /CJ_document-release (F000036) is the inline doc-sync wrapper invoked at
 Step 5.5 of every cj_goal orchestrator (between QA pass and `/ship`) — folds
 doc updates into the same code PR rather than chasing them post-merge.
@@ -435,8 +435,19 @@ it parses to an empty allowlist, which cascades to an orphan ERROR for every roo
   reason: GitHub surfaces it from root / docs/ / .github/ (not doc/)
 - path: TODOS.md
   reason: operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship Step 14
+- path: CJ-DOC-RELEASE.md
+  reason: canonical /CJ_document-release contract; sits beside its machine sidecar cj-document-release.json at root and is presence-checked by /CJ_repo-init
 
 ## /document-release workbench audit conventions
+
+> Canonical contract: the full, reader-facing `/CJ_document-release` contract —
+> wrapper flow, the doc-only auto-commit whitelist gate, the
+> `cj-document-release.json` schema, the registered-doc audit, and a
+> declaration-site index — lives in [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md) at
+> the repo root. The blocks below (`### Tracked doc/ files manifest` + its
+> `requirement:` strings, `### Reporting`) are the runtime-parsed machine surface
+> (read by `validate.sh` Check 15a and the `/CJ_document-release` Step 6.7 `awk`)
+> and stay verbatim and in-place here; CJ-DOC-RELEASE.md documents + indexes them.
 
 This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.
 
@@ -490,6 +501,11 @@ Registered-doc requirement verdicts appear under a third sibling subheading `###
 
 ## cj-document-release.json convention (F000037)
 
+> The reader-facing schema reference + the wider doc-release contract live in
+> [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md). This section is retained as the
+> SKILL.md prose anchor + the in-repo schema record; it is not the canonical
+> read.
+
 `/CJ_document-release` reads a strict-required per-repo config from
 `cj-document-release.json` at repo root. The file declares which docs the
 auto-commit whitelist gate honors AND which categories the `--docs <token>`
@@ -518,6 +534,11 @@ tracked-doc/ manifest, --docs negation, and multi-repo federation are all
 DEFERRED to future v2 schema bumps.
 
 ## Registered-doc requirements audit (Job 2 / T000038)
+
+> The reader-facing summary of this audit (registered set, verdict taxonomy,
+> surfacing, posture) is consolidated in [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md).
+> This section is retained as the SKILL.md prose anchor + the authoritative
+> mechanism reference for the Step 6.7 producer.
 
 This convention DOCUMENTS what the `/CJ_document-release` wrapper's **Step 6.7**
 does — it is the operator-facing reference for that producer step, NOT a
@@ -604,8 +625,11 @@ ADVISORY, agent-judged, NEVER a hard gate. No upstream gstack modification; no
 new hard `validate.sh` check in v1 (a registered doc lacking a requirement gets a
 soft `missing-requirement` verdict, not a CI error — hardening requirement-presence
 is a Job-2.1 follow-up). Scope: the 3 tracked-doc/ files + the active routable
-skill MDs. Root convention docs (README/CHANGELOG/CLAUDE.md) are out of scope —
-upstream `/document-release` already audits them per-file.
+skill MDs. Root convention docs (the README / CHANGELOG / CLAUDE.md category,
+plus `CJ-DOC-RELEASE.md` — a root `.md` is in neither the catalog-skill set nor
+the tracked-doc/ manifest) are out of scope for the registered-doc audit;
+`CJ-DOC-RELEASE.md`'s enforcement is `/CJ_repo-init` presence. Upstream
+`/document-release` already audits the README/CHANGELOG/CLAUDE.md set per-file.
 
 ## TODOS.md hygiene conventions
 
