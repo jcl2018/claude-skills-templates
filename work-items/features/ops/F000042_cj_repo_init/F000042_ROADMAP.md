@@ -1,6 +1,6 @@
 ---
 type: roadmap
-parent: F000041
+parent: F000042
 title: "CJ_repo-init — verify/scaffold per-repo prerequisites for the CJ_ skill family — Roadmap"
 date: 2026-06-03
 author: chjiang
@@ -38,27 +38,27 @@ repo-level prerequisites from generic portable seeds after one confirm. It is th
 
 | User-Story | Title | Status |
 |-----------|-------|--------|
-| [S000074](S000074_cj_repo_init_skill/S000074_TRACKER.md) | cj-repo-init detection engine + skill + tests + wiring | Open |
+| [S000075](S000075_cj_repo_init_skill/S000075_TRACKER.md) | cj-repo-init detection engine + skill + tests + wiring | Open |
 
 ## Delivery Timeline
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|
-| 1 | Ship S000074 (engine + skill + tests + catalog/doc/routing wiring) | — | Not Started | chjiang | Single cohesive user-story carries the whole feature | — |
+| 1 | Ship S000075 (engine + skill + tests + catalog/doc/routing wiring) | — | Not Started | chjiang | Single cohesive user-story carries the whole feature | — |
 | 2 | End-to-end pipeline run (fresh repo → detect → confirm → scaffold → no-op re-run) | — | Not Started | chjiang | Validates the success criteria as a user would experience them | #1 |
 
 ### Delivery History
 
 <!-- Backward-looking record: PR links, merge dates, version bumps after ship. -->
 
-- 2026-06-03: F000041 scaffolded from /office-hours design doc.
+- 2026-06-03: F000042 scaffolded from /office-hours design doc.
 
 ## Dependency Graph
 
 <!-- Visual representation of milestone ordering. -->
 
 ```
-#1 Ship S000074 (engine + skill + tests + wiring) --> #2 End-to-end pipeline run
+#1 Ship S000075 (engine + skill + tests + wiring) --> #2 End-to-end pipeline run
 ```
 
 ## Open Questions
@@ -67,5 +67,5 @@ repo-level prerequisites from generic portable seeds after one confirm. It is th
 
 | Question | Next check |
 |----------|-----------|
-| `--fix` pre-creates `work-items/` top-level dirs vs leaving to first scaffold? | Lean create; resolve in S000074 SPEC. |
+| `--fix` pre-creates `work-items/` top-level dirs vs leaving to first scaffold? | Lean create; resolve in S000075 SPEC. |
 | Future `--add <skill>` targeted mode | Deferred to post-v1; revisit if demand appears. |

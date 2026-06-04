@@ -1,7 +1,7 @@
 ---
 type: test-spec
-parent: S000074
-feature: F000041
+parent: S000075
+feature: F000042
 title: "cj-repo-init detection engine + skill + tests + wiring — Test Specification"
 version: 1
 status: Draft

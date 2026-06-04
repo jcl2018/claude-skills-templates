@@ -1,6 +1,6 @@
 ---
 type: design
-parent: F000041
+parent: F000042
 title: "CJ_repo-init — verify/scaffold per-repo prerequisites for the CJ_ skill family — Feature Design"
 version: 1
 status: Draft
@@ -45,7 +45,7 @@ cohesive change carried by a single user-story.
 
 | Concern | User-story | Artifact |
 |---------|-----------|----------|
-| Detection engine + skill wrapper + tests + catalog/doc/routing wiring | S000074 | [S000074_cj_repo_init_skill/S000074_TRACKER.md](S000074_cj_repo_init_skill/S000074_TRACKER.md) |
+| Detection engine + skill wrapper + tests + catalog/doc/routing wiring | S000075 | [S000075_cj_repo_init_skill/S000075_TRACKER.md](S000075_cj_repo_init_skill/S000075_TRACKER.md) |
 
 ## Big decisions
 
@@ -83,8 +83,8 @@ cohesive change carried by a single user-story.
 
 <!-- Cross-links to related artifacts. -->
 
-- Parent tracker: [F000041_TRACKER.md](F000041_TRACKER.md)
-- Roadmap: [F000041_ROADMAP.md](F000041_ROADMAP.md)
+- Parent tracker: [F000042_TRACKER.md](F000042_TRACKER.md)
+- Roadmap: [F000042_ROADMAP.md](F000042_ROADMAP.md)
 - Source design doc: `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-cj-feat-20260603-174453-41356-design-20260603-175343.md`
 - Pattern precedent: `scripts/skills-doc-sync-check` (detection-in-script / AUQ-in-prose split, CLAUDE.md "Novel pattern callout")
 - Related config convention: `cj-document-release.json` (F000037) + `validate.sh` Check 16

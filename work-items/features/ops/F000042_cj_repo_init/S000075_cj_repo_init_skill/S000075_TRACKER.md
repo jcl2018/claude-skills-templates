@@ -1,17 +1,17 @@
 ---
 name: "cj-repo-init detection engine + skill + tests + wiring"
 type: user-story
-id: "S000074"
+id: "S000075"
 status: active
 created: "2026-06-03"
 updated: "2026-06-03"
-parent: "F000041"
+parent: "F000042"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "cj-feat-20260603-174453-41356"
 blocked_by: ""
 ---
 
-<!-- Prerequisite: parent feature F000041's /office-hours session is the design source. -->
+<!-- Prerequisite: parent feature F000042's /office-hours session is the design source. -->
 
 ## Lifecycle
 
@@ -131,7 +131,7 @@ blocked_by: ""
 - 2026-06-03 [impl-decision] `--fix` does NOT overwrite a present-but-invalid `cj-document-release.json` — it reports a `NOTE:` to stderr and leaves the file. Clobbering an intentional-but-broken config would lose operator data; safer to surface and let them fix by hand.
 - 2026-06-03 [impl-finding] KNOWN BLIND SPOT addressed: this repo's `scripts/test.sh` does NOT auto-glob `tests/*.test.sh` — each test is invoked by an explicit `bash "$REPO_ROOT/tests/X.test.sh"` block. Added the `Running tests/cj-repo-init.test.sh` block after the cj-goal-doc-sync-wiring block (F000032/F000034/F000035 each forgot this parallel edit).
 - 2026-06-03 [impl] Wrote 4 files (scripts/cj-repo-init.sh, skills/CJ_repo-init/SKILL.md, skills/CJ_repo-init/USAGE.md, tests/cj-repo-init.test.sh); modified 4 (scripts/test.sh, skills-catalog.json, doc/SKILL-CATALOG.md, rules/skill-routing.md). Both .sh files chmod +x. validate.sh PASS (0 errors/0 warnings); cj-repo-init.test.sh all assertions pass.
-- 2026-06-03 [impl-pass] S000074: implementation complete. Phase 2 implementer-owned gates transitioned (Todos + Files). QA-owned gates (Acceptance criteria verified met, Smoke tests pass) left for /CJ_qa-work-item.
+- 2026-06-03 [impl-pass] S000075: implementation complete. Phase 2 implementer-owned gates transitioned (Todos + Files). QA-owned gates (Acceptance criteria verified met, Smoke tests pass) left for /CJ_qa-work-item.
 - 2026-06-03 [qa-smoke] S1 (AC-1, AC-2): green — detect_emits_gaps: default run prints table + GAPS=3 + per-gap REPO_GAP lines; exit 1 with gaps present.
 - 2026-06-03 [qa-smoke] S2 (AC-3, AC-5): green — fix_then_noop: --fix scaffolds 3 prereqs, exit 0, post-fix GAPS=0; idempotent re-run reports no-op, exit 0.
 - 2026-06-03 [qa-smoke] S3 (AC-6): green — config_valid_and_invalid_detected: generated config passes all 4 Check-16 sub-assertions; unparseable + schema_version=2 flagged as invalid gap; --fix does not clobber present-but-invalid config.
@@ -143,4 +143,4 @@ blocked_by: ""
 - 2026-06-03 [qa-e2e] E2 (AC-5): green — idempotent re-run on the now-healthy repo: GAPS=0, no AUQ path (skill Step 3 no-op branch), 4 table rows green, no writes (tree unchanged), exit 0. [parent-inline]
 - 2026-06-03 [qa-e2e] E3 (AC-8): green — suite green: ./scripts/validate.sh exit 0 (0 errors/0 warnings, incl. CJ_repo-init SKILL-CATALOG section + Check 16 schema + Check 17 allowlist); ./scripts/test.sh exit 0 (Failures: 0); cj-repo-init.test.sh wired + green at test.sh line 929. [parent-inline]
 - 2026-06-03 [qa-e2e-summary] green (0s subagent; 3 rows parent-inline; 0 deferred): all 3 E2E criteria green (E1 fresh-init+single-AUQ+scaffold, E2 idempotent no-op, E3 validate.sh+test.sh suite green).
-- 2026-06-03 [qa-pass] S000074 (user-story): green smoke + green E2E. Phase 2 gates transitioned (Acceptance criteria verified met + Smoke tests pass).
+- 2026-06-03 [qa-pass] S000075 (user-story): green smoke + green E2E. Phase 2 gates transitioned (Acceptance criteria verified met + Smoke tests pass).

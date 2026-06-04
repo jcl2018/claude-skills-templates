@@ -1,6 +1,6 @@
 ---
 type: design
-parent: S000074
+parent: S000075
 title: "cj-repo-init detection engine + skill + tests + wiring — Design"
 version: 1
 status: Draft
@@ -16,7 +16,7 @@ reviewers: []
 A repo with CJ_ skills installed under `~/.claude/` can still fail at runtime because the
 per-repo config files those skills require (`cj-document-release.json`, `TODOS.md`,
 `work-items/` tree) are absent. This story builds the engine + skill that detects and
-scaffolds those prerequisites. See parent [F000041_DESIGN.md](../F000041_DESIGN.md) for
+scaffolds those prerequisites. See parent [F000042_DESIGN.md](../F000042_DESIGN.md) for
 the full problem framing.
 
 ## Shape of the solution
@@ -55,8 +55,8 @@ The detection-in-script / AUQ-in-prose split mirrors `skills-doc-sync-check`.
 
 <!-- Cross-links to related artifacts. -->
 
-- Parent feature design: [../F000041_DESIGN.md](../F000041_DESIGN.md)
-- Parent tracker: [../F000041_TRACKER.md](../F000041_TRACKER.md)
-- Spec: [S000074_SPEC.md](S000074_SPEC.md)
-- Test spec: [S000074_TEST-SPEC.md](S000074_TEST-SPEC.md)
+- Parent feature design: [../F000042_DESIGN.md](../F000042_DESIGN.md)
+- Parent tracker: [../F000042_TRACKER.md](../F000042_TRACKER.md)
+- Spec: [S000075_SPEC.md](S000075_SPEC.md)
+- Test spec: [S000075_TEST-SPEC.md](S000075_TEST-SPEC.md)
 - Pattern precedent: `scripts/skills-doc-sync-check`

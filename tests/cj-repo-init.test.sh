@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/cj-repo-init.test.sh
 #
-# Unit tests for scripts/cj-repo-init.sh (F000041 / S000074).
+# Unit tests for scripts/cj-repo-init.sh (F000042 / S000075).
 #
 # Each test runs the engine in an isolated temp git repo with a synthetic
 # CJ_REPO_INIT_CLAUDE_HOME, so the deployed-manifest detection path is fully
