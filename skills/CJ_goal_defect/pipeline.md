@@ -667,9 +667,9 @@ If green: continue to Step 5.5 (Doc-sync), then Step 9 (/ship).
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
 Doc-sync runs INLINE between the QA-green boundary and `/ship`, so any doc
-updates fold into the SAME defect PR as the fix. This closes the
-F000028+F000029 marker-AUQ drift window for orchestrator-driven paths
-(F000029's marker-AUQ stays as fallback for non-orchestrator paths).
+updates fold into the SAME defect PR as the fix. There is no post-merge
+doc-drift window for orchestrator-driven paths: the doc update ships in the
+same PR as the fix.
 
 Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
 (v1 orchestrator wiring runs a full audit; the per-doc subset flag is for

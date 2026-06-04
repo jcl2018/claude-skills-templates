@@ -67,11 +67,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review) against main
-- [ ] `/land-and-deploy` — merged and deployed (deferred)
+- [x] `/ship` — PR created (with pre-landing review) against main
+- [x] `/land-and-deploy` — merged and deployed (deferred)
 
 ## Acceptance Criteria
 
@@ -132,6 +132,8 @@ blocked_by: ""
 
 <!-- PR links with status (open/merged/closed). -->
 
+- [PR #195: v6.0.4 feat: F000038 root-doc placement convention + validate.sh Check 17](https://github.com/jcl2018/claude-skills-templates/pull/195) — MERGED
+
 ## Files
 
 <!-- Affected file paths. -->
@@ -184,3 +186,4 @@ blocked_by: ""
 - 2026-06-02 [qa-e2e] E3 (AC-3, AC-4): green — full local pipeline walk: `check-version-queue.sh` confirms next free slot v6.0.4; clean validate.sh exit 0 + Check 17 PASS (5 entries) + 0 errors/0 warnings; STRAY.md → non-zero + exact orphan ERROR; rm → exit 0; test.sh exit 0 (zzz-test-scaffold Check 17 assertions pass). No regression in Checks 1–16. [parent-inline]
 - 2026-06-02 [qa-e2e-summary] green (0s subagent; 3 rows parent-inline; 1 deferred): All 3 pre-ship E2E rows (E1/E2/E3) green via parent-inline shell-assertion verification; E4 deferred to post-merge (post-ship). No subagent dispatched (shell-command E2E rows, depth-limit context — run inline). Tracker journal updated.
 - 2026-06-02 [qa-pass] S000071 (user-story): green smoke (4/4 non-manual; 1 manual S5 pending /ship) + green E2E (E1/E2/E3; E4 post-ship deferred). Phase 2 QA-owned gates already [x] (re-verified green this run; commit deferred to /ship per /CJ_goal_feature pipeline). Evidence: T1 validate exit 0 + Check 17 PASS 5 entries; T2 STRAY.md → rc=1 exact orphan ERROR → rm → rc=0; T3 test.sh exit 0 incl. both zzz-test-scaffold Check 17 assertions.
+- 2026-06-02 [gates-update] Phase 3: /ship — PR #195,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #195,PRs section: linked PR #195 (MERGED).

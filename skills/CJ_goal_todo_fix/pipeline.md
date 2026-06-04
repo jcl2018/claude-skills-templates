@@ -62,9 +62,9 @@ are depth-≤2 leaves (they do NOT spawn further subagents — the F000027 wall)
 
 Doc-sync runs INLINE between the QA-green boundary (the `/CJ_qa-work-item`
 leaf-subagent green return) and `/ship`, so any doc updates fold into the
-SAME per-TODO PR as the TODO fix. This closes the F000028+F000029
-marker-AUQ drift window for orchestrator-driven paths (F000029's
-marker-AUQ stays as fallback for non-orchestrator paths).
+SAME per-TODO PR as the TODO fix. There is no post-merge doc-drift window
+for orchestrator-driven paths: the doc update ships in the same PR as the
+TODO fix.
 
 Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
 (v1 orchestrator wiring runs a full audit; the per-doc subset flag is for

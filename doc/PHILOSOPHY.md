@@ -18,7 +18,7 @@ The templates and validation surface reach two kinds of consumer, and the repo i
 
 **2. Absorb what you own, compose what you don't.** The workbench's own skills (scaffold, implement, qa, workflow validator) absorb the logic they need directly. For post-ship documentation updates, the workbench composes with gstack's `/document-release` rather than reimplementing it; for merge + deploy it composes with gstack's `/ship` and `/land-and-deploy`. The tradeoff: absorbing means you maintain it, composing means you depend on upstream. The CLAUDE.md `## /document-release workbench audit conventions` section is a concrete example: it teaches the upstream skill workbench-specific drift checks by riding the existing project-context behavior, no fork required.
 
-**3. Filesystem as protocol.** Parent/child relationships are expressed by directory nesting (`work-items/<domain>/F000NNN_<slug>/S000NNN_<slug>/`). Work item types are determined by branch naming conventions (`cj-feat-*` = feature, `cj-fix-*` = defect). Template resolution follows a fallback chain (`templates/<skill>/` then `~/.claude/templates/<skill>/`). State markers live as on-disk JSON files in `~/.gstack/` (e.g., `doc-sync-pending/<repo-slug>.json`). The tradeoff: no database, no API, no sync, but the conventions must be documented and followed.
+**3. Filesystem as protocol.** Parent/child relationships are expressed by directory nesting (`work-items/<domain>/F000NNN_<slug>/S000NNN_<slug>/`). Work item types are determined by branch naming conventions (`cj-feat-*` = feature, `cj-fix-*` = defect). Template resolution follows a fallback chain (`templates/<skill>/` then `~/.claude/templates/<skill>/`). State lives as on-disk JSON files (e.g., the update-check cache at `~/.claude/.skills-templates-update.json`; per-orchestrator telemetry JSONL under `~/.gstack/analytics/`). The tradeoff: no database, no API, no sync, but the conventions must be documented and followed.
 
 **4. Declare, don't hardcode.** `personal-artifact-manifests.json` (owned by `/CJ_personal-workflow`) is the single source of truth for which artifacts each work item type requires. The manifest drives scaffolding, validation, and template resolution. Adding a new artifact type means adding one JSON entry, not editing 5 files. The tradeoff: one more file to keep in sync. The same shape generalizes: `skills-catalog.json` declares which skills exist + their status; `rules/skill-routing.md` declares routing; `WORKFLOW.md` per skill declares structural rules.
 
@@ -139,7 +139,7 @@ START: What's your input?
 
 The orchestrators all converge on the same downstream chain (`/ship` → `/land-and-deploy`) — they differ in what they take as input (topic / bug / defect / TODO row). **GATE #1** (final approval before code is written) is always human across all four. **GATE #2** (post-implementation merge) is human-by-default; the handoff-gate denylist blocks exactly the skill surfaces every feature touches, so PR-stop is the correct stopping point for skill-work in this workbench.
 
-For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F000028 doc-sync hooks, the F000029 marker-pickup AUQ, the F000036 inline doc-sync wrapper), see [doc/ARCHITECTURE.md](ARCHITECTURE.md).
+For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F000036 inline doc-sync wrapper at pipeline Step 5.5), see [doc/ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## How to extend without breaking its character
 
@@ -164,7 +164,7 @@ For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F00002
 
 **gstack (optional but expected for shipping):** `/CJ_goal_feature` and `/CJ_goal_defect` compose with gstack's `/office-hours`, `/ship`, and `/land-and-deploy` to take a topic / bug description through to a shipped fix. `/CJ_system-health` optionally invokes waza for config hygiene. Neither is required for core scaffolding/validation.
 
-**Doc-sync mechanism (F000028 + F000029):** A `post-merge` / `post-rewrite` git hook writes `~/.gstack/doc-sync-pending/<repo-slug>.json` after non-trivial main-moving merges. Each `cj_goal` orchestrator preamble emits a `DOC_SYNC_PENDING <path>` line picked up as an AUQ (run `/document-release` inline now, snooze, or skip). See [doc/ARCHITECTURE.md](ARCHITECTURE.md) for the full mechanism reference.
+**Doc-sync mechanism (F000036 inline Step 5.5):** Doc updates fold into the same PR as the code — each `cj_goal` orchestrator invokes `/CJ_document-release` inline at Step 5.5 (between QA pass and `/ship`), and `/ship` Step 18 covers manual ship paths. The earlier F000028/F000029 post-merge marker + preamble-AUQ mechanism was retired by F000040 once this inline path made it redundant. See [doc/ARCHITECTURE.md](ARCHITECTURE.md) for the full mechanism reference and CLAUDE.md `## Doc-sync coverage` for the accepted gap.
 
 **Assumptions:** The developer uses branch naming conventions for work item type detection. Templates exist either in `templates/<skill>/` (repo root) or `~/.claude/templates/<skill>/` (deployed globally). `personal-artifact-manifests.json` is at the skill's source root and matches the templates on disk.
 
@@ -179,5 +179,3 @@ For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F00002
 **ID collision.** Work item IDs are auto-incremented from the highest existing ID in `work-items/`. If two sessions scaffold simultaneously, they could generate the same ID. Low risk for solo dev. Mitigation: none (accepted limitation for solo use).
 
 **Skill-catalog version drift.** If a skill's SKILL.md frontmatter version doesn't match its catalog entry, `validate.sh` catches it. But nothing prevents manual edits that create drift between ship cycles.
-
-**Doc-sync marker accumulation.** F000028's git hook writes one marker per non-trivial main-moving merge. If the operator never picks them up, markers accumulate in `~/.gstack/doc-sync-pending/`. Mitigation: the F000029 marker-pickup AUQ surfaces them at each `cj_goal` orchestrator entry; stale-marker self-clean drops markers whose `head_sha` is no longer reachable from current HEAD.
