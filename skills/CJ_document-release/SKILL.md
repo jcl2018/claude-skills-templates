@@ -432,9 +432,11 @@ skill's optional `doc_requirement` (absent ⇒ the shared default):
 
 ```bash
 _CATALOG="$_REPO_ROOT/skills-catalog.json"
-# Active routable skills (non-empty files array) — the SAME selector the
-# F000030 New-skills check uses; no hardcoded skill count.
-SKILL_NAMES=$(jq -r '.[] | select(.status=="active") | select((.files | length) > 0) | .name' "$_CATALOG")
+# Routable skills (non-empty files array), active OR experimental — the
+# `!= "deprecated"` predicate (the same one Check 14/15b use), deliberately
+# BROADER than the F000030 New-skills check (active-only) so the audit covers
+# the whole CJ_ family, not just the 3 active skills; no hardcoded skill count.
+SKILL_NAMES=$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_CATALOG")
 
 # The shared default skill-MD requirement (used when a skill has no doc_requirement):
 SHARED_DEFAULT="The SKILL.md frontmatter \`description\` and the documented behavior/steps match the skill's current implementation; the skill's USAGE.md is current."

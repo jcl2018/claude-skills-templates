@@ -524,9 +524,11 @@ USAGE.md up to date vs its requirement, SKILL.md?" for one doc-pair).
 1. **Tracked-doc/ files** — every entry in the `### Tracked doc/ files manifest`
    block above, each carrying a bespoke `requirement:` value (the Job-2 extension
    of the F000034 manifest). The doc's requirement is that `requirement:` string.
-2. **Active routable skill MDs** — every skill returned by the SAME selector the
-   New-skills check uses (`jq -r '.[] | select(.status=="active") | select((.files
-   | length) > 0) | .name' skills-catalog.json` — no hardcoded skill count). Each
+2. **Routable skill MDs (active OR experimental)** — every skill returned by
+   `jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json`
+   (the `!= "deprecated"` predicate Check 14/15b use — deliberately BROADER than
+   the F000030 New-skills check's active-only selector, so the audit covers the
+   whole CJ_ family, not just the 3 active skills; no hardcoded skill count). Each
    skill's `SKILL.md` is a registered doc; its requirement is the skill's optional
    `doc_requirement` field in `skills-catalog.json`, else the shared default below.
 
