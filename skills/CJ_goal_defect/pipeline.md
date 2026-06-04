@@ -761,7 +761,27 @@ If red (CI / merge / canary / regression): halt with a `[land-and-deploy-red]`
 journal entry (`pr_url=$PR_URL`) + the C7 3-line block. Telemetry:
 `end_state=halted_at_deploy`.
 
-If green: continue to Step 11.
+If green: continue to Step 10.5.
+
+## Step 10.5: Worktree cleanup (best-effort, post-land; NEVER halts)
+
+The PR has landed (Step 10 merged + deployed). Sweep landed cj-* worktrees +
+refresh root main via the shared cleanup phase (T000036) — the teardown mirror of
+the Step 1 worktree-create phase. This defect run's own `cj-def-*` worktree is now
+swept too (its PR is MERGED), along with any other MERGED/CLOSED cj-* worktrees;
+the root checkout is pulled current.
+
+Cleanup is strictly best-effort and runs only AFTER the PR is safely landed, so it
+can never endanger shipped work. `cj-goal-common.sh --phase cleanup` emits
+`PHASE_RESULT=ok|skipped`, never `failed` — a failed sweep logs a note and the run
+still reports `green`. There is no halt path here.
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+[ -x "$_COMMON" ] && bash "$_COMMON" --phase cleanup --mode defect 2>/dev/null || true
+```
+
+Continue to Step 11.
 
 ## Step 11: Final journal write + telemetry
 

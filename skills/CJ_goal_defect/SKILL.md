@@ -161,10 +161,19 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID; idempotent — same phrase resumes t
    │
    ▼  /land-and-deploy --suppress-readiness-gate   (Skill invocation)
    │
+   ▼  worktree cleanup   (best-effort — cj-goal-common.sh --phase cleanup --mode defect)
+   │        sweeps this run's own cj-def-* worktree (PR now MERGED) + other landed
+   │        cj-* worktrees + refreshes root main. NEVER halts the run.
+   │
    ▼  tracker journal: [defect-shipped] D000NNN vX.Y.Z PR #NNN
    │
    ▼  telemetry append → ~/.gstack/analytics/CJ_goal_defect.jsonl
 ```
+
+Worktree cleanup is best-effort, post-land, and **never halts the run** — it runs
+only after the PR is safely landed, so it can never endanger shipped work; a failed
+sweep logs a note and the run still reports `green` ([pipeline.md](pipeline.md)
+Step 10.5; the post-run teardown mirror of the Step 1 worktree-create phase).
 
 Iron-Law gate is enforced by design: `/investigate` Phase 4 writes the fix
 DIRECTLY to source — there is NO separate `/CJ_implement-from-spec` step. RCA

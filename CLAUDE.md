@@ -80,6 +80,20 @@ gh api -X DELETE "repos/jcl2018/claude-skills-templates/git/refs/heads/<branch>"
 
 Run this after the merge to actually delete the remote branch.
 
+*Automated local-worktree sweep (T000036).* The manual `gh api -X DELETE` above
+deletes the **remote** branch; the **local** `.claude/worktrees/cj-*/` dir is swept
+automatically by the post-run janitor `scripts/cj-worktree-cleanup.sh`. Each of the
+three `CJ_goal_*` orchestrators runs it at its post-land terminal (feature: after
+the PR opens; defect/todo: after `/land-and-deploy`), so a landed run's own
+worktree — plus any *other* MERGED/CLOSED `cj-*` worktrees — is removed and the root
+checkout is pulled back to `main`, with no manual step. It is **PR-state-gated** (a
+worktree is removed only when its PR reads MERGED/CLOSED — never by branch ancestry,
+which a squash merge breaks) and **self-healing** (every cj_goal run sweeps *all*
+landed cj-* worktrees, so a hand-merged worktree is cleared by the next run of any
+kind). It is strictly best-effort — it never halts a run. To preview the current
+sweep at any time without mutating anything: `./scripts/cj-worktree-cleanup.sh
+--dry-run` (lists `WOULD-REMOVE` / `WOULD-SKIP`).
+
 **Post-land local sync (F000041).** After `gh pr merge` + verify MERGED + the
 worktree branch cleanup above, run the helper to install the merged skills
 locally and refresh `collection_version`:
@@ -282,6 +296,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `setup-hooks.sh` | Installs git hooks (pre-commit validate + post-merge auto-sync + post-merge Phase 3 lifecycle-gate update) | Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks) |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
 | `post-land-sync.sh` | Post-land local sync: resolve `.source` from the manifest, guard (`.source` exists / on `main` / clean tracked tree), `git pull --ff-only` + `skills-deploy install` from `.source`, report `collection_version` before→after. `--dry-run` previews. Closes the gap where a remote `gh pr merge` bypasses the local post-merge auto-sync hook, leaving merged skills uninstalled + the manifest version lagging `.source`. | After `gh pr merge` + verify MERGED + branch cleanup (the merge convention's post-land step) |
+| `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
 
 ## Update-check mechanism (F000009)

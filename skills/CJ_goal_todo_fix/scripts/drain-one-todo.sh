@@ -176,11 +176,41 @@ if [ -z "$HEADING" ]; then
   exit 1
 fi
 
+# Resolve cj-worktree-cleanup.sh (the post-run janitor, T000036) via the same
+# manifest .source convention the per-iteration worktree-init resolution uses.
+# Drain mode wires cleanup DIRECTLY (todo does not route through cj-goal-common.sh).
+# Best-effort: unreachable helper is a silent no-op.
+resolve_cleanup_helper() {
+  local src fallback
+  src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || true)
+  if [ -n "$src" ] && [ -x "$src/scripts/cj-worktree-cleanup.sh" ]; then
+    printf '%s' "$src/scripts/cj-worktree-cleanup.sh"; return 0
+  fi
+  fallback="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-cleanup.sh"
+  [ -x "$fallback" ] && { printf '%s' "$fallback"; return 0; }
+  return 1
+}
+
 case "$SUBCMD" in
   acquire)
     lock_acquire "$HEADING" "$SESSION_ID"
     ;;
   release)
+    # The orchestrator calls `release` at the per-iteration terminal — AFTER the
+    # chain (/CJ_implement-from-spec → /CJ_qa-work-item → /CJ_document-release →
+    # /ship → /land-and-deploy → DONE-mark) for this drained TODO has completed.
+    # This is the real post-/land-and-deploy dispatch point, so the post-run
+    # worktree janitor (T000036) runs here. Best-effort, NEVER halts: a failed or
+    # unreachable sweep is ignored and the drain loop continues. Run cleanup FIRST
+    # (while the lock is still held — irrelevant to the sweep, which is gated by
+    # PR state + dirty-tree, not the heading lock), then release the lock.
+    #
+    # The just-shipped TODO's own cj-todo-* worktree is now swept (its PR is
+    # MERGED). An in-flight sibling worktree the NEXT drain iteration just created
+    # is protected by the no-PR ⇒ SKIP rail (PR_EXISTS=0), so drain — the
+    # highest-collision path — is safe.
+    _CLEAN_HELPER=$(resolve_cleanup_helper || echo "")
+    [ -n "$_CLEAN_HELPER" ] && bash "$_CLEAN_HELPER" --caller todo >/dev/null 2>&1 || true
     lock_release "$HEADING" "$SESSION_ID"
     ;;
   dispatch)

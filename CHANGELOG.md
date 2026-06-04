@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.15] - 2026-06-04
+
+### Added
+
+- **Post-run worktree-cleanup janitor — the three `CJ_goal_*` orchestrators now sweep their own stale worktrees (T000036).** Every `/CJ_goal_feature` / `/CJ_goal_defect` / `/CJ_goal_todo_fix` run auto-creates a `.claude/worktrees/cj-{feat,def,todo}-*/` worktree and, until now, never tore it down — they piled up (49 dirs under `.claude/worktrees/` at the time of writing). New `scripts/cj-worktree-cleanup.sh` is the teardown mirror of `cj-worktree-init.sh`: at each orchestrator's post-land terminal (feature at the PR-stop; defect/todo after `/land-and-deploy`) it sweeps *landed* `cj-(feat|def|todo)-*` worktrees, runs `git worktree prune`, and switches the root checkout back to `main` and pulls it. "Landed" is decided by **PR state** (`MERGED`/`CLOSED` via `cj-goal-common.sh --phase pr-check`), never by branch ancestry — a squash merge leaves a merged branch un-ancestored from `main`, so an ancestry check would miss almost every stale worktree. The sweep never touches the current run's own worktree, `locked` worktrees, worktrees with uncommitted work, worktrees with an `OPEN` (or no-resolvable) PR, or any non-cj worktree (the `claude/*` Conductor sessions, manual `chore/fix/feat` branches). It is **best-effort and never halts the run** — a failed removal logs a note and the run still ends green — and `--dry-run` previews the sweep (`WOULD-REMOVE` / `WOULD-SKIP`) without mutating anything. The model is self-healing: because each run sweeps *all* landed cj-* worktrees, a hand-merged `/CJ_goal_feature` worktree is cleared by the next cj_goal run of any kind, so the backlog drains itself over normal use. feature/defect route through a new `cj-goal-common.sh --phase cleanup`; todo calls the helper directly (it never used `cj-goal-common.sh`). New `tests/cj-worktree-cleanup.test.sh` (13 behavior cases + 4 wiring assertions) registered in `scripts/test.sh`; `doc/ARCHITECTURE.md` (the `cj-goal-common.sh` phase list), the three orchestrators' SKILL.md chain diagrams, and the CLAUDE.md scripts-reference table + merge-convention note updated. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.14] - 2026-06-03
 
 ### Changed
