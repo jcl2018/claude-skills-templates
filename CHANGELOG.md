@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.30] - 2026-06-04
+
+### Fixed
+
+- **`skills-deploy remove` no longer prints `[: : integer expression expected` for catalog-absent skills.** `do_remove` derived `fc_rm=$(jq … select(.name==$n) | .files | length … || echo "0")` then `[ "$fc_rm" -eq 0 ]`. A name **absent from `skills-catalog.json`** (a deprecated/renamed skill that's still deployed) makes the jq `select` match nothing → empty output + jq exit 0, which defeats the `|| echo "0"` fallback (it only catches jq *failure*) → `fc_rm=""` → `[ "" -eq 0 ]` errored once per such skill (seen 2026-06-03 removing 6 deprecated pre-`CJ_` names). Guarded with `[ -n "$fc_rm" ] && [ "$fc_rm" -eq 0 ]` so the crash is silenced **and** `tpl_only` stays `false` for catalog-absent skills — the deployed dir is still removed (deliberately **not** the `${fc_rm:-0}` default, which would set `tpl_only=true`, skip the removal block, and orphan the dir). The same `-n` guard is applied defensively at the two other `select(...) | .files | length` → `-eq`/`-ne` sites (install templates-only detection + the install/relink loop), which share the latent pattern though they aren't reachable with absent names today. New `scripts/test-deploy.sh` **Test C8** installs a real skill, renames it to a catalog-absent name, and asserts removal is clean (no integer-expression error) **and** still removes the dir — passing in both symlink and copy mode. `validate.sh` + `test.sh` + `test-deploy.sh` green.
+
 ## [6.0.29] - 2026-06-04
 
 ### Added
