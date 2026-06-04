@@ -418,6 +418,35 @@ else
   skip_sl "Test C7: Absent install_kind defaults to symlink (back-compat)"
 fi
 
+# Test C8: remove a catalog-absent skill is clean (no integer-expr error) + still
+# removes the dir. Repro of the 2026-06-03 incident — removing deprecated/renamed
+# skills that are still deployed but ABSENT from skills-catalog.json printed
+# "[: : integer expression expected" once per skill (do_remove's fc_rm went empty
+# when the jq `select` matched nothing, defeating the `|| echo 0` fallback). The
+# guard must silence the crash WITHOUT defaulting empty→0 (that would skip removal
+# and orphan the dir). Mode-agnostic: symlink-mode removes via owner="ours";
+# copy-mode removes via the manifest install_kind=copy record.
+echo "Test C8: remove catalog-absent skill is clean + still removes the dir"
+setup_env
+"$DEPLOY" install CJ_system-health >/dev/null 2>&1
+# Simulate a deprecated-but-deployed skill: rename the deployed dir + its manifest
+# record to a name that is NOT in skills-catalog.json.
+mv "$SKILLS_DEPLOY_TARGET/CJ_system-health" "$SKILLS_DEPLOY_TARGET/zzz-deprecated-ghost"
+jq '.skills["zzz-deprecated-ghost"] = .skills["CJ_system-health"] | del(.skills["CJ_system-health"])' \
+  "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.t" && mv "$SKILLS_DEPLOY_MANIFEST.t" "$SKILLS_DEPLOY_MANIFEST"
+c8_out=$("$DEPLOY" remove zzz-deprecated-ghost --force 2>&1)
+if echo "$c8_out" | grep -q "integer expression expected"; then
+  fail_test "remove catalog-absent skill printed 'integer expression expected': $c8_out"
+else
+  ok "remove catalog-absent skill is clean (no integer-expression error)"
+fi
+if [ ! -d "$SKILLS_DEPLOY_TARGET/zzz-deprecated-ghost" ]; then
+  ok "catalog-absent skill dir still removed"
+else
+  fail_test "catalog-absent skill dir was NOT removed (orphaned)"
+fi
+teardown_env
+
 ### ============================================================
 ### skills-update-check tests (F000009)
 ### ============================================================
