@@ -44,12 +44,12 @@ echo ""
 # CRLF guard regressed and bash would choke on \r in shebangs/heredocs.
 # ---------------------------------------------------------------------------
 echo "S1: shell scripts check out with LF endings (S000077 .gitattributes)"
-crlf=$(cd "$REPO_ROOT" && git ls-files --eol -- 'scripts/*.sh' 'scripts/skills-deploy' 'scripts/skills-update-check' 2>/dev/null | grep -c 'w/crlf' || true)
+crlf=$(git -C "$REPO_ROOT" ls-files --eol -- 'scripts/*.sh' 'scripts/skills-deploy' 'scripts/skills-update-check' 2>/dev/null | grep -c 'w/crlf' || true)
 if [ "${crlf:-0}" -eq 0 ]; then
   ok "no CRLF working-tree endings among shell scripts"
 else
   fail_test "$crlf shell script(s) checked out with CRLF — .gitattributes regressed"
-  (cd "$REPO_ROOT" && git ls-files --eol -- 'scripts/*.sh' 'scripts/skills-deploy' 'scripts/skills-update-check' 2>/dev/null | grep 'w/crlf' >&2 || true)
+  git -C "$REPO_ROOT" ls-files --eol -- 'scripts/*.sh' 'scripts/skills-deploy' 'scripts/skills-update-check' 2>/dev/null | grep 'w/crlf' >&2 || true
 fi
 
 # ---------------------------------------------------------------------------
