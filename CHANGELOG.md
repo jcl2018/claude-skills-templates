@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.15] - 2026-06-04
+
+### Added
+
+- **F000044 Windows (WSL2 + Git Bash) support — scaffold + first story (S000077 CRLF safety).** The workbench was macOS-only by construction (42 bash scripts; two skills, `/CJ_suggest` + `/CJ_improve-queue`, hard-refuse off Darwin). This lands the tracked feature `F000044_windows_wsl2_git_bash_support` (component `ops`), decomposed into four user-stories — S000077 CRLF safety, S000078 portable POSIX runtime (WSL2), S000079 symlink-free copy-mode install (Git Bash), S000080 windows-latest CI + docs — and ships the first, **S000077**: a new root `.gitattributes` that forces LF on all text at checkout (`* text=auto eol=lf`), with explicit `text eol=lf` for the two extensionless entrypoints (`scripts/skills-deploy`, `scripts/skills-update-check`) and `binary` markers for png/jpg/jpeg/gif/ico/pdf. Without it, a Windows clone (Git-for-Windows defaults `core.autocrlf=true`) rewrites every `*.sh` to CRLF and breaks the `#!/usr/bin/env bash` shebang. Verified via `git check-attr` (entrypoints → eol lf; `*.sh` → text=auto eol=lf; binaries → binary) and `git ls-files --eol` (no tracked `*.sh` resolves to non-lf). Complements the existing `scripts/lib.sh` `jq()` CRLF shim (runtime jq output — a separate layer). Scaffolded from the `/office-hours` design doc via `/CJ_scaffold-work-item`; S000077 implemented + QA'd green (`/CJ_implement-from-spec` + `/CJ_qa-work-item`). The remaining three stories ship as follow-up PRs. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.14] - 2026-06-03
 
 ### Changed

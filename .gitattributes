@@ -1,0 +1,20 @@
+# Line-ending normalization (S000077 / F000044 — Windows/WSL2+Git Bash support).
+# Force LF on all text files at checkout so a Windows clone (Git-for-Windows
+# defaults core.autocrlf=true) does NOT rewrite *.sh to CRLF and break
+# `#!/usr/bin/env bash` shebangs / bash parsing. This governs checked-out SOURCE;
+# the runtime jq-output CRLF shim in scripts/lib.sh is a separate, complementary
+# layer.
+* text=auto eol=lf
+
+# Extensionless entrypoint scripts: no *.ext pattern matches them, so force LF
+# explicitly.
+scripts/skills-deploy        text eol=lf
+scripts/skills-update-check  text eol=lf
+
+# Binary files: never apply EOL normalization (it would corrupt them).
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
