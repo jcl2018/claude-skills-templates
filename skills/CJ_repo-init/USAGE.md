@@ -3,7 +3,7 @@ skill-name: "CJ_repo-init"
 version: 0.1.0
 status: experimental
 created: "2026-06-03"
-last-updated: "2026-06-04T01:07:15Z"
+last-updated: "2026-06-04T20:25:10Z"
 ---
 
 # Skill Usage: CJ_repo-init
@@ -58,7 +58,9 @@ but do not fail the repo-level contract).
 - **Expecting `--fix` to repair a broken config.** A present-but-invalid
   `cj-document-release.json` is reported as a gap but NOT overwritten — the
   engine prints a `NOTE:` telling you to fix it by hand (or remove + re-run).
-  This avoids clobbering an intentional-but-malformed config.
+  This avoids clobbering an intentional-but-malformed config. The same
+  no-overwrite rule applies to a present-but-headingless `CJ-DOC-RELEASE.md`
+  (reported `invalid`, never clobbered).
 - **Assuming the seeds carry workbench-specific paths.** They don't — the
   scaffolded `cj-document-release.json` uses a generic portable whitelist
   (README/CHANGELOG/CLAUDE.md/CONTRIBUTING.md + `doc/**/*.md`), so it's safe to
@@ -72,7 +74,9 @@ but do not fail the repo-level contract).
 - `/CJ_system-health` — sibling read-only utility; audits `~/.claude/` install
   health (this skill audits the *repo*, not the install).
 - `/CJ_document-release` — the primary consumer of `cj-document-release.json`;
-  HALTs `[doc-sync-no-config]` without it, which this skill prevents.
+  HALTs `[doc-sync-no-config]` without it, which this skill prevents. Its
+  canonical prose contract is `CJ-DOC-RELEASE.md` (the 4th prereq this skill
+  presence-checks, beside the JSON config).
 - `/CJ_suggest` / `/CJ_goal_todo_fix` / `/CJ_improve-queue` — consumers of
   `TODOS.md`, which this skill scaffolds.
 - `/CJ_scaffold-work-item` — first consumer of the `work-items/` tree this skill

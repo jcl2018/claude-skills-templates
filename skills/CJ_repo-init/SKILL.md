@@ -1,6 +1,6 @@
 ---
 name: CJ_repo-init
-description: "Detect which CJ_ skills are deployed, verify each one's per-repo prerequisites (cj-document-release.json, TODOS.md, work-items/ tree), print a health table, and on one confirm scaffold the missing repo-level prerequisites from generic portable seeds. Standalone utility — in-place, no worktree/ship. Use when: 'set up this repo for the CJ skills', 'init repo prerequisites', 'make this repo ready for CJ_', 'bootstrap repo config', 'verify repo prerequisites'."
+description: "Detect which CJ_ skills are deployed, verify each one's per-repo prerequisites (cj-document-release.json, CJ-DOC-RELEASE.md, TODOS.md, work-items/ tree), print a health table, and on one confirm scaffold the missing repo-level prerequisites from generic portable seeds. Standalone utility — in-place, no worktree/ship. Use when: 'set up this repo for the CJ skills', 'init repo prerequisites', 'make this repo ready for CJ_', 'bootstrap repo config', 'verify repo prerequisites'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -19,6 +19,10 @@ because a per-repo config file is missing:
   `cj-document-release.json` is absent — and it runs at Step 5.5 of every
   `cj_goal` orchestrator, so a missing config breaks `/CJ_goal_feature`,
   `/CJ_goal_defect`, and `/CJ_goal_todo_fix`.
+- `CJ-DOC-RELEASE.md` is the canonical prose contract for `/CJ_document-release`
+  (the human/agent read that the machine config `cj-document-release.json`
+  documents). It is checked for presence + a small required-headings set; needed
+  by the same skills as `cj-document-release.json`.
 - `/CJ_suggest`, `/CJ_goal_todo_fix`, and `/CJ_improve-queue` exit 1 if
   `TODOS.md` is missing.
 - The scaffold → implement → qa pipeline expects a `work-items/` tree.
@@ -98,8 +102,8 @@ lines so the operator sees precisely what will be created:
 >   {one REPO_GAP line each}
 >
 > Scaffold them now from generic portable seeds (creates `cj-document-release.json`,
-> `TODOS.md`, and/or the `work-items/` dirs — repo-level only; nothing under
-> `~/.claude/` is touched)?
+> `CJ-DOC-RELEASE.md`, `TODOS.md`, and/or the `work-items/` dirs — repo-level
+> only; nothing under `~/.claude/` is touched)?
 >
 > Options:
 > - Scaffold now (recommended) — runs `--fix` and re-prints the health table
@@ -144,4 +148,5 @@ repo-level gaps exist.
 | Not a git repo | Engine exits 2 with a clear message; relay verbatim and stop. |
 | `GAPS=0` | No-op: print the health table + a one-line confirmation; no AUQ. |
 | Present-but-invalid `cj-document-release.json` | Reported as a gap; `--fix` does NOT overwrite it — relays a `NOTE:` to fix by hand. |
+| Present-but-invalid `CJ-DOC-RELEASE.md` (missing required headings) | Reported as a gap; `--fix` does NOT overwrite it — relays a `NOTE:` to fix by hand. |
 | Install-level gap | Reported as advisory; never auto-fixed (owned by `skills-deploy install`). |

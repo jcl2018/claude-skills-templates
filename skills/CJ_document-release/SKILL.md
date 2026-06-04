@@ -29,6 +29,14 @@ If `NOT_A_GIT_REPO`: print `Error: /CJ_document-release requires a git repositor
 
 ## Overview
 
+> Canonical convention home: the reader-facing contract for this skill — wrapper
+> flow, the doc-only auto-commit whitelist gate, the `cj-document-release.json`
+> schema, the registered-doc audit, and a declaration-site index — lives in
+> `CJ-DOC-RELEASE.md` at the repo root (presence-checked by `/CJ_repo-init`). This
+> SKILL.md remains the implementation; the runtime-parsed CLAUDE.md anchors
+> (`### Tracked doc/ files manifest`, `## Registered-doc requirements audit`,
+> `## cj-document-release.json convention`) that Step 6.7 reads are unchanged.
+
 `/CJ_document-release` is a thin workbench wrapper around upstream gstack
 `/document-release`. It adds three workbench-specific concerns that the
 orchestrator family needs:

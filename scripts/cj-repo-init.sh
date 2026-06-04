@@ -23,6 +23,8 @@
 # Prerequisite map (skill -> per-repo prereq):
 #   cj-document-release.json   needed-by: CJ_document-release,
 #                              CJ_goal_feature/defect/todo_fix  [repo-level]
+#   CJ-DOC-RELEASE.md          needed-by: CJ_document-release,
+#                              CJ_goal_feature/defect/todo_fix  [repo-level]
 #   TODOS.md                   needed-by: CJ_suggest, CJ_goal_todo_fix,
 #                              CJ_improve-queue                  [repo-level]
 #   work-items/{features,defects,tasks}/  needed-by: scaffold/implement/qa,
@@ -112,16 +114,23 @@ _has_skill() { printf '%s\n' "$DEPLOYED_SKILLS" | grep -qx "$1"; }
 # detect source is "none" we conservatively require all repo-level prereqs so a
 # fresh-machine operator still gets a useful health table + scaffold path.
 NEED_DOCREL=false   # cj-document-release.json
+NEED_DOCGUIDE=false # CJ-DOC-RELEASE.md
 NEED_TODOS=false    # TODOS.md
 NEED_WORKITEMS=false
 NEED_PWASSETS=false # install-level
 
 if [ "$DETECT_SOURCE" = "none" ]; then
-  NEED_DOCREL=true; NEED_TODOS=true; NEED_WORKITEMS=true; NEED_PWASSETS=true
+  NEED_DOCREL=true; NEED_DOCGUIDE=true; NEED_TODOS=true; NEED_WORKITEMS=true; NEED_PWASSETS=true
 else
   for s in CJ_document-release CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix \
            cj_goal_feature cj_goal_defect; do
     _has_skill "$s" && NEED_DOCREL=true
+  done
+  # CJ-DOC-RELEASE.md is the prose contract for the same doc-release surface, so
+  # it is needed by exactly the skills that need cj-document-release.json.
+  for s in CJ_document-release CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix \
+           cj_goal_feature cj_goal_defect; do
+    _has_skill "$s" && NEED_DOCGUIDE=true
   done
   for s in CJ_suggest CJ_goal_todo_fix CJ_improve-queue; do
     _has_skill "$s" && NEED_TODOS=true
@@ -139,6 +148,7 @@ fi
 
 # ----- verification -----
 DOCREL_PATH="$REPO_ROOT/cj-document-release.json"
+DOCGUIDE_PATH="$REPO_ROOT/CJ-DOC-RELEASE.md"
 TODOS_PATH="$REPO_ROOT/TODOS.md"
 
 # cj-document-release.json: existence + parseable JSON + supported schema_version
@@ -153,6 +163,18 @@ verify_docrel() {
   jq -e '.whitelist_patterns | type == "array" and length > 0' "$DOCREL_PATH" >/dev/null 2>&1 || { echo "invalid"; return; }
   jq -e '.categories | type == "object" and length > 0' "$DOCREL_PATH" >/dev/null 2>&1 || { echo "invalid"; return; }
   jq -e '[.categories | to_entries[] | .value | type == "array" and length > 0] | all' "$DOCREL_PATH" >/dev/null 2>&1 || { echo "invalid"; return; }
+  echo "ok"
+}
+
+# CJ-DOC-RELEASE.md: existence + a small, stable required-headings check so a
+# stub/placeholder fails `invalid` but cosmetic edits don't flap. Required set:
+# an H1 title + a `## ` schema-reference heading + the registered-doc section
+# heading. Returns one of: ok | missing | invalid
+verify_docguide() {
+  [ -f "$DOCGUIDE_PATH" ] || { echo "missing"; return; }
+  grep -Eq '^# .+'                            "$DOCGUIDE_PATH" || { echo "invalid"; return; }
+  grep -Eq '^## .*cj-document-release\.json'  "$DOCGUIDE_PATH" || { echo "invalid"; return; }
+  grep -Eq '^## .*[Rr]egistered-doc'          "$DOCGUIDE_PATH" || { echo "invalid"; return; }
   echo "ok"
 }
 
@@ -190,6 +212,86 @@ seed_docrel() {
   }
 }
 JSON
+}
+
+seed_docguide() {
+  cat > "$DOCGUIDE_PATH" <<'MD'
+# CJ-DOC-RELEASE.md — /CJ_document-release contract
+
+Canonical, human/agent-facing contract for `/CJ_document-release` in this repo.
+The machine config it documents lives beside it in `cj-document-release.json`.
+A repo is "ready" for doc-release when BOTH this doc and that config are present
+(`/CJ_repo-init` enforces it).
+
+## Wrapper flow
+
+`/CJ_document-release` wraps the upstream `/document-release` doc-sync pass and
+adds three things:
+
+- A `--docs <comma-list>` subset flag for per-invocation doc filtering
+  (best-effort; documentation-only).
+- A **halt-on-red** contract: on upstream failure it emits `[doc-sync-red]` and
+  stops, rather than proceeding past a broken doc pass.
+- An **auto-commit step gated by a doc-only whitelist** (below).
+
+It is invoked inline by the `cj_goal` orchestrators (between the QA pass and
+`/ship`) so documentation updates fold into the same code PR instead of being
+chased post-merge.
+
+## Doc-only auto-commit whitelist gate
+
+The auto-commit step stages and commits ONLY files matching the
+`whitelist_patterns` in `cj-document-release.json`. A write to any
+non-whitelisted path HALTs with `[doc-sync-non-doc-write]` — the wrapper never
+auto-commits source code.
+
+## cj-document-release.json schema reference
+
+`/CJ_document-release` reads a strict-required per-repo config from
+`cj-document-release.json` at repo root. Missing/invalid/unsupported-version
+HALTs with `[doc-sync-no-config]` BEFORE any audit.
+
+```json
+{
+  "schema_version": 1,
+  "whitelist_patterns": ["glob", "..."],
+  "categories": { "name": ["glob", "..."] }
+}
+```
+
+- `schema_version` — must be `1`.
+- `whitelist_patterns` — non-empty array of globs (`**` = any-depth recursion);
+  the set of paths the auto-commit gate may stage.
+- `categories` — object of named glob lists the `--docs <token>` flag resolves
+  against.
+
+## Registered-doc requirements audit
+
+The wrapper audits each *registered doc* against ITS declared requirement
+(ADVISORY — never a hard gate). The registered set is:
+
+1. Each tracked-doc file declared in the repo's tracked-doc manifest, with its
+   per-entry `requirement:` string.
+2. Each routable skill's `SKILL.md`, whose requirement is the skill's optional
+   `doc_requirement` field (else a shared default: the SKILL.md `description` and
+   documented behavior match the implementation, and USAGE.md is current).
+
+Per doc, one verdict: `up-to-date`, `stale: <why>`, `missing-requirement`
+(soft), or `n/a`. Verdicts surface in the PR body under
+`### Registered-doc requirements`.
+
+## Declaration-site index
+
+Each requirement stays co-located with what it governs; this doc indexes where:
+
+| Requirement | Declared in |
+|---|---|
+| Per-skill SKILL.md requirement | `skills-catalog.json` entry's optional `doc_requirement` field (absent ⇒ shared default) |
+| Per-tracked-doc requirement | the tracked-doc manifest's `requirement:` child for that doc |
+| Whitelist + `--docs` categories | `cj-document-release.json` (`whitelist_patterns`, `categories`) |
+
+This doc documents and indexes those declarations; it does not absorb them.
+MD
 }
 
 seed_todos() {
@@ -237,6 +339,17 @@ collect() {
                GAP_LINES+=("REPO_GAP cj-document-release.json missing"); REPO_GAPS=$((REPO_GAPS+1)) ;;
       invalid) add_row "cj-document-release.json" "CJ_document-release, CJ_goal_*" "INVALID"
                GAP_LINES+=("REPO_GAP cj-document-release.json invalid (unparseable or unsupported schema_version)"); REPO_GAPS=$((REPO_GAPS+1)) ;;
+    esac
+  fi
+
+  if $NEED_DOCGUIDE; then
+    local st; st=$(verify_docguide)
+    case "$st" in
+      ok)      add_row "CJ-DOC-RELEASE.md" "CJ_document-release, CJ_goal_*" "OK" ;;
+      missing) add_row "CJ-DOC-RELEASE.md" "CJ_document-release, CJ_goal_*" "MISSING"
+               GAP_LINES+=("REPO_GAP CJ-DOC-RELEASE.md missing"); REPO_GAPS=$((REPO_GAPS+1)) ;;
+      invalid) add_row "CJ-DOC-RELEASE.md" "CJ_document-release, CJ_goal_*" "INVALID"
+               GAP_LINES+=("REPO_GAP CJ-DOC-RELEASE.md invalid (missing required headings)"); REPO_GAPS=$((REPO_GAPS+1)) ;;
     esac
   fi
 
@@ -309,6 +422,15 @@ if [ "$MODE" = "fix" ]; then
     elif [ "$st" = "invalid" ]; then
       # Do NOT clobber an existing (intentional but broken) config — report it.
       echo "NOTE: cj-document-release.json present but invalid; NOT overwritten. Fix by hand or remove + re-run --fix." >&2
+    fi
+  fi
+  if $NEED_DOCGUIDE; then
+    st=$(verify_docguide)
+    if [ "$st" = "missing" ]; then
+      seed_docguide; FIXED+=("CJ-DOC-RELEASE.md (created)")
+    elif [ "$st" = "invalid" ]; then
+      # Do NOT clobber an existing (intentional but incomplete) doc — report it.
+      echo "NOTE: CJ-DOC-RELEASE.md present but invalid (missing required headings); NOT overwritten. Fix by hand or remove + re-run --fix." >&2
     fi
   fi
   if $NEED_TODOS && [ "$(verify_todos)" = "missing" ]; then

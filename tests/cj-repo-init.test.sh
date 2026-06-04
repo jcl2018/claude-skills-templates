@@ -12,6 +12,9 @@
 #   S3 config_valid_and_invalid_detected — generated config valid; bad config flagged
 #   S4 dry_run_no_write                  — --dry-run mutates nothing
 #   S5 degrades_cleanly                  — not-a-git-repo errors; missing manifest degrades
+#   S6 docguide_prereq                   — CJ-DOC-RELEASE.md: missing->gap, --fix
+#                                          seeds->ok, present->ok, headingless->invalid
+#                                          (no-overwrite)
 #
 # Run: bash tests/cj-repo-init.test.sh   (exit 0 = all pass, 1 = failures)
 
@@ -65,9 +68,10 @@ echo "--- S1 detect_emits_gaps ---"
 REPO=$(make_repo deploy); FH="$REPO/.fake-claude"
 OUT=$(run_engine "$REPO" "$FH"); RC=$?
 if [ "$RC" -eq 1 ]; then ok "S1: exit 1 with repo-level gaps present"; else fail_test "S1: expected exit 1, got $RC"; fi
-echo "$OUT" | grep -q "GAPS=3" && ok "S1: GAPS=3 emitted (3 repo-level gaps)" || fail_test "S1: GAPS=3 not found"
+echo "$OUT" | grep -q "GAPS=4" && ok "S1: GAPS=4 emitted (4 repo-level gaps)" || fail_test "S1: GAPS=4 not found"
 echo "$OUT" | grep -q "prereq" && echo "$OUT" | grep -q "needed-by" && ok "S1: human-readable table header present" || fail_test "S1: table header missing"
 echo "$OUT" | grep -q "REPO_GAP cj-document-release.json missing" && ok "S1: per-gap REPO_GAP line for docrel" || fail_test "S1: docrel REPO_GAP line missing"
+echo "$OUT" | grep -q "REPO_GAP CJ-DOC-RELEASE.md missing" && ok "S1: per-gap REPO_GAP line for docguide" || fail_test "S1: docguide REPO_GAP line missing"
 echo "$OUT" | grep -q "REPO_GAP TODOS.md missing" && ok "S1: per-gap REPO_GAP line for TODOS" || fail_test "S1: TODOS REPO_GAP line missing"
 # install-level gap reported but does NOT count toward GAPS
 echo "$OUT" | grep -q "INSTALL_GAPS=0" && ok "S1: INSTALL_GAPS=0 (pw assets present in fixture)" || fail_test "S1: expected INSTALL_GAPS=0"
@@ -79,6 +83,7 @@ REPO=$(make_repo deploy); FH="$REPO/.fake-claude"
 OUT=$(run_engine "$REPO" "$FH" --fix); RC=$?
 if [ "$RC" -eq 0 ]; then ok "S2: --fix exits 0 after scaffolding"; else fail_test "S2: expected exit 0 after --fix, got $RC"; fi
 [ -f "$REPO/cj-document-release.json" ] && ok "S2: cj-document-release.json created" || fail_test "S2: cj-document-release.json not created"
+[ -f "$REPO/CJ-DOC-RELEASE.md" ] && ok "S2: CJ-DOC-RELEASE.md created" || fail_test "S2: CJ-DOC-RELEASE.md not created"
 [ -f "$REPO/TODOS.md" ] && ok "S2: TODOS.md created" || fail_test "S2: TODOS.md not created"
 [ -d "$REPO/work-items/features" ] && [ -d "$REPO/work-items/defects" ] && [ -d "$REPO/work-items/tasks" ] && ok "S2: work-items/{features,defects,tasks} created" || fail_test "S2: work-items dirs not created"
 echo "$OUT" | grep -q "GAPS=0" && ok "S2: post-fix GAPS=0" || fail_test "S2: post-fix GAPS=0 not reported"
@@ -123,7 +128,7 @@ OUT=$(run_engine "$REPO" "$FH" --dry-run); RC=$?
 AFTER=$(find "$REPO" -not -path '*/.git/*' | sort)
 [ "$BEFORE" = "$AFTER" ] && ok "S4: --dry-run created/modified no files" || fail_test "S4: --dry-run mutated the tree"
 [ "$RC" -eq 1 ] && ok "S4: --dry-run exit reflects gap count (1)" || fail_test "S4: --dry-run expected exit 1, got $RC"
-echo "$OUT" | grep -q "GAPS=3" && ok "S4: --dry-run still reports GAPS=3" || fail_test "S4: --dry-run GAPS=3 missing"
+echo "$OUT" | grep -q "GAPS=4" && ok "S4: --dry-run still reports GAPS=4" || fail_test "S4: --dry-run GAPS=4 missing"
 rm -rf "$REPO"
 
 # ─── S5: degrades_cleanly ────────────────────────────────────────────────────
@@ -139,6 +144,33 @@ REPO=$(make_repo); FH="$REPO/.fake-claude"   # no "deploy" arg => empty fake hom
 OUT=$(run_engine "$REPO" "$FH"); RC=$?
 echo "$OUT" | grep -q "Detect source:  none" && ok "S5b: degrades to detect source 'none' when no manifest/skills" || fail_test "S5b: did not degrade cleanly"
 echo "$OUT" | grep -q "GAPS=" && ok "S5b: still emits a GAPS= line (no crash)" || fail_test "S5b: no GAPS line on degraded path"
+rm -rf "$REPO"
+
+# ─── S6: docguide_prereq ─────────────────────────────────────────────────────
+echo "--- S6 docguide_prereq (CJ-DOC-RELEASE.md 4th prereq) ---"
+REPO=$(make_repo deploy); FH="$REPO/.fake-claude"
+DG="$REPO/CJ-DOC-RELEASE.md"
+# 6a: missing -> reported as a REPO_GAP.
+OUT=$(run_engine "$REPO" "$FH"); RC=$?
+echo "$OUT" | grep -q "REPO_GAP CJ-DOC-RELEASE.md missing" && ok "S6a: missing CJ-DOC-RELEASE.md flagged as gap" || fail_test "S6a: missing docguide not flagged"
+[ "$RC" -eq 1 ] && ok "S6a: missing docguide -> exit 1" || fail_test "S6a: expected exit 1, got $RC"
+# 6b: --fix seeds it; re-verify reports ok.
+run_engine "$REPO" "$FH" --fix >/dev/null 2>&1
+[ -f "$DG" ] && ok "S6b: --fix seeded CJ-DOC-RELEASE.md" || fail_test "S6b: --fix did not seed CJ-DOC-RELEASE.md"
+OUT=$(run_engine "$REPO" "$FH"); RC=$?
+echo "$OUT" | grep -q "REPO_GAP CJ-DOC-RELEASE.md" && fail_test "S6b: seeded docguide still flagged as gap" || ok "S6b: present-and-valid docguide reports ok (no gap line)"
+# 6c: the seed satisfies its own required-headings check (H1 + schema + registered-doc).
+grep -Eq '^# .+'                           "$DG" && ok "S6c: seed has an H1 title" || fail_test "S6c: seed missing H1"
+grep -Eq '^## .*cj-document-release\.json' "$DG" && ok "S6c: seed has a cj-document-release.json schema heading" || fail_test "S6c: seed missing schema heading"
+grep -Eq '^## .*[Rr]egistered-doc'         "$DG" && ok "S6c: seed has a registered-doc section heading" || fail_test "S6c: seed missing registered-doc heading"
+# 6d: present-but-headingless -> invalid; --fix does NOT overwrite it.
+printf 'a stub with no required headings\n' > "$DG"
+BEFORE=$(cat "$DG")
+OUT=$(run_engine "$REPO" "$FH"); RC=$?
+echo "$OUT" | grep -q "REPO_GAP CJ-DOC-RELEASE.md invalid" && ok "S6d: headingless docguide flagged invalid" || fail_test "S6d: headingless docguide not flagged invalid"
+[ "$RC" -eq 1 ] && ok "S6d: invalid docguide -> exit 1" || fail_test "S6d: expected exit 1, got $RC"
+run_engine "$REPO" "$FH" --fix >/dev/null 2>&1
+[ "$(cat "$DG")" = "$BEFORE" ] && ok "S6d: --fix did NOT overwrite present-but-invalid docguide" || fail_test "S6d: --fix clobbered an invalid docguide"
 rm -rf "$REPO"
 
 # ─── summary ─────────────────────────────────────────────────────────────────
