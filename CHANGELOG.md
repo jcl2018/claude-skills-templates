@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.14] - 2026-06-03
+
+### Changed
+
+- **`/CJ_suggest` now prints self-explanatory cards in interactive mode (F000043 / S000076).** The old top-5 markdown table made you decode a terse title plus a bare `S/M/L` letter, then open `TODOS.md` to find out what each row actually was. You can now run `/CJ_suggest` and read each ranked item as a card: a header line `N. [ID] Title   Pri · <effort-label>`, a `What:` line drawn from the first prose line of the TODO body (or `(no description)` when the body is empty), and a `Status:` line that folds the live tracker status together with the existing Why reasons. The effort label expands the Size letter so you don't have to decode it — `S → quick (<1h)`, `M → ~half-day`, `L → large (1-2 days)`. The machine path is untouched: when `--for-skill` is passed (how `/CJ_goal_todo_fix` enumerates drainable TODOs), `/CJ_suggest` emits the **byte-identical** `Rank | Title | Pri | Size | Status | Why` table its `awk -F'|'` parser depends on — verified byte-stable at limits 5/10/15. Scoring, candidate selection, and ranking are identical across both paths; only the interactive rendering changed. A committed golden fixture (`tests/fixtures/suggest-consumer-table.expected`) guards the consumer table against future drift. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.13] - 2026-06-03
 
 ### Changed

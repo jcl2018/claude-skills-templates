@@ -1,0 +1,6 @@
+| Rank | Title | Pri | Size | Status | Why |
+|------|-------|-----|------|--------|-----|
+| 1 | Re-do brief-mode for `/CJ_personal-pipeline` against auto-only main | P2 | M | (orphan) | (orphan) |
+| 2 | SEC-1 — npm-postinstall key exposure on the scheduled-`main` eval job | P3 | S | (orphan) | (orphan) |
+| 3 | Eval workflow hardening: secret-exfil mitigation + supply-chain controls | P3 | M | (orphan) | (orphan) |
+| 4 | F000011 post-merge gate-sync hook: PR-detection by title-string mis-associates + leaves `main` dirty | P2 | M | active | unblocked, stale 25d |
