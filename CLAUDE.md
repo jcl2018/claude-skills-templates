@@ -188,8 +188,9 @@ skills/{skill-name}/
 
 Additionally, every active routable skill must be documented in one of two
 places (T000037): a **`CJ_goal_*` workflow orchestrator** gets a section with an
-ASCII workflow chart in `doc/WORKFLOWS.md` (enforced by `scripts/validate.sh`
-Check 15b); every **other** routable skill (phase-steps, validators, utilities)
+ASCII workflow chart + a granular 4-bullet **Touches** block in `doc/WORKFLOWS.md`
+(both enforced by `scripts/validate.sh` Check 15b — T000040); every **other**
+routable skill (phase-steps, validators, utilities)
 goes in the `doc/ARCHITECTURE.md` `## Component skills (non-workflow roster)`.
 Either way it must also appear in `doc/PHILOSOPHY.md`'s decision tree (the
 F000030 New-skills check is the no-vanish safety net that guarantees no routable
@@ -309,7 +310,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
    ```
 4. Optionally create `skills/{name}/DESIGN.md` for design rationale if the skill is complex enough to warrant a developer-facing doc (template: `templates/doc-SKILL-DESIGN.md`)
 5. Create `skills/{name}/USAGE.md` using `templates/doc-SKILL-USAGE.md` and fill in all five required H2 sections (When to use / When NOT to use / Mental model / Common pitfalls / Related skills)
-6. Document the new skill in the right place (T000037): if it is a `CJ_goal_*` **workflow orchestrator**, add a section with a fenced ASCII workflow chart + a `**Touches:**` block to `doc/WORKFLOWS.md` (use `templates/doc-WORKFLOWS-section.md` as a starting point) — Check 15b will ERROR if a `CJ_goal_*` skill's section is missing or lacks a chart. Otherwise (phase-step, validator, or utility) add a compact line to the `doc/ARCHITECTURE.md` `## Component skills (non-workflow roster)`. EITHER WAY, also add the skill to `doc/PHILOSOPHY.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
+6. Document the new skill in the right place (T000037): if it is a `CJ_goal_*` **workflow orchestrator**, add a section with a fenced ASCII workflow chart + a `**Touches:**` block to `doc/WORKFLOWS.md` (use `templates/doc-WORKFLOWS-section.md` as a starting point). The Touches block MUST carry all four canonical bullets — **Skills dispatched** / **Steps · phases** / **Scripts · tools · shell** / **Docs touched** — each enumerated at the granular named-helper + named-step level (T000040); Check 15b will ERROR if a `CJ_goal_*` skill's section is missing, lacks a chart, or is missing any of the four anchored Touches bullets. Otherwise (phase-step, validator, or utility) add a compact line to the `doc/ARCHITECTURE.md` `## Component skills (non-workflow roster)`. EITHER WAY, also add the skill to `doc/PHILOSOPHY.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
 7. Run `./scripts/validate.sh` to verify everything is consistent
 8. Use `/ship` to commit and create a PR
 
@@ -478,8 +479,8 @@ Every `*.md` file under `doc/` MUST be registered in this manifest with an `audi
   requirement: "`## Component skills (non-workflow roster)` lists every non-workflow active routable skill; each mechanism section matches the current load-bearing scripts OR skill steps (cj-goal-common.sh phases, doc-sync, F000037 config, the registered-doc audit, work-copilot)."
 - path: doc/WORKFLOWS.md
   audit_class: workflow-completeness
-  owner: F000034 / T000037 — workflow-only doc (the cj_goal orchestrator chains) with ASCII charts + Touches blocks
-  requirement: "Has a `### <name>` section for every `CJ_goal_*` orchestrator, each with an ASCII chart + a Touches block reflecting the current chain."
+  owner: F000034 / T000037 / T000040 — workflow-only doc (the cj_goal orchestrator chains) with ASCII charts + granular 4-dimension Touches blocks
+  requirement: "Has a `### <name>` section for every `CJ_goal_*` orchestrator, each with an ASCII chart AND a Touches block carrying all four canonical bullets (Skills dispatched / Steps · phases / Scripts · tools · shell / Docs touched). Each bullet must enumerate the current chain at the GRANULAR named-helper + named-step level — every dispatched skill, every named pipeline step + `cj-goal-common.sh` phase (incl. the pre-build `--phase sync`, the worktree init/teardown lifecycle, the isolation gate, `check-version-queue.sh`, and the verdict-surfacing producer steps), every script/shell helper, every doc touched. Granularity ceiling — named workbench helpers + steps only, NOT every raw git/gh call and NOT `post-land-sync.sh` (it is the internal core `--phase sync` reuses + a manual operator step, not an orchestrator step). The four anchored bullets are STRUCTURALLY enforced by validate.sh Check 15b; completeness within each bullet is agent-judged here."
 ```
 
 `audit_class` enum (closed):

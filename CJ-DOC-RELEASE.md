@@ -175,6 +175,7 @@ to find each:
 |---|---|---|
 | Per-skill SKILL.md requirement | `skills-catalog.json` entry's optional `doc_requirement` field (absent ⇒ shared default) | Step 6.7 registered-doc audit |
 | Per-tracked-doc requirement | the `CLAUDE.md` `### Tracked doc/ files manifest` block's `requirement:` child for each `- path:` entry | Step 6.7 registered-doc audit; `validate.sh` Check 15a (presence) |
+| WORKFLOWS granular-enumeration rule (T000040) | the `doc/WORKFLOWS.md` `requirement:` (above) mandates a 4-dimension Touches block — Skills dispatched / Steps · phases / Scripts · tools · shell / Docs touched — at the named-helper + named-step level | Step 6.7 registered-doc audit (completeness, agent-judged); `validate.sh` Check 15b (the four anchored bullets are present, structural) |
 | Auto-commit whitelist + `--docs` categories | `cj-document-release.json` (`whitelist_patterns`, `categories`) | the wrapper's config loader (`cj-document-release-config.sh`); `validate.sh` Check 16 |
 | Root-doc placement (incl. this doc) | `CLAUDE.md` `### Tracked root docs allowlist` (`- path:` / `reason:`) | `validate.sh` Check 17 |
 
