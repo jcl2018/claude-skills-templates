@@ -195,6 +195,15 @@ Single-step skills with no chain. Validator or single-step-utility tag.
 
 `(single-step utility)` — Three modes: `evaluate <url>` (fetch + classify + draft TODOS.md row if novel), `audit` (offline repo self-scan), `research <topic>` (WebSearch + per-result evaluate with privacy gate). All TODOS rows land with `<!--impr-draft-->` markers; promotion is operator-gated.
 
+### CJ_repo-init
+
+**Status:** experimental (per-repo prerequisite verifier/scaffolder for the CJ_ skill family)
+**Source:** `skills/CJ_repo-init/SKILL.md` · `skills/CJ_repo-init/USAGE.md`
+
+**Invoke when:** the operator deployed the CJ_ skill family into a fresh clone or a new target repo and wants the per-repo config files (`cj-document-release.json`, `TODOS.md`, `work-items/` tree) verified and scaffolded before running an orchestrator. Common phrasings: "set up this repo for the CJ skills", "init repo prerequisites", "make this repo ready for CJ_", "bootstrap repo config", "verify repo prerequisites".
+
+`(single-step utility)` — Detects which CJ_ skills are deployed (manifest → `~/.claude/skills/CJ_*` → repo-local `skills/`), maps each to its per-repo prerequisite, verifies the union (existence + `cj-document-release.json` schema validity, mirroring `validate.sh` Check 16), prints a `prereq | needed-by | status` health table + machine-readable `GAPS=<n>`, and on one confirm AUQ scaffolds the missing repo-level prereqs from generic portable seeds via `scripts/cj-repo-init.sh --fix`. Detection-in-script / AUQ-in-prose split (precedent: `skills-doc-sync-check`). In-place; no worktree/ship. Idempotent. Install-level gaps are reported only (owned by `skills-deploy install`).
+
 ## Companion surfaces (non-skill)
 
 Workbench artifacts that aren't Claude skills (no SKILL.md, no entry in `skills-catalog.json`) but ARE operator-facing surfaces the workbench produces, distributes, or manages. Tagged `(non-skill bundle)` to visually distinguish from the Check-15-enforced closed-enum skill tags. These sections are NOT enforced by `scripts/validate.sh` Check 15 — they are by-hand entries that exist so the catalog reflects the full surface of the workbench, not just the slice of it that is Claude-skill-shaped.

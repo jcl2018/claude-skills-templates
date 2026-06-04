@@ -1238,6 +1238,15 @@ else
   fail_test "tests/cj-goal-doc-sync-wiring.test.sh failed (rc=$_cgdsw_rc) — run \`bash tests/cj-goal-doc-sync-wiring.test.sh\` directly to see"
 fi
 
+# F000042 / S000075 — scripts/cj-repo-init.sh detection/verify/scaffold engine.
+echo ""
+echo "Running tests/cj-repo-init.test.sh (F000042 detect/verify/scaffold engine)..."
+if bash "$REPO_ROOT/tests/cj-repo-init.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-repo-init.test.sh: detect emits GAPS=n, --fix scaffolds valid seeds, idempotent re-run, invalid-config + schema_version detection, --dry-run no-write, clean degradation all pass"
+else
+  _cri_rc=$?
+  fail_test "tests/cj-repo-init.test.sh failed (rc=$_cri_rc) — run \`bash tests/cj-repo-init.test.sh\` directly to see"
+fi
 # Regression test (F000041): scripts/post-land-sync.sh exists + is executable,
 # --dry-run resolves `.source` + prints collection_version + would-run commands
 # without mutating, and the four guards (missing / non-git / non-main / dirty
