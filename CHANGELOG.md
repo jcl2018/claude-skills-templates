@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.29] - 2026-06-04
+
+### Added
+
+- **F000044 S000080 — windows-latest CI + "Running on Windows" docs (final story of the Windows-support feature; closes F000044).** A new blocking `.github/workflows/windows.yml` runs on `windows-latest` under Git Bash (the shell Claude Code uses for skill preambles on Windows) on every PR + push to main, so a change that breaks Windows fails before merge (AC-2). It runs the Windows-relevant subset: a new portable `scripts/windows-smoke.sh` (CRLF endings from S000077 + the GNU/BSD portable-date probe from S000078 + a copy-mode `skills-deploy install` from S000079) **plus the full `scripts/test-deploy.sh`** — now symlink-capability-aware: a `SYMLINK_CAPABLE` probe (mirrors `skills-deploy`'s `_can_symlink`, honors `SKILLS_DEPLOY_FORCE_COPY=1`) makes the 4 genuinely symlink-only cases self-skip on Git Bash while every copy-mode + mode-agnostic case runs; behavior is byte-identical on symlink-capable hosts (macOS/Linux/CI). Docs: a README "Running on Windows" section (WSL2 recommended / Git Bash supported / prereqs git, jq, gh, python3 — added to `generate-readme.sh`'s BODY + regenerated) and a CLAUDE.md agent-facing note (support model + the POSIX/LF + portable-date rules to keep). `scripts/test.sh` also runs `windows-smoke.sh` on every host (ubuntu CI + local) so it is not Windows-only-untested. The optional `skills-deploy doctor` platform line is deferred (not required for any AC). `validate.sh` + `test.sh` + `test-deploy.sh` green locally (the Git-Bash path validated via `SKILLS_DEPLOY_FORCE_COPY=1 ./test-deploy.sh`); the live Git-Bash green is observable on this PR's own windows-latest run.
+
 ## [6.0.28] - 2026-06-04
 
 ### Added

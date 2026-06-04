@@ -1,0 +1,48 @@
+name: Windows (Git Bash)
+
+# Windows support is POSIX-via-Git-Bash (F000044). This job is the live signal
+# that the support holds: it runs on windows-latest under Git Bash (the shell
+# Claude Code itself uses to run skill preambles on Windows) and GATES the PR,
+# so a change that breaks Windows fails before merge (S000080 AC-2).
+#
+# It runs the Windows-relevant subset:
+#   - scripts/windows-smoke.sh  — CRLF + portable-date + copy-mode install (the
+#                                 three F000044 stories, one assertion block each)
+#   - scripts/test-deploy.sh    — the full skills-deploy suite; its symlink-MODE
+#                                 cases self-skip on Git Bash (no real symlinks),
+#                                 while every copy-mode + mode-agnostic case runs.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-smoke:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash        # Git Bash, built into the windows-latest runner image
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tool versions (Git Bash)
+        run: |
+          uname -s
+          bash --version | head -1
+          git --version
+          jq --version
+
+      - name: Windows smoke (CRLF + portable date + copy-mode install)
+        run: bash scripts/windows-smoke.sh
+
+      - name: skills-deploy suite (copy-mode path on Git Bash)
+        run: bash scripts/test-deploy.sh

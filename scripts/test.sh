@@ -495,6 +495,19 @@ else
   ok "jq -e wrapper correctly propagates false exit through pipe"
 fi
 
+# Regression test (S000080 / F000044): the Windows smoke runs green on this host
+# too. It is portable — exercises CRLF endings + the portable-date probe +
+# copy-mode install (via FORCE_COPY) — so running it on the ubuntu CI + locally
+# means it is not Windows-only-untested. windows.yml runs the SAME script on real
+# Git Bash, where it is the live signal.
+echo ""
+echo "Regression test (S000080): windows-smoke.sh passes on this host..."
+if bash "$REPO_ROOT/scripts/windows-smoke.sh" >/dev/null 2>&1; then
+  ok "windows-smoke.sh passes (CRLF + portable date + copy-mode install)"
+else
+  fail_test "windows-smoke.sh failed on this host"
+fi
+
 echo ""
 echo "Regression test (D000006): test-doc scope contracts..."
 
