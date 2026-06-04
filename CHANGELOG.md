@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.22] - 2026-06-04
+
+### Changed
+
+- **TODOS.md hygiene: closed the F000011 row — its bug shipped in v6.0.19 (D000029).** The F000011 backlog row ("post-merge gate-sync hook mis-associates PRs + leaves `main` dirty") was still listed as active even though D000029 (v6.0.19, PR #211) shipped the fix, so `/CJ_suggest` would keep re-ranking it. Struck the row `DONE` with a note that the fix took **Approach A (disable the auto-tick)** rather than the row's proposed SHA-detection + commit-or-skip — a post-merge hook can't cleanly mutate a tracked file on `main`, so removing the Phase-3 block eliminates both bugs at once. Doc-only / backlog-only change.
+
 ## [6.0.19] - 2026-06-04
 
 ### Fixed
