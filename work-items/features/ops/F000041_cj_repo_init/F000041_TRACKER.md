@@ -121,3 +121,5 @@ blocked_by: ""
 
 - [decision] 2026-06-03: Adopt detection-in-script / AUQ-in-prose split (mirrors the documented `skills-doc-sync-check` pattern). Summary: the bash engine does pure, testable, idempotent detect/verify/scaffold; SKILL.md prose owns the single confirm AUQ. Chosen over a pure-SKILL.md approach because the workbench standardizes on logic-in-`scripts/` + a `tests/*.test.sh`, making the skill QA-able by `/CJ_qa-work-item`.
 - [decision] 2026-06-03: Seed content lives inline in the script (heredocs) for v1 rather than under `templates/CJ_repo-init/`. Summary: the two seed files are tiny + generic, so avoiding a new templates deployment surface keeps skills-catalog `templates` entries + manifest churn out of v1. Revisit if seeds grow.
+- 2026-06-04T01:24:07Z [feature-pr-opened] F000041 v6.0.11 PR #202
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/202
