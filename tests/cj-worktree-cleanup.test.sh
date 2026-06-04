@@ -26,7 +26,10 @@
 #   9  dirty skipped (MERGED PR)
 #   10 non-cj worktree untouched (MERGED PR)
 #   11 prune invoked (PRUNED=ok on a real sweep)
-#   12 root-refresh guarded on dirty root (ROOT_REFRESH=skipped)
+#   12  root-refresh guarded on dirty TRACKED root (ROOT_REFRESH=skipped)
+#   12b root-refresh PROCEEDS on untracked-only root (ROOT_REFRESH=ok) — the
+#       D-fix: `git checkout main`+`git pull` never touch untracked files, so an
+#       untracked-only root (e.g. this repo's .gstack/*.md) must NOT skip
 #   13 cwd-not-a-repo ⇒ RESULT=skipped
 #
 # Plus static-grep wiring assertions (case 16/17 from the test-plan):
@@ -110,6 +113,23 @@ add_wt() {
   local p="$SBX_ROOT/.claude/worktrees/$name"
   ( cd "$SBX_ROOT" && git worktree add -q -b "$branch" "$p" >/dev/null 2>&1 )
   printf '%s' "$p"
+}
+
+# Give SBX_ROOT a real upstream so the cleanup script's `git pull --ff-only` half
+# of the root refresh actually succeeds (returns ROOT_REFRESH=ok instead of fail).
+# Clones a bare origin from the current root state and sets main to track it; the
+# pull is then a clean already-up-to-date no-op. Used by Case 12b, where the
+# refresh is expected to PROCEED (untracked-only root). Registered for teardown.
+add_origin_upstream() {
+  local origin="$SBX_ROOT.origin.git"
+  git clone -q --bare "$SBX_ROOT" "$origin" >/dev/null 2>&1
+  (
+    cd "$SBX_ROOT"
+    git remote add origin "$origin" 2>/dev/null || git remote set-url origin "$origin"
+    git fetch -q origin 2>/dev/null || true
+    git branch --set-upstream-to=origin/main main >/dev/null 2>&1 || true
+  )
+  ALL_SANDBOXES+=("$origin")   # rm -rf on EXIT (bare repo has no worktrees to detach)
 }
 
 ALL_SANDBOXES=()
@@ -312,19 +332,44 @@ else
 fi
 
 # ============================================================================
-# Case 12: root-refresh guarded on dirty root (ROOT_REFRESH=skipped)
+# Case 12: root-refresh guarded on dirty TRACKED root (ROOT_REFRESH=skipped)
 # ============================================================================
 echo ""
-echo "Case 12: root-refresh guarded on dirty root..."
+echo "Case 12: root-refresh guarded on dirty TRACKED root..."
 mk_sandbox "$RULE_MERGED"; register_sbx
-# Dirty the ROOT tree.
-echo "root-dirt" > "$SBX_ROOT/root-dirt.txt"
+# Dirty the ROOT's TRACKED tree (modify the committed seed.txt). The guard
+# short-circuits to skipped BEFORE reaching `git pull`, so no upstream is needed.
+echo "tracked-change" >> "$SBX_ROOT/seed.txt"
 WT12=$(add_wt cj-feat-20260101-000012-bbb cj-feat-rootdirty)
 OUT=$(run_cleanup "$WT12" --caller feature)   # run from the worktree so root stays dirty
-if echo "$OUT" | grep -q '^ROOT_REFRESH=skipped'; then
-  ok "Case 12: dirty root → ROOT_REFRESH=skipped (root never disturbed)"
+if echo "$OUT" | grep -q '^ROOT_REFRESH=skipped' \
+   && echo "$OUT" | grep -q 'dirty tracked tree'; then
+  ok "Case 12: dirty TRACKED root → ROOT_REFRESH=skipped (root never disturbed)"
 else
-  fail_test "Case 12: expected ROOT_REFRESH=skipped on dirty root; out=$OUT"
+  fail_test "Case 12: expected ROOT_REFRESH=skipped on dirty tracked root; out=$OUT"
+fi
+
+# ============================================================================
+# Case 12b: root-refresh PROCEEDS on untracked-only root (ROOT_REFRESH=ok)
+# ============================================================================
+# The D-fix regression guard. `git checkout main` + `git pull --ff-only` never
+# touch untracked files, so an untracked-only root (clean TRACKED tree) MUST NOT
+# skip the refresh — counting untracked here is the bug (this workbench always has
+# untracked .gstack/*.md design docs at root, which perma-skipped the refresh).
+# Needs a real upstream so the (now-reached) `git pull --ff-only` succeeds → ok.
+echo ""
+echo "Case 12b: root-refresh proceeds on untracked-only root (the D-fix)..."
+mk_sandbox "$RULE_MERGED"; register_sbx
+add_origin_upstream    # bare origin + main set-upstream-to so pull --ff-only is a clean no-op
+# Untracked-ONLY content at root (mimics .gstack/*.md): tracked tree stays clean.
+echo "scratch design doc" > "$SBX_ROOT/untracked-design.md"
+WT12B=$(add_wt cj-feat-20260101-000012-ccc cj-feat-rootuntracked)
+OUT=$(run_cleanup "$WT12B" --caller feature)  # run from the worktree so root keeps its untracked file
+if echo "$OUT" | grep -q '^ROOT_REFRESH=ok' \
+   && ! echo "$OUT" | grep -q 'ROOT_REFRESH=skipped'; then
+  ok "Case 12b: untracked-only root → ROOT_REFRESH=ok (refresh proceeds; untracked no longer blocks)"
+else
+  fail_test "Case 12b: expected ROOT_REFRESH=ok on untracked-only root; out=$OUT"
 fi
 
 # ============================================================================

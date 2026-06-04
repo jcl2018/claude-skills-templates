@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.17] - 2026-06-04
+
+### Fixed
+
+- **`cj-worktree-cleanup.sh` now actually switches the root back to `main` + pulls when only untracked files are present (D000028).** The post-run janitor's guarded root-main refresh used `git status --porcelain` (no flags), which counts untracked files — so in this workbench, where the root always carries untracked `.gstack/*.md` design docs, the `git checkout main && git pull --ff-only` half of the sweep was perma-skipped (`ROOT_REFRESH=skipped`) even with a clean tracked tree. Since `checkout main` + `pull --ff-only` never touch untracked files, the guard now uses `git status --porcelain --untracked-files=no`, so it skips the refresh **only on a dirty *tracked* tree**. The per-worktree dirty rail (which decides whether to *remove* a worktree) deliberately keeps counting untracked files — removing a worktree with untracked scratch would lose it. Regression coverage in `tests/cj-worktree-cleanup.test.sh`: Case 12 hardened to dirty a tracked file (still skips), new Case 12b proves an untracked-only root now refreshes (`ROOT_REFRESH=ok`); a negative control confirms the new case fails against the old guard. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.16] - 2026-06-04
 
 ### Added
