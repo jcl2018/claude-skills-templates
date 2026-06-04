@@ -1135,7 +1135,10 @@ else
 fi
 
 # Helper test: 13-case behavior coverage (F000025 5 mutating-mode cases +
-# T000033 8 --assert-isolated verdict cases + pipeline.md static-grep guard).
+# T000033 8 --assert-isolated verdict cases + CJ_goal_feature/pipeline.md Step 1.9
+# static-grep guard). (F000039: the prior guard assertion on the now-deleted
+# middle-layer pipeline skill retired with that skill; only the feature
+# pipeline.md guard remains.)
 echo ""
 echo "Running tests/cj-worktree-init.test.sh (13-case helper test)..."
 if bash "$REPO_ROOT/tests/cj-worktree-init.test.sh" >/dev/null 2>&1; then

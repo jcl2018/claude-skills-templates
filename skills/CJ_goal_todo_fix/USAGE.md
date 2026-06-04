@@ -28,13 +28,13 @@ last-updated: "2026-06-03T04:15:49Z"
 
 ## Mental model
 
-A TODOS.md backlog drainer that chains `/CJ_suggest` (rank) →
-`/CJ_personal-pipeline` (scaffold → impl → QA) → `/CJ_document-release`
-(Step 5.5 doc-sync) → `/ship` (open PR) →
-`/land-and-deploy` (merge + verify) per drained row. Drain mode creates one
-worktree per TODO inside `scripts/drain-one-todo.sh`; single mode creates one
-`cj-todo-*` worktree on `main`. Halt-on-red stops the loop and writes the
-finding to the tracker journal.
+A TODOS.md backlog drainer that chains `/CJ_suggest` (rank) → bash T-task
+scaffold → `/CJ_implement-from-spec` → `/CJ_qa-work-item` (impl→qa leaf Agent
+subagents, halt-on-red between) → `/CJ_document-release` (Step 5.5 doc-sync) →
+`/ship` (open PR) → `/land-and-deploy` (merge + verify) per drained row. Drain
+mode creates one worktree per TODO inside `scripts/drain-one-todo.sh`; single
+mode creates one `cj-todo-*` worktree on `main`. Halt-on-red stops the loop and
+writes the finding to the tracker journal.
 
 ## Common pitfalls
 
@@ -51,7 +51,8 @@ finding to the tracker journal.
 ## Related skills
 
 - `/CJ_suggest` — ranks TODOS.md rows; drain mode calls it with `--for-skill cj-goal`
-- `/CJ_personal-pipeline` — internal scaffold→impl→QA engine called per drained TODO
+- `/CJ_implement-from-spec` — dispatched per drained TODO (leaf Agent subagent) to write the code
+- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between
 - `/ship` (upstream gstack) — opens PR with Gate #2 diff-review AUQ
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/schedule` (upstream gstack) — pair with `--quiet` for cron-style drains

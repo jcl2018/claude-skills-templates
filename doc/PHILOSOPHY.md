@@ -131,10 +131,9 @@ START: What's your input?
 
 | Skill | Called by | Job |
 |---|---|---|
-| `/CJ_personal-pipeline` | `/CJ_goal_todo_fix` per-TODO chain | Chains scaffold → impl → QA in a fresh-context Agent subagent — [USAGE](../skills/CJ_personal-pipeline/USAGE.md) |
-| `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1; `/CJ_personal-pipeline` | Design-doc → `work-items/<type>/<id>_<slug>/` tree — [USAGE](../skills/CJ_scaffold-work-item/USAGE.md) |
-| `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_personal-pipeline` | Reads SPEC + DESIGN, writes code via Edit/Write — [USAGE](../skills/CJ_implement-from-spec/USAGE.md) |
-| `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_personal-pipeline`; `/CJ_goal_defect` Step 8 | Runs TEST-SPEC rows (smoke + E2E subagent per row) — [USAGE](../skills/CJ_qa-work-item/USAGE.md) |
+| `/CJ_scaffold-work-item` | `/CJ_goal_feature` Step 3.1 | Design-doc → `work-items/<type>/<id>_<slug>/` tree — [USAGE](../skills/CJ_scaffold-work-item/USAGE.md) |
+| `/CJ_implement-from-spec` | `/CJ_goal_feature` Step 3.2; `/CJ_goal_todo_fix` impl→qa chain | Reads SPEC + DESIGN, writes code via Edit/Write — [USAGE](../skills/CJ_implement-from-spec/USAGE.md) |
+| `/CJ_qa-work-item` | `/CJ_goal_feature` Step 3.3; `/CJ_goal_todo_fix` impl→qa chain; `/CJ_goal_defect` Step 8 | Runs TEST-SPEC rows (smoke + E2E subagent per row) — [USAGE](../skills/CJ_qa-work-item/USAGE.md) |
 | `/CJ_document-release` | `/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix` all at Step 5.5 (between QA pass and `/ship`) | Wraps upstream `/document-release` with `--docs <subset>` filter, halt-on-red, and doc-only auto-commit gated by per-repo `cj-document-release.json` (F000036 + F000037 strict-required config) — folds doc updates into the same code PR — [USAGE](../skills/CJ_document-release/USAGE.md) |
 | `/CJ_personal-workflow` | All of the above (boundary checks) | Validates work-item dirs + tracker files against `personal-artifact-manifests.json` — [USAGE](../skills/CJ_personal-workflow/USAGE.md) |
 
@@ -151,7 +150,7 @@ For the underlying mechanisms (the shared `cj-goal-common.sh` helper, the F00003
 **Adding a new template:** Add the file to `templates/<skill>/`. Register it in `skills-catalog.json` under the appropriate catalog entry's `templates` array. Run `./scripts/skills-deploy install` to deploy globally.
 
 **Anti-patterns to avoid:**
-- Don't create orchestration skills that wrap gstack skills as **inline prose** (they end up deleted — Claude already follows CLAUDE.md rules without a wrapper). **Exception:** orchestrators that use the `Agent` tool with `subagent_type` per phase for fresh-context isolation are structurally different — file-only handoff between subagents, the orchestrator brokers paths, AUQs are pre-collected at the parent layer because subagents can't reach the AskUserQuestion tool. That's plumbing, not prose, and it earns its keep. See `/CJ_personal-pipeline` for the pattern.
+- Don't create orchestration skills that wrap gstack skills as **inline prose** (they end up deleted — Claude already follows CLAUDE.md rules without a wrapper). **Exception:** orchestrators that use the `Agent` tool with `subagent_type` per phase for fresh-context isolation are structurally different — file-only handoff between subagents, the orchestrator brokers paths, AUQs are pre-collected at the parent layer because subagents can't reach the AskUserQuestion tool. That's plumbing, not prose, and it earns its keep. See `/CJ_goal_feature` Steps 3.1-3.3 (scaffold → implement → qa leaf subagents) for the pattern.
 - Don't hardcode template lists in skill logic (read `personal-artifact-manifests.json` instead).
 - Don't add `$AI_CONTENT_DIR` indirection (use `./work-items/` directly).
 - Don't add team collaboration features (assignees, locking, notifications).
