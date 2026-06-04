@@ -235,6 +235,11 @@ The catalog is for validation only. The plugin system auto-discovers `skills/`.
 
 `status` is a closed enum enforced by `validate.sh`: `active` or `experimental`.
 
+An entry MAY also carry an optional `doc_requirement` string (T000038) —
+overrides the shared default skill-MD requirement in the registered-doc audit;
+absent ⇒ shared default applies. Tolerated by `validate.sh` (no closed catalog
+schema). See `## Registered-doc requirements audit`.
+
 ### Frontmatter requirements
 Every SKILL.md must have YAML frontmatter with at least `name` and `description`.
 `allowed-tools` is recommended for security (restricts which tools the skill can use).
@@ -440,12 +445,15 @@ Every `*.md` file under `doc/` MUST be registered in this manifest with an `audi
 - path: doc/PHILOSOPHY.md
   audit_class: skill-routing-drift
   owner: F000030 — workbench-level overview + decision tree
+  requirement: "`## Decision tree` lists every active routable skill (matches the New-skills check); the overview + design principles reflect the current CJ_ skill family and the two delivery surfaces."
 - path: doc/ARCHITECTURE.md
   audit_class: skill-routing-drift
   owner: F000030 — mechanism reference
+  requirement: "`## Component skills (non-workflow roster)` lists every non-workflow active routable skill; each mechanism section matches the current load-bearing scripts OR skill steps (cj-goal-common.sh phases, doc-sync, F000037 config, the registered-doc audit, work-copilot)."
 - path: doc/WORKFLOWS.md
   audit_class: workflow-completeness
   owner: F000034 / T000037 — workflow-only doc (the cj_goal orchestrator chains) with ASCII charts + Touches blocks
+  requirement: "Has a `### <name>` section for every `CJ_goal_*` orchestrator, each with an ASCII chart + a Touches block reflecting the current chain."
 ```
 
 `audit_class` enum (closed):
@@ -462,6 +470,8 @@ Every `*.md` file under `doc/` MUST be registered in this manifest with an `audi
 Drift findings surface in the PR body's `## Documentation` section under a new `### Skill-routing drift` subheading. One finding per line. If no findings, emit a single positive line (`Skill-routing drift: none`) so reviewers can tell the audit ran cleanly versus skipped silently.
 
 Doc/ manifest drift findings (Check 15) appear under a sibling `### Doc/ manifest drift` subheading, same one-per-line shape. Positive line: `Doc/ manifest drift: none`.
+
+Registered-doc requirement verdicts appear under a third sibling subheading `### Registered-doc requirements` (one verdict line per registered doc; positive line `Registered-doc requirements: all current` when every verdict is up-to-date). See `## Registered-doc requirements audit` below for the verdict taxonomy and the producer. All three subheadings are emitted by the same producer — the `/CJ_document-release` wrapper's Step 6.7 (the first real producer for these PR-body subheadings; the `### Skill-routing drift` / `### Doc/ manifest drift` blocks were convention-only prose until Job 2 wired Step 6.7, and emitting those two there remains OPTIONAL in v1 — `### Registered-doc requirements` is the Job-2 deliverable).
 
 ## cj-document-release.json convention (F000037)
 
@@ -491,6 +501,94 @@ declare their own.
 Per-verb overrides (`categories_by_verb`), audit_class enum mirror from F000030's
 tracked-doc/ manifest, --docs negation, and multi-repo federation are all
 DEFERRED to future v2 schema bumps.
+
+## Registered-doc requirements audit (Job 2 / T000038)
+
+This convention DOCUMENTS what the `/CJ_document-release` wrapper's **Step 6.7**
+does — it is the operator-facing reference for that producer step, NOT a
+directive to an unwired upstream. (Mechanism reality: upstream gstack
+`/document-release` does not ingest CLAUDE.md `## …audit conventions` sections as
+audit directives — its Step 2 is a fixed set of per-file heuristics. The audit
+below is produced by the workbench-owned wrapper, which already reads
+`cj-document-release.json` + builds a project-context block; Step 6.7 is the
+natural extension point. No upstream gstack modification.)
+
+The audit answers one general question the hard gates structurally can't: **is
+THIS registered doc up to date against ITS declared requirement?** — covering
+both the `doc/*.md` files AND the active routable skill `SKILL.md`s. It
+generalizes the shape the workbench already had (Check 14 is literally "is
+USAGE.md up to date vs its requirement, SKILL.md?" for one doc-pair).
+
+### The registered set
+
+1. **Tracked-doc/ files** — every entry in the `### Tracked doc/ files manifest`
+   block above, each carrying a bespoke `requirement:` value (the Job-2 extension
+   of the F000034 manifest). The doc's requirement is that `requirement:` string.
+2. **Routable skill MDs (active OR experimental)** — every skill returned by
+   `jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json`
+   (the `!= "deprecated"` predicate Check 14/15b use — deliberately BROADER than
+   the F000030 New-skills check's active-only selector, so the audit covers the
+   whole CJ_ family, not just the 3 active skills; no hardcoded skill count). Each
+   skill's `SKILL.md` is a registered doc; its requirement is the skill's optional
+   `doc_requirement` field in `skills-catalog.json`, else the shared default below.
+
+### Shared default skill-MD requirement
+
+When a skill has no `doc_requirement`, its requirement is:
+
+> The SKILL.md frontmatter `description` and the documented behavior/steps match
+> the skill's current implementation; the skill's USAGE.md is current.
+
+### Optional `doc_requirement` catalog field
+
+A skill MAY declare an optional `doc_requirement` string in its
+`skills-catalog.json` entry to OVERRIDE the shared default with a bespoke
+requirement; absent ⇒ the shared default applies. The field is tolerated by
+`validate.sh` (there is no closed catalog schema — only `status` is a closed
+enum; Check 1/2 only check SKILL.md presence + frontmatter). Authoring guidance:
+do NOT enumerate step numbers in the string (a skill that gains a new step would
+self-stale a "Step N–Step M" requirement). See the `### Catalog format` note and
+the `CJ_document-release` exemplar entry.
+
+### Verdict taxonomy
+
+Per registered doc, one verdict:
+
+- `up-to-date` — satisfies its requirement given what the run changed.
+- `stale: <one-line why>` — no longer satisfies its requirement.
+- `missing-requirement` — the registered doc has no declared requirement (a
+  tracked-doc/ manifest entry lacking a `requirement:` child). SOFT — never a halt.
+- `n/a` — registered but out of scope for this run's judgment.
+
+### Surfacing
+
+The Step 6.7 producer emits a `### Registered-doc requirements` block (one
+verdict line per registered doc) to its RESULT AND writes it to the gitignored
+scratch file `.cj-goal-feature/registered-doc-verdicts.md`. The positive line
+`Registered-doc requirements: all current` is emitted ONLY when every verdict is
+`up-to-date` (so reviewers can tell the audit ran cleanly vs skipped). The block
+lands in the PR body's `## Documentation` section under `### Registered-doc
+requirements` via the `/CJ_goal_feature` pipeline's post-`/ship` **Step 4.6**
+(`gh pr edit`, best-effort, never halts; v1 wires `/CJ_goal_feature` only —
+`/CJ_goal_defect` + `/CJ_goal_todo_fix` surfacing is a Job-2.1 follow-up; the
+Step 6.7 producer is shared by all three).
+
+### Producer note
+
+Step 6.7 is the producer. The existing F000030 `### Skill-routing drift` /
+`### Doc/ manifest drift` PR-body subheadings had NO wired producer until Job 2 —
+they were aspirational prose applied ad-hoc by a knowledgeable agent. The same
+Step 6.7 is their natural home, but emitting those two there is OPTIONAL in v1;
+`### Registered-doc requirements` is the Job-2 deliverable.
+
+### Posture
+
+ADVISORY, agent-judged, NEVER a hard gate. No upstream gstack modification; no
+new hard `validate.sh` check in v1 (a registered doc lacking a requirement gets a
+soft `missing-requirement` verdict, not a CI error — hardening requirement-presence
+is a Job-2.1 follow-up). Scope: the 3 tracked-doc/ files + the active routable
+skill MDs. Root convention docs (README/CHANGELOG/CLAUDE.md) are out of scope —
+upstream `/document-release` already audits them per-file.
 
 ## TODOS.md hygiene conventions
 
