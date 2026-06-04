@@ -3,7 +3,7 @@ skill-name: "CJ_suggest"
 version: 1.2.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-03T21:47:55Z"
+last-updated: "2026-06-04T06:15:54Z"
 ---
 
 # Skill Usage: CJ_suggest
@@ -30,8 +30,24 @@ last-updated: "2026-06-03T21:47:55Z"
 A pure scorer. Reads `TODOS.md` (candidate set) and joins it against
 `work-items/**/*_TRACKER.md` YAML frontmatter (live status / blocked_by /
 updated). Filters out internal phase-step skills + draft rows (`<!--impr-draft-->`)
-by default. Output is a markdown table. Read-only, stateless, portable across
-two TODOS.md conventions (CJ_personal-workflow shape and a generic shape).
+by default. Read-only, stateless, portable across two TODOS.md conventions
+(CJ_personal-workflow shape and a generic shape).
+
+The output shape forks on `--for-skill` (S000076):
+
+- **Default (no `--for-skill`)** — a scannable **card list** for an operator
+  picking work. Each ranked item is a card: a header line
+  `N. [ID] Title   Pri · <effort>` (the `[ID]` shows only when the row has an
+  `[FSTD]NNNNNN` id), a `What:` line drawn from the first non-empty line of the
+  TODO body (or `(no description)`), and a `Status:` line that folds the live
+  tracker status together with the Why reasons. The effort label expands the
+  Size letter — `S → quick (<1h)`, `M → ~half-day`, `L → large (1-2 days)` — so
+  you can judge effort without decoding `S/M/L`.
+- **`--for-skill <name>`** — the byte-stable markdown **table**
+  (`Rank | Title | Pri | Size | Status | Why`) that machine consumers parse.
+  `/CJ_goal_todo_fix` reads candidate titles from column 2, so this path is held
+  byte-identical; the card render is interactive-only. Ranking and selection are
+  identical on both paths — only the presentation differs.
 
 ## Common pitfalls
 

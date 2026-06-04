@@ -111,6 +111,18 @@ extract_body() {
   ' "$TODOS"
 }
 
+# effort_label: expand the Size letter (S/M/L) into a human-readable effort
+# label for the interactive card render (S000076). Mirrors the size_w table's
+# letter set; default (anything else, e.g. a row with no suffix that fell back
+# to M) reads as "~half-day".
+effort_label() {
+  case "$1" in
+    S) printf 'quick (<1h)' ;;
+    L) printf 'large (1-2 days)' ;;
+    *) printf '~half-day' ;;
+  esac
+}
+
 # ---- Edge case: missing TODOS.md ----
 if [ ! -f "$TODOS" ]; then
   echo "Error: $TODOS not found in $REPO_ROOT. /suggest requires a TODOS.md at the repo root." >&2
@@ -522,18 +534,64 @@ fi
 # D000017 PR #TBD.)
 TOP5=$(sort -t$'\t' -k1,1nr -k2,2 "$SCORED" | head -n "$LIMIT" || true)
 
-echo "| Rank | Title | Pri | Size | Status | Why |"
-echo "|------|-------|-----|------|--------|-----|"
-rank=1
-# 7th column (raw heading) is the S000042 addition — read into _heading and
-# discard. Without an explicit 7th read variable, `set -r` would glue it onto
-# the last variable ($why), corrupting the rendered Why column.
-while IFS=$'\t' read -r score title pri size status why _heading; do
-  [ -z "$title" ] && continue
-  # Escape `|` in the title cell to keep markdown table valid.
-  # Status/why columns are built from constrained inputs (YAML enum + numeric)
-  # that can't contain `|` today, so no escape needed there.
-  esc_title=$(echo "$title" | sed 's/|/\\|/g')
-  echo "| $rank | $esc_title | $pri | $size | $status | $why |"
-  rank=$((rank + 1))
-done <<< "$TOP5"
+# ---- Render fork (S000076) -------------------------------------------------
+#
+# Two render paths share the same scored+sorted top-N rows:
+#   - $FOR_SKILL set (the /CJ_goal_todo_fix machine consumer): emit the markdown
+#     table UNCHANGED and byte-stable — drain mode parses it with
+#     `awk -F'|'` reading column 2 = title. This path is verbatim the
+#     pre-S000076 renderer; do NOT alter its output.
+#   - $FOR_SKILL empty (the interactive operator): emit a scannable card per
+#     item — header `N. [ID] Title   Pri · <effort>`, a `What:` line (first
+#     non-empty body line via extract_body, or `(no description)`), and a
+#     `Status:` line folding in the existing Why reasons. Only the rendering
+#     changes; scoring, selection, ranking, and the Why text are untouched.
+if [ -n "$FOR_SKILL" ]; then
+  echo "| Rank | Title | Pri | Size | Status | Why |"
+  echo "|------|-------|-----|------|--------|-----|"
+  rank=1
+  # 7th column (raw heading) is the S000042 addition — read into _heading and
+  # discard. Without an explicit 7th read variable, `set -r` would glue it onto
+  # the last variable ($why), corrupting the rendered Why column.
+  while IFS=$'\t' read -r score title pri size status why _heading; do
+    [ -z "$title" ] && continue
+    # Escape `|` in the title cell to keep markdown table valid.
+    # Status/why columns are built from constrained inputs (YAML enum + numeric)
+    # that can't contain `|` today, so no escape needed there.
+    esc_title=$(echo "$title" | sed 's/|/\\|/g')
+    echo "| $rank | $esc_title | $pri | $size | $status | $why |"
+    rank=$((rank + 1))
+  done <<< "$TOP5"
+else
+  # Interactive card list. Column 7 (raw heading) feeds both the [ID] segment
+  # and extract_body for the What: line.
+  rank=1
+  first=1
+  while IFS=$'\t' read -r score title pri size status why heading; do
+    [ -z "$title" ] && continue
+    # Blank line between cards (not before the first).
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      echo ""
+    fi
+    # ID segment: shown only when the heading carries a [FSTD]NNNNNN id.
+    id=$(echo "$heading" | grep -oE '\b[FSTD][0-9]{6}\b' | head -n1 || true)
+    if [ -n "$id" ]; then
+      header="$rank. [$id] $title   $pri · $(effort_label "$size")"
+    else
+      header="$rank. $title   $pri · $(effort_label "$size")"
+    fi
+    echo "$header"
+    # What: first non-empty body line, else (no description).
+    body=$(extract_body "$heading")
+    what=$(echo "$body" | awk 'NF {print; exit}' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+    if [ -z "$what" ]; then
+      what="(no description)"
+    fi
+    echo "What: $what"
+    # Status: fold in the existing Why reasons.
+    echo "Status: $status — $why"
+    rank=$((rank + 1))
+  done <<< "$TOP5"
+fi

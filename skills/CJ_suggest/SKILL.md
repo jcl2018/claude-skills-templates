@@ -122,8 +122,22 @@ or invoke `bash skills/CJ_suggest/scripts/suggest.sh` directly while testing.
 
 ## Notes
 
-- **Surface convention.** Output is markdown to stdout. Same shape as
-  `landing-report` so the user can scan-and-pick in under 30 seconds.
+- **Surface convention (S000076 render fork).** Output shape forks on
+  `--for-skill`:
+  - **Default (no `--for-skill`)** — a scannable **card list** for the
+    interactive operator. One card per ranked item: a header line
+    `N. [ID] Title   Pri · <effort-label>` (the `[ID]` segment is omitted when
+    the row carries no `[FSTD]NNNNNN` id), a `What:` line (the first non-empty
+    prose line of the TODO body, or `(no description)` when the body is empty),
+    and a `Status:` line that folds the live tracker status together with the
+    existing Why reasons. Effort label = the Size letter expanded: `S → quick
+    (<1h)`, `M → ~half-day`, `L → large (1-2 days)`.
+  - **`--for-skill <name>`** — the byte-stable markdown **table** (`Rank | Title
+    | Pri | Size | Status | Why`) the machine consumers parse. `/CJ_goal_todo_fix`
+    reads candidate titles from column 2 via `awk -F'|'`, so this path's output
+    is held byte-identical; only the interactive default render changed in
+    S000076. Scoring, candidate selection, ranking, and the Why reasons are
+    identical across both paths — only the top-N rendering differs.
 - **Heading-only ID extraction.** TODOS body prose often references other
   work items (`Closed by F000014`, etc.). Extracting from the body would
   cause false-positive joins. The regex matches the FIRST
