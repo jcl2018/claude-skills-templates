@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.24] - 2026-06-04
+
+### Changed
+
+- **Docs: tightened the T000036 worktree-sweep note in CLAUDE.md.** Two corrections to the "Automated local-worktree sweep" note: (1) it said "a landed run's own worktree … is removed", which is true for `defect`/`todo` but **wrong for `feature`** — feature stops at the PR, so its own worktree still has an OPEN PR at the terminal and is swept by the *next* cj_goal run, not its own; the wording now distinguishes the two. (2) Added a **manual-path caveat**: the sweep is a pipeline step the orchestrator runs (not a background hook), so a fully manual land (hand-rolled `/ship` + `gh pr merge` bypassing the orchestrator) doesn't trigger it — run `./scripts/cj-worktree-cleanup.sh` by hand for that path. Doc-only change.
+
 ## [6.0.23] - 2026-06-04
 
 ### Changed
