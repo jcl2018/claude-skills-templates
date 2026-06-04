@@ -174,8 +174,7 @@ cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
 [ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
 [ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
-[ -f "$REPO_ROOT/doc/SKILL-CATALOG.md" ] && cp "$REPO_ROOT/doc/SKILL-CATALOG.md" "/tmp/skill-catalog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; [ -f "/tmp/skill-catalog-backup-$$" ] && cp "/tmp/skill-catalog-backup-$$" "$REPO_ROOT/doc/SKILL-CATALOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$" "/tmp/skill-catalog-backup-$$"' EXIT
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"' EXIT
 
 # Step 1: manually create a skill directory + SKILL.md (the CLAUDE.md-guided way)
 mkdir -p "$SKILLS_DIR/zzz-test-scaffold"
@@ -225,25 +224,16 @@ None — fixture is removed by EXIT trap + inline cleanup.
 None.
 USAGEEOF
 
-# Step 1c (F000034): append a stub section to doc/SKILL-CATALOG.md so Check 15
-# finds zzz-test-scaffold listed (the catalog entry below makes it routable; the
-# `status != "deprecated"` + non-empty `files` predicate matches; Check 15 then
-# expects a `### zzz-test-scaffold` section with chart-or-tag). Tag-only stub
-# uses the closed-enum `(single-step utility)` value. EXIT trap + Step 5 inline
-# cleanup restore the catalog from /tmp/skill-catalog-backup-$$.
-if [ -f "$REPO_ROOT/doc/SKILL-CATALOG.md" ]; then
-  cat >> "$REPO_ROOT/doc/SKILL-CATALOG.md" << 'CATALOGEOF'
-
-### zzz-test-scaffold
-
-**Status:** experimental (integration-test fixture; cleaned up after the test runs)
-**Source:** `skills/zzz-test-scaffold/SKILL.md` · `skills/zzz-test-scaffold/USAGE.md`
-
-**Invoke when:** Never. This is a synthesized test skill — the manual-skill-creation integration test creates it, validates the workbench accepts it, then tears it down.
-
-`(single-step utility)` — Fixture for the manual-skill-creation integration test; removed by EXIT trap + Step 5 inline cleanup.
-CATALOGEOF
-fi
+# Step 1c (T000037): NO workflow-doc section is needed for zzz-test-scaffold.
+# Since T000037 re-scoped validate.sh Check 15b's completeness predicate to
+# `startswith("CJ_goal_")`, only the cj_goal *workflow* orchestrators require a
+# section in doc/WORKFLOWS.md. A non-orchestrator scaffolded skill (like this
+# fixture) does NOT match the predicate, so the catalog entry added in Step 2
+# below makes it routable WITHOUT obligating any doc/ section. This is the
+# positive regression test for the reorg: Step 3's validate.sh run must stay
+# GREEN even though zzz-test-scaffold has no WORKFLOWS.md entry. The fixture no
+# longer touches any doc/ file (the old per-skill catalog-doc stub-append + its
+# backup/restore plumbing were removed in T000037).
 
 # Step 2: add catalog entry
 jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
@@ -257,7 +247,12 @@ fi
 
 # Step 3b (F000038 / S000071): Check 17 root-doc placement allowlist.
 # KNOWN BLIND SPOT — every prior new validate.sh check (Check 13/14/15/16) needed
-# this parallel zzz-test-scaffold assertion and it was forgotten each time. Run
+# a parallel zzz-test-scaffold assertion and it was forgotten each time. (Note:
+# T000037 re-scoped Check 15b to `startswith("CJ_goal_")` and REMOVED the old
+# Step 1c per-skill catalog-doc stub-append assertion — a non-orchestrator
+# fixture no longer needs a workflow-doc section, so there is nothing to assert
+# there now.)
+# This block is the Check 17 parallel. Run
 # validate.sh from $REPO_ROOT so Check 17's `find . -maxdepth 1` resolves against
 # the repo root deterministically regardless of the launch cwd. Synthesize a
 # STRAY.md root doc NOT on the allowlist → assert validate.sh exits non-zero AND
@@ -301,7 +296,6 @@ fi
 # missing in repo`. Cleaning up inline keeps the EXIT trap as a defense-in-depth
 # fallback for unexpected exits.
 cp "/tmp/catalog-backup-$$" "$CATALOG"
-[ -f "/tmp/skill-catalog-backup-$$" ] && cp "/tmp/skill-catalog-backup-$$" "$REPO_ROOT/doc/SKILL-CATALOG.md"
 rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold"
 
 # Template content smoke tests (S000002 TEST-SPEC)
@@ -1236,9 +1230,11 @@ fi
 # /CJ_goal_investigate, which has now been fully retired and deleted from disk.)
 
 # Regression test (F000035): the CJ_document-release skill exists, has valid
-# frontmatter + USAGE.md, is registered in skills-catalog.json + doc/SKILL-CATALOG.md,
-# and documents the halt-marker shape + branch + clean-tree refusal prose. Unit-shape
-# tests (file content greps) covering the skill itself.
+# frontmatter + USAGE.md, is registered in skills-catalog.json (a non-orchestrator
+# skill registers there only — T000037 re-scoped the workflow-doc requirement to
+# the CJ_goal_* orchestrators, so CJ_document-release needs NO doc/WORKFLOWS.md
+# section), and documents the halt-marker shape + branch + clean-tree refusal
+# prose. Unit-shape tests (file content greps) covering the skill itself.
 echo ""
 echo "Running tests/cj-document-release.test.sh (F000035 skill structure + body assertions; F000037 helper+JSON assertions)..."
 if bash "$REPO_ROOT/tests/cj-document-release.test.sh" >/dev/null 2>&1; then

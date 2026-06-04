@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.23] - 2026-06-04
+
+### Changed
+
+- **The top-level skill doc is now workflow-centric: `doc/SKILL-CATALOG.md` → `doc/WORKFLOWS.md` (T000037).** The old catalog listed every routable skill at two altitudes — the end-to-end `cj_goal` orchestration chains mixed in with the individual component skills they dispatch. `doc/WORKFLOWS.md` now carries only the three workflows (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`), each with its ASCII chart plus a new **Touches** block — the skills it dispatches, the scripts/tools it runs, and the docs it updates — so a newcomer reads "what are this repo's meaningful workflows, and what does each one touch?" at a glance instead of decoding a flat list of 13 skills. The component skills (phase-steps, validators, utilities) moved to a compact **## Component skills (non-workflow roster)** in `doc/ARCHITECTURE.md`, where the mechanism detail belongs. `validate.sh` Check 15b re-scoped its completeness predicate from "every routable skill" to the `CJ_goal_*` workflow prefix; the tracked-doc manifest audit_class (`skill-catalog-completeness` → `workflow-completeness`), the `cj-document-release.json` category (`skill-catalog` → `workflows`), the section template (`templates/doc-WORKFLOWS-section.md`), both `cj-document-release` test files, and the `scripts/test.sh` `zzz-test-scaffold` fixture all moved in lockstep. No skill becomes undocumented: `doc/PHILOSOPHY.md`'s decision-tree New-skills check still requires every routable skill and is the no-vanish safety net. Files the deferred **Job 2** — a registered-doc *requirements audit* for `/CJ_document-release` (verify each registered doc/skill-MD is up to date against its declared requirements) — as a follow-up TODO. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.22] - 2026-06-04
 
 ### Changed

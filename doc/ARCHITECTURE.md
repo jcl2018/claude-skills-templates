@@ -68,7 +68,7 @@ F000037 externalizes the F000036 hardcoded doc whitelist + `--docs <token>` map 
 
 **New halt class `[doc-sync-no-config]`.** Added to all 3 cj_goal SKILL.md halt-taxonomy tables (between F000036's `[doc-sync-red]` and `[doc-sync-non-doc-write]`). Three orthogonal failure modes now live on the doc-sync surface: config-missing/invalid (F000037), audit-failed (F000036), upstream-misbehaved (F000036) — each has its own halt class for diagnostic clarity in the journal.
 
-**Separation from F000034's tracked-doc/ manifest.** F000034's manifest in CLAUDE.md declares `audit_class` per `doc/*.md` file (closed enum: `skill-routing-drift` / `skill-catalog-completeness` / `static-reference` / `auto-generated`). F000037's JSON declares the doc-sync whitelist + categories (open set, machine-parseable, schema-versionable). Different concerns, separate surfaces — the design deliberately resisted "consolidate into one file" because the shapes don't align. The CLAUDE.md `## cj-document-release.json convention (F000037)` section is the operator-facing reference; this section is the mechanism-reference companion.
+**Separation from F000034's tracked-doc/ manifest.** F000034's manifest in CLAUDE.md declares `audit_class` per `doc/*.md` file (closed enum: `skill-routing-drift` / `workflow-completeness` / `static-reference` / `auto-generated`). F000037's JSON declares the doc-sync whitelist + categories (open set, machine-parseable, schema-versionable). Different concerns, separate surfaces — the design deliberately resisted "consolidate into one file" because the shapes don't align. The CLAUDE.md `## cj-document-release.json convention (F000037)` section is the operator-facing reference; this section is the mechanism-reference companion.
 
 **Portability stays `workbench` in v1.** F000037 is the enabler for future portability (downstream repos can now declare their own doc surface), but the actual flip to `standalone` requires at least one downstream repo successfully consuming the JSON first.
 
@@ -94,7 +94,31 @@ Everything above is Claude-side plumbing. `work-copilot/` is the workbench's *ot
 - The `EXPECTED_BUNDLE_FILES` array (currently 61 entries) lists every required bundle file; the check ERRORs if any is missing. `scripts/test.sh` adds a size budget on `copilot-instructions.md` and an install round-trip test.
 - **To add a bundle file:** create it under `work-copilot/<subdir>/` and append one entry to `EXPECTED_BUNDLE_FILES`. That single array is the registration point.
 
-**Relationship to the Claude side.** Same doc-first *contract* (templates + validation + ambient conventions), different runtime. The `CJ_` orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, …) do NOT port — they are Claude-only. What ports is the structure a contributor scaffolds against and the `/validate` pass that checks it. See [PHILOSOPHY.md → Two delivery surfaces, one contract](PHILOSOPHY.md#two-delivery-surfaces-one-contract) for the why, and [doc/SKILL-CATALOG.md → work-copilot](SKILL-CATALOG.md#work-copilot) for the operator-facing catalog entry.
+**Relationship to the Claude side.** Same doc-first *contract* (templates + validation + ambient conventions), different runtime. The `CJ_` orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, …) do NOT port — they are Claude-only. What ports is the structure a contributor scaffolds against and the `/validate` pass that checks it. See [PHILOSOPHY.md → Two delivery surfaces, one contract](PHILOSOPHY.md#two-delivery-surfaces-one-contract) for the why, and the [work-copilot Copilot bundle section above](#the-work-copilot-copilot-bundle-parallel-delivery-surface) for the deploy mechanism + bundle-integrity check.
+
+## Component skills (non-workflow roster)
+
+The three `cj_goal` workflows in [doc/WORKFLOWS.md](WORKFLOWS.md) dispatch a set of single-purpose **component skills** and lean on a few standalone validators/utilities. Those skills don't get their own workflow chart — they are the building blocks a workflow composes, or a one-shot tool the operator runs directly. This roster is the per-skill reference for them: name + one-line role + Source link. (Every skill below is also enforced in [PHILOSOPHY.md ## Decision tree](PHILOSOPHY.md#decision-tree) by the workbench's New-skills check, which is the no-vanish safety net — see `## Decision tree mirror` below. This roster is documentation, not Check-enforced.)
+
+**Phase-step skills** (dispatched by the orchestrators as depth-≤2 leaf subagents):
+
+- **CJ_scaffold-work-item** — distills an APPROVED `/office-hours` design doc into a compliant `work-items/<type>/<id>_<slug>/` tree (TRACKER + per-type artifacts + lifecycle gates); runs `/CJ_personal-workflow check` at the boundaries; idempotent. Source: `skills/CJ_scaffold-work-item/SKILL.md` · `skills/CJ_scaffold-work-item/USAGE.md`.
+- **CJ_implement-from-spec** — reads the per-type spec (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks) and writes code via Read/Edit/Write; propose-and-confirm by default with a sensitive-surface AUQ, `--auto` for trivial ≤2-file changes; idempotent. Source: `skills/CJ_implement-from-spec/SKILL.md` · `skills/CJ_implement-from-spec/USAGE.md`.
+- **CJ_qa-work-item** — runs every test-plan / TEST-SPEC row in the work-item (user-stories get smoke + a fresh-context E2E subagent per row; defects/tasks run rows smoke-equivalent), writes findings to the tracker journal, transitions Phase 2 QA-owned gates; refuses on incomplete Phase 2; idempotent. Source: `skills/CJ_qa-work-item/SKILL.md` · `skills/CJ_qa-work-item/USAGE.md`.
+- **CJ_document-release** — workbench wrapper around upstream `/document-release`; adds a `--docs <subset>` filter, a halt-on-red contract (`[doc-sync-red]`), and a doc-only auto-commit gated by the per-repo `cj-document-release.json` whitelist; invoked inline at Step 5.5 of all three orchestrators. (Mechanism detail: `## F000036 inline doc-sync wrapper` + `## F000037 strict-required cj-document-release.json` above.) Source: `skills/CJ_document-release/SKILL.md` · `skills/CJ_document-release/USAGE.md`.
+
+**Validator** (depended on by every phase-step + orchestrator, run transitively at boundaries):
+
+- **CJ_personal-workflow** — validates work-item directories + tracker files against the personal templates and `personal-artifact-manifests.json`; templates + WORKFLOW.md are the single source of truth for structural rules. Source: `skills/CJ_personal-workflow/SKILL.md` · `skills/CJ_personal-workflow/USAGE.md`.
+
+**Standalone utilities** (operator-invoked directly; not part of a chain):
+
+- **CJ_system-health** — read-only `~/.claude/` health dashboard: scans installed skills, builds a dependency graph, checks filesystem health, surfaces usage analytics with a behavioral-topology overlay, optionally invokes waza; produces a scored report with trend tracking. Source: `skills/CJ_system-health/SKILL.md` · `skills/CJ_system-health/USAGE.md`.
+- **CJ_suggest** — prints a ranked top-5 (or `--limit N`) of next-up work items from TODOS.md + tracker frontmatter; internal phase-step rows filtered by default (`--include-internal` surfaces them); `--for-skill` / `--limit` pre-filter for downstream callers like `/CJ_goal_todo_fix`. Source: `skills/CJ_suggest/SKILL.md` · `skills/CJ_suggest/USAGE.md`.
+- **CJ_improve-queue** — workbench self-improvement skill with three modes: `evaluate <url>` (fetch + classify a Claude best-practice article → draft TODOS row if novel), `audit` (offline repo self-scan), `research <topic>` (WebSearch + per-result evaluate with a privacy gate); all rows land with `<!--impr-draft-->` markers. Source: `skills/CJ_improve-queue/SKILL.md` · `skills/CJ_improve-queue/USAGE.md`.
+- **CJ_repo-init** — detects which CJ_ skills are deployed, verifies each one's per-repo prerequisites (`cj-document-release.json`, `TODOS.md`, `work-items/` tree), prints a health table, and on one confirm scaffolds the missing prerequisites from generic portable seeds; in-place, no worktree/ship; idempotent. Source: `skills/CJ_repo-init/SKILL.md` · `skills/CJ_repo-init/USAGE.md`.
+
+(The `work-copilot/` Copilot bundle is NOT a Claude skill — it is the parallel delivery surface documented in `## The work-copilot Copilot bundle (parallel delivery surface)` above, not in this roster.)
 
 ## Decision tree mirror
 
