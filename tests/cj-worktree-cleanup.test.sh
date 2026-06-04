@@ -388,6 +388,63 @@ fi
 rm -rf "$NONGIT"
 
 # ============================================================================
+# Orphan-dir sweep: rm leftover cj-* dirs git no longer tracks
+# ============================================================================
+echo ""
+echo "Orphan: leftover cj-* dir (on disk, not a worktree) is removed..."
+mk_sandbox "$RULE_MERGED"; register_sbx
+ORPH="$SBX_ROOT/.claude/worktrees/cj-feat-20260101-000099-orphan"
+mkdir -p "$ORPH"; echo "stale" > "$ORPH/leftover.txt"   # present on disk, NOT git-registered
+OUT=$(run_cleanup "$SBX_ROOT" --caller feature)
+if [ ! -d "$ORPH" ] \
+   && echo "$OUT" | grep -q 'RM-ORPHAN_PATH=.*cj-feat-20260101-000099-orphan' \
+   && echo "$OUT" | grep -qE '^ORPHANS_RM=[1-9]'; then
+  ok "Orphan: cj-* orphan dir rm'd (gone, RM-ORPHAN listed, ORPHANS_RM>=1)"
+else
+  fail_test "Orphan: expected cj-* orphan removed; dir_exists=$([ -d "$ORPH" ] && echo yes || echo no) out=$OUT"
+fi
+
+echo ""
+echo "Orphan: non-cj leftover dir is NOT touched (out of scope)..."
+mk_sandbox "$RULE_MERGED"; register_sbx
+NONCJ="$SBX_ROOT/.claude/worktrees/claude-conductor-abc123"
+mkdir -p "$NONCJ"; echo "keep" > "$NONCJ/keep.txt"
+OUT=$(run_cleanup "$SBX_ROOT" --caller feature)
+if [ -d "$NONCJ" ] && ! echo "$OUT" | grep -q 'RM-ORPHAN_PATH=.*claude-conductor-abc123'; then
+  ok "Orphan: non-cj dir left intact (cj-* scope respected)"
+else
+  fail_test "Orphan: non-cj dir must NOT be removed; dir_exists=$([ -d "$NONCJ" ] && echo yes || echo no) out=$OUT"
+fi
+
+echo ""
+echo "Orphan: a still-registered worktree is NOT orphan-rm'd (even an OPEN-PR one)..."
+mk_sandbox "$RULE_OPEN"; register_sbx
+REGWT=$(add_wt cj-feat-20260101-000100-reg cj-feat-registered-open)
+ORPH2="$SBX_ROOT/.claude/worktrees/cj-def-20260101-000101-orphan2"
+mkdir -p "$ORPH2"
+OUT=$(run_cleanup "$SBX_ROOT" --caller feature)
+if [ -d "$REGWT" ] && [ ! -d "$ORPH2" ] \
+   && ! echo "$OUT" | grep -q "RM-ORPHAN_PATH=$REGWT"; then
+  ok "Orphan: registered OPEN worktree survived; only the unregistered orphan was rm'd"
+else
+  fail_test "Orphan: registered worktree must survive orphan sweep; reg_exists=$([ -d "$REGWT" ] && echo yes || echo no) orph_exists=$([ -d "$ORPH2" ] && echo yes || echo no) out=$OUT"
+fi
+
+echo ""
+echo "Orphan: --dry-run lists WOULD-RM-ORPHAN and mutates nothing..."
+mk_sandbox "$RULE_MERGED"; register_sbx
+ORPH3="$SBX_ROOT/.claude/worktrees/cj-todo-20260101-000102-orphan3"
+mkdir -p "$ORPH3"
+OUT=$(run_cleanup "$SBX_ROOT" --dry-run --caller todo)
+if [ -d "$ORPH3" ] \
+   && echo "$OUT" | grep -q 'WOULD-RM-ORPHAN_PATH=.*cj-todo-20260101-000102-orphan3' \
+   && echo "$OUT" | grep -qE '^WOULD_ORPHANS_RM=[1-9]'; then
+  ok "Orphan: dry-run listed WOULD-RM-ORPHAN, dir intact"
+else
+  fail_test "Orphan: dry-run should list + not rm; dir_exists=$([ -d "$ORPH3" ] && echo yes || echo no) out=$OUT"
+fi
+
+# ============================================================================
 # Static wiring assertions (test-plan cases 14/15/16/17)
 # ============================================================================
 

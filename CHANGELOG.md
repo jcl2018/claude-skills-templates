@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.26] - 2026-06-04
+
+### Added
+
+- **The worktree janitor now also removes orphan `cj-*` dirs (leftover folders git no longer tracks).** `scripts/cj-worktree-cleanup.sh` previously swept *registered* worktrees + `git worktree prune`d stale admin entries, but never `rm`'d a leftover checkout DIR — a dir present under `.claude/worktrees/` but absent from `git worktree list` (from a partial/failed removal). Those accumulated (13 such dirs at the time of writing). The janitor now sweeps them, **scoped to the `cj-(feat|def|todo)-*` footprint only** — never the current dir, never a still-registered worktree, never a non-cj dir (Conductor `claude/*` etc. stay out of scope by the same blast-radius decision as the rest of the janitor). Safety: registered-ness is matched by **basename**, not full path, so a worktree under a symlinked tree (e.g. macOS `/var` vs `/private/var`) is never mistaken for an orphan and removed — a regression test caught exactly that string-compare bug and now guards it. A `git`-failure fail-safe (`rm` nothing if the registry read is empty) and `--dry-run` (`WOULD-RM-ORPHAN` / `WOULD_ORPHANS_RM`) round it out. Four new cases in `tests/cj-worktree-cleanup.test.sh` (orphan removed; non-cj untouched; registered worktree survives; dry-run lists-but-doesn't-rm). `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.25] - 2026-06-04
 
 ### Added
