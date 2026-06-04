@@ -9,9 +9,15 @@
 # Usage:
 #   scripts/check-gates-update.sh <work-item-dir>
 #
+# MANUAL OPERATOR TOOL ONLY (F000011 fix): this script is NO LONGER auto-invoked
+# by the post-merge git hook (scripts/setup-hooks.sh). It resolves the shipping
+# PR via `gh pr list --search <id>`, which matches the work-item ID anywhere in
+# title OR body — so it can mis-link during ID collisions (observed: it wrote a
+# `PR #202` link into a tracker that actually shipped via #203). When you run it
+# by hand, sanity-check the PR link it writes against the work-item's real PR.
+#
 # Called from:
 #   - skills/CJ_personal-workflow/check.md Step 13.5 (when --update flag passed)
-#   - .git/hooks/post-merge (auto-fires after git pull on main)
 #
 # Best-effort contract: prints warnings on partial failure (e.g., gh offline),
 # but exits 0 unless the input is fundamentally invalid.
