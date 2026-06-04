@@ -84,15 +84,23 @@ Run this after the merge to actually delete the remote branch.
 deletes the **remote** branch; the **local** `.claude/worktrees/cj-*/` dir is swept
 automatically by the post-run janitor `scripts/cj-worktree-cleanup.sh`. Each of the
 three `CJ_goal_*` orchestrators runs it at its post-land terminal (feature: after
-the PR opens; defect/todo: after `/land-and-deploy`), so a landed run's own
-worktree — plus any *other* MERGED/CLOSED `cj-*` worktrees — is removed and the root
-checkout is pulled back to `main`, with no manual step. It is **PR-state-gated** (a
+the PR opens; defect/todo: after `/land-and-deploy`), so **defect/todo remove their
+own (now-landed) worktree**, while a **feature run does NOT remove its own** — its PR
+is still OPEN at the PR-stop, so that worktree is swept by the *next* cj_goal run.
+Either way, any *other* MERGED/CLOSED `cj-*` worktrees are removed and the root
+checkout is switched to `main` and pulled, with no manual step. It is **PR-state-gated** (a
 worktree is removed only when its PR reads MERGED/CLOSED — never by branch ancestry,
 which a squash merge breaks) and **self-healing** (every cj_goal run sweeps *all*
 landed cj-* worktrees, so a hand-merged worktree is cleared by the next run of any
 kind). It is strictly best-effort — it never halts a run. To preview the current
 sweep at any time without mutating anything: `./scripts/cj-worktree-cleanup.sh
 --dry-run` (lists `WOULD-REMOVE` / `WOULD-SKIP`).
+
+*Manual-path caveat.* The sweep is a **pipeline step the orchestrator runs**, not a
+background git hook — it fires only when you invoke one of the three `CJ_goal_*`
+skills. A fully manual land (a hand-rolled `/ship` + `gh pr merge` that bypasses the
+orchestrator) does NOT trigger it; run `./scripts/cj-worktree-cleanup.sh` by hand
+afterward (`--dry-run` first to preview).
 
 **Post-land local sync (F000041).** After `gh pr merge` + verify MERGED + the
 worktree branch cleanup above, run the helper to install the merged skills
