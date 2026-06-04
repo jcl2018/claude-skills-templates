@@ -242,7 +242,9 @@ do_install() {
     # Templates-only catalog entries have no skill directory (empty files array)
     local files_count
     files_count=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
-    if [ "$files_count" -eq 0 ]; then
+    # -n guard: a catalog-absent name yields empty (jq match miss, exit 0) — avoid
+    # the "integer expression expected" crash (same class as do_remove's fc_rm).
+    if [ -n "$files_count" ] && [ "$files_count" -eq 0 ]; then
       echo "  OK: $name is templates-only (no skill directory)"
       manifest=$(echo "$manifest" | jq --arg n "$name" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.skills[$n] = {templates_only: true, installed_at: $t}')
@@ -387,7 +389,9 @@ do_install() {
     # Templates-only entries have no skill directory but still deploy templates
     local fc
     fc=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
-    if [ "$fc" -ne 0 ]; then
+    # -n guard: a catalog-absent name yields empty (jq match miss, exit 0) — avoid
+    # the "integer expression expected" crash (same class as do_remove's fc_rm).
+    if [ -n "$fc" ] && [ "$fc" -ne 0 ]; then
       [ -d "$src" ] || continue
       # Skip skills we didn't actually install (gstack/other owned)
       local owner
@@ -592,7 +596,13 @@ do_remove() {
     local tpl_only=false
     local fc_rm
     fc_rm=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
-    [ "$fc_rm" -eq 0 ] && tpl_only=true
+    # A catalog-absent skill (deprecated/renamed but still deployed) makes the jq
+    # `select` match nothing → empty output + jq exit 0, which defeats the
+    # `|| echo "0"` fallback (it only catches jq *failure*). The -n guard stops
+    # `[ "" -eq 0 ]` from erroring "integer expression expected". Empty (absent)
+    # MUST stay tpl_only=false so the dir-removal block below still runs — do NOT
+    # default empty→0 (that sets tpl_only=true, skips removal, orphans the dir).
+    [ -n "$fc_rm" ] && [ "$fc_rm" -eq 0 ] && tpl_only=true
 
     # Read the recorded install_kind for this skill (S000079). Absent field →
     # "symlink" (back-compat: installs predating the field were all symlinks).
