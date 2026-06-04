@@ -64,7 +64,10 @@
       "CJ_personal-workflow/doc-RCA.md",
       "CJ_personal-workflow/doc-test-plan.md"
     ],
-    "status": "active"
+    "status": "active",
+    "portability_requires": [
+      "scripts/check-gates-update.sh"
+    ]
   },
   {
     "name": "CJ_scaffold-work-item",
@@ -189,7 +192,12 @@
       "skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"
     ],
     "templates": [],
-    "status": "active"
+    "status": "active",
+    "portability_requires": [
+      "scripts/cj-goal-common.sh",
+      "scripts/cj-worktree-init.sh",
+      "scripts/cj-worktree-cleanup.sh"
+    ]
   },
   {
     "name": "CJ_improve-queue",
@@ -247,7 +255,12 @@
       "skills/CJ_goal_defect/pipeline.md"
     ],
     "templates": [],
-    "status": "experimental"
+    "status": "experimental",
+    "portability_requires": [
+      "scripts/cj-goal-common.sh",
+      "scripts/cj-worktree-init.sh",
+      "CLAUDE.md"
+    ]
   },
   {
     "name": "CJ_goal_feature",
@@ -276,7 +289,12 @@
       "skills/CJ_goal_feature/pipeline.md"
     ],
     "templates": [],
-    "status": "experimental"
+    "status": "experimental",
+    "portability_requires": [
+      "scripts/cj-goal-common.sh",
+      "scripts/cj-worktree-init.sh",
+      "CLAUDE.md"
+    ]
   },
   {
     "name": "CJ_document-release",
@@ -319,6 +337,33 @@
       "skills/CJ_repo-init/SKILL.md"
     ],
     "templates": [],
+    "status": "experimental",
+    "portability_requires": [
+      "scripts/cj-repo-init.sh"
+    ]
+  },
+  {
+    "name": "CJ_portability-audit",
+    "version": "0.1.0",
+    "description": "Static dependency lint for declared skill portability. Compares each catalog skill's declared portability field against its ACTUAL executed repo-local dependencies (root scripts/*.sh helpers, root config, CLAUDE.md, the manifest .source reach-back) using a strict tier ladder (standalone < local-only < workbench), an EXECUTED-vs-documented precision rule, bundled-own-script + scoped self-resolution-preamble carve-outs, and an optional portability_requires accepted-deps field. Emits a per-skill verdict (portable / portable-with-notes / findings:<list>). Engine-in-script (scripts/cj-portability-audit.sh, resolved repo-local-first then via .source); also wired into validate.sh as an advisory check (exit 0 in v1; PORTABILITY_STRICT=1 flips to hard-fail). Workbench-only. Use when: 'audit skill portability', 'check declared-vs-actual dependencies', 'is this skill really standalone'.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "bash",
+        "jq",
+        "awk",
+        "git",
+        "find",
+        "grep"
+      ]
+    },
+    "portability": "workbench",
+    "files": [
+      "skills/CJ_portability-audit/SKILL.md"
+    ],
+    "templates": [],
+    "doc_requirement": "The SKILL.md tier ladder + EXECUTED-vs-documented rule + carve-outs match scripts/cj-portability-audit.sh; the engine-resolution preamble + advisory-check posture (exit 0 default, PORTABILITY_STRICT=1 opt-in) match validate.sh; USAGE.md is current.",
     "status": "experimental"
   }
 ]

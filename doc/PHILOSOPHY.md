@@ -109,6 +109,12 @@ START: What's your input?
   ├─ "Is my ~/.claude/ healthy?" ─► /CJ_system-health [--quick]
   │  (dependency graph + usage)
   │
+  ├─ "Set up this repo for CJ_?" ─► /CJ_repo-init
+  │  (verify/scaffold per-repo prereqs — consumer-side)
+  │
+  ├─ "Are my skills' portability ─► /CJ_portability-audit
+  │   declarations honest?"          (declared-vs-actual dependency lint — producer-side)
+  │
   └─ Found a Claude best-practice ► /CJ_improve-queue evaluate <url>
      URL? Audit the repo?            ├─ /CJ_improve-queue audit
                                      └─ /CJ_improve-queue research <topic>
@@ -123,6 +129,8 @@ START: What's your input?
 | Backlog has shippable TODOs.md rows | `/CJ_goal_todo_fix` (or `--max-drain N`) — [USAGE](../skills/CJ_goal_todo_fix/USAGE.md) |
 | Lost track, what's next? | `/CJ_suggest` — [USAGE](../skills/CJ_suggest/USAGE.md) |
 | Health check the workbench | `/CJ_system-health` — [USAGE](../skills/CJ_system-health/USAGE.md) |
+| Set up / verify a repo for the CJ_ family (consumer-side prereqs) | `/CJ_repo-init` — [USAGE](../skills/CJ_repo-init/USAGE.md) |
+| Audit whether skills' `portability` declarations are honest (producer-side) | `/CJ_portability-audit` — [USAGE](../skills/CJ_portability-audit/USAGE.md) |
 | Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` — [USAGE](../skills/CJ_improve-queue/USAGE.md) |
 
 > **Not on Claude Code?** The decision tree above is the Claude-skill surface. If your machine runs **GitHub Copilot** instead, the `work-copilot/` bundle mirrors the same work-item + `/validate` workflow — see [doc/ARCHITECTURE.md → The work-copilot Copilot bundle](ARCHITECTURE.md#the-work-copilot-copilot-bundle-parallel-delivery-surface). The `CJ_` orchestrators themselves are Claude-only.
