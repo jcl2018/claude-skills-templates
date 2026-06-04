@@ -78,6 +78,34 @@ gh api -X DELETE "repos/jcl2018/claude-skills-templates/git/refs/heads/<branch>"
 
 Run this after the merge to actually delete the remote branch.
 
+**Post-land local sync (F000041).** After `gh pr merge` + verify MERGED + the
+worktree branch cleanup above, run the helper to install the merged skills
+locally and refresh `collection_version`:
+
+```bash
+./scripts/post-land-sync.sh            # guarded git pull --ff-only + skills-deploy install + version report
+./scripts/post-land-sync.sh --dry-run  # preview only — resolve .source + print would-run commands; mutate nothing
+```
+
+The helper resolves `.source` from `~/.claude/.skills-templates.json`, guards it
+(refuses with a named message + non-zero exit if `.source` is missing, not a git
+repo, not on `main`, or has a dirty *tracked* tree — untracked files are OK),
+then `git -C "$_SRC" pull --ff-only` and runs `skills-deploy install` **from
+`.source`** (not from a worktree — a worktree-invoked install skips
+foreign-owned skills). It prints `collection_version` before→after.
+
+*Why this step is needed.* `gh pr merge` is a **remote** merge. The local
+post-merge auto-sync hook (`setup-hooks.sh` → `skills-deploy install`) only fires
+on a local `git pull`/`merge`, so a remote merge bypasses it entirely — the
+just-merged skill lands on `main` but is NOT installed into `~/.claude/skills/`
+(so it isn't invocable as a `/`-command) until you pull + install. This helper is
+that pull + install in one correct command.
+
+*Drift note.* The same install also reconciles `collection_version` drift between
+the manifest (`~/.claude/.skills-templates.json`) and `.source/VERSION`: a series
+of remote merges leaves the manifest version lagging `.source` (observed: manifest
+6.0.8 vs `.source` 6.0.10), and `post-land-sync.sh` brings them back into sync.
+
 **Queue-collision preflight.** When multiple worktrees may be active and you're
 about to run `/ship`, optionally run:
 
