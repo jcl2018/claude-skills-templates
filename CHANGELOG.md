@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.11] - 2026-06-03
+
+### Added
+
+- **F000041 `scripts/post-land-sync.sh` — one-command post-merge local sync + collection_version drift fix.** `gh pr merge` is a remote merge that bypasses the local post-merge auto-sync hook (which only fires on a local `git pull`/`merge`), so a just-merged skill lands on `main` but isn't installed into `~/.claude/skills/` (not invocable as a `/`-command) until someone manually pulls + installs — and the manifest `collection_version` drifts from `.source/VERSION` (observed: manifest 6.0.8 vs `.source` 6.0.10 after PRs #200/#201 landed). New `scripts/post-land-sync.sh` resolves `.source` from `~/.claude/.skills-templates.json`, guards it (refuses with a named message + non-zero exit if `.source` is missing, not a git repo, not on `main`, or has a dirty *tracked* tree — untracked OK), then runs `git -C "$_SRC" pull --ff-only` + `skills-deploy install` **from `.source`** (not a worktree — a worktree-invoked install skips foreign-owned skills) and prints `collection_version` before→after. `--dry-run` previews without mutation; a `POST_LAND_SYNC_MANIFEST` env override points the manifest at a fixture for tests. CLAUDE.md "CI/CD merge convention" gains a "Post-land local sync" subsection — the post-merge step (a), why `gh pr merge` bypasses the hook (b), and the drift-reconciliation note (c) — plus a `post-land-sync.sh` row in the Scripts-reference table. New `tests/post-land-sync.test.sh` (14 assertions; `--dry-run` + temp fixture, never touches real `~/.claude`) wired into `scripts/test.sh`. `validate.sh` + `test.sh` green.
+
 ## [6.0.10] - 2026-06-03
 
 ### Removed
