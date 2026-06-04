@@ -86,8 +86,8 @@ done
 #                          avoid matching random prose like "personal pipeline")
 # Trailing boundary uses a negated character class instead of `\b` for portable
 # BSD-grep behavior. The CJ_-prefixed alternative needs no trailing boundary —
-# `CJ_personal-pipeline` is not a substring of any other current skill name.
-INTERNAL_SKILL_RE='CJ_(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec|personal-pipeline|company-workflow)|/(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec|personal-pipeline)([^a-zA-Z0-9_-]|$)'
+# none of the listed internal names is a substring of another current skill name.
+INTERNAL_SKILL_RE='CJ_(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec|company-workflow)|/(personal-workflow|scaffold-work-item|qa-work-item|implement-from-spec)([^a-zA-Z0-9_-]|$)'
 
 # Validate --for-skill value (only cj-goal is implemented in v1).
 if [ -n "$FOR_SKILL" ] && [ "$FOR_SKILL" != "cj-goal" ]; then
@@ -465,7 +465,7 @@ fi
 # pipelines (CJ_goal_run, CJ_goal_todo_fix, CJ_goal_investigate) and standalone
 # utilities (CJ_system-health, CJ_improve-queue) are the user-facing surface.
 # Phase-step skills (CJ_scaffold-work-item, CJ_implement-from-spec,
-# CJ_qa-work-item, CJ_personal-pipeline) and validators (CJ_personal-workflow,
+# CJ_qa-work-item) and validators (CJ_personal-workflow,
 # CJ_company-workflow) are transitively invoked by the orchestrators — their
 # work items usually surface as side effects of fixing the top-level skill,
 # not as standalone next-ups. Filter by default; `--include-internal` for the

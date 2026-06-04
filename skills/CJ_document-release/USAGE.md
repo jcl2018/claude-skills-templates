@@ -34,10 +34,12 @@ last-updated: "2026-06-02T19:50:36Z"
   (no `--docs` filter, no halt-on-red contract, no auto-commit gate) — call
   upstream `/document-release` directly. The wrapper is for the orchestrator
   path; the bare upstream is for non-orchestrator paths.
-- Non-orchestrator paths (raw `git push`, manual `/ship` outside the cj_goal
-  pipeline) — F000029's marker-AUQ surface is the right fallback for those;
-  it fires on next-session via the preamble in each cj_goal SKILL.md. The
-  two mechanisms coexist; they do not fight.
+- Non-orchestrator paths — `/ship` (Step 18) already runs `/document-release`
+  on every invocation, so a manual `/ship` still folds doc updates into the
+  PR. The only uncovered path is a main-move that bypasses BOTH the cj_goal
+  orchestrators AND `/ship` (a raw `git push` or a hand-rolled
+  `gh pr create` + `gh pr merge`); recover that by running `/document-release`
+  by hand from a feature branch.
 
 ## Mental model
 
@@ -99,10 +101,6 @@ the workbench's bundled JSON seeds the F000036-compat set.
   same code PR.
 - `/CJ_goal_defect` — same Step 5.5 wiring for the defect verb.
 - `/CJ_goal_todo_fix` — same Step 5.5 wiring for the TODO drain verb.
-- `scripts/skills-doc-sync-check` (F000029) — fallback marker-AUQ surface
-  for non-orchestrator paths. F000036 (this skill) fires inline in
-  orchestrator paths; F000029 fires on next-session for non-orchestrator
-  paths. The two mechanisms layer; they do not fight.
 - `/ship` (upstream gstack) — the next pipeline step after Step 5.5; opens
   a PR containing both code commits (from earlier phases) AND the doc
   commit (from this skill).

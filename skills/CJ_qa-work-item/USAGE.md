@@ -12,7 +12,7 @@ last-updated: "2026-06-01"
 
 - "QA this work-item", "run tests on the work-item", "verify the work-item"
 - A scaffolded + implemented work-item is in Phase 2 and needs its test-plan rows run
-- An orchestrator (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_personal-pipeline`)
+- An orchestrator (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`)
   is delegating the QA phase as a leaf subagent
 - Re-running is idempotent — already-green rows are skipped
 
@@ -46,7 +46,6 @@ or halt the pipeline.
 ## Related skills
 
 - `/CJ_implement-from-spec` — upstream phase: produces the code this skill tests
-- `/CJ_personal-pipeline` — internal orchestrator that chains scaffold → impl → QA
 - `/CJ_personal-workflow` — runs at boundaries to confirm Phase 2 completeness
-- `/CJ_goal_feature` + `/CJ_goal_defect` — top-level orchestrators that call QA
-  as the final pre-ship leaf subagent
+- `/CJ_goal_feature` + `/CJ_goal_defect` + `/CJ_goal_todo_fix` — top-level
+  orchestrators that call QA as the final pre-ship leaf subagent

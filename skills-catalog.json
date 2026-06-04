@@ -133,34 +133,9 @@
     "status": "experimental"
   },
   {
-    "name": "CJ_personal-pipeline",
-    "version": "1.1.0",
-    "description": "INTERNAL — invoked transitively by /CJ_goal_todo_fix (and by /CJ_goal_feature for the silent build phase). Do not call directly. Single-keystroke orchestrator over the 3 CJ_personal-workflow pipeline skills (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item). Dispatches each phase as a fresh-context Agent subagent with file-only handoff, runs independent inter-step quality gates, pre-collects AUQs at orchestrator (subagents have no AUQ tool). Auto-decides intermediate AUQs using 6 principles, classifies each decision as Mechanical / Taste / User Challenge, and surfaces Taste + User-Challenge-Approved decisions at one final approval gate (Step 8.5; mirrors /autoplan's single-mode contract). Halt-on-red default; idempotent.",
-    "source": "local",
-    "depends": {
-      "skills": [
-        "CJ_scaffold-work-item",
-        "CJ_implement-from-spec",
-        "CJ_qa-work-item",
-        "CJ_personal-workflow"
-      ],
-      "tools": [
-        "git",
-        "jq"
-      ]
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/CJ_personal-pipeline/SKILL.md",
-      "skills/CJ_personal-pipeline/pipeline.md"
-    ],
-    "templates": [],
-    "status": "experimental"
-  },
-  {
     "name": "CJ_suggest",
     "version": "1.2.0",
-    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, CJ_personal-pipeline, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix.",
+    "description": "Print a ranked top-5 of next-up work items from TODOS.md and tracker frontmatter. Internal phase-step skill rows (CJ_scaffold-work-item, CJ_implement-from-spec, CJ_qa-work-item, *-workflow validators) are filtered by default; pass --include-internal to surface them. Optional --for-skill / --limit flags pre-filter and extend the candidate window for downstream callers like /CJ_goal_todo_fix.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -184,14 +159,15 @@
   {
     "name": "CJ_goal_todo_fix",
     "version": "2.2.0",
-    "description": "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0; --quiet added v4.3.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_personal-pipeline + /ship + /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews; --quiet suppresses Phase 3 summary AUQ for cron / /schedule consumers (autonomy ceiling preserved — /ship Gate #2 still fires per child). Workbench-only; halt-on-red preserved end-to-end.",
+    "description": "Auto-resolve TODOs from TODOS.md into shipped PRs (formerly /CJ_goal; renamed v4.0.0; native drain mode added v4.2.0; --quiet added v4.3.0). Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via the /CJ_implement-from-spec → /CJ_qa-work-item → /ship → /land-and-deploy chain — no /loop wrapper needed. Single-TODO mode preserved when arg is T-ID or fragment. --max-drain N caps the loop; --dry-run previews; --quiet suppresses Phase 3 summary AUQ for cron / /schedule consumers (autonomy ceiling preserved — /ship Gate #2 still fires per child). Workbench-only; halt-on-red preserved end-to-end.",
     "source": "local",
     "depends": {
       "skills": [
         "CJ_suggest",
-        "CJ_personal-pipeline",
-        "CJ_personal-workflow",
-        "CJ_scaffold-work-item"
+        "CJ_scaffold-work-item",
+        "CJ_implement-from-spec",
+        "CJ_qa-work-item",
+        "CJ_personal-workflow"
       ],
       "tools": [
         "bash",
@@ -305,7 +281,7 @@
   {
     "name": "CJ_document-release",
     "version": "0.1.0",
-    "description": "Workbench wrapper around upstream gstack /document-release (upstream skill, not in this catalog — invoked via Skill tool). Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a per-repo doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). F000037: whitelist + --docs categories load from a strict-required cj-document-release.json at repo root; missing/invalid config HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR. F000036 closes the F000028+F000029 marker-AUQ drift window for orchestrator-driven paths; F000029's marker-AUQ stays as fallback for non-orchestrator paths.",
+    "description": "Workbench wrapper around upstream gstack /document-release (upstream skill, not in this catalog — invoked via Skill tool). Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a per-repo doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). F000037: whitelist + --docs categories load from a strict-required cj-document-release.json at repo root; missing/invalid config HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR rather than chasing them post-merge.",
     "source": "local",
     "depends": {
       "skills": [],

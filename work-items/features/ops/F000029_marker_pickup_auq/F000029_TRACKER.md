@@ -10,6 +10,12 @@ branch: "cj-feat-20260530-222955-29095"
 blocked_by: ""
 ---
 
+> **RETIRED by F000040 (2026-06-03).** The `DOC_SYNC_PENDING` marker-pickup AUQ
+> + `skills-doc-sync-check` reader shipped by this feature were removed once
+> F000036's inline Step 5.5 doc-sync made them redundant. This tracker is kept
+> as archival history only. See
+> `work-items/features/ops/F000040_retire_doc_sync_marker_mechanism/`.
+
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
      produce a design plan in ~/.gstack/projects/. Distill that plan into
      DESIGN.md during Phase 1 below. -->

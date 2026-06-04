@@ -5,7 +5,7 @@
 # missing OR invalid JSON OR schema_version unsupported OR required fields
 # missing → HALT with `[doc-sync-no-config] <reason>` on stdout + exit 1.
 #
-# Mirrors scripts/skills-doc-sync-check (F000029) shape: one bash file owns the
+# Follows the workbench single-bash-file helper shape: one bash file owns the
 # parse/match logic; the SKILL.md prose captures helper output and acts on it.
 #
 # Subcommands:
@@ -30,7 +30,6 @@
 set -eu
 
 # Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
-# Mirrors scripts/skills-doc-sync-check defense.
 jq() { command jq "$@" | tr -d '\r'; }
 
 # Resolve repo root (allows REPO_ROOT override for tests).

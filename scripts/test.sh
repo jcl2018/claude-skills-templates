@@ -1135,7 +1135,10 @@ else
 fi
 
 # Helper test: 13-case behavior coverage (F000025 5 mutating-mode cases +
-# T000033 8 --assert-isolated verdict cases + pipeline.md static-grep guard).
+# T000033 8 --assert-isolated verdict cases + CJ_goal_feature/pipeline.md Step 1.9
+# static-grep guard). (F000039: the prior guard assertion on the now-deleted
+# middle-layer pipeline skill retired with that skill; only the feature
+# pipeline.md guard remains.)
 echo ""
 echo "Running tests/cj-worktree-init.test.sh (13-case helper test)..."
 if bash "$REPO_ROOT/tests/cj-worktree-init.test.sh" >/dev/null 2>&1; then
@@ -1187,22 +1190,11 @@ fi
 # bug it guarded against is now CJ_goal_defect-territory; if that path
 # regresses, a fresh test in the defect skill's TEST-SPEC owns the guard.)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# D000NNN regression — cj_goal preamble doc-sync AUQ recommendation polarity.
-# The 3 cj_goal SKILL.md preambles labelled A as "recommended on main", but
-# upstream /document-release Step 1 hard-aborts on the base branch — so A
-# always aborts on main; B (snooze) is the only path that works. The test
-# asserts the literal AUQ-template wording matches the corrected polarity:
-# B is recommended on main, A is recommended on a feature branch (and flagged
-# as "WILL ABORT on main"). Also checks the CLAUDE.md mechanism note.
-echo ""
-echo "Running tests/cj-goal-doc-sync-auq-recommendation.test.sh (preamble AUQ polarity)..."
-if bash "$REPO_ROOT/tests/cj-goal-doc-sync-auq-recommendation.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-doc-sync-auq-recommendation.test.sh: 2 live SKILL.md preambles (feature + defect) + CLAUDE.md match corrected polarity"
-else
-  _cgdsar_rc=$?
-  fail_test "tests/cj-goal-doc-sync-auq-recommendation.test.sh failed (rc=$_cgdsar_rc) — run \`bash tests/cj-goal-doc-sync-auq-recommendation.test.sh\` directly to see"
-fi
+# (F000040 / S000073 retirement: removed the
+# `tests/cj-goal-doc-sync-auq-recommendation.test.sh` runner block — the test
+# exercised the F000028/F000029 doc-sync marker-pickup AUQ polarity, which has
+# been fully retired and deleted from disk. The surviving F000036 Step 5.5
+# inline doc-sync wiring is still covered by cj-goal-doc-sync-wiring.test.sh below.)
 
 # (F000035 v6.0.0 sunset: removed the `tests/cj-goal-investigate-shim.test.sh`
 # runner block — the test exercised the T000035 deprecation-shim contract for

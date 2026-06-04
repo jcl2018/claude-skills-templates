@@ -11,7 +11,7 @@ last-updated: "2026-06-01"
 ## When to use
 
 - An /office-hours design doc exists and you need to turn it into a work-item directory
-- An orchestrator (`/CJ_goal_feature`, `/CJ_personal-pipeline`) is delegating the
+- An orchestrator (`/CJ_goal_feature`) is delegating the
   scaffold phase as a leaf subagent
 - Re-running on the same design is safe — the skill is idempotent (NO-OP if the
   work-item dir already matches the manifest)
@@ -46,5 +46,4 @@ at boundaries to confirm structural compliance.
 - `/office-hours` (upstream gstack) — produces the design doc this skill consumes
 - `/CJ_personal-workflow` — runs at scaffold boundaries to enforce structural shape
 - `/CJ_implement-from-spec` — next phase: takes the scaffolded tree and writes code
-- `/CJ_personal-pipeline` — orchestrator that chains scaffold → impl → QA
 - `/CJ_goal_feature` — top-level front door; calls this skill as a leaf subagent
