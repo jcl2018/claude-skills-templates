@@ -298,6 +298,54 @@ fi
 cp "/tmp/catalog-backup-$$" "$CATALOG"
 rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold"
 
+# Step 6 (F000045 / S000081 — TEST-SPEC S6): exercise the new `--phase sync`
+# (Fork 2) end-to-end inside the integration cycle. This is the explicit
+# parallel-edit to the integration fixture that prior new-feature work
+# (F000032/34/35) systematically forgot for validate.sh checks — here applied to
+# the cj-goal-common.sh sync phase. HERMETIC: runs against a THROWAWAY fake
+# `.source` (temp git repo + fake skills-deploy that only echoes) via a
+# POST_LAND_SYNC_MANIFEST override — NEVER a real `skills-deploy install`
+# against the live ~/.claude. Asserts the four-key schema across dry-run +
+# --no-sync (skipped) modes end-to-end.
+echo ""
+echo "Integration test (F000045 / S000081): --phase sync end-to-end (hermetic fake .source)..."
+_SYNC_TMP=$(mktemp -d -t test-sh-sync-XXXXXX)
+_SYNC_SRC="$_SYNC_TMP/source-repo"
+mkdir -p "$_SYNC_SRC/scripts"
+(
+  cd "$_SYNC_SRC"
+  git init -q
+  git config user.email "test@example.com"
+  git config user.name "test"
+  git symbolic-ref HEAD refs/heads/main 2>/dev/null || git checkout -q -b main 2>/dev/null || true
+  printf '6.0.0\n' > VERSION
+  printf '#!/usr/bin/env bash\necho "FAKE skills-deploy $*"\n' > scripts/skills-deploy
+  chmod +x scripts/skills-deploy
+  git add -A && git commit -q -m "fixture"
+) >/dev/null 2>&1
+cat > "$_SYNC_TMP/manifest.json" <<EOF
+{ "source": "$_SYNC_SRC", "collection_version": "6.0.0" }
+EOF
+# dry-run end-to-end: must emit the four keys + PHASE_RESULT=ok, mutate nothing.
+_SYNC_DRY=$(POST_LAND_SYNC_MANIFEST="$_SYNC_TMP/manifest.json" bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase sync --mode feature --dry-run 2>&1)
+if printf '%s\n' "$_SYNC_DRY" | grep -qE '^SYNC_RAN=' \
+   && printf '%s\n' "$_SYNC_DRY" | grep -qE '^VERSION_BEFORE=' \
+   && printf '%s\n' "$_SYNC_DRY" | grep -qE '^VERSION_AFTER=' \
+   && printf '%s\n' "$_SYNC_DRY" | grep -qE '^PHASE_RESULT=ok$'; then
+  ok "Integration: --phase sync --dry-run emits 4-key schema + PHASE_RESULT=ok (no mutation)"
+else
+  fail_test "Integration: --phase sync --dry-run missing 4-key schema / PHASE_RESULT=ok; output: $_SYNC_DRY"
+fi
+# --no-sync end-to-end: must short-circuit to PHASE_RESULT=skipped (no install).
+_SYNC_NS=$(POST_LAND_SYNC_MANIFEST="$_SYNC_TMP/manifest.json" bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase sync --mode feature --no-sync 2>&1)
+if printf '%s\n' "$_SYNC_NS" | grep -qE '^PHASE_RESULT=skipped$' \
+   && ! printf '%s\n' "$_SYNC_NS" | grep -q 'FAKE skills-deploy'; then
+  ok "Integration: --phase sync --no-sync → PHASE_RESULT=skipped, no install invoked"
+else
+  fail_test "Integration: --phase sync --no-sync should skip without install; output: $_SYNC_NS"
+fi
+rm -rf "$_SYNC_TMP"
+
 # Template content smoke tests (S000002 TEST-SPEC)
 echo ""
 echo "Checking tracker template content..."
@@ -1128,15 +1176,16 @@ else
   fail_test "drain-one-todo.sh missing per-iteration cj-worktree-init.sh --force-create call (F000025 regression guard)"
 fi
 
-# Helper test: 13-case behavior coverage (F000025 5 mutating-mode cases +
-# T000033 8 --assert-isolated verdict cases + CJ_goal_feature/pipeline.md Step 1.9
-# static-grep guard). (F000039: the prior guard assertion on the now-deleted
-# middle-layer pipeline skill retired with that skill; only the feature
-# pipeline.md guard remains.)
+# Helper test: behavior coverage (F000025 5 mutating-mode cases + F000045 4
+# base-freshness Fork-1 cases [behind/diverged/offline/already-fresh, local fake
+# origin] + T000033 8 --assert-isolated verdict cases + caller→prefix matrix +
+# CJ_goal_feature/pipeline.md Step 1.9 static-grep guard). (F000039: the prior
+# guard assertion on the now-deleted middle-layer pipeline skill retired with
+# that skill; only the feature pipeline.md guard remains.)
 echo ""
-echo "Running tests/cj-worktree-init.test.sh (13-case helper test)..."
+echo "Running tests/cj-worktree-init.test.sh (helper behavior test incl. F000045 Fork-1 freshness cases)..."
 if bash "$REPO_ROOT/tests/cj-worktree-init.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-worktree-init.test.sh: all 13 cases pass"
+  ok "tests/cj-worktree-init.test.sh: all cases pass (incl. behind/diverged/offline/already-fresh)"
 else
   _cwit_rc=$?
   fail_test "tests/cj-worktree-init.test.sh failed (rc=$_cwit_rc) — run \`bash tests/cj-worktree-init.test.sh\` directly to see"
@@ -1291,6 +1340,21 @@ if bash "$REPO_ROOT/tests/post-land-sync.test.sh" >/dev/null 2>&1; then
 else
   _pls_rc=$?
   fail_test "tests/post-land-sync.test.sh failed (rc=$_pls_rc) — run \`bash tests/post-land-sync.test.sh\` directly to see"
+fi
+
+# Regression test (F000045 / S000081): scripts/cj-goal-common.sh `--phase sync`
+# (Fork 2) — dry-run previews without mutation, --no-sync short-circuits to
+# skipped (no install), guard refusals (.source off-main / dirty / missing) →
+# skipped + exit 0 (never failed), every mode emits the four KEY=VALUE keys, and
+# a real run against a FAKE .source + FAKE skills-deploy reports SYNC_RAN=1.
+# Hermetic — never runs a real skills-deploy install against the live ~/.claude.
+echo ""
+echo "Running tests/cj-goal-common-sync.test.sh (F000045 --phase sync Fork 2, hermetic)..."
+if bash "$REPO_ROOT/tests/cj-goal-common-sync.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-common-sync.test.sh: dry-run/no-sync/guard-refusal/real-run all emit the 4-key schema; fail-soft; no real ~/.claude mutation"
+else
+  _cgcs_rc=$?
+  fail_test "tests/cj-goal-common-sync.test.sh failed (rc=$_cgcs_rc) — run \`bash tests/cj-goal-common-sync.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
