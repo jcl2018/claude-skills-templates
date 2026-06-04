@@ -4,10 +4,10 @@ type: user-story
 id: "S000079"
 status: active
 created: "2026-06-03"
-updated: "2026-06-03"
+updated: "2026-06-04"
 parent: "F000044"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
-branch: "cj-feat-20260603-234927-99694"
+branch: "cj-feat-20260604-095839-52244"
 blocked_by: ""
 ---
 
@@ -44,10 +44,10 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -83,12 +83,12 @@ blocked_by: ""
 
 <!-- Actionable items for this story. -->
 
-- [ ] add _can_symlink() probe
-- [ ] copy-mode install path
-- [ ] manifest install_kind + source_checksum
-- [ ] branch doctor/remove/relink on mode
-- [ ] test-deploy.sh both-mode + doctor cases
-- [ ] PARALLEL test.sh fixture update (repo blind spot — the implement step systematically forgets this)
+- [x] add _can_symlink() probe
+- [x] copy-mode install path
+- [x] manifest install_kind + source_checksum
+- [x] branch doctor/remove/relink on mode
+- [x] test-deploy.sh both-mode + doctor cases (C1-C7)
+- [x] PARALLEL test.sh fixture update (repo blind spot) — done: test.sh S000079 structural guards added + green
 
 ## Log
 
@@ -104,6 +104,10 @@ blocked_by: ""
 
 <!-- Affected file paths. -->
 
+- scripts/skills-deploy (Modified) — `_can_symlink()` probe + `SKILLS_DEPLOY_FORCE_COPY` override; install/doctor/remove/relink branch on `install_kind`; copy-mode = `cp` + per-file `source_checksums` (symlink branch byte-identical)
+- scripts/test-deploy.sh (Modified) — copy-mode C1-C7 (install / doctor-healthy / doctor-drift / relink-repair / remove / symlink-records-kind / back-compat-default)
+- scripts/test.sh (Modified) — S000079 structural guards (probe + override + schema + back-compat default present)
+
 ## Insights
 
 <!-- Non-obvious findings worth remembering. -->
@@ -114,3 +118,18 @@ blocked_by: ""
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+
+- 2026-06-04 [impl-decision] Symlink-mode kept byte-identical (existing `ln -snf` paths wrapped in `if install_kind=symlink`); copy-mode purely additive. `install_kind` defaults to `"symlink"` when absent at all 3 read sites (doctor/remove/relink) for back-compat with pre-S000079 installs. macOS stays symlink (preserves the instant-edit dev loop); copy-mode is Git-Bash-only via `_can_symlink` probe + `SKILLS_DEPLOY_FORCE_COPY=1` override for tests/CI.
+- 2026-06-04 [impl-decision] Resolved SPEC Open Questions: copy-mode doctor drift = FAIL (mirrors the template-checksum FAIL); subdirs are copied + presence-checked, NOT deep per-file-hashed (bounds the manifest schema); macOS NOT unified onto copy-mode.
+- 2026-06-04 [impl-finding] Mirrored the existing TEMPLATE-side `source_checksum` machinery (install/relink/doctor) for skills — reused `file_checksum()` + the same jq idioms, lowering novelty + risk on the critical install path.
+- 2026-06-04 [impl] Modified 3 files: scripts/skills-deploy (+238/-34), scripts/test-deploy.sh (+129, C1-C7), scripts/test.sh (+42, S000079 guards). Built via a delegated implementer subagent against the approved design, then reviewed line-by-line (every symlink branch confirmed unchanged) and re-ran all suites. Sensitive surface (install path) — propose-mode with operator approval.
+- 2026-06-04 [impl] Blind-spot honored: test-deploy.sh AND test.sh updated in the same change — verified green (test-deploy.sh C1-C7 pass; test.sh RESULT PASS, 0 failures; validate.sh PASS).
+- 2026-06-04 [impl-pass] S000079: implementation complete. Phase 2 implementer-owned gates transitioned.
+- 2026-06-04 [qa-e2e-deferred] E1 (AC-1): post-ship — real Git Bash install verification deferred to post-merge (Tag 'post-ship'); live check is the windows-latest CI from S000080. Pre-ship proof: test-deploy.sh C1-C7 copy-mode (via FORCE_COPY).
+- 2026-06-04 [qa-smoke] S1 (AC-1): green — copy-mode install lands regular files + manifest install_kind=copy (test-deploy.sh C1).
+- 2026-06-04 [qa-smoke] S2 (AC-3): green — doctor healthy on copy-mode AND symlink-mode, no false 'not a symlink' (test-deploy.sh C2/C6).
+- 2026-06-04 [qa-smoke] S3 (AC-5): green — manifest records install_kind + non-empty source_checksums on copy install (test-deploy.sh C1).
+- 2026-06-04 [qa-smoke] S4 (AC-2,AC-4): green — drift detected + relink repairs + remove deletes copies; probe/FORCE_COPY selects mode (test-deploy.sh C3/C4/C5).
+- 2026-06-04 [qa-smoke] S5 (AC-6): green — test-deploy.sh carries both-mode coverage C1-C7 + back-compat C7; full scripts/test.sh PASS, 0 failures.
+- 2026-06-04 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual pending).
+- 2026-06-04 [qa-pass] S000079 (user-story): green smoke + 1 E2E row deferred post-merge (all post-ship). Phase 2 gates transitioned; post-ship AC (E1, real Git Bash install) awaits the windows-latest CI from S000080.

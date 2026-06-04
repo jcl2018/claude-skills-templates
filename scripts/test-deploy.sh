@@ -241,6 +241,135 @@ fi
 teardown_env
 
 ### ============================================================
+### Copy-mode install tests (S000079 — symlink-free install)
+### SKILLS_DEPLOY_FORCE_COPY=1 forces copy-mode on this symlink-capable host so
+### we can exercise the Git Bash fallback path without a Windows runner.
+### ============================================================
+
+# Test C1: Copy-mode install lands REGULAR FILES + records install_kind/source_checksums
+echo "Test C1: Copy-mode install (FORCE_COPY) lands regular files + manifest schema"
+setup_env
+SKILLS_DEPLOY_FORCE_COPY=1 "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+skill_md="$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+if [ ! -L "$skill_md" ] && [ -f "$skill_md" ]; then
+  ok "Copy-mode SKILL.md is a regular file (not a symlink)"
+else
+  fail_test "Copy-mode SKILL.md is not a regular file (symlink=$([ -L "$skill_md" ] && echo yes || echo no))"
+fi
+kind=$(jq -r '.skills["CJ_system-health"].install_kind // "ABSENT"' "$SKILLS_DEPLOY_MANIFEST")
+if [ "$kind" = "copy" ]; then
+  ok "Manifest records install_kind=copy"
+else
+  fail_test "Expected install_kind=copy, got: $kind"
+fi
+sc_count=$(jq -r '.skills["CJ_system-health"].source_checksums // {} | length' "$SKILLS_DEPLOY_MANIFEST")
+if [ "$sc_count" -ge 1 ]; then
+  ok "Manifest has non-empty source_checksums ($sc_count files)"
+else
+  fail_test "Expected non-empty source_checksums, got $sc_count"
+fi
+# Each recorded checksum must match the installed copy's actual hash.
+sc_skill=$(jq -r '.skills["CJ_system-health"].source_checksums["SKILL.md"] // ""' "$SKILLS_DEPLOY_MANIFEST")
+actual_skill=$( (shasum -a 256 "$skill_md" 2>/dev/null || sha256sum "$skill_md" 2>/dev/null) | awk '{print $1}')
+if [ -n "$sc_skill" ] && [ "$sc_skill" = "$actual_skill" ]; then
+  ok "Recorded SKILL.md checksum matches installed copy"
+else
+  fail_test "SKILL.md checksum mismatch (recorded=$sc_skill actual=$actual_skill)"
+fi
+teardown_env
+
+# Test C2: Copy-mode doctor reports healthy (no false 'broken symlink')
+echo "Test C2: Copy-mode doctor reports healthy"
+setup_env
+SKILLS_DEPLOY_FORCE_COPY=1 "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+output=$("$DEPLOY" doctor 2>&1)
+if echo "$output" | grep -qE "Health: (OK|0 errors)"; then
+  ok "Copy-mode doctor reports healthy (0 errors)"
+else
+  fail_test "Copy-mode doctor did not report healthy: $output"
+fi
+if echo "$output" | grep -q "is not a symlink"; then
+  fail_test "Copy-mode doctor emitted a spurious 'not a symlink' warning"
+else
+  ok "Copy-mode doctor does NOT emit a 'not a symlink' warning"
+fi
+teardown_env
+
+# Test C3: Copy-mode doctor detects content drift via source_checksum
+echo "Test C3: Copy-mode doctor detects drift"
+setup_env
+SKILLS_DEPLOY_FORCE_COPY=1 "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+echo "drifted content" >> "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+output=$("$DEPLOY" doctor 2>&1)
+if echo "$output" | grep -qE "FAIL.*SKILL.md.*copy-mode"; then
+  ok "Copy-mode doctor detects drifted file"
+else
+  fail_test "Copy-mode doctor missed drifted file: $output"
+fi
+teardown_env
+
+# Test C4: Copy-mode relink re-copies a drifted file back to source
+echo "Test C4: Copy-mode relink repairs drift"
+setup_env
+SKILLS_DEPLOY_FORCE_COPY=1 "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+echo "drifted content" >> "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+"$DEPLOY" relink >/dev/null 2>&1
+output=$("$DEPLOY" doctor 2>&1)
+if echo "$output" | grep -qE "Health: (OK|0 errors)"; then
+  ok "Copy-mode relink restored drifted file (doctor healthy again)"
+else
+  fail_test "Copy-mode relink did not repair drift: $output"
+fi
+teardown_env
+
+# Test C5: Copy-mode remove deletes the copied regular files
+echo "Test C5: Copy-mode remove deletes copied files"
+setup_env
+SKILLS_DEPLOY_FORCE_COPY=1 "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+"$DEPLOY" remove CJ_system-health --force >/dev/null 2>&1
+if [ ! -d "$SKILLS_DEPLOY_TARGET/CJ_system-health" ]; then
+  ok "Copy-mode remove deleted the skill directory + copied files"
+else
+  remaining=$(find "$SKILLS_DEPLOY_TARGET/CJ_system-health" -type f 2>/dev/null | wc -l | tr -d ' ')
+  fail_test "Copy-mode remove left the directory (with $remaining files)"
+fi
+teardown_env
+
+# Test C6: Symlink-mode install records install_kind=symlink (no source_checksums)
+echo "Test C6: Symlink-mode records install_kind=symlink"
+setup_env
+"$DEPLOY" install CJ_system-health >/dev/null 2>&1
+skill_md="$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+if [ -L "$skill_md" ]; then
+  ok "Symlink-mode SKILL.md is a symlink (byte-identical legacy path)"
+else
+  fail_test "Symlink-mode SKILL.md is not a symlink"
+fi
+kind=$(jq -r '.skills["CJ_system-health"].install_kind // "ABSENT"' "$SKILLS_DEPLOY_MANIFEST")
+has_sc=$(jq -r 'if .skills["CJ_system-health"].source_checksums then "yes" else "no" end' "$SKILLS_DEPLOY_MANIFEST")
+if [ "$kind" = "symlink" ] && [ "$has_sc" = "no" ]; then
+  ok "Symlink-mode manifest has install_kind=symlink and no source_checksums"
+else
+  fail_test "Symlink-mode manifest wrong (kind=$kind has_source_checksums=$has_sc)"
+fi
+teardown_env
+
+# Test C7: Back-compat — a manifest record with NO install_kind is treated as symlink
+echo "Test C7: Absent install_kind defaults to symlink (back-compat)"
+setup_env
+"$DEPLOY" install CJ_system-health >/dev/null 2>&1
+# Simulate a pre-S000079 install by stripping the install_kind field.
+jq 'del(.skills["CJ_system-health"].install_kind)' "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.t" \
+  && mv "$SKILLS_DEPLOY_MANIFEST.t" "$SKILLS_DEPLOY_MANIFEST"
+output=$("$DEPLOY" doctor 2>&1)
+if echo "$output" | grep -qE "Health: (OK|0 errors)"; then
+  ok "Doctor treats absent install_kind as symlink (healthy)"
+else
+  fail_test "Doctor on absent install_kind not healthy: $output"
+fi
+teardown_env
+
+### ============================================================
 ### skills-update-check tests (F000009)
 ### ============================================================
 

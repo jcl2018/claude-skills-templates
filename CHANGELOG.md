@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.27] - 2026-06-04
+
+### Changed
+
+- **F000044 S000079 — `skills-deploy` installs via copy-mode on Git Bash (symlink-free fallback).** Third story of the Windows-support feature. `skills-deploy install` symlinked skill files into `~/.claude/` (`ln -snf`), and `doctor`/`remove`/`relink` all assumed symlinks — which breaks on Git Bash, where `ln -s` copies-by-default or needs Developer Mode/admin (degraded install + a `doctor` that false-fails). A new `_can_symlink()` probe (overridable with `SKILLS_DEPLOY_FORCE_COPY=1` for tests/CI) picks the mode once per run: symlink-capable platforms (macOS/Linux/WSL2) take the **byte-identical** legacy `ln -snf` path; Git Bash falls back to **copy-mode** (`cp` + a per-file `source_checksums` map in the manifest). The manifest skill record gains `install_kind`; `doctor`/`remove`/`relink` branch on it and default to `symlink` when absent (back-compat for pre-S000079 installs). Copy-mode `doctor` re-hashes each installed file against `source_checksums` (drift = FAIL, mirroring the template-checksum check); `relink` re-copies on drift; `remove` deletes the regular-file copies. macOS stays symlink-mode (preserves the instant-edit dev loop). New `scripts/test-deploy.sh` cases C1-C7 (copy install / doctor-healthy / doctor-drift / relink-repair / remove / symlink-records-kind / back-compat) + `scripts/test.sh` structural guards. `validate.sh` + `test.sh` + `test-deploy.sh` green. Remaining F000044 story: S000080 (windows-latest CI + docs) ships next and is the live Git-Bash check for this.
+
 ## [6.0.26] - 2026-06-04
 
 ### Added
