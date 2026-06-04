@@ -1247,6 +1247,20 @@ else
   _cri_rc=$?
   fail_test "tests/cj-repo-init.test.sh failed (rc=$_cri_rc) — run \`bash tests/cj-repo-init.test.sh\` directly to see"
 fi
+# Regression test (F000041): scripts/post-land-sync.sh exists + is executable,
+# --dry-run resolves `.source` + prints collection_version + would-run commands
+# without mutating, and the four guards (missing / non-git / non-main / dirty
+# `.source`) refuse with a named message + non-zero exit. Driven entirely via
+# --dry-run + a POST_LAND_SYNC_MANIFEST temp fixture — never touches the real
+# ~/.claude.
+echo ""
+echo "Running tests/post-land-sync.test.sh (F000041 helper + --dry-run + guards, no real ~/.claude mutation)..."
+if bash "$REPO_ROOT/tests/post-land-sync.test.sh" >/dev/null 2>&1; then
+  ok "tests/post-land-sync.test.sh: helper exists + executable; --dry-run previews without mutation; guards refuse bad .source"
+else
+  _pls_rc=$?
+  fail_test "tests/post-land-sync.test.sh failed (rc=$_pls_rc) — run \`bash tests/post-land-sync.test.sh\` directly to see"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
