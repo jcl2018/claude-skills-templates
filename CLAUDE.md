@@ -24,8 +24,10 @@ The CJ_ skill family in this workbench is fronted by two intent-named verbs:
 (internal scaffold→impl→qa engine), workflow validator (/CJ_personal-workflow),
 per-phase skills (/CJ_scaffold-work-item, /CJ_implement-from-spec,
 /CJ_qa-work-item, /CJ_document-release), and standalone utilities (/CJ_system-health, /CJ_suggest,
-/CJ_goal_todo_fix). /CJ_goal_todo_fix bridges TODOS.md rows to the shipping
+/CJ_goal_todo_fix, /CJ_repo-init). /CJ_goal_todo_fix bridges TODOS.md rows to the shipping
 pipeline in one keystroke — see `skills/CJ_goal_todo_fix/SKILL.md`.
+/CJ_repo-init verifies/scaffolds the per-repo prerequisites (cj-document-release.json,
+TODOS.md, work-items/) that the CJ_ family needs to run in a given repo.
 /CJ_document-release (F000036) is the inline doc-sync wrapper invoked at
 Step 5.5 of every cj_goal orchestrator (between QA pass and `/ship`) — folds
 doc updates into the same code PR rather than chasing them post-merge.
