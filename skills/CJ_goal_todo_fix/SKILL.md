@@ -81,7 +81,9 @@ Per-TODO chain (both modes share this):
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
    → /CJ_implement-from-spec → /CJ_qa-work-item (leaf Agent subagents, halt-on-red between)
-   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark
+   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2
+   → Step 5.6: surface registered-doc verdicts → PR body (post-/ship gh pr edit "$PR_URL"; best-effort)
+   → /land-and-deploy → TODOS.md DONE-mark
    → worktree cleanup (best-effort; cj-worktree-cleanup.sh --caller todo) → telemetry line
 ```
 
@@ -269,7 +271,10 @@ or invoke `bash skills/CJ_goal_todo_fix/scripts/todo_fix.sh` directly while test
 
 After the orchestrator consumes the `CJ_GOAL_HANDOFF` block and drives the chain
 to completion — `/CJ_implement-from-spec` → `/CJ_qa-work-item` → `/CJ_document-release`
-→ `/ship` → `/land-and-deploy` → the `TODOS.md` DONE-mark — it runs the post-run
+→ `/ship` → **(pipeline.md Step 5.6: surface registered-doc verdicts into the PR
+body via `gh pr edit "$PR_URL"`, best-effort, NEVER halts — runs right after
+`/ship` opens the PR and before `/land-and-deploy` merges it)** → `/land-and-deploy`
+→ the `TODOS.md` DONE-mark — it runs the post-run
 worktree janitor (T000036). This is the teardown mirror of the single-TODO
 worktree-create preamble above. **todo does NOT route through `cj-goal-common.sh`**
 (it already calls `cj-worktree-init.sh` directly at create time), so it calls

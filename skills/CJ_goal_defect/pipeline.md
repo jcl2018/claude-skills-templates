@@ -751,7 +751,69 @@ If `/ship` declines (Gate #2 reject OR pre-landing review red): halt with a
 decline, else `N/A`) + the C7 3-line block. Telemetry: `end_state=halted_at_ship`.
 
 If green (PR created): record the PR URL/number from /ship's output into
-`$PR_URL`, continue to Step 10.
+`$PR_URL`, continue to Step 9.5.
+
+## Step 9.5: Surface registered-doc verdicts into the PR body (best-effort; NEVER halts)
+
+The Step 5.5 doc-sync wrapper (`/CJ_document-release`) ran a Registered-doc
+requirements audit (its Step 6.7) and wrote the verdict block to the gitignored
+scratch file `.cj-goal-feature/registered-doc-verdicts.md`. That block dies in
+the wrapper RESULT otherwise — upstream `/ship` Step 18 regenerates the PR body
+from a fresh `/document-release` subagent that never sees the wrapper output. So
+surface it deterministically here, now that Step 9 has opened the PR and
+`$PR_URL` is known: read the scratch file and `gh pr edit "$PR_URL"` to
+insert-or-replace a `### Registered-doc requirements` subsection under the PR
+body's `## Documentation` section. (`/ship` here captures `$PR_URL` only — there
+is no `$PR_NUMBER` in this pipeline; `gh pr view` / `gh pr edit` both accept a
+URL, so the guard and both gh calls use `"$PR_URL"`.)
+
+This is **best-effort and NEVER halts the run**: a failed `gh pr edit` (or a
+missing scratch file — Step 5.5 may have been a no-op path) logs a one-line note
+and control proceeds to Step 10. The verdicts still live in the run output + the
+scratch file regardless. There is **NO upstream `/ship` modification** — this is
+a workbench-owned pipeline step. All three cj_goal orchestrators surface the
+verdict (`/CJ_goal_feature` Step 4.6, `/CJ_goal_defect` here, `/CJ_goal_todo_fix`
+Step 5.6); the Step 6.7 producer is shared by all three. The scratch path is the
+LITERAL `.cj-goal-feature/registered-doc-verdicts.md` (NOT verb-renamed — only
+`.cj-goal-feature/` is gitignored).
+
+```bash
+_VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
+if [ -n "$PR_URL" ] && [ -f "$_VERDICT_FILE" ]; then
+  # Read the current PR body, then insert-or-replace the
+  # '### Registered-doc requirements' subsection under '## Documentation'.
+  _BODY=$(gh pr view "$PR_URL" --json body -q .body 2>/dev/null || echo "")
+  _VERDICTS=$(cat "$_VERDICT_FILE")
+
+  # Idempotent splice (replace-if-present): strip any existing
+  # '### Registered-doc requirements' block (up to the next '###'/'##' or EOF),
+  # then append the fresh block under the '## Documentation' heading. If no
+  # '## Documentation' section exists in the body, append one at the end.
+  _NEW_BODY=$(printf '%s\n' "$_BODY" | awk '
+    /^### Registered-doc requirements/ {skip=1; next}
+    skip && /^#{2,3} / {skip=0}
+    !skip {print}
+  ')
+  if printf '%s\n' "$_NEW_BODY" | grep -q '^## Documentation'; then
+    _NEW_BODY=$(printf '%s\n' "$_NEW_BODY" | awk -v v="$_VERDICTS" '
+      {print}
+      /^## Documentation/ && !done {print ""; print v; done=1}
+    ')
+  else
+    _NEW_BODY=$(printf '%s\n\n## Documentation\n\n%s\n' "$_NEW_BODY" "$_VERDICTS")
+  fi
+
+  if gh pr edit "$PR_URL" --body "$_NEW_BODY" 2>/dev/null; then
+    echo "[registered-doc] surfaced verdicts into PR $PR_URL body (## Documentation → ### Registered-doc requirements)"
+  else
+    echo "[registered-doc] gh pr edit failed for PR $PR_URL — verdicts remain in the run output + $_VERDICT_FILE (best-effort, not halting)"
+  fi
+else
+  echo "[registered-doc] no verdict scratch file (or no PR URL) — skipping PR-body surfacing (best-effort, not halting)"
+fi
+```
+
+Control always proceeds to Step 10 — this step has no halt path.
 
 ## Step 10: Chain to /land-and-deploy --suppress-readiness-gate
 

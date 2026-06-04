@@ -583,10 +583,12 @@ scratch file `.cj-goal-feature/registered-doc-verdicts.md`. The positive line
 `Registered-doc requirements: all current` is emitted ONLY when every verdict is
 `up-to-date` (so reviewers can tell the audit ran cleanly vs skipped). The block
 lands in the PR body's `## Documentation` section under `### Registered-doc
-requirements` via the `/CJ_goal_feature` pipeline's post-`/ship` **Step 4.6**
-(`gh pr edit`, best-effort, never halts; v1 wires `/CJ_goal_feature` only —
-`/CJ_goal_defect` + `/CJ_goal_todo_fix` surfacing is a Job-2.1 follow-up; the
-Step 6.7 producer is shared by all three).
+requirements` via a post-`/ship` `gh pr edit` step in all three cj_goal
+orchestrators (`/CJ_goal_feature` **Step 4.6**, `/CJ_goal_defect` **Step 9.5**,
+`/CJ_goal_todo_fix` **Step 5.6**; best-effort, never halts; the Step 6.7 producer
+is shared by all three). The defect/todo surfacing was wired by T000039 (Job-2.1);
+because they auto-land, the PR-body verdict has a short review window (the verdict
+also lands in the run output + the scratch file + `/ship` Gate #2).
 
 ### Producer note
 
