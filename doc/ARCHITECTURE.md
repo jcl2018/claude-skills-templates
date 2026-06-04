@@ -26,7 +26,7 @@ The helper is deliberately one shell file, not a directory or a skill. Each phas
 
 ## Doc-sync (F000036 inline Step 5.5 + `/ship` Step 18)
 
-F000028 (post-merge/post-rewrite git hooks that dropped a per-repo doc-sync marker JSON under `~/.gstack/`) and F000029 (a detection script + a marker-pickup AskUserQuestion in the `cj_goal` orchestrator preambles that consumed the marker on the next session) were **retired by F000039** once F000036 made doc-sync run inline. They are gone from the codebase; this section documents only the surviving inline mechanism. For the operator-facing accepted-gap note, see CLAUDE.md `## Doc-sync coverage`.
+F000028 (post-merge/post-rewrite git hooks that dropped a per-repo doc-sync marker JSON under `~/.gstack/`) and F000029 (a detection script + a marker-pickup AskUserQuestion in the `cj_goal` orchestrator preambles that consumed the marker on the next session) were **retired by F000040** once F000036 made doc-sync run inline. They are gone from the codebase; this section documents only the surviving inline mechanism. For the operator-facing accepted-gap note, see CLAUDE.md `## Doc-sync coverage`.
 
 ## F000036 inline doc-sync wrapper (`/CJ_document-release` Step 5.5)
 

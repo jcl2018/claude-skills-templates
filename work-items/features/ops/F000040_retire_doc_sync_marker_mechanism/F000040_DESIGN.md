@@ -1,6 +1,6 @@
 ---
 type: design
-parent: F000039
+parent: F000040
 title: "Retire the F000028/F000029 doc-sync marker + preamble-AUQ mechanism — Feature Design"
 version: 1
 status: Draft
@@ -44,7 +44,7 @@ review caught a delete conflating them):
 ## Shape of the solution
 
 Full delete of the F000028/F000029 marker-AUQ surface plus a one-line
-accepted-gap note, executed as a single child user-story (S000072). The
+accepted-gap note, executed as a single child user-story (S000073). The
 retirement surface is enumerated file-by-file in the user-story SPEC's
 `## Architecture → Components Affected` table; the success criteria are the
 TEST-SPEC. This is a multi-file internal-tooling retirement with no new runtime
@@ -53,7 +53,7 @@ greps and the existing test suite.
 
 | Concern | User-story | Artifact |
 |---------|-----------|----------|
-| Execute the full marker-AUQ retirement surface (delete files, edit 2 preambles, strike ~9 fallback-language locations, surgical hook + test edits, doc deletes, comment cleanup, regenerate README, accepted-gap note) | S000072 | [S000072_retire_doc_sync_marker_mechanism/S000072_TRACKER.md](S000072_retire_doc_sync_marker_mechanism/S000072_TRACKER.md) |
+| Execute the full marker-AUQ retirement surface (delete files, edit 2 preambles, strike ~9 fallback-language locations, surgical hook + test edits, doc deletes, comment cleanup, regenerate README, accepted-gap note) | S000073 | [S000073_retire_doc_sync_marker_mechanism/S000073_TRACKER.md](S000073_retire_doc_sync_marker_mechanism/S000073_TRACKER.md) |
 
 ## Big decisions
 
@@ -68,10 +68,10 @@ greps and the existing test suite.
 
 | Risk / Question | Next check |
 |-----------------|-----------|
-| Deleting survivor coverage by conflating the two "doc-sync" mechanisms | SPEC Components Affected splits DIES vs PRESERVE explicitly; TEST-SPEC asserts `tests/cj-goal-doc-sync-wiring.test.sh` still passes. Resolved at S000072 QA. |
-| Incomplete retirement leaves dangling references to the deleted script / preamble blocks / "F000029 fallback" claim | Two completeness greps in TEST-SPEC (4-token + fallback-language) must both return ZERO live references. Resolved at S000072 QA. |
-| Breaking the other hooks `setup-hooks.sh` installs (pre-commit validate, F000009 post-merge Sections 1+2) | TEST-SPEC asserts those survive after the surgical hook edit. Resolved at S000072 QA. |
-| README hand-edited instead of regenerated drifts from the catalog | SPEC mandates `scripts/generate-readme.sh` after the catalog edit; TEST-SPEC checks consistency. Resolved at S000072 QA. |
+| Deleting survivor coverage by conflating the two "doc-sync" mechanisms | SPEC Components Affected splits DIES vs PRESERVE explicitly; TEST-SPEC asserts `tests/cj-goal-doc-sync-wiring.test.sh` still passes. Resolved at S000073 QA. |
+| Incomplete retirement leaves dangling references to the deleted script / preamble blocks / "F000029 fallback" claim | Two completeness greps in TEST-SPEC (4-token + fallback-language) must both return ZERO live references. Resolved at S000073 QA. |
+| Breaking the other hooks `setup-hooks.sh` installs (pre-commit validate, F000009 post-merge Sections 1+2) | TEST-SPEC asserts those survive after the surgical hook edit. Resolved at S000073 QA. |
+| README hand-edited instead of regenerated drifts from the catalog | SPEC mandates `scripts/generate-readme.sh` after the catalog edit; TEST-SPEC checks consistency. Resolved at S000073 QA. |
 
 ## Definition of done
 
@@ -101,7 +101,7 @@ greps and the existing test suite.
 
 <!-- Cross-links to related artifacts. -->
 
-- Parent tracker: [F000039_TRACKER.md](F000039_TRACKER.md)
-- Roadmap: [F000039_ROADMAP.md](F000039_ROADMAP.md)
+- Parent tracker: [F000040_TRACKER.md](F000040_TRACKER.md)
+- Roadmap: [F000040_ROADMAP.md](F000040_ROADMAP.md)
 - Source design doc: `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-cj-feat-20260603-140631-39060-design-20260603-141622.md`
 - Retired predecessors: F000028 (doc-sync hooks), F000029 (marker-pickup AUQ); survivor: F000036 (inline Step 5.5), F000037 (cj-document-release.json config).

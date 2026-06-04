@@ -10,10 +10,10 @@ branch: "cj-feat-20260530-200501-31190"
 blocked_by: ""
 ---
 
-> **RETIRED by F000039 (2026-06-03).** The post-merge/post-rewrite doc-sync
+> **RETIRED by F000040 (2026-06-03).** The post-merge/post-rewrite doc-sync
 > marker hooks shipped by this feature were removed once F000036's inline
 > Step 5.5 doc-sync made them redundant. This tracker is kept as archival
-> history only. See `work-items/features/ops/F000039_retire_doc_sync_marker_mechanism/`.
+> history only. See `work-items/features/ops/F000040_retire_doc_sync_marker_mechanism/`.
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
      produce a design plan in ~/.gstack/projects/. Distill that plan into

@@ -1,7 +1,7 @@
 ---
 type: test-spec
-parent: S000072
-feature: F000039
+parent: S000073
+feature: F000040
 title: "Retire the doc-sync marker + preamble-AUQ retirement surface — Test Specification"
 version: 1
 status: Draft

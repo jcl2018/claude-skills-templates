@@ -286,7 +286,7 @@ _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
-## Doc-sync coverage (F000028/F000029 marker mechanism retired by F000039)
+## Doc-sync coverage (F000028/F000029 marker mechanism retired by F000040)
 
 Doc-sync now runs INLINE on every common main-moving path:
 
@@ -307,7 +307,7 @@ than keep a post-merge marker mechanism alive for it.
 The retired F000028/F000029 mechanism (a `post-merge`/`post-rewrite` git hook
 that dropped a per-repo marker JSON under `~/.gstack/`, the reader script that
 consumed it, and the preamble AUQ in the orchestrators that surfaced it) was
-removed by F000039 once F000036's inline Step 5.5 made it redundant — the marker
+removed by F000040 once F000036's inline Step 5.5 made it redundant — the marker
 AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).

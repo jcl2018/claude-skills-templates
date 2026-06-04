@@ -1,6 +1,6 @@
 ---
 type: roadmap
-parent: F000039
+parent: F000040
 title: "Retire the F000028/F000029 doc-sync marker + preamble-AUQ mechanism — Roadmap"
 date: 2026-06-03
 author: chjiang
@@ -49,7 +49,7 @@ and regenerate `README.md` from the catalog. The surviving F000036 inline Step
 
 | User-Story | Title | Status |
 |-----------|-------|--------|
-| [S000072](S000072_retire_doc_sync_marker_mechanism/S000072_TRACKER.md) | Retire the doc-sync marker + preamble-AUQ retirement surface | Open |
+| [S000073](S000073_retire_doc_sync_marker_mechanism/S000073_TRACKER.md) | Retire the doc-sync marker + preamble-AUQ retirement surface | Open |
 
 ## Delivery Timeline
 
@@ -57,21 +57,21 @@ and regenerate `README.md` from the catalog. The surviving F000036 inline Step
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|
-| 1 | Ship S000072 (execute the full retirement surface) | — | Not Started | chjiang | Delete files + edit preambles + strike fallback language + surgical hook/test edits + doc deletes + comment cleanup + README regen | — |
+| 1 | Ship S000073 (execute the full retirement surface) | — | Not Started | chjiang | Delete files + edit preambles + strike fallback language + surgical hook/test edits + doc deletes + comment cleanup + README regen | — |
 | 2 | End-to-end pipeline run (validate + test green, both completeness greps zero, survivor test passes) | — | Not Started | chjiang | Gate before /ship | #1 |
 
 ### Delivery History
 
 <!-- Backward-looking record: PR links, merge dates, version bumps after ship. Append-only. -->
 
-- 2026-06-03: F000039 scaffolded from /office-hours design doc.
+- 2026-06-03: F000040 scaffolded from /office-hours design doc.
 
 ## Dependency Graph
 
 <!-- Format: #N description --> #M description (arrow = "blocks"). -->
 
 ```
-#1 Ship S000072 (full retirement surface) --> #2 End-to-end pipeline run (validate/test green + greps zero + survivor test passes)
+#1 Ship S000073 (full retirement surface) --> #2 End-to-end pipeline run (validate/test green + greps zero + survivor test passes)
 ```
 
 ## Open Questions
@@ -80,4 +80,4 @@ and regenerate `README.md` from the catalog. The surviving F000036 inline Step
 
 | Question | Next check |
 |----------|-----------|
-| Add the one-line "RETIRED by F000039" note to F000028/F000029 TRACKERs? | Default-yes per design Open Questions; confirm during S000072 implement |
+| Add the one-line "RETIRED by F000040" note to F000028/F000029 TRACKERs? | Default-yes per design Open Questions; confirm during S000073 implement |

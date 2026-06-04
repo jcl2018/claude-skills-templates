@@ -1187,7 +1187,7 @@ fi
 # bug it guarded against is now CJ_goal_defect-territory; if that path
 # regresses, a fresh test in the defect skill's TEST-SPEC owns the guard.)
 
-# (F000039 / S000072 retirement: removed the
+# (F000040 / S000073 retirement: removed the
 # `tests/cj-goal-doc-sync-auq-recommendation.test.sh` runner block — the test
 # exercised the F000028/F000029 doc-sync marker-pickup AUQ polarity, which has
 # been fully retired and deleted from disk. The surviving F000036 Step 5.5

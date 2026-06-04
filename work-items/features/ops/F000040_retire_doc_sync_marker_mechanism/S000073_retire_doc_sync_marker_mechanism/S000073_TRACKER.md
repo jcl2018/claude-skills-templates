@@ -1,18 +1,18 @@
 ---
 name: "Retire the doc-sync marker + preamble-AUQ retirement surface"
 type: user-story
-id: "S000072"
+id: "S000073"
 status: active
 created: "2026-06-03"
 updated: "2026-06-03"
-parent: "F000039"
+parent: "F000040"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "cj-feat-20260603-140631-39060"
 blocked_by: ""
 ---
 
-<!-- Prerequisite: parent feature F000039's /office-hours design is the context
-     for this atomic story. See F000039_DESIGN.md / S000072_DESIGN.md. -->
+<!-- Prerequisite: parent feature F000040's /office-hours design is the context
+     for this atomic story. See F000040_DESIGN.md / S000073_DESIGN.md. -->
 
 ## Lifecycle
 
@@ -97,14 +97,14 @@ blocked_by: ""
 - [x] `CLAUDE.md`: delete doc-sync section, add accepted-gap note.
 - [x] `doc/ARCHITECTURE.md` + `doc/PHILOSOPHY.md`: delete F000028/F000029 sections + cross-refs.
 - [x] Fix the 2 stale comments in `scripts/cj-document-release-config.sh`.
-- [x] Add one-line "RETIRED by F000039" note to F000028/F000029 TRACKERs (archival).
+- [x] Add one-line "RETIRED by F000040" note to F000028/F000029 TRACKERs (archival).
 - [x] Run both completeness greps + `validate.sh` + `test.sh`; confirm green.
 
 ## Log
 
 <!-- Chronological entries with dates and commit SHAs. -->
 
-- 2026-06-03: Created. Atomic user-story carrying the full F000028/F000029 doc-sync marker-AUQ retirement surface for parent feature F000039.
+- 2026-06-03: Created. Atomic user-story carrying the full F000028/F000029 doc-sync marker-AUQ retirement surface for parent feature F000040.
 - 2026-06-03: Implemented via /CJ_implement-from-spec (--auto). 19 files changed (3 deleted, 14 edited, 2 archival tracker notes). validate.sh PASS (0/0); test.sh PASS (0 failures); survivor wiring test PASS; both completeness greps empty.
 
 ## PRs
@@ -138,7 +138,7 @@ MODIFIED:
 - `doc/ARCHITECTURE.md` — deleted the F000028 + F000029 sections; rewrote the F000036 section to drop retired-mechanism/fallback framing; fixed the config-helper comment.
 - `doc/PHILOSOPHY.md` — dropped the marker example (Filesystem-as-protocol), the cross-ref, the mechanism block (rewritten to F000036 inline), and the marker-accumulation pitfall.
 - `scripts/cj-document-release-config.sh` — fixed 2 stale "mirrors skills-doc-sync-check" comments (file KEPT — F000037 parser).
-- `work-items/.../F000028_TRACKER.md`, `F000029_TRACKER.md` — added one-line "RETIRED by F000039" archival notes.
+- `work-items/.../F000028_TRACKER.md`, `F000029_TRACKER.md` — added one-line "RETIRED by F000040" archival notes.
 
 PRESERVED (verified untouched):
 - `tests/cj-goal-doc-sync-wiring.test.sh`, `cj-document-release.json`, the Step 5.5 prose + `[doc-sync-red]`/`[doc-sync-non-doc-write]` halt rows.
@@ -160,10 +160,10 @@ PRESERVED (verified untouched):
 - [impl-decision] 2026-06-03: The accepted-gap note (CLAUDE.md/SKILL-CATALOG/USAGE) routes non-orchestrator paths to `/ship` Step 18 (which already dispatches /document-release) and names the genuinely-uncovered path as a main-move bypassing BOTH orchestrators AND /ship — recovered by running /document-release by hand. This matches the design's CRITICAL FRAMING premise that /ship Step 18 shrank the original gap.
 - [impl-finding] 2026-06-03: `scripts/generate-readme.sh` emits to STDOUT (does not write README.md in place); regenerated via `generate-readme.sh > README.md` (atomic temp+mv). README diff is the single CJ_document-release description line — confirms no hand-edit drift.
 - [impl-finding] 2026-06-03: A stale workbench-owned doc-sync `post-rewrite` hook (+ doc-sync block in the live `post-merge`) was present in `.git/hooks/` from a prior setup-hooks.sh run. Removed the orphaned post-rewrite hook and re-ran setup-hooks.sh so the live environment matches the retired code; setup-hooks.test.sh then passes against the clean state.
-- [impl-finding] 2026-06-03: Retirement-announcing prose (e.g., "F000028/F000029 ... retired by F000039") legitimately co-names the two feature IDs, so the SPEC AC#3 `F000028.*F000029` regex matches 4 archival lines. The two AUTHORITATIVE return-greps (#1 retired tokens, #2 fallback language) are BOTH empty; kept the retirement notes since removing the IDs would make the history ungreppable.
+- [impl-finding] 2026-06-03: Retirement-announcing prose (e.g., "F000028/F000029 ... retired by F000040") legitimately co-names the two feature IDs, so the SPEC AC#3 `F000028.*F000029` regex matches 4 archival lines. The two AUTHORITATIVE return-greps (#1 retired tokens, #2 fallback language) are BOTH empty; kept the retirement notes since removing the IDs would make the history ungreppable.
 - [impl] 2026-06-03: Wrote/edited 16 repo files + 2 archival tracker notes; deleted 3 files via `git rm`. validate.sh PASS (0 errors/0 warnings, Checks 14/15/16/17 green), test.sh PASS (0 failures incl. survivor wiring runner + setup-hooks guards), standalone cj-goal-doc-sync-wiring.test.sh + setup-hooks.test.sh both PASS.
 - [impl-auto] 2026-06-03: --auto run. Change spans a sensitive surface (skills-catalog.json, validators/tests, git-hook installer) and >2 files, so per the skill's safety override this is a propose-class change; the orchestrator pre-authorized the enumerated sensitive surface (design approval gate), so it proceeded without an AUQ (runner has no AskUserQuestion tool).
-- [impl-pass] S000072: implementation complete. Phase 2 implementer-owned gates transitioned.
+- [impl-pass] S000073: implementation complete. Phase 2 implementer-owned gates transitioned.
 - 2026-06-03 [qa-smoke] S1 (AC-8): green — ./scripts/validate.sh exit 0, RESULT: PASS, 0 errors / 0 warnings (Checks 14/15/16/17 all PASS).
 - 2026-06-03 [qa-smoke] S2 (AC-8): green — ./scripts/test.sh exit 0, RESULT: PASS, 0 failures; no references to the 3 deleted files; survivor cj-goal-doc-sync-wiring runner ran + passed inside the suite.
 - 2026-06-03 [qa-smoke] S3 (AC-5): green — bash tests/cj-goal-doc-sync-wiring.test.sh exit 0, PASS (Step 5.5 + [doc-sync-red]/[doc-sync-non-doc-write] halt rows present + correctly ordered in all 3 orchestrators).
@@ -177,5 +177,5 @@ PRESERVED (verified untouched):
 - 2026-06-03 [qa-e2e] E4 (AC-5): green — survivors present (cj-document-release.json, scripts/cj-document-release-config.sh, tests/cj-goal-doc-sync-wiring.test.sh); Step 5.5 prose + [doc-sync-red] rows intact in all 3 orchestrators; config-helper comments no longer name the deleted script.
 - 2026-06-03 [qa-e2e] E5 (AC-6, AC-7): green — CLAUDE.md "## Doc-sync coverage" note covers Step 5.5 + /ship Step 18 + manual-by-hand recovery; generate-readme.sh produces zero diff vs on-disk README.md.
 - 2026-06-03 [qa-e2e-summary] green (0s subagent; 0 rows parent-inline; 0 deferred): All 5 E2E criteria green (E1-E5). Executed leaf-inline by the QA runner (all rows read-only). Tracker journal updated.
-- 2026-06-03 [qa-pass] S000072 (user-story): green smoke + green E2E. Phase 2 gates transitioned.
-- 2026-06-03 [feature-pr-opened] F000039/S000072 v6.0.10 — PR #201 opened (https://github.com/jcl2018/claude-skills-templates/pull/201); /CJ_goal_feature pipeline STOPPED at the PR (merge + deploy are separate human steps). Doc-sync Step 5.5 caught + fixed 2 post-commit drifts (USAGE.md Check-14 + CLAUDE.md Scripts-table). pr_url=https://github.com/jcl2018/claude-skills-templates/pull/201
+- 2026-06-03 [qa-pass] S000073 (user-story): green smoke + green E2E. Phase 2 gates transitioned.
+- 2026-06-03 [feature-pr-opened] F000040/S000073 v6.0.10 — PR #201 opened (https://github.com/jcl2018/claude-skills-templates/pull/201); /CJ_goal_feature pipeline STOPPED at the PR (merge + deploy are separate human steps). Doc-sync Step 5.5 caught + fixed 2 post-commit drifts (USAGE.md Check-14 + CLAUDE.md Scripts-table). pr_url=https://github.com/jcl2018/claude-skills-templates/pull/201

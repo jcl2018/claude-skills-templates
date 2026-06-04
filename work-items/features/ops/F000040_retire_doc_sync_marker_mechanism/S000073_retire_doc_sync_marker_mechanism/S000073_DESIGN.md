@@ -1,6 +1,6 @@
 ---
 type: design
-parent: S000072
+parent: S000073
 title: "Retire the doc-sync marker + preamble-AUQ retirement surface — Design"
 version: 1
 status: Draft
@@ -10,7 +10,7 @@ reviewers: []
 ---
 
 <!-- Atomic user-story design. Brief by intent — the cross-story design lives in
-     the parent feature F000039_DESIGN.md; this stub adds story-local framing and
+     the parent feature F000040_DESIGN.md; this stub adds story-local framing and
      defers the rest. Section completeness is enforced by /CJ_personal-workflow
      check; each section carries at least a sentence. -->
 
@@ -19,7 +19,7 @@ reviewers: []
 The F000028/F000029 doc-sync marker-AUQ mechanism became redundant once F000036
 made doc-sync run inline at Step 5.5; its `DOC_SYNC_PENDING` AUQ now fires for
 drift already folded into the same PR (operator-flagged obsolete in v6.0.8). This
-story executes the full retirement. See parent [F000039_DESIGN.md](../F000039_DESIGN.md)
+story executes the full retirement. See parent [F000040_DESIGN.md](../F000040_DESIGN.md)
 for the complete problem framing, including the critical "doc-sync names TWO
 mechanisms" distinction.
 
@@ -36,7 +36,7 @@ The F000036 Step 5.5 survivor is left untouched (see SPEC PRESERVE rows).
 ## Big decisions
 
 Inherits the parent feature's decisions (Approach A full-delete; KEEP the F000037
-config parser; single atomic story). See [F000039_DESIGN.md](../F000039_DESIGN.md)
+config parser; single atomic story). See [F000040_DESIGN.md](../F000040_DESIGN.md)
 `## Big decisions`. Story-local: the two completeness greps are the acceptance
 gate for "retirement is complete," not just a passing test suite.
 
@@ -45,7 +45,7 @@ gate for "retirement is complete," not just a passing test suite.
 Primary risk is deleting survivor coverage by conflating the two "doc-sync"
 mechanisms; mitigated by the explicit DIES-vs-PRESERVE split in SPEC.md and the
 TEST-SPEC assertion that `tests/cj-goal-doc-sync-wiring.test.sh` still passes. See
-parent [F000039_DESIGN.md](../F000039_DESIGN.md) `## Risks & open questions` for
+parent [F000040_DESIGN.md](../F000040_DESIGN.md) `## Risks & open questions` for
 the full table.
 
 ## Definition of done
@@ -61,12 +61,12 @@ TEST-SPEC.md.
 Touching the F000036 Step 5.5 survivor; building a replacement reminder for the
 rare non-/ship path; deleting F000028/F000029 history; editing CHANGELOG.md
 directly; removing runtime `~/.gstack/` state files. See parent
-[F000039_DESIGN.md](../F000039_DESIGN.md) `## Not in scope`.
+[F000040_DESIGN.md](../F000040_DESIGN.md) `## Not in scope`.
 
 ## Pointers
 
-- Parent feature design: [../F000039_DESIGN.md](../F000039_DESIGN.md)
-- This story's spec: [S000072_SPEC.md](S000072_SPEC.md)
-- This story's test spec: [S000072_TEST-SPEC.md](S000072_TEST-SPEC.md)
-- Story tracker: [S000072_TRACKER.md](S000072_TRACKER.md)
+- Parent feature design: [../F000040_DESIGN.md](../F000040_DESIGN.md)
+- This story's spec: [S000073_SPEC.md](S000073_SPEC.md)
+- This story's test spec: [S000073_TEST-SPEC.md](S000073_TEST-SPEC.md)
+- Story tracker: [S000073_TRACKER.md](S000073_TRACKER.md)
 - Source design doc: `~/.gstack/projects/jcl2018-claude-skills-templates/chjiang-cj-feat-20260603-140631-39060-design-20260603-141622.md`

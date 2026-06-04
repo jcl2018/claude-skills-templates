@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/setup-hooks.test.sh — test for scripts/setup-hooks.sh.
 #
-# F000039 / S000072 retired the F000028/F000029 doc-sync marker mechanism. The
+# F000040 / S000073 retired the F000028/F000029 doc-sync marker mechanism. The
 # post-merge Section 3 doc-sync trigger block and the entire post-rewrite hook
 # are gone. What survives:
 #   - pre-commit (validate.sh) hook

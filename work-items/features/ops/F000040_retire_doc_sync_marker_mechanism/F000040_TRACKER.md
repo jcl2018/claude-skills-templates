@@ -1,7 +1,7 @@
 ---
 name: "Retire the F000028/F000029 doc-sync marker + preamble-AUQ mechanism"
 type: feature
-id: "F000039"
+id: "F000040"
 status: active
 created: "2026-06-03"
 updated: "2026-06-03"
@@ -81,7 +81,7 @@ blocked_by: ""
 <!-- Actionable items for this feature. Break into child tasks for
      large features. -->
 
-- [ ] S000072 — execute the full retirement surface (delete files, edit preambles, strike fallback language, surgical hook + test edits, doc deletes, comment cleanup).
+- [ ] S000073 — execute the full retirement surface (delete files, edit preambles, strike fallback language, surgical hook + test edits, doc deletes, comment cleanup).
 
 ## Log
 
@@ -127,4 +127,4 @@ blocked_by: ""
 
 - [decision] 2026-06-03: Chose Approach A (full delete + document the narrow gap) over Approach B (lightweight post-merge reminder — keeps a hook alive for a rare path, easy to ignore) and Approach C (drop only the AUQ — leaves dead code + orphaned state-file writers). Summary: complete retirement, no dead code or orphaned state-file writers, kills the operator-flagged AUQ, matches real coverage; accepted con is a manual merge bypassing /ship won't be auto-flagged (manually recoverable).
 - [decision] 2026-06-03: KEEP `scripts/cj-document-release-config.sh` (it is the F000037 cj-document-release.json parser); only fix its two stale "mirrors skills-doc-sync-check" comments that become dangling references to the deleted script.
-- [decision] 2026-06-03: Add a one-line "RETIRED by F000039" note to the F000028/F000029 TRACKERs for archival traceability; preserve the work-item history dirs.
+- [decision] 2026-06-03: Add a one-line "RETIRED by F000040" note to the F000028/F000029 TRACKERs for archival traceability; preserve the work-item history dirs.
