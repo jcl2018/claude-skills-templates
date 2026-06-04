@@ -16,6 +16,8 @@ last-updated: "2026-06-04T06:55:40Z"
 - Cron/schedule cadence: pair `--quiet` with `/schedule` to drain at a fixed time
 - `--max-drain N` caps the batch; `--dry-run` previews without mutation; `/loop`
   wrapper for continuous drain
+- `--no-sync` skips the pre-build skills-sync (F000045) for a faster start; the
+  single-TODO worktree's local-main fast-forward still runs
 
 ## When NOT to use
 
@@ -28,13 +30,19 @@ last-updated: "2026-06-04T06:55:40Z"
 
 ## Mental model
 
-A TODOS.md backlog drainer that chains `/CJ_suggest` (rank) → bash T-task
-scaffold → `/CJ_implement-from-spec` → `/CJ_qa-work-item` (impl→qa leaf Agent
-subagents, halt-on-red between) → `/CJ_document-release` (Step 5.5 doc-sync) →
-`/ship` (open PR) → `/land-and-deploy` (merge + verify) per drained row. Drain
-mode creates one worktree per TODO inside `scripts/drain-one-todo.sh`; single
-mode creates one `cj-todo-*` worktree on `main`. Halt-on-red stops the loop and
-writes the finding to the tracker journal.
+A TODOS.md backlog drainer. Each invocation's preamble first runs a pre-build
+skills-sync (`cj-goal-common.sh --phase sync` → `post-land-sync.sh`'s guarded
+pull + `skills-deploy install` from `.source`, fail-soft) — so the drain runs
+against current skills — plus the `skills-update-check` advisory it newly gained
+(F000045). It then chains `/CJ_suggest` (rank) → bash T-task scaffold →
+`/CJ_implement-from-spec` → `/CJ_qa-work-item` (impl→qa leaf Agent subagents,
+halt-on-red between) → `/CJ_document-release` (Step 5.5 doc-sync) → `/ship`
+(open PR) → `/land-and-deploy` (merge + verify) per drained row. Drain mode
+creates one worktree per TODO inside `scripts/drain-one-todo.sh`; single mode
+creates one `cj-todo-*` worktree on `main` (whose local main is fast-forwarded
+to trunk first, Fork 1). The pre-build sync is mode-independent (runs for both
+drain and single-TODO modes); `--no-sync` opts out of the heavy install only.
+Halt-on-red stops the loop and writes the finding to the tracker journal.
 
 ## Common pitfalls
 
@@ -47,6 +55,9 @@ writes the finding to the tracker journal.
   `~~strikethrough~~ PARTIAL —` annotation or `/CJ_suggest` will re-pick the row
 - Running drain in a session that's already inside a worktree — drain creates
   per-TODO worktrees and parent-session collisions are confusing
+- Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
+  only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
+  (single-TODO mode); the pre-build sync is fail-soft and never blocks the drain
 
 ## Related skills
 

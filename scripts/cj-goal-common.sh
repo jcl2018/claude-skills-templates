@@ -10,7 +10,7 @@
 # centralized.
 #
 # The trio (the agreed floor per S000057_SPEC Open Question — deliberately
-# MINIMAL, do not over-build):
+# MINIMAL, do not over-build) — plus the F000045 `sync` phase:
 #   1. worktree   — delegate to cj-worktree-init.sh (--caller feature|defect)
 #   2. telemetry  — append one JSON line audit-receipt to
 #                   ~/.gstack/analytics/cj-goal-<mode>.jsonl
@@ -19,15 +19,21 @@
 #                   the post-run worktree janitor (T000036). Best-effort: emits
 #                   PHASE_RESULT=ok|skipped, NEVER failed (cleanup must not give a
 #                   caller any reason to halt).
+#   5. sync       — pre-build skills-sync (F000045 / Fork 2): delegate to
+#                   post-land-sync.sh's guarded pull+install-from-.source core.
+#                   Fail-soft like pr-check (guard refusal / offline → skipped,
+#                   NEVER failed). `--no-sync` short-circuits to skipped before
+#                   any call; `--dry-run` forwards to post-land-sync.sh --dry-run.
 #
 # Args:
-#   --phase {worktree|telemetry|pr-check|ship|cleanup}   required; selects the op
+#   --phase {worktree|telemetry|pr-check|ship|cleanup|sync}   required; selects the op
 #                                                 ('ship' is an alias for pr-check —
 #                                                 the PR-creation seam where the
 #                                                 verb skills run the PR check)
 #   --mode  {feature|defect}                      required; verb context
 #   --dry-run                                     emit output only; no fs / git mutation
 #   --no-worktree                                 (worktree phase) forward opt-out to helper
+#   --no-sync                                     (sync phase) skip the install → PHASE_RESULT=skipped
 #   --branch NAME                                 (pr-check phase) --head fallback for gh pr list
 #   --repo PATH                                   repo root override (default: git toplevel)
 #   --receipt-file PATH                           (telemetry phase) override receipt path (test hook)
@@ -61,6 +67,7 @@ PHASE=""
 MODE=""
 DRY_RUN=0
 NO_WORKTREE=0
+NO_SYNC=0
 BRANCH=""
 REPO_OVERRIDE=""
 RECEIPT_FILE=""
@@ -74,6 +81,7 @@ while [ $# -gt 0 ]; do
     --mode)         MODE="${2:-}"; shift 2 ;;
     --dry-run)      DRY_RUN=1; shift ;;
     --no-worktree)  NO_WORKTREE=1; shift ;;
+    --no-sync)      NO_SYNC=1; shift ;;
     --branch)       BRANCH="${2:-}"; shift 2 ;;
     --repo)         REPO_OVERRIDE="${2:-}"; shift 2 ;;
     --receipt-file) RECEIPT_FILE="${2:-}"; shift 2 ;;
@@ -101,9 +109,9 @@ case "$PHASE" in
 esac
 
 case "$PHASE" in
-  worktree|telemetry|pr-check|cleanup) ;;
+  worktree|telemetry|pr-check|cleanup|sync) ;;
   *)
-    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup)" >&2
+    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup, sync)" >&2
     exit 1
     ;;
 esac
@@ -154,6 +162,24 @@ resolve_cleanup_helper() {
   src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
   if [ -n "$src" ] && [ -x "$src/scripts/cj-worktree-cleanup.sh" ]; then
     printf '%s' "$src/scripts/cj-worktree-cleanup.sh"; return 0
+  fi
+  return 1
+}
+
+# ---- helper: resolve post-land-sync.sh (same 2-level probe) ------------------
+#
+# Mirrors resolve_worktree_helper: (1) sibling in this script's dir (workbench
+# self-dev), then (2) <manifest .source>/scripts/post-land-sync.sh (deployed
+# ~/.claude/ context). The sync phase (F000045 / Fork 2) reuses the vetted
+# post-land-sync.sh guarded core rather than reimplementing pull+install.
+resolve_post_land_sync() {
+  local self_dir cand src
+  self_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  cand="$self_dir/post-land-sync.sh"
+  if [ -x "$cand" ]; then printf '%s' "$cand"; return 0; fi
+  src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+  if [ -n "$src" ] && [ -x "$src/scripts/post-land-sync.sh" ]; then
+    printf '%s' "$src/scripts/post-land-sync.sh"; return 0
   fi
   return 1
 }
@@ -387,6 +413,90 @@ if [ "$PHASE" = "pr-check" ]; then
   fi
   echo "PR_NUMBER=$PR_NUMBER"
   echo "PR_STATE=$PR_STATE"
+  echo "PHASE_RESULT=ok"
+  exit 0
+fi
+
+# =============================================================================
+# Phase: sync — pre-build skills-sync (F000045 / Fork 2)
+# =============================================================================
+#
+# Delegates to post-land-sync.sh's guarded pull+install-from-.source core so
+# installed skills match trunk at build start (without skipping foreign-owned
+# skills — the worktree-invoked-install bug). Fail-SOFT exactly like pr-check:
+# a guard refusal (`.source` missing / not a git repo / not on main / dirty
+# tracked tree) OR an offline pull → PHASE_RESULT=skipped (exit 0), NEVER
+# failed. A hard failure here would block every build whenever `.source` is
+# transiently off-main or the network blips.
+#
+#   --no-sync   short-circuits to PHASE_RESULT=skipped BEFORE any call (the
+#               operator's opt-out for the heavy global-state install + latency;
+#               Fork-1's ff in the worktree phase still runs).
+#   --dry-run   forwards to `post-land-sync.sh --dry-run` (preview; no mutation).
+#
+# Stdout fields: SYNC_RAN, VERSION_BEFORE, VERSION_AFTER, PHASE_RESULT.
+#   SYNC_RAN=1 only when a real (non-dry-run) install actually ran.
+#   VERSION_BEFORE / VERSION_AFTER carry post-land-sync.sh's reported
+#   collection_version (before→after); parsed from its stdout.
+
+if [ "$PHASE" = "sync" ]; then
+  echo "PHASE=sync"
+  echo "MODE=$MODE"
+
+  emit_sync_skip() {
+    # $1 = SYNC_RAN value, $2 = VERSION_BEFORE, $3 = VERSION_AFTER, $4 = reason
+    echo "SYNC_RAN=${1:-0}"
+    echo "VERSION_BEFORE=${2:-}"
+    echo "VERSION_AFTER=${3:-}"
+    echo "PHASE_RESULT=skipped"
+    [ -n "${4:-}" ] && echo "[common-sync-skip] $4" >&2
+    exit 0
+  }
+
+  # --no-sync: opt out of the heavy install BEFORE resolving / calling anything.
+  if [ "$NO_SYNC" = "1" ]; then
+    emit_sync_skip 0 "" "" "skipped via --no-sync (Fork-1 ff still runs in the worktree phase)"
+  fi
+
+  SYNC_HELPER=$(resolve_post_land_sync || echo "")
+  [ -n "$SYNC_HELPER" ] || emit_sync_skip 0 "" "" "post-land-sync.sh not found (sibling dir nor manifest .source)"
+
+  # Run the helper. --dry-run forwards (preview only). Capture stdout+stderr and
+  # the exit code; post-land-sync.sh exits 0 on success/dry-run, 2 on guard
+  # refusal, non-zero when the pull fails offline (it runs `set -euo pipefail`).
+  if [ "$DRY_RUN" = "1" ]; then
+    SYNC_OUT=$(bash "$SYNC_HELPER" --dry-run 2>&1) && SYNC_RC=0 || SYNC_RC=$?
+  else
+    SYNC_OUT=$(bash "$SYNC_HELPER" 2>&1) && SYNC_RC=0 || SYNC_RC=$?
+  fi
+
+  # Parse collection_version before/after from the helper's stdout.
+  #   real run:  "collection_version (before): X"  /  "collection_version (after):  Y"
+  #   dry-run:   "collection_version:      X"      (single line; before==after, no mutation)
+  VERSION_BEFORE=$(printf '%s\n' "$SYNC_OUT" | sed -n 's/.*collection_version (before): *//p' | head -1)
+  VERSION_AFTER=$(printf '%s\n' "$SYNC_OUT" | sed -n 's/.*collection_version (after): *//p' | head -1)
+  if [ -z "$VERSION_BEFORE" ] && [ -z "$VERSION_AFTER" ]; then
+    # dry-run shape: a single "collection_version:" line. before == after (no mutation).
+    VERSION_BEFORE=$(printf '%s\n' "$SYNC_OUT" | sed -n 's/.*collection_version: *//p' | head -1)
+    VERSION_AFTER="$VERSION_BEFORE"
+  fi
+  # Defensive: if only one side parsed, mirror it so both keys are always populated.
+  [ -z "$VERSION_AFTER" ] && VERSION_AFTER="$VERSION_BEFORE"
+  [ -z "$VERSION_BEFORE" ] && VERSION_BEFORE="$VERSION_AFTER"
+
+  if [ "$SYNC_RC" -ne 0 ]; then
+    # Guard refusal / offline pull / bad state → skipped (NEVER failed).
+    emit_sync_skip 0 "$VERSION_BEFORE" "$VERSION_AFTER" "post-land-sync.sh exited $SYNC_RC (guard refusal / offline) — proceeding on current install"
+  fi
+
+  if [ "$DRY_RUN" = "1" ]; then
+    # Preview only — nothing installed.
+    echo "SYNC_RAN=0"
+  else
+    echo "SYNC_RAN=1"
+  fi
+  echo "VERSION_BEFORE=$VERSION_BEFORE"
+  echo "VERSION_AFTER=$VERSION_AFTER"
   echo "PHASE_RESULT=ok"
   exit 0
 fi

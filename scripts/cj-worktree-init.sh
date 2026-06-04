@@ -29,6 +29,15 @@
 # Security: stdout is ALWAYS one line of JSON. `note` is sanitized to ASCII
 # printable + safe punctuation, capped at 200 chars. No eval; no shell-injection
 # surface even if a future git error path leaks raw bytes into `note`.
+#
+# Base-freshness (F000045 / Fork 1): before `git worktree add`, when on
+# main/master with an existing `origin/$BRANCH` ref, the helper fail-soft
+# fetches and fast-forwards local main to the origin tip so the new worktree
+# branches off current trunk (Step 5.5 below). The outcome rides the `note`
+# field of the `created` emit: `ff'd N commits` (behind), `local main diverged
+# from origin; building on local main` (diverged — no ff, no halt), or
+# `freshness skipped (offline)` (fetch failed / no origin ref). NEVER halts;
+# skipped under --dry-run. State stays `created`.
 
 set -euo pipefail
 
@@ -241,6 +250,72 @@ if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; th
   fi
 fi
 
+# ---- Step 5.5: base-freshness — fast-forward local main before worktree add --
+#
+# F000045 / Fork 1. Before `git worktree add` branches off the current local
+# tip, fast-forward local `main` (or `master`) to `origin/$BRANCH` so the new
+# worktree is based on current trunk, not a stale local HEAD. Fail-soft in every
+# branch — a fetch failure, a divergence, or an absent origin NEVER blocks the
+# build (mirrors the skills-update-check / cj-handoff-gate offline posture).
+#
+# Guard (re-checked HERE, NOT inherited from Step 4 — `--force-create` bypasses
+# Step 4's on-main gate, and a forced worktree off a non-trunk branch must NOT
+# fast-forward it): run only when BRANCH ∈ {main,master} AND `origin/$BRANCH`
+# resolves. Skipped entirely under --dry-run (an ff is a filesystem mutation;
+# --dry-run's contract is "emit JSON only").
+#
+# Outcome rides the EXISTING `note` field of the Step 9 `created` emit via
+# FRESHNESS_NOTE. Three terminal notes:
+#   behind+ff'able → "ff'd N commits"
+#   diverged       → "local main diverged from origin; building on local main"
+#   offline/no-ref → "freshness skipped (offline)"
+#
+# `set -euo pipefail` safety: every git probe uses the same `2>/dev/null` +
+# `|| true` / `|| echo ""` guard pair the Step 5 dirty check uses, so no probe
+# failure trips the errexit/pipefail trap. `git merge-base --is-ancestor` is run
+# inside an `if` (its non-zero "not an ancestor" exit is consumed by the test,
+# never propagated to errexit).
+
+FRESHNESS_NOTE=""
+if [ "$DRY_RUN" != "1" ]; then
+  # Re-check the branch ourselves — do NOT trust Step 4 (--force-create skips it).
+  _FRESH_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+  case "$_FRESH_BRANCH" in
+    main|master)
+      # Fail-soft fetch. `|| true` so an offline fetch never trips errexit.
+      git fetch origin "$_FRESH_BRANCH" 2>/dev/null || true
+      # Resolve origin/$BRANCH; empty if the ref does not exist (offline / no remote).
+      _ORIGIN_REF="refs/remotes/origin/$_FRESH_BRANCH"
+      _ORIGIN_SHA=$(git rev-parse --verify --quiet "$_ORIGIN_REF" 2>/dev/null || echo "")
+      _LOCAL_SHA=$(git rev-parse --verify --quiet HEAD 2>/dev/null || echo "")
+      if [ -z "$_ORIGIN_SHA" ] || [ -z "$_LOCAL_SHA" ]; then
+        # No origin ref (or no HEAD) → offline / no-remote. Proceed on local main.
+        FRESHNESS_NOTE="freshness skipped (offline)"
+      elif [ "$_ORIGIN_SHA" = "$_LOCAL_SHA" ]; then
+        # Already at the origin tip → no-op ff (the .source==root collapse case).
+        FRESHNESS_NOTE=""
+      elif git merge-base --is-ancestor "$_LOCAL_SHA" "$_ORIGIN_SHA" 2>/dev/null; then
+        # HEAD is an ancestor of origin/$BRANCH and differs → strictly behind → ff.
+        _AHEAD=$(git rev-list --count "${_LOCAL_SHA}..${_ORIGIN_SHA}" 2>/dev/null || echo "")
+        if git merge --ff-only "$_ORIGIN_REF" >/dev/null 2>&1; then
+          [ -n "$_AHEAD" ] && FRESHNESS_NOTE="ff'd $_AHEAD commits" || FRESHNESS_NOTE="ff'd to origin/$_FRESH_BRANCH"
+        else
+          # ff attempt failed unexpectedly (e.g. raced) → don't halt, just note offline-style.
+          FRESHNESS_NOTE="freshness skipped (offline)"
+        fi
+      else
+        # HEAD is NOT an ancestor of origin → diverged (local has unpushed commits).
+        # No ff, no halt — never silently drop local commits.
+        FRESHNESS_NOTE="local main diverged from origin; building on local main"
+      fi
+      ;;
+    *)
+      # Non-trunk branch (only reachable under --force-create) → no freshness step.
+      FRESHNESS_NOTE=""
+      ;;
+  esac
+fi
+
 # ---- Step 6: compose name + path --------------------------------------------
 
 TS=$(date +%Y%m%d-%H%M%S)
@@ -273,6 +348,14 @@ if ! git worktree add "$WT_PATH" -b "$NAME" >/dev/null 2>"$ERR_LOG"; then
 fi
 
 # ---- Step 9: emit success ----------------------------------------------------
+#
+# The base-freshness outcome (Fork 1, Step 5.5) rides the EXISTING `note` field:
+# when FRESHNESS_NOTE is set, append it after the "created $NAME" prose so a
+# single parse of `.note` surfaces both the worktree state and the ff outcome.
 
-emit_json "created" "$WT_PATH" "$NAME" "created $NAME"
+if [ -n "$FRESHNESS_NOTE" ]; then
+  emit_json "created" "$WT_PATH" "$NAME" "created $NAME; $FRESHNESS_NOTE"
+else
+  emit_json "created" "$WT_PATH" "$NAME" "created $NAME"
+fi
 exit 0
