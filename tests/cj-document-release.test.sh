@@ -15,10 +15,12 @@
 #      Mental model / Common pitfalls / Related skills)
 #   8. skills-catalog.json contains CJ_document-release entry with
 #      status=experimental + portability=workbench
-#   9. doc/ARCHITECTURE.md component roster has the **CJ_document-release** entry
-#      (T000037: the skill moved from the retired per-skill catalog doc's
-#      phase-step section to the ARCHITECTURE non-workflow roster — only
-#      CJ_goal_* orchestrators get a doc/WORKFLOWS.md section now)
+#   9. doc/WORKFLOWS.md `## Utilities & phase-step skills` section has the
+#      CJ_document-release entry (T000041: the component roster MOVED from the
+#      doc/ARCHITECTURE.md `## Component skills (non-workflow roster)` into a new
+#      doc/WORKFLOWS.md `## Utilities & phase-step skills` section — the lighter
+#      per-skill shape uses an `#### <skill>` heading. T000037 had first moved it
+#      from the retired per-skill catalog doc to the ARCHITECTURE roster.)
 #  10. `[doc-sync-red]` halt-marker grep returns ≥1 in SKILL.md
 #  11. `[doc-sync-non-doc-write]` halt-marker grep returns ≥1 in SKILL.md
 #  12. Branch refusal prose grep returns ≥1 in SKILL.md
@@ -39,7 +41,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SKILL_MD="$REPO_ROOT/skills/CJ_document-release/SKILL.md"
 USAGE_MD="$REPO_ROOT/skills/CJ_document-release/USAGE.md"
 CATALOG="$REPO_ROOT/skills-catalog.json"
-ARCHITECTURE_DOC="$REPO_ROOT/doc/ARCHITECTURE.md"
+WORKFLOWS_DOC="$REPO_ROOT/doc/WORKFLOWS.md"
 
 echo "=== cj-document-release: skill structure + body assertions ==="
 
@@ -114,20 +116,24 @@ else
   fail_test "skills-catalog.json: CJ_document-release entry wrong (status=$CATALOG_STATUS portability=$CATALOG_PORTABILITY)"
 fi
 
-# 9. doc/ARCHITECTURE.md component roster entry exists (T000037: moved here from
-# the retired per-skill catalog doc's phase-step section)
-if grep -qE '^- \*\*CJ_document-release\*\*' "$ARCHITECTURE_DOC" 2>/dev/null; then
-  ok "doc/ARCHITECTURE.md component roster has the **CJ_document-release** entry"
+# 9. doc/WORKFLOWS.md `## Utilities & phase-step skills` entry exists (T000041:
+# the component roster MOVED here from the doc/ARCHITECTURE.md `## Component
+# skills (non-workflow roster)`; the lighter per-skill shape uses an
+# `#### <skill>` heading instead of a `- **<skill>**` bullet)
+if grep -qE '^#### CJ_document-release$' "$WORKFLOWS_DOC" 2>/dev/null; then
+  ok "doc/WORKFLOWS.md '## Utilities & phase-step skills' has the CJ_document-release entry"
 else
-  fail_test "doc/ARCHITECTURE.md component roster missing the **CJ_document-release** entry"
+  fail_test "doc/WORKFLOWS.md '## Utilities & phase-step skills' missing the CJ_document-release entry"
 fi
 
-# 9b. The roster entry names the Step 5.5 inline doc-sync role (the phase-step
-# semantics, now carried in prose rather than a closed-enum tag)
-if grep -qE '^- \*\*CJ_document-release\*\* .*Step 5\.5' "$ARCHITECTURE_DOC" 2>/dev/null; then
-  ok "doc/ARCHITECTURE.md CJ_document-release roster entry names the Step 5.5 inline role"
+# 9b. The entry's body names the Step 5.5 inline doc-sync role (the phase-step
+# semantics, carried in the **Invoke when:** prose of the lighter shape). Scope
+# the grep to the section that follows the `#### CJ_document-release` heading so
+# a stray "Step 5.5" elsewhere in WORKFLOWS.md can't satisfy it.
+if awk '/^#### CJ_document-release$/{f=1;next} /^#### /{f=0} f' "$WORKFLOWS_DOC" 2>/dev/null | grep -qE 'Step 5\.5'; then
+  ok "doc/WORKFLOWS.md CJ_document-release entry names the Step 5.5 inline role"
 else
-  fail_test "doc/ARCHITECTURE.md CJ_document-release roster entry missing the Step 5.5 role description"
+  fail_test "doc/WORKFLOWS.md CJ_document-release entry missing the Step 5.5 role description"
 fi
 
 # 10. [doc-sync-red] halt-marker grep

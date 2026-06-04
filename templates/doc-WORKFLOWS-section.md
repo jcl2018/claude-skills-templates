@@ -5,12 +5,16 @@
   every placeholder. Frontmatter is intentionally absent — this is a fragment,
   not a standalone doc.
 
-  WORKFLOWS.md is the WORKFLOW altitude: it carries a section ONLY for each
+  This fragment is for the `## Orchestrators` section — one full section per
   CJ_goal_* workflow orchestrator (today: CJ_goal_feature, CJ_goal_defect,
-  CJ_goal_todo_fix). A non-orchestrator skill (phase-step, validator, utility)
-  does NOT go here — add it to the doc/ARCHITECTURE.md `## Component skills
-  (non-workflow roster)` instead (and always to doc/PHILOSOPHY.md's decision
-  tree, the no-vanish safety net).
+  CJ_goal_todo_fix), with an ASCII chart + the 4-bullet Touches block. A
+  non-orchestrator skill (phase-step, validator, utility) does NOT use this
+  fragment — add it to the doc/WORKFLOWS.md `## Utilities & phase-step skills`
+  section instead, using that section's LIGHTER per-skill shape (`### <skill>`
+  heading + Status + Source + Invoke when + a compact Touches: Scripts · tools ·
+  shell / Reads · writes; no chart, no 4-bullet Touches — single-step skills
+  dispatch nothing and run no pipeline). Either way, always add the skill to
+  doc/PHILOSOPHY.md's decision tree, the no-vanish safety net.
 
   Check 15b in scripts/validate.sh enforces, for every `CJ_goal_*` routable
   non-deprecated skill in skills-catalog.json:

@@ -118,27 +118,7 @@ Everything above is Claude-side plumbing. `work-copilot/` is the workbench's *ot
 
 ## Component skills (non-workflow roster)
 
-The three `cj_goal` workflows in [doc/WORKFLOWS.md](WORKFLOWS.md) dispatch a set of single-purpose **component skills** and lean on a few standalone validators/utilities. Those skills don't get their own workflow chart — they are the building blocks a workflow composes, or a one-shot tool the operator runs directly. This roster is the per-skill reference for them: name + one-line role + Source link. (Every skill below is also enforced in [PHILOSOPHY.md ## Decision tree](PHILOSOPHY.md#decision-tree) by the workbench's New-skills check, which is the no-vanish safety net — see `## Decision tree mirror` below. This roster is documentation, not Check-enforced.)
-
-**Phase-step skills** (dispatched by the orchestrators as depth-≤2 leaf subagents):
-
-- **CJ_scaffold-work-item** — distills an APPROVED `/office-hours` design doc into a compliant `work-items/<type>/<id>_<slug>/` tree (TRACKER + per-type artifacts + lifecycle gates); runs `/CJ_personal-workflow check` at the boundaries; idempotent. Source: `skills/CJ_scaffold-work-item/SKILL.md` · `skills/CJ_scaffold-work-item/USAGE.md`.
-- **CJ_implement-from-spec** — reads the per-type spec (SPEC+DESIGN for user-stories, RCA+test-plan for defects, TRACKER+test-plan for tasks) and writes code via Read/Edit/Write; propose-and-confirm by default with a sensitive-surface AUQ, `--auto` for trivial ≤2-file changes; idempotent. Source: `skills/CJ_implement-from-spec/SKILL.md` · `skills/CJ_implement-from-spec/USAGE.md`.
-- **CJ_qa-work-item** — runs every test-plan / TEST-SPEC row in the work-item (user-stories get smoke + a fresh-context E2E subagent per row; defects/tasks run rows smoke-equivalent), writes findings to the tracker journal, transitions Phase 2 QA-owned gates; refuses on incomplete Phase 2; idempotent. Source: `skills/CJ_qa-work-item/SKILL.md` · `skills/CJ_qa-work-item/USAGE.md`.
-- **CJ_document-release** — workbench wrapper around upstream `/document-release`; adds a `--docs <subset>` filter, a halt-on-red contract (`[doc-sync-red]`), and a doc-only auto-commit gated by the per-repo `cj-document-release.json` whitelist; invoked inline at Step 5.5 of all three orchestrators. (Mechanism detail: `## F000036 inline doc-sync wrapper` + `## F000037 strict-required cj-document-release.json` above.) Source: `skills/CJ_document-release/SKILL.md` · `skills/CJ_document-release/USAGE.md`.
-
-**Validator** (depended on by every phase-step + orchestrator, run transitively at boundaries):
-
-- **CJ_personal-workflow** — validates work-item directories + tracker files against the personal templates and `personal-artifact-manifests.json`; templates + WORKFLOW.md are the single source of truth for structural rules. Source: `skills/CJ_personal-workflow/SKILL.md` · `skills/CJ_personal-workflow/USAGE.md`.
-
-**Standalone utilities** (operator-invoked directly; not part of a chain):
-
-- **CJ_system-health** — read-only `~/.claude/` health dashboard: scans installed skills, builds a dependency graph, checks filesystem health, surfaces usage analytics with a behavioral-topology overlay, optionally invokes waza; produces a scored report with trend tracking. Source: `skills/CJ_system-health/SKILL.md` · `skills/CJ_system-health/USAGE.md`.
-- **CJ_suggest** — prints a ranked top-5 (or `--limit N`) of next-up work items from TODOS.md + tracker frontmatter; internal phase-step rows filtered by default (`--include-internal` surfaces them); `--for-skill` / `--limit` pre-filter for downstream callers like `/CJ_goal_todo_fix`. Source: `skills/CJ_suggest/SKILL.md` · `skills/CJ_suggest/USAGE.md`.
-- **CJ_improve-queue** — workbench self-improvement skill with three modes: `evaluate <url>` (fetch + classify a Claude best-practice article → draft TODOS row if novel), `audit` (offline repo self-scan), `research <topic>` (WebSearch + per-result evaluate with a privacy gate); all rows land with `<!--impr-draft-->` markers. Source: `skills/CJ_improve-queue/SKILL.md` · `skills/CJ_improve-queue/USAGE.md`.
-- **CJ_repo-init** — detects which CJ_ skills are deployed, verifies each one's per-repo prerequisites (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`, `work-items/` tree), prints a health table, and on one confirm scaffolds the missing prerequisites from generic portable seeds; in-place, no worktree/ship; idempotent. Source: `skills/CJ_repo-init/SKILL.md` · `skills/CJ_repo-init/USAGE.md`.
-
-(The `work-copilot/` Copilot bundle is NOT a Claude skill — it is the parallel delivery surface documented in `## The work-copilot Copilot bundle (parallel delivery surface)` above, not in this roster.)
+The per-skill component roster — the phase-step skills the `cj_goal` orchestrators dispatch, the `CJ_personal-workflow` validator, and the standalone utilities — now lives in [doc/WORKFLOWS.md](WORKFLOWS.md) `## Utilities & phase-step skills` (alongside the orchestrator chains, so the whole routable-skill catalog is one doc). This doc keeps the *mechanism* sections above; the per-skill reference moved out. (The roster was never Check-enforced; the no-vanish safety net is the [PHILOSOPHY.md ## Decision tree](PHILOSOPHY.md#decision-tree) New-skills check — see `## Decision tree mirror` below.)
 
 ## Decision tree mirror
 
