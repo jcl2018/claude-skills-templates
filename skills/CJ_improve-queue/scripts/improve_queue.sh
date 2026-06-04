@@ -71,11 +71,27 @@ log_err() {
 # Preflight gates
 # ---------------------------------------------------------------------------
 
-# Darwin-only gate. Bail loudly on non-macOS.
+# Platform gate: allow the POSIX layers we support (macOS, Linux, WSL2, Git Bash).
+# Date math is portable via date_to_epoch() below, so the old macOS-only
+# restriction is lifted; refuse only a genuinely unknown OS. Name kept as
+# check_darwin for call-site stability (S000078 / F000044).
 check_darwin() {
-  if [ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]; then
-    log_err "macOS-only skill (uname -s = Darwin required); current OS: $(uname -s 2>/dev/null || echo unknown)"
-    exit 1
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    Darwin|Linux|MINGW*|MSYS*|CYGWIN*) : ;;
+    *)
+      log_err "supported on macOS, Linux, WSL2, Git Bash; unknown OS: $(uname -s 2>/dev/null || echo unknown)"
+      exit 1
+      ;;
+  esac
+}
+
+# Portable date->epoch (feature-probe GNU vs BSD; $2 = BSD strptime format,
+# unused by the GNU branch).
+date_to_epoch() {
+  if date --version >/dev/null 2>&1; then
+    date -d "$1" +%s 2>/dev/null
+  else
+    date -j -f "$2" "$1" +%s 2>/dev/null
   fi
 }
 
@@ -673,7 +689,7 @@ cmd_audit() {
         | tail -1 \
         | jq -r '.ts // ""' 2>/dev/null || true)
       if [ -n "$last_ts" ]; then
-        last_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_ts" +%s 2>/dev/null || echo 0)
+        last_epoch=$(date_to_epoch "$last_ts" "%Y-%m-%dT%H:%M:%SZ" || echo 0)
       fi
     fi
 

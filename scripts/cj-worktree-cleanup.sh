@@ -288,18 +288,29 @@ fi
 
 # ---- guarded root-main refresh ----------------------------------------------
 #
-# Switch the ROOT checkout back to main + pull --ff-only — but ONLY if the root
-# tree is clean (never disturb a dirty root). The current session stays in its own
-# worktree; only the root is refreshed. From inside a worktree you cannot check
-# out main directly (it is already checked out at the root), which is why this
-# operates on $_ROOT via `git -C`. Best-effort; log on failure, never halt.
+# Switch the ROOT checkout back to main + pull --ff-only — but ONLY if the root's
+# TRACKED tree is clean (never disturb genuine uncommitted/staged work). The
+# current session stays in its own worktree; only the root is refreshed. From
+# inside a worktree you cannot check out main directly (it is already checked out
+# at the root), which is why this operates on $_ROOT via `git -C`. Best-effort;
+# log on failure, never halt.
+#
+# Guard uses --untracked-files=no on PURPOSE: `git checkout main` + `git pull
+# --ff-only` never touch untracked files, so untracked content must NOT block the
+# refresh. Counting untracked here would perma-skip the refresh in any repo that
+# keeps untracked scratch at root (e.g. this workbench's .gstack/*.md design docs),
+# defeating the "switch back to main" half of the janitor. The per-worktree dirty
+# rail above DOES count untracked (removing a worktree would lose that scratch);
+# this root refresh is non-destructive to the working tree, so tracked-only is
+# the correct, narrower guard.
 
 if [ "$DRY_RUN" = "1" ]; then
   echo "ROOT_REFRESH=skipped"
-elif [ -n "$(git -C "$_ROOT" status --porcelain 2>/dev/null)" ]; then
-  # Dirty root — leave it alone.
+elif [ -n "$(git -C "$_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+  # Dirty TRACKED tree — leave it alone (untracked-only is fine; checkout/pull
+  # don't touch untracked files).
   echo "ROOT_REFRESH=skipped"
-  echo "[cleanup-note] root checkout is dirty; skipped main refresh" >&2
+  echo "[cleanup-note] root checkout has a dirty tracked tree; skipped main refresh" >&2
 else
   if git -C "$_ROOT" checkout main >/dev/null 2>&1 && git -C "$_ROOT" pull --ff-only >/dev/null 2>&1; then
     echo "ROOT_REFRESH=ok"

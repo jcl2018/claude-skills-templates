@@ -1,13 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ---- Platform check: BSD `date -j` only (this-repo / macOS targeted in v1).
-# On Linux, `date -j` fails, swallowed by 2>/dev/null, age_days collapses to 0,
-# recency penalty silently disabled, ranking wrong. Fail loud instead.
-if [ "$(uname -s)" != "Darwin" ]; then
-  echo "Error: /suggest requires macOS (uses BSD \`date -j -f\`). Linux/GNU date -d not supported in v1." >&2
-  exit 1
-fi
+# ---- Platform gate: allow the POSIX layers we support (macOS, Linux, WSL2,
+# Git Bash). Date math is portable via date_to_epoch() below (feature-probes GNU
+# vs BSD), so the old "macOS-only because BSD date -j" restriction is lifted.
+# Refuse only a genuinely unknown OS, loudly, so age_days never silently
+# collapses to 0 (S000078 / F000044).
+case "$(uname -s 2>/dev/null || echo unknown)" in
+  Darwin|Linux|MINGW*|MSYS*|CYGWIN*) : ;;
+  *)
+    echo "Error: /suggest supports macOS, Linux, WSL2, and Git Bash; unknown OS '$(uname -s 2>/dev/null || echo unknown)'." >&2
+    exit 1
+    ;;
+esac
+
+# ---- Portable date->epoch. Feature-probe: `date --version` succeeds on GNU
+# (Linux/WSL2/Git Bash), fails on BSD (macOS). $2 = BSD strptime format (unused
+# by the GNU branch). Empty output + non-zero exit on parse failure.
+date_to_epoch() {
+  if date --version >/dev/null 2>&1; then
+    date -d "$1" +%s 2>/dev/null
+  else
+    date -j -f "$2" "$1" +%s 2>/dev/null
+  fi
+}
 
 # ---- Repo-root detection. Don't silently fall through to pwd — that masks
 # "not in a git repo" with a confusing TODOS.md-not-found error downstream.
@@ -281,7 +297,7 @@ while IFS= read -r heading; do
   # ---- Step 4: age_days from `updated` (macOS-compatible date math).
   age_days=0
   if [ "$is_orphan" -eq 0 ] && [ -n "$updated" ]; then
-    upd_epoch=$(date -j -f "%Y-%m-%d" "$updated" +%s 2>/dev/null || echo "")
+    upd_epoch=$(date_to_epoch "$updated" "%Y-%m-%d" || echo "")
     if [ -n "$upd_epoch" ]; then
       age_days=$(( (TODAY_EPOCH - upd_epoch) / 86400 ))
       [ "$age_days" -lt 0 ] && age_days=0
