@@ -63,11 +63,11 @@ blocked_by: ""
 
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
-- [ ] Smoke tests pass in CI
+- [x] Smoke tests pass in CI
 - [ ] E2E walked manually
 - [ ] All children shipped (if any)
-- [ ] `/ship` — PR created (with pre-landing review)
-- [ ] `/land-and-deploy` — merged and deployed
+- [x] `/ship` — PR created (with pre-landing review)
+- [x] `/land-and-deploy` — merged and deployed
 
 ## Acceptance Criteria
 
@@ -97,6 +97,8 @@ blocked_by: ""
 ## PRs
 
 <!-- PR links with status (open/merged/closed). -->
+
+- [PR #205: v6.0.14 feat: F000043 self-explanatory /CJ_suggest rows (cards w/ what-it-does + effort)](https://github.com/jcl2018/claude-skills-templates/pull/205) — MERGED
 
 ## Files
 
@@ -130,3 +132,4 @@ blocked_by: ""
 - 2026-06-03 [qa-e2e] E2 (AC-2): green — consumer candidate-parse path (`--for-skill cj-goal`) byte-identical to HEAD at --limit 5/10/15; drain mode ranks/selects identically to pre-change behavior. [parent-inline]
 - 2026-06-03 [qa-e2e-summary] green (0s subagent; 2 rows parent-inline; 0 deferred): all E2E criteria green — card list verified (E1), consumer parity verified (E2).
 - 2026-06-03 [qa-pass] S000076 (user-story): green smoke + green E2E. Phase 2 gates transitioned.
+- 2026-06-03 [gates-update] Phase 3: /ship — PR #205,/land-and-deploy — PR merged,Smoke tests pass — all checks green on PR #205,PRs section: linked PR #205 (MERGED).

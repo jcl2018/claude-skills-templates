@@ -167,8 +167,16 @@ design-summary approval gate   [INLINE AUQ — digest of the APPROVED doc + go/n
 STOP at PR   (human reviews + merges on GitHub; /land-and-deploy is a SEPARATE human step)
    │
    ▼
+worktree cleanup   [best-effort — cj-goal-common.sh --phase cleanup --mode feature]
+   │   sweeps OTHER landed cj-* worktrees + refreshes root main; this run's own
+   │   worktree is never swept (current dir + OPEN PR). NEVER halts the run.
+   ▼
 telemetry append → ~/.gstack/analytics/CJ_goal_feature.jsonl
 ```
+
+Worktree cleanup is best-effort, post-PR, and **never halts the run** — a failed
+sweep logs a note and the run still ends `green_pr_opened` ([pipeline.md](pipeline.md)
+Step 6.5; the post-run teardown mirror of the Step 1 worktree-create phase).
 
 **Why office-hours runs inline (not as a subagent).** office-hours is the
 primary interactive phase — six forcing questions, a premise gate, a terminal

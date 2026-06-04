@@ -4,13 +4,14 @@ Mechanism reference for the workbench's load-bearing layers. Pair with [PHILOSOP
 
 ## The shared cj-goal-common.sh helper (S000057)
 
-`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`). It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, and telemetry writes.
+`scripts/cj-goal-common.sh` is the deterministic helper consumed by the two intent-named front doors (`/CJ_goal_feature` and `/CJ_goal_defect`). It absorbs the phases that don't need per-skill prose: worktree management, PR-check polling, telemetry writes, and post-run worktree cleanup.
 
 **Phases it owns:**
 
 - **worktree** — auto-creates `.claude/worktrees/cj-{feat|defect}-<ts>-<pid>/` when invoked from `main` with arguments, no-ops inside an existing Conductor-managed worktree, and exposes `--assert-isolated` so each orchestrator's Step 1.9 isolation gate can refuse to proceed on a dirty working tree.
 - **pr-check** — polls `gh pr view` for the merge state of an open PR, captures the PR URL into the per-branch state file, and produces a deterministic `next_action=` / `resume_cmd=` / `pr_url=` line that the orchestrator can drop directly into its journal entry.
 - **telemetry** — appends a single JSONL line per run to `~/.gstack/analytics/<skill>.jsonl` (one file per front door: `CJ_goal_feature.jsonl`, `CJ_goal_defect.jsonl`).
+- **cleanup** (T000036) — at each orchestrator's post-land terminal, sweeps *landed* `cj-(feat|def|todo)-*` worktrees (removed only when their PR reads MERGED/CLOSED via the `pr-check` phase — not by branch ancestry, which a squash merge breaks), runs `git worktree prune`, and switches the root checkout back to `main` and pulls it. Strictly best-effort — it never halts the run. Delegates to the teardown-mirror helper `scripts/cj-worktree-cleanup.sh`; `/CJ_goal_todo_fix` calls that helper directly rather than through this phase.
 
 **Modes it dispatches on:**
 

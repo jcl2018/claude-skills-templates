@@ -667,7 +667,32 @@ _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
   --field pr_url="$PR_URL" >/dev/null 2>&1 || true
 ```
 
-Print the summary:
+### Step 6.5: Worktree cleanup (best-effort, post-PR; NEVER halts)
+
+Sweep landed cj-* worktrees + refresh root main via the shared cleanup phase
+(T000036). This is the teardown mirror of the Step 1 worktree-create phase: now
+that the PR is open, the janitor removes *other* MERGED/CLOSED cj-* worktrees and
+pulls the root checkout current. **This feature run's OWN worktree is never
+removed** — it is `$_CURRENT` (the current-dir rail) AND its PR is still OPEN (the
+PR-state gate), so it fails both removal conditions. The session stays exactly
+where it is.
+
+The cleanup is strictly best-effort: a failed sweep logs a note and the run still
+ends `green_pr_opened`. `cj-goal-common.sh --phase cleanup` emits
+`PHASE_RESULT=ok|skipped`, never `failed` — there is no halt path here.
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+_CLEAN_OUT=""
+[ -x "$_COMMON" ] && _CLEAN_OUT=$(bash "$_COMMON" --phase cleanup --mode feature 2>/dev/null || true)
+# Surface a one-line summary in the final report (best-effort parse).
+_CLEAN_REMOVED=$(printf '%s\n' "$_CLEAN_OUT" | sed -n 's/^REMOVED=//p' | head -1)
+_CLEAN_REFRESH=$(printf '%s\n' "$_CLEAN_OUT" | sed -n 's/^ROOT_REFRESH=//p' | head -1)
+echo "[cleanup] worktree janitor: removed ${_CLEAN_REMOVED:-0}, root main refresh=${_CLEAN_REFRESH:-skipped}"
+```
+
+Print the summary (the cleanup line above precedes it; the "session is still in
+<worktree>" framing below is preserved verbatim):
 
 ```
 PIPELINE COMPLETE: end_state=green_pr_opened — STOPPED at the PR for human review.
@@ -677,6 +702,10 @@ Topic:      $TOPIC
 Design doc: $DESIGN_DOC
 Work item:  $WORK_ITEM_DIR
 PR:         $PR_URL   (review + merge on GitHub)
+
+Worktree cleanup: removed N other landed cj-* worktrees, root main refreshed.
+  (Your session is still in this run's own worktree — it is never swept while
+   its PR is open.)
 
 Next (separate human steps):
   1. Review the PR on GitHub.

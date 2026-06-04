@@ -1148,6 +1148,22 @@ else
   fail_test "tests/cj-worktree-init.test.sh failed (rc=$_cwit_rc) — run \`bash tests/cj-worktree-init.test.sh\` directly to see"
 fi
 
+# Helper test (T000036): the post-run worktree-cleanup janitor. 13 behavior cases
+# (PR-state decision table + local-state rails + dry-run no-op + prune + guarded
+# root-refresh + cwd-not-a-repo) using a fake cj-goal-common.sh sibling for
+# deterministic PR-state control, plus static-grep wiring assertions for the
+# --phase cleanup registration and all four terminal seams. Registration is
+# MANDATORY — scripts/test.sh discovery is NOT glob-based; an unregistered
+# tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/cj-worktree-cleanup.test.sh (post-run janitor: 13 cases + wiring)..."
+if bash "$REPO_ROOT/tests/cj-worktree-cleanup.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-worktree-cleanup.test.sh: all cases pass"
+else
+  _cwct_rc=$?
+  fail_test "tests/cj-worktree-cleanup.test.sh failed (rc=$_cwct_rc) — run \`bash tests/cj-worktree-cleanup.test.sh\` directly to see"
+fi
+
 # Regression test (drain-one-todo worktree-init path resolution defect):
 # drain-one-todo.sh must resolve scripts/cj-worktree-init.sh via the
 # workbench-source path in ~/.claude/.skills-templates.json (.source) — the

@@ -15,9 +15,13 @@
 #   2. telemetry  — append one JSON line audit-receipt to
 #                   ~/.gstack/analytics/cj-goal-<mode>.jsonl
 #   3. pr-check   — deterministic PR-existence check (gh pr list); read-only
+#   4. cleanup    — delegate to cj-worktree-cleanup.sh (--caller feature|defect);
+#                   the post-run worktree janitor (T000036). Best-effort: emits
+#                   PHASE_RESULT=ok|skipped, NEVER failed (cleanup must not give a
+#                   caller any reason to halt).
 #
 # Args:
-#   --phase {worktree|telemetry|pr-check|ship}   required; selects the operation
+#   --phase {worktree|telemetry|pr-check|ship|cleanup}   required; selects the op
 #                                                 ('ship' is an alias for pr-check —
 #                                                 the PR-creation seam where the
 #                                                 verb skills run the PR check)
@@ -97,9 +101,9 @@ case "$PHASE" in
 esac
 
 case "$PHASE" in
-  worktree|telemetry|pr-check) ;;
+  worktree|telemetry|pr-check|cleanup) ;;
   *)
-    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship)" >&2
+    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup)" >&2
     exit 1
     ;;
 esac
@@ -134,6 +138,22 @@ resolve_worktree_helper() {
   src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
   if [ -n "$src" ] && [ -x "$src/scripts/cj-worktree-init.sh" ]; then
     printf '%s' "$src/scripts/cj-worktree-init.sh"; return 0
+  fi
+  return 1
+}
+
+# ---- helper: resolve cj-worktree-cleanup.sh (same 2-level probe) -------------
+#
+# Identical resolution shape to resolve_worktree_helper, for the cleanup janitor
+# (T000036). Sibling-in-scripts/ first (workbench self-dev), then manifest .source.
+resolve_cleanup_helper() {
+  local self_dir cand src
+  self_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  cand="$self_dir/cj-worktree-cleanup.sh"
+  if [ -x "$cand" ]; then printf '%s' "$cand"; return 0; fi
+  src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+  if [ -n "$src" ] && [ -x "$src/scripts/cj-worktree-cleanup.sh" ]; then
+    printf '%s' "$src/scripts/cj-worktree-cleanup.sh"; return 0
   fi
   return 1
 }
@@ -182,6 +202,42 @@ if [ "$PHASE" = "worktree" ]; then
     echo "[common-worktree-failed] cj-worktree-init.sh exited $WT_RC (state=$WT_STATE)" >&2
     exit 2
   fi
+fi
+
+# =============================================================================
+# Phase: cleanup — delegate to cj-worktree-cleanup.sh (the post-run janitor)
+# =============================================================================
+#
+# T000036: the teardown mirror of the worktree phase. Shells to
+# cj-worktree-cleanup.sh passing --caller "$MODE" (feature|defect — both
+# already-valid modes; there is NO --mode todo, and we deliberately do NOT
+# introduce one: todo wires the cleanup helper directly, same as its create
+# step). --dry-run forwards.
+#
+# Stdout: PHASE=cleanup, then the helper's full structured report verbatim,
+# then PHASE_RESULT. CRITICAL: cleanup is best-effort and must NEVER hand a
+# caller a reason to halt, so PHASE_RESULT is ALWAYS ok (helper ran) or skipped
+# (helper unreachable) — NEVER failed. Exit 0 in every case.
+
+if [ "$PHASE" = "cleanup" ]; then
+  echo "PHASE=cleanup"
+  echo "MODE=$MODE"
+
+  CLEAN_HELPER=$(resolve_cleanup_helper || echo "")
+  if [ -z "$CLEAN_HELPER" ]; then
+    echo "PHASE_RESULT=skipped"
+    echo "[common-cleanup-unavailable] cj-worktree-cleanup.sh not found (sibling dir nor manifest .source); skipping janitor" >&2
+    exit 0
+  fi
+
+  CLEAN_ARGS=(--caller "$MODE")
+  [ "$DRY_RUN" = "1" ] && CLEAN_ARGS+=(--dry-run)
+
+  # Pass through the helper's report verbatim. The helper itself returns 0 for
+  # ok/skipped; even on an unexpected non-zero we still emit ok (best-effort).
+  bash "$CLEAN_HELPER" "${CLEAN_ARGS[@]}" 2>/dev/null || true
+  echo "PHASE_RESULT=ok"
+  exit 0
 fi
 
 # =============================================================================
