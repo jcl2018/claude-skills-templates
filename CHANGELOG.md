@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.34] - 2026-06-04
+
+### Changed
+
+- **`doc/WORKFLOWS.md` is now the single skill-catalog — the component-skill roster is re-partitioned out of `doc/ARCHITECTURE.md` (T000041).** Previously WORKFLOWS.md was workflow-only (the 3 `CJ_goal_*` orchestrator chains, T000037) and every other routable skill lived only in ARCHITECTURE's `## Component skills (non-workflow roster)`. This MOVES the 9 component skills — the 4 phase-step skills (`CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`, `CJ_document-release`), the `CJ_personal-workflow` validator, and the 4 standalone utilities (`CJ_system-health`, `CJ_suggest`, `CJ_improve-queue`, `CJ_repo-init`) — into a new `doc/WORKFLOWS.md` `## Utilities & phase-step skills` section (sub-grouped phase-step / validators / utilities). Each uses a **lighter per-skill shape** — `### <skill>` + Status + Source + Invoke-when + a compact Touches (`Scripts · tools · shell` / `Reads · writes`) — because a single-step utility like `/CJ_suggest` dispatches no skills and runs no pipeline steps, so the orchestrator 4-bullet Touches (T000040) is the wrong shape; the WORKFLOWS intro is re-scoped so the 4-bullet mandate applies to the `## Orchestrators` sections ONLY. ARCHITECTURE's roster slims to a one-line pointer (NO duplication). Re-pointed: the CLAUDE.md `## Conventions` skill-dir note + "Creating a new skill" step 6 + the workflow-completeness audit_class note + BOTH tracked-doc `requirement:` values + `templates/doc-WORKFLOWS-section.md` author guidance. `validate.sh` is **untouched** (the roster was never Check-enforced; Check 15b stays orchestrator-only; the PHILOSOPHY New-skills no-vanish net is untouched). One non-doc edit: `tests/cj-document-release.test.sh` assertions 9/9b rewritten to grep the new WORKFLOWS location (an adversarial review caught that the original "doc-only" framing would have failed `test.sh` — the recurring doc-structure-change-a-test-greps blind-spot). Closes the "utilities in doc/WORKFLOWS.md" follow-up TODO. `validate.sh` + `scripts/test.sh` + `tests/cj-document-release.test.sh` green.
+
 ## [6.0.33] - 2026-06-04
 
 ### Added
