@@ -273,8 +273,10 @@ fi
 
 # ---- prune orphaned-dir metadata --------------------------------------------
 #
-# `git worktree prune` clears registrations for worktree dirs git no longer finds
-# (the ~3 untracked orphan dirs). Read-only under --dry-run.
+# `git worktree prune` clears stale ADMIN registrations under .git/worktrees/ for
+# worktrees whose dir vanished — it never `rm`s a leftover checkout DIR. Read-only
+# under --dry-run. (Leftover cj-* dirs that git no longer tracks are swept just
+# below.)
 
 if [ "$DRY_RUN" = "1" ]; then
   echo "PRUNED=skipped"
@@ -284,6 +286,54 @@ else
   else
     echo "PRUNED=fail"
   fi
+fi
+
+# ---- orphan-dir sweep (cj-* dirs git no longer tracks) ----------------------
+#
+# The opposite leftover from prune's case: a dir present on disk under
+# <root>/.claude/worktrees/ but NOT in `git worktree list` (a partial/failed
+# removal, or a re-created dir). prune does not touch these. Sweep them, scoped
+# to the janitor's own `cj-(feat|def|todo)-*` footprint only — never the current
+# dir, never a still-registered worktree (those go through the PR-state sweep
+# above), and never a non-cj dir (Conductor `claude/*` etc. stay out of scope,
+# matching the cj-* blast radius the janitor was designed for). rm is bounded to
+# `$_ROOT/.claude/worktrees/cj-*`.
+
+ORPHANS_RM=0
+_WT_BASE="$_ROOT/.claude/worktrees"
+if [ -n "$_ROOT" ] && [ -d "$_WT_BASE" ]; then
+  _REGSET=$(git -C "$_ROOT" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2}')
+  # Fail-safe: a working repo always lists >=1 worktree. Empty $_REGSET => git
+  # failed => rm NOTHING.
+  if [ -n "$_REGSET" ]; then
+    # Compare registered-ness by BASENAME, NOT full path. cj-* worktrees all live
+    # under _WT_BASE with unique (timestamp+pid) names, so a registered worktree's
+    # basename never collides with an unrelated orphan — and basenames are immune
+    # to symlinked-path canonicalization (e.g. macOS /var vs /private/var), where a
+    # full-path string compare would FALSE-MISS a registered worktree and rm it.
+    # This basename set also covers the current worktree (always registered). The
+    # bias is intentional: a basename clash false-SKIPS (never false-rm's) — the
+    # safe direction for a destructive op.
+    _REG_NAMES=$(printf '%s\n' "$_REGSET" | while IFS= read -r _p; do [ -n "$_p" ] && basename "$_p"; done)
+    for _od in "$_WT_BASE"/cj-feat-* "$_WT_BASE"/cj-def-* "$_WT_BASE"/cj-todo-*; do
+      [ -d "$_od" ] || continue                                            # glob no-match guard
+      printf '%s\n' "$_REG_NAMES" | grep -qFx "$(basename "$_od")" && continue  # skip registered (incl. current)
+      if [ "$DRY_RUN" = "1" ]; then
+        echo "WOULD-RM-ORPHAN_PATH=$_od"
+        ORPHANS_RM=$((ORPHANS_RM + 1))
+      elif rm -rf "$_od" 2>/dev/null; then
+        echo "RM-ORPHAN_PATH=$_od"
+        ORPHANS_RM=$((ORPHANS_RM + 1))
+      else
+        echo "[cleanup-note] failed to rm orphan dir $_od" >&2
+      fi
+    done
+  fi
+fi
+if [ "$DRY_RUN" = "1" ]; then
+  echo "WOULD_ORPHANS_RM=$ORPHANS_RM"
+else
+  echo "ORPHANS_RM=$ORPHANS_RM"
 fi
 
 # ---- guarded root-main refresh ----------------------------------------------

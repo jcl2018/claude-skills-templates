@@ -19,6 +19,12 @@
 #   (4) --force-create bypasses in-worktree detection (via --dry-run)
 #   (5) dirty-check halts (interactive) / skips (--quiet)
 #
+# F000045 / S000081 base-freshness (Fork 1) cases — local fake origin, no network:
+#   (F1a) behind        → ff'd N commits; worktree base + local main == origin tip
+#   (F1b) diverged      → warn note, NO ff (local main unchanged), proceeds
+#   (F1c) offline        → "freshness skipped (offline)"; state=created; exit 0
+#   (F1d) already-fresh  → no-op (no ff/diverged/offline note); base == origin tip
+#
 # --assert-isolated verdict-mode cases (T000033; read-only, no fs mutation):
 #   (a)  in worktree → isolated / 0
 #   (b)  clean main, no worktree → not_isolated / ≠0
@@ -200,6 +206,157 @@ SBX5=$(mk_sandbox)
 )
 case_5_rc=$?
 [ "$case_5_rc" -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ============================================================================
+# F000045 / S000081: base-freshness (Fork 1) cases — behind / diverged /
+# offline / already-fresh. Uses a LOCAL fake `origin` (bare repo + clone); NEVER
+# touches a real network. These exercise the real `git worktree add` + ff path
+# (not --dry-run), so each cleans up its created worktree.
+# ============================================================================
+#
+# mk_origin_sandbox: build a bare "origin" + a clone on `main` with one seed
+# commit pushed to origin. Echoes the CLONE dir (the helper runs inside it).
+mk_origin_sandbox() {
+  local root clone
+  root=$(mktemp -d -t cj-wi-fresh.XXXXXX)
+  (
+    cd "$root"
+    git init -q --bare origin.git
+    git clone -q origin.git clone >/dev/null 2>&1
+    cd clone
+    git config user.email "test@test"
+    git config user.name "test"
+    git symbolic-ref HEAD refs/heads/main 2>/dev/null || git checkout -q -b main 2>/dev/null || true
+    printf 'seed\n' > seed.txt
+    git add seed.txt
+    git commit -qm "seed"
+    git push -q -u origin main >/dev/null 2>&1
+  )
+  printf '%s' "$root/clone"
+}
+
+# Clean up a clone dir AND any worktrees it created (worktrees live under it).
+cleanup_clone() {
+  local clone="$1"
+  [ -z "$clone" ] && return 0
+  if [ -d "$clone" ]; then
+    (cd "$clone" 2>/dev/null && git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2}' | while read -r wt; do
+      [ "$wt" != "$clone" ] && git worktree remove --force "$wt" 2>/dev/null || true
+    done) || true
+  fi
+  # The clone's parent is the mktemp root (holds origin.git + clone). Remove both.
+  [ -n "$clone" ] && rm -rf "$(dirname "$clone")"
+}
+
+# ---------- Case F1a: behind → ff happens, worktree base == origin tip --------
+
+echo ""
+echo "Case F1a (Fork 1): local main 1 behind origin → ff'd, worktree base == origin tip..."
+FRESH_A=$(mk_origin_sandbox)
+(
+  cd "$FRESH_A"
+  # Advance origin by one commit, then reset local main back so it's 1 behind.
+  printf 'c2\n' > c2.txt; git add c2.txt; git commit -qm "c2"; git push -q origin main >/dev/null 2>&1
+  git reset -q --hard HEAD~1   # local now strictly behind origin, clean tree
+  ORIGIN_TIP=$(git rev-parse refs/remotes/origin/main 2>/dev/null)
+  OUT=$(bash "$HELPER" --caller feature 2>&1)
+  STATE=$(echo "$OUT" | jq -r '.state' 2>/dev/null || echo "")
+  NOTE=$(echo "$OUT" | jq -r '.note' 2>/dev/null || echo "")
+  WT=$(echo "$OUT" | jq -r '.path' 2>/dev/null || echo "")
+  WT_BASE=$(git -C "$WT" rev-parse HEAD 2>/dev/null || echo "")
+  LOCAL_NOW=$(git rev-parse HEAD 2>/dev/null || echo "")
+  if [ "$STATE" = "created" ] \
+     && echo "$NOTE" | grep -q "ff'd 1 commits" \
+     && [ "$WT_BASE" = "$ORIGIN_TIP" ] \
+     && [ "$LOCAL_NOW" = "$ORIGIN_TIP" ]; then
+    ok "Case F1a: ff'd 1 commits; worktree base + local main == origin tip"
+  else
+    fail_test "Case F1a: expected ff'd 1 commits + base==origin tip; got state=$STATE note='$NOTE' base=$WT_BASE origin=$ORIGIN_TIP local=$LOCAL_NOW"
+  fi
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+cleanup_clone "$FRESH_A"
+
+# ---------- Case F1b: diverged → warn, no ff, proceed -------------------------
+
+echo ""
+echo "Case F1b (Fork 1): local main diverged from origin → warn, no ff, proceed..."
+FRESH_B=$(mk_origin_sandbox)
+(
+  cd "$FRESH_B"
+  # Origin advances; reset local; then local commits its own → divergence.
+  printf 'o\n' > o.txt; git add o.txt; git commit -qm "origin-only"; git push -q origin main >/dev/null 2>&1
+  git reset -q --hard HEAD~1
+  printf 'l\n' > l.txt; git add l.txt; git commit -qm "local-only"
+  LOCAL_BEFORE=$(git rev-parse HEAD 2>/dev/null)
+  OUT=$(bash "$HELPER" --caller feature 2>&1)
+  STATE=$(echo "$OUT" | jq -r '.state' 2>/dev/null || echo "")
+  NOTE=$(echo "$OUT" | jq -r '.note' 2>/dev/null || echo "")
+  LOCAL_AFTER=$(git rev-parse HEAD 2>/dev/null)
+  if [ "$STATE" = "created" ] \
+     && echo "$NOTE" | grep -q "local main diverged from origin; building on local main" \
+     && [ "$LOCAL_BEFORE" = "$LOCAL_AFTER" ]; then
+    ok "Case F1b: diverged note recorded; no ff (local main unchanged); proceeded"
+  else
+    fail_test "Case F1b: expected diverged note + no-ff; got state=$STATE note='$NOTE' before=$LOCAL_BEFORE after=$LOCAL_AFTER"
+  fi
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+cleanup_clone "$FRESH_B"
+
+# ---------- Case F1c: offline (no origin ref) → proceed, exit 0 ---------------
+
+echo ""
+echo "Case F1c (Fork 1): offline / no origin → proceed on local main, exit 0..."
+FRESH_C=$(mktemp -d -t cj-wi-fresh-off.XXXXXX)
+(
+  cd "$FRESH_C"
+  git init -q
+  git config user.email "test@test"
+  git config user.name "test"
+  git checkout -q -b main 2>/dev/null || true
+  printf 'seed\n' > seed.txt; git add seed.txt; git commit -qm "seed"
+  # No origin remote at all → fetch fails, no origin/main ref.
+  OUT=$(bash "$HELPER" --caller feature 2>&1) && RC=0 || RC=$?
+  STATE=$(echo "$OUT" | jq -r '.state' 2>/dev/null || echo "")
+  NOTE=$(echo "$OUT" | jq -r '.note' 2>/dev/null || echo "")
+  WT=$(echo "$OUT" | jq -r '.path' 2>/dev/null || echo "")
+  if [ "$STATE" = "created" ] && [ "$RC" -eq 0 ] \
+     && echo "$NOTE" | grep -q "freshness skipped (offline)"; then
+    ok "Case F1c: offline → state=created, note='freshness skipped (offline)', exit 0"
+  else
+    fail_test "Case F1c: expected created + offline note + exit 0; got state=$STATE rc=$RC note='$NOTE'"
+  fi
+  [ -n "$WT" ] && git worktree remove --force "$WT" 2>/dev/null || true
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+rm -rf "$FRESH_C"
+
+# ---------- Case F1d: already-fresh → no-op ff path (no freshness note) -------
+
+echo ""
+echo "Case F1d (Fork 1): local main already at origin tip → no-op (the .source==root collapse)..."
+FRESH_D=$(mk_origin_sandbox)
+(
+  cd "$FRESH_D"
+  # Local main IS origin tip already (seed pushed; nothing diverged).
+  ORIGIN_TIP=$(git rev-parse refs/remotes/origin/main 2>/dev/null)
+  OUT=$(bash "$HELPER" --caller feature 2>&1) && RC=0 || RC=$?
+  STATE=$(echo "$OUT" | jq -r '.state' 2>/dev/null || echo "")
+  NOTE=$(echo "$OUT" | jq -r '.note' 2>/dev/null || echo "")
+  WT=$(echo "$OUT" | jq -r '.path' 2>/dev/null || echo "")
+  WT_BASE=$(git -C "$WT" rev-parse HEAD 2>/dev/null || echo "")
+  # No-op: state=created, no ff'd / diverged / offline phrase, base still == origin tip.
+  if [ "$STATE" = "created" ] && [ "$RC" -eq 0 ] \
+     && ! echo "$NOTE" | grep -qE "ff'd|diverged|offline" \
+     && [ "$WT_BASE" = "$ORIGIN_TIP" ]; then
+    ok "Case F1d: already-fresh → no freshness note; worktree base == origin tip"
+  else
+    fail_test "Case F1d: expected no-op (no ff/diverged/offline note) + base==origin; got state=$STATE rc=$RC note='$NOTE' base=$WT_BASE origin=$ORIGIN_TIP"
+  fi
+)
+[ $? -ne 0 ] && ERRORS=$((ERRORS + 1))
+cleanup_clone "$FRESH_D"
 
 # ============================================================================
 # T000033: --assert-isolated verdict-mode cases (read-only; no fs mutation)

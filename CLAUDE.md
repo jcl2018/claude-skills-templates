@@ -66,7 +66,12 @@ from this exact failure mode on PR #83 / v2.0.4).
 - `/CJ_goal_defect "<bug description>"` → `cj-def-*` (`cj-goal-common.sh --mode defect` → `cj-worktree-init.sh --caller defect`)
 - `/CJ_goal_todo_fix [<T-ID> | "<fragment>"]` (single-TODO mode) → `cj-todo-*` (`cj-worktree-init.sh --caller todo`)
 
-Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out with `--no-worktree`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
+Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out of the worktree with `--no-worktree`; opt out of the pre-build skills-sync (below) with `--no-sync`. Drain mode (`/CJ_goal_todo_fix --max-drain N`) creates one worktree per drained TODO inside `scripts/drain-one-todo.sh`. Helper: `scripts/cj-worktree-init.sh`; tests: `tests/cj-worktree-init.test.sh`.
+
+**Pre-build base-freshness + skills-sync (F000045):** before a build starts, two fail-soft forks make sure it runs against current trunk + current skills. Neither ever halts the orchestrator — a guard refusal, a divergence, or an offline network all degrade to "proceed on what we have."
+
+- **Fork 1 — base-freshness (in the worktree phase).** Inside `cj-worktree-init.sh`, just before `git worktree add`, when on `main`/`master` with an existing `origin/<branch>` ref, the helper fail-soft fetches and fast-forwards local `main` to the origin tip so the new worktree branches off current trunk. The outcome rides the `note` field of the `created` JSON emit: `ff'd N commits` (was behind), `local main diverged from origin; building on local main` (diverged — no ff, no halt, local commits never dropped), or `freshness skipped (offline)` (fetch failed / no origin ref). Skipped under `--dry-run`. Runs even under `--no-sync` (it is independent of Fork 2). Tests: `tests/cj-worktree-init.test.sh`.
+- **Fork 2 — pre-build skills-sync (a `cj-goal-common.sh --phase sync` step the orchestrator runs BEFORE the worktree block).** Delegates to `post-land-sync.sh`'s guarded pull+install-from-`.source` core so installed skills match trunk at build start (without the worktree-invoked-install foreign-owned-skill skip). Fail-soft exactly like `pr-check`: a guard refusal (`.source` missing / not a git repo / off-main / dirty tracked tree) or an offline pull emits `PHASE_RESULT=skipped` (exit 0), never failed. `--no-sync` short-circuits to `skipped` BEFORE any install (the operator's opt-out for the heavy global-state install + latency); `--dry-run` forwards to `post-land-sync.sh --dry-run`. Stdout fields: `SYNC_RAN`, `VERSION_BEFORE`, `VERSION_AFTER`, `PHASE_RESULT`. Tests: `tests/cj-goal-common-sync.test.sh`.
 
 **Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
 `.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
@@ -84,15 +89,23 @@ Run this after the merge to actually delete the remote branch.
 deletes the **remote** branch; the **local** `.claude/worktrees/cj-*/` dir is swept
 automatically by the post-run janitor `scripts/cj-worktree-cleanup.sh`. Each of the
 three `CJ_goal_*` orchestrators runs it at its post-land terminal (feature: after
-the PR opens; defect/todo: after `/land-and-deploy`), so a landed run's own
-worktree — plus any *other* MERGED/CLOSED `cj-*` worktrees — is removed and the root
-checkout is pulled back to `main`, with no manual step. It is **PR-state-gated** (a
+the PR opens; defect/todo: after `/land-and-deploy`), so **defect/todo remove their
+own (now-landed) worktree**, while a **feature run does NOT remove its own** — its PR
+is still OPEN at the PR-stop, so that worktree is swept by the *next* cj_goal run.
+Either way, any *other* MERGED/CLOSED `cj-*` worktrees are removed and the root
+checkout is switched to `main` and pulled, with no manual step. It is **PR-state-gated** (a
 worktree is removed only when its PR reads MERGED/CLOSED — never by branch ancestry,
 which a squash merge breaks) and **self-healing** (every cj_goal run sweeps *all*
 landed cj-* worktrees, so a hand-merged worktree is cleared by the next run of any
 kind). It is strictly best-effort — it never halts a run. To preview the current
 sweep at any time without mutating anything: `./scripts/cj-worktree-cleanup.sh
 --dry-run` (lists `WOULD-REMOVE` / `WOULD-SKIP`).
+
+*Manual-path caveat.* The sweep is a **pipeline step the orchestrator runs**, not a
+background git hook — it fires only when you invoke one of the three `CJ_goal_*`
+skills. A fully manual land (a hand-rolled `/ship` + `gh pr merge` that bypasses the
+orchestrator) does NOT trigger it; run `./scripts/cj-worktree-cleanup.sh` by hand
+afterward (`--dry-run` first to preview).
 
 **Post-land local sync (F000041).** After `gh pr merge` + verify MERGED + the
 worktree branch cleanup above, run the helper to install the merged skills
@@ -299,7 +312,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `setup-hooks.sh` | Installs git hooks (pre-commit validate + post-merge auto-sync) | Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks) |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
 | `post-land-sync.sh` | Post-land local sync: resolve `.source` from the manifest, guard (`.source` exists / on `main` / clean tracked tree), `git pull --ff-only` + `skills-deploy install` from `.source`, report `collection_version` before→after. `--dry-run` previews. Closes the gap where a remote `gh pr merge` bypasses the local post-merge auto-sync hook, leaving merged skills uninstalled + the manifest version lagging `.source`. | After `gh pr merge` + verify MERGED + branch cleanup (the merge convention's post-land step) |
-| `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
+| `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
 
 ## Update-check mechanism (F000009)

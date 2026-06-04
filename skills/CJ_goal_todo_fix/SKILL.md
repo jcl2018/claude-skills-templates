@@ -10,6 +10,62 @@ allowed-tools:
   - Agent
 ---
 
+## Preamble
+
+Check for collection updates (silent if none, banner if newer):
+
+```bash
+_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+```
+
+## Pre-build skills-sync (F000045 / Fork 2 — BEFORE the Default-worktree block)
+
+Before any worktree is created (single-TODO mode) or drain begins, sync installed
+skills to trunk so the drain runs against current skills (not a stale
+`~/.claude/`). Delegated to the shared `scripts/cj-goal-common.sh --phase sync`
+(reuses `post-land-sync.sh`'s guarded pull+install-from-`.source` core; `--mode`
+is a benign required arg — the sync phase is mode-agnostic). **Fail-soft — never
+halts the drain:** a guard refusal (`.source` off-main / dirty) or an offline
+pull emits `PHASE_RESULT=skipped` and the drain proceeds on the current install.
+`--no-sync` opts out of the heavy install (Fork-1's ff in the worktree phase
+still runs for single-TODO mode); `--dry-run` forwards as a preview. Runs for
+BOTH drain and single-TODO modes (skills-freshness is mode-independent).
+
+```bash
+# Pre-build skills-sync (F000045) — runs BEFORE the Default-worktree block.
+_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_COMMON=""
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
+  _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
+  _COMMON="$_S/scripts/cj-goal-common.sh"
+fi
+if [ -n "$_COMMON" ]; then
+  _SYNC_FLAGS=()
+  for _ARG in "$@"; do
+    case "$_ARG" in
+      --no-sync) _SYNC_FLAGS+=(--no-sync) ;;
+      --dry-run) _SYNC_FLAGS+=(--dry-run) ;;
+    esac
+  done
+  # Fail-soft: the phase exits 0 on skip; we never halt on its result.
+  # --mode feature is a benign required arg (the sync phase is mode-agnostic).
+  _SYNC_OUT=$(bash "$_COMMON" --phase sync --mode feature "${_SYNC_FLAGS[@]}" 2>/dev/null || true)
+  _SYNC_RESULT=$(printf '%s\n' "$_SYNC_OUT" | sed -n 's/^PHASE_RESULT=//p')
+  _SYNC_VB=$(printf '%s\n' "$_SYNC_OUT" | sed -n 's/^VERSION_BEFORE=//p')
+  _SYNC_VA=$(printf '%s\n' "$_SYNC_OUT" | sed -n 's/^VERSION_AFTER=//p')
+  if [ "${QUIET:-0}" != "1" ]; then
+    if [ "$_SYNC_RESULT" = "ok" ]; then
+      echo "[sync] skills synced from .source (collection_version ${_SYNC_VB:-?} → ${_SYNC_VA:-?})"
+    else
+      echo "[sync] skipped (--no-sync / guard refusal / offline) — proceeding on current install"
+    fi
+  fi
+fi
+```
+
 ## Overview
 
 `/CJ_goal_todo_fix` has two modes:
@@ -57,6 +113,10 @@ per-session skip-list mechanic, hash-verify TODOS.md DONE-mark, shared lockfile
 - `/CJ_goal_todo_fix "fragment"` — single-TODO mode (fuzzy match against active headings).
 - `/CJ_goal_todo_fix --dry-run` — preview without writes. Combines with all input shapes
   (`--dry-run T000022`, `--dry-run --max-drain 3`, etc.).
+- `/CJ_goal_todo_fix --no-sync` — skip the pre-build skills-sync (F000045 / Fork 2).
+  The `Pre-build skills-sync` preamble's heavy `skills-deploy install` is skipped
+  (`PHASE_RESULT=skipped`) for a faster start; Fork-1's local-main fast-forward in
+  the worktree phase (single-TODO mode) still runs. Combines with all input shapes.
 - `/CJ_goal_todo_fix --quiet` (v4.3.0+) — schedule-friendly mode for cron / `/schedule` consumers.
   Suppresses the Phase 3 summary AUQ + start-of-run banner; writes a
   `[scheduled-drain-summary]` journal entry to `~/.gstack/analytics/CJ_goal_todo_fix-sessions.jsonl`

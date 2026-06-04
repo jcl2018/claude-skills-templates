@@ -15,6 +15,8 @@ last-updated: "2026-06-04T06:55:40Z"
 - You have a plain bug description (no pre-existing defect dir required)
 - Resume: re-invoking the same verb on the same branch picks up where you left off
 - `--dry-run` previews the chain plan + write paths without mutation
+- `--no-sync` skips the pre-build skills-sync (F000045) for a faster start; the
+  worktree's local-main fast-forward still runs
 
 ## When NOT to use
 
@@ -27,15 +29,22 @@ last-updated: "2026-06-04T06:55:40Z"
 
 ## Mental model
 
-A 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad → `/investigate`
-as Agent subagent (Iron-Law: no RCA ⇒ HALT) → on populated RCA, write
-RCA+test-plan and promote draft to a canonical
+A fresh-base start (F000045): the preamble first runs a pre-build skills-sync
+(`cj-goal-common.sh --phase sync` → `post-land-sync.sh`'s guarded pull +
+`skills-deploy install` from `.source`, fail-soft) so installed skills match
+trunk, then the worktree phase fast-forwards local `main` to `origin/main`
+before `git worktree add` so the build branches off current trunk (Fork 1, in
+`cj-worktree-init.sh`). Both halves are fail-soft — offline / divergence / guard
+refusal proceed with a one-line advisory; the build is never blocked.
+
+Then a 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad →
+`/investigate` as Agent subagent (Iron-Law: no RCA ⇒ HALT) → on populated RCA,
+write RCA+test-plan and promote draft to a canonical
 `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted ONLY after
 the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent →
-`/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (Gate
-#2 always human) → `/land-and-deploy --suppress-readiness-gate`. A ~80%
-reshape of the retired `/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no
-subagent-spawns-subagent).
+`/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (Gate #2 always human) →
+`/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of the retired
+`/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no subagent-spawns-subagent).
 
 ## Common pitfalls
 
@@ -48,6 +57,8 @@ subagent-spawns-subagent).
   top-level
 - Skipping the bug-description and just running the skill — needs a description
   arg to seed the `.inbox/<slug>/DRAFT.md`
+- Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
+  only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
 
 ## Related skills
 
