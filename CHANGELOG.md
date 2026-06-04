@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.13] - 2026-06-03
+
+### Changed
+
+- **Filed a backlog TODO for the F000011 post-merge gate-sync hook bug (no code change — TODOS.md row only).** The `post-merge` hook's "Phase 3 lifecycle-gate update" (in `scripts/setup-hooks.sh`) has two bugs surfaced by the 2026-06-03 parallel-dev session: it identifies the shipping PR by grepping PR titles for the work-item ID string (so it mis-links during ID collisions — it wrote a `PR #202` link into `S000074_TRACKER.md`, which shipped via #203), and it leaves the tracker edit uncommitted, dirtying `main` on every main-moving pull and re-arming the `cj-worktree-init.sh` dirty-checkout guard that blocks the next cj_goal worktree. The TODO proposes SHA-based PR detection + commit-or-skip. Recording-only this version; the fix routes through `/CJ_goal_feature` later.
+
 ## [6.0.12] - 2026-06-03
 
 ### Added
