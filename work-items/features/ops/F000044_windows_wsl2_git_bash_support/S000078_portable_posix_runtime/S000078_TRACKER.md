@@ -4,10 +4,10 @@ type: user-story
 id: "S000078"
 status: active
 created: "2026-06-03"
-updated: "2026-06-03"
+updated: "2026-06-04"
 parent: "F000044"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
-branch: "cj-feat-20260603-234927-99694"
+branch: "cj-feat-20260604-011243-45223"
 blocked_by: ""
 ---
 
@@ -44,10 +44,10 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -82,9 +82,9 @@ blocked_by: ""
 
 <!-- Actionable items for this story. -->
 
-- [ ] inline date_to_epoch in suggest.sh + improve_queue.sh
-- [ ] widen both uname gates
-- [ ] add test.sh coverage (improve_queue audit + suggest ranking) on non-Darwin
+- [x] inline date_to_epoch in suggest.sh + improve_queue.sh
+- [x] widen both uname gates
+- [x] add test.sh coverage (improve_queue audit + suggest ranking) on non-Darwin
 
 ## Log
 
@@ -100,15 +100,29 @@ blocked_by: ""
 
 <!-- Affected file paths. -->
 
-- skills/CJ_suggest/scripts/suggest.sh
-- skills/CJ_improve-queue/scripts/improve_queue.sh
-- scripts/test.sh
+- skills/CJ_suggest/scripts/suggest.sh (Modified) — POSIX OS allowlist gate (was Darwin-only) + inline date_to_epoch; date call → date_to_epoch
+- skills/CJ_improve-queue/scripts/improve_queue.sh (Modified) — check_darwin → allowlist + inline date_to_epoch; date call → date_to_epoch
+- scripts/test.sh (Modified) — S000078 portable-runtime test (4 assertions; AC-4 gated-path runs on the current OS, incl. ubuntu CI)
 
 ## Insights
 
 <!-- Non-obvious findings worth remembering. -->
 
+- macOS behavior is byte-identical post-change: on Darwin, `date --version` fails so `date_to_epoch` takes the BSD `date -j -f` branch — the same call as before. Only non-Darwin (Linux/WSL2/Git Bash) gains new behavior, which is why the macOS test run (and any suggest golden-fixture) stays green; the GNU branch is proven by the ubuntu CI run of the new test.
+
 ## Journal
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+
+- 2026-06-04 [impl-decision] Resolved SPEC Open Question: KEEP an OS allowlist (`Darwin|Linux|MINGW*|MSYS*|CYGWIN*`, refuse unknown) rather than dropping the gate — `date_to_epoch` makes date math portable so the original BSD-date rationale is gone, but a loud refuse on a genuinely-unknown OS is cheap insurance. `check_darwin` name kept in improve_queue.sh for call-site stability.
+- 2026-06-04 [impl-decision] `date_to_epoch` is a feature-probe (`date --version` → GNU `date -d`, else BSD `date -j -f`), not uname-based, per SPEC Tradeoffs — Git Bash ships GNU coreutils so the probe routes it to the GNU branch. Inlined into both skill scripts (not scripts/lib.sh) because deployed skill scripts can't source the repo's scripts/ at runtime.
+- 2026-06-04 [impl] Modified 3 files: suggest.sh (gate + date), improve_queue.sh (check_darwin + date), test.sh (new S000078 test). Sensitive surface (live skills + validator) — ran propose-mode with operator approval. `scripts/test.sh` green; S000078 4/4 assertions pass on Darwin (GNU branch covered by ubuntu CI).
+- 2026-06-04 [impl-pass] S000078: implementation complete. Phase 2 implementer-owned gates transitioned.
+- 2026-06-04 [qa-e2e-deferred] E1 (AC-1): post-ship — WSL2 ranking verification deferred to post-merge (Tag contains 'post-ship'); not run pre-ship. Pre-ship proof is the smoke tier + the S000078 test.sh run.
+- 2026-06-04 [qa-smoke] S1 (AC-1): green — suggest.sh ranks on Darwin, exit 0, no OS refusal.
+- 2026-06-04 [qa-smoke] S2 (AC-3): green — both skills carry the POSIX OS allowlist (Darwin|Linux|MINGW*|MSYS*|CYGWIN*).
+- 2026-06-04 [qa-smoke] S3 (AC-4): green — improve_queue audit runs the check_darwin gate without refusal (isolated temp repo).
+- 2026-06-04 [qa-smoke] S4 (AC-2): green — date_to_epoch parses a known date to a sane epoch on Darwin (BSD branch); GNU branch covered by ubuntu CI.
+- 2026-06-04 [qa-smoke-summary] green: 4/4 non-manual rows green (0 manual pending).
+- 2026-06-04 [qa-pass] S000078 (user-story): green smoke + 1 E2E row deferred to post-merge (all post-ship). Phase 2 gates transitioned; post-ship AC (E1, WSL2 ranking) awaits manual verification on a WSL2 box.

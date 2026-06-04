@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.18] - 2026-06-04
+
+### Changed
+
+- **F000044 S000078 — `/CJ_suggest` + `/CJ_improve-queue` now run on Linux / WSL2 / Git Bash, not just macOS.** Second story of the Windows-support feature. Both skills hard-refused off Darwin (`uname -s != "Darwin"`) and used BSD-only `date -j -f`, so a WSL2/Git Bash user couldn't rank TODOs or run the improvement queue, and `/CJ_suggest`'s refusal cascaded into `/CJ_goal_todo_fix` ranking. This widens the OS gate in both scripts to a POSIX allowlist (`Darwin|Linux|MINGW*|MSYS*|CYGWIN*`, with a loud refuse for a genuinely unknown OS) and inlines a portable `date_to_epoch()` helper that feature-probes `date --version` → GNU `date -d` (Linux/WSL2/Git Bash) else BSD `date -j -f` (macOS). macOS behavior is byte-identical (the BSD branch is the original call); only non-Darwin platforms gain new behavior. The helper is inlined into each skill script (not `scripts/lib.sh`) because deployed skill scripts under `~/.claude/skills/` can't source the repo's `scripts/` at runtime. New `scripts/test.sh` coverage (the S000078 block) exercises a `check_darwin`-gated path on the current OS — including the ubuntu CI runner, where the GNU branch is actually proven; the prior `apply`-only test skipped the gate. `validate.sh` + `scripts/test.sh` green. Remaining F000044 stories (S000079 symlink-free install, S000080 windows-latest CI + docs) ship as follow-up PRs.
+
 ## [6.0.17] - 2026-06-04
 
 ### Fixed

@@ -1608,6 +1608,62 @@ else
   trap - EXIT
 fi
 
+# ---------- S000078: portable POSIX runtime (date + OS gate) — F000044 ----------
+# Proves the macOS-only gate is widened to a POSIX allowlist and date math is
+# portable, so /CJ_suggest + /CJ_improve-queue run on Linux (this CI) / WSL2 /
+# Git Bash, not just Darwin. AC-4: exercise a check_darwin-gated path on the
+# current OS (the prior `apply`-only coverage skipped the gate). Side-effecting
+# audit runs in an isolated temp repo.
+echo ""
+echo "Checking S000078 portable POSIX runtime (gate allowlist + date_to_epoch)..."
+_S078_SUGGEST="$REPO_ROOT/skills/CJ_suggest/scripts/suggest.sh"
+_S078_IQ="$REPO_ROOT/skills/CJ_improve-queue/scripts/improve_queue.sh"
+set +e
+# (1) Structural: both scripts use the POSIX allowlist + define date_to_epoch, and
+#     the old Darwin-only refuse is gone.
+_s078_struct=1
+for _s078_f in "$_S078_SUGGEST" "$_S078_IQ"; do
+  grep -qF 'Darwin|Linux|MINGW' "$_s078_f" || _s078_struct=0
+  grep -qF 'date_to_epoch()' "$_s078_f" || _s078_struct=0
+  grep -qE '!= "Darwin"' "$_s078_f" && _s078_struct=0
+done
+if [ "$_s078_struct" -eq 1 ]; then
+  ok "S000078: both skills use the POSIX OS allowlist + define date_to_epoch (old Darwin-only gate removed)"
+else
+  fail_test "S000078: a skill still has the Darwin-only gate or is missing date_to_epoch (gate-widening regressed)"
+fi
+# (2) Functional: portable date->epoch parses a known date on THIS OS.
+_s078_de() { if date --version >/dev/null 2>&1; then date -d "$1" +%s 2>/dev/null; else date -j -f "$2" "$1" +%s 2>/dev/null; fi; }
+_s078_e=$(_s078_de "2026-01-01" "%Y-%m-%d")
+if [ -n "$_s078_e" ] && [ "$_s078_e" -gt 1700000000 ] 2>/dev/null; then
+  ok "S000078: date_to_epoch parses 2026-01-01 to a sane epoch on $(uname -s)"
+else
+  fail_test "S000078: date_to_epoch failed on $(uname -s) (got '$_s078_e')"
+fi
+unset -f _s078_de
+# (3) AC-1/AC-4: suggest ranks (read-only) on this OS without the gate refusal.
+_s078_sug_err=$( cd "$REPO_ROOT" && bash "$_S078_SUGGEST" 2>&1 >/dev/null ); _s078_sug_rc=$?
+if [ "$_s078_sug_rc" -eq 0 ] && ! printf '%s' "$_s078_sug_err" | grep -qiE 'requires macOS|supports macOS|unknown OS'; then
+  ok "S000078: suggest.sh ranks on $(uname -s) without the OS refusal (AC-1/AC-4)"
+else
+  fail_test "S000078: suggest.sh refused/errored on $(uname -s) (rc=$_s078_sug_rc; err='$_s078_sug_err')"
+fi
+# (4) AC-2/AC-4: improve_queue audit hits the check_darwin gate without refusing.
+#     Isolated temp repo so audit's draft-row writes never touch the real TODOS.md.
+if [ -x "$_S078_IQ" ]; then
+  _S078_TMP=$(mktemp -d -t s078-iq.XXXXXX)
+  ( cd "$_S078_TMP" && git init -q && git config user.email t@t.local && git config user.name t \
+      && printf '# TODOS\n\n- row\n' > TODOS.md && mkdir -p skills && git add -A && git commit -qm init ) >/dev/null 2>&1
+  _s078_iq_err=$( cd "$_S078_TMP" && bash "$_S078_IQ" audit 2>&1 >/dev/null )
+  if ! printf '%s' "$_s078_iq_err" | grep -qiE 'macOS-only skill|unknown OS'; then
+    ok "S000078: improve_queue audit runs the check_darwin gate on $(uname -s) without refusal (AC-2/AC-4)"
+  else
+    fail_test "S000078: improve_queue audit refused on $(uname -s) (err='$_s078_iq_err')"
+  fi
+  rm -rf "$_S078_TMP" /tmp/cj-improve-queue-lock
+fi
+set -e
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

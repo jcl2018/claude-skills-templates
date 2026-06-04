@@ -32,7 +32,7 @@ reviewers: []
 
 | # | Tag | AC | Scenario | Steps (as a real user would) | Expected Outcome | Rubric |
 |---|-----|-----|----------|------------------------------|------------------|--------|
-| E1 | core | AC-1 | WSL2 user ranks TODOs | On WSL2, run /CJ_suggest | ranked rows print, no macOS-only refusal | pass if rows rank with sane ages |
+| E1 | core post-ship | AC-1 | WSL2 user ranks TODOs | On WSL2, run /CJ_suggest | ranked rows print, no macOS-only refusal | pass if rows rank with sane ages (post-ship: true WSL2 verification needs a WSL2 box, not the macOS host or Git-Bash CI; smoke + the S000078 test.sh run are the pre-ship proof) |
 
 ## Coverage Gaps
 
