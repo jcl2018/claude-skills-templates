@@ -201,6 +201,8 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID; idempotent — same phrase resumes t
    │
    ▼  /ship                                    (Gate #2 fires; halt on [ship-declined])
    │
+   ▼  Step 9.5: surface registered-doc verdicts → PR body   (post-/ship gh pr edit "$PR_URL"; best-effort; NEVER halts)
+   │
    ▼  /land-and-deploy --suppress-readiness-gate   (Skill invocation)
    │
    ▼  worktree cleanup   (best-effort — cj-goal-common.sh --phase cleanup --mode defect)

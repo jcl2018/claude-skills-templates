@@ -1832,6 +1832,40 @@ else
 fi
 set -e
 
+# ---------- T000039: registered-doc verdict SURFACING wired into the other two cj_goal orchestrators ----------
+# Job-2.1 parity: T000038 wired the post-/ship surfacing into CJ_goal_feature ONLY.
+# These two deterministic smoke checks (mirroring T000038b) prove the surfacing is
+# ALSO wired into CJ_goal_defect (Step 9.5) and CJ_goal_todo_fix (Step 5.6), so all
+# three orchestrators put the verdict in the PR body. The scratch path is the LITERAL
+# '.cj-goal-feature/registered-doc-verdicts.md' in all three (NOT verb-renamed — only
+# that dir is gitignored); each check greps the literal 'registered-doc-verdicts.md'
+# AND 'gh pr edit' to lock the wiring in (an inert mirror can't ship).
+echo ""
+echo "Checking T000039 registered-doc surfacing wiring (defect + todo_fix pipelines)..."
+_T39_DEFECT="$REPO_ROOT/skills/CJ_goal_defect/pipeline.md"
+_T39_TODO="$REPO_ROOT/skills/CJ_goal_todo_fix/pipeline.md"
+set +e
+# (§6a) SURFACING wired in CJ_goal_defect/pipeline.md (Step 9.5): the PR-body edit
+#       (gh pr edit) AND the literal scratch-file read (registered-doc-verdicts.md).
+_t39a=1
+grep -qF 'gh pr edit' "$_T39_DEFECT" || _t39a=0
+grep -qF 'registered-doc-verdicts.md' "$_T39_DEFECT" || _t39a=0
+if [ "$_t39a" -eq 1 ]; then
+  ok "T000039a: CJ_goal_defect/pipeline.md contains the Step 9.5 surfacing step ('gh pr edit' + 'registered-doc-verdicts.md' scratch read)"
+else
+  fail_test "T000039a: CJ_goal_defect/pipeline.md missing a surfacing-wiring substring ('gh pr edit' / 'registered-doc-verdicts.md') — defect verdicts never reach the PR body"
+fi
+# (§6b) SURFACING wired in CJ_goal_todo_fix/pipeline.md (Step 5.6): same two substrings.
+_t39b=1
+grep -qF 'gh pr edit' "$_T39_TODO" || _t39b=0
+grep -qF 'registered-doc-verdicts.md' "$_T39_TODO" || _t39b=0
+if [ "$_t39b" -eq 1 ]; then
+  ok "T000039b: CJ_goal_todo_fix/pipeline.md contains the Step 5.6 surfacing step ('gh pr edit' + 'registered-doc-verdicts.md' scratch read)"
+else
+  fail_test "T000039b: CJ_goal_todo_fix/pipeline.md missing a surfacing-wiring substring ('gh pr edit' / 'registered-doc-verdicts.md') — todo_fix verdicts never reach the PR body"
+fi
+set -e
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

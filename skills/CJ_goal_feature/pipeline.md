@@ -640,11 +640,11 @@ This is **best-effort and NEVER halts the run**: a failed `gh pr edit` (or a
 missing scratch file — Step 5.5 may have been a no-op path) logs a one-line note
 and control proceeds to Step 5. The verdicts still live in the run output + the
 scratch file regardless. There is **NO upstream `/ship` modification** — this is
-a workbench-owned pipeline step. v1 wires this into `/CJ_goal_feature` ONLY (the
-PR-stop orchestrator where PR review matters most; `/CJ_goal_defect` +
-`/CJ_goal_todo_fix` surfacing is a Job-2.1 follow-up — they auto-land, so a
-PR-body verdict has a short review window). The Step 6.7 producer is shared by
-all three regardless.
+a workbench-owned pipeline step. All three cj_goal orchestrators surface the
+verdict (`/CJ_goal_feature` here, `/CJ_goal_defect` Step 9.5,
+`/CJ_goal_todo_fix` Step 5.6 — the latter two auto-land, so their PR-body verdict
+has a short review window; the verdict also lands in the run output + the scratch
+file + `/ship` Gate #2). The Step 6.7 producer is shared by all three regardless.
 
 ```bash
 _VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"

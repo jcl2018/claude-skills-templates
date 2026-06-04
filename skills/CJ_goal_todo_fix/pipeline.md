@@ -146,3 +146,79 @@ AUQs only; it does NOT suppress the `[doc-sync-red]` or
 either marker; the cron operator inspects the halt journal at their
 convenience. Silently swallowing doc-sync failures would defeat the
 purpose of the halt-on-red contract.
+
+### Step 5.6: Surface registered-doc verdicts (post-`/ship`, pre-`/land-and-deploy`)
+
+The Step 5.5 doc-sync wrapper (`/CJ_document-release`) ran a Registered-doc
+requirements audit (its Step 6.7) and wrote the verdict block to the gitignored
+scratch file `.cj-goal-feature/registered-doc-verdicts.md`. That block dies in
+the wrapper RESULT otherwise — upstream `/ship` Step 18 regenerates the PR body
+from a fresh `/document-release` subagent that never sees the wrapper output. So
+the agent surfaces it deterministically here, in the agent-driven `/ship` →
+`/land-and-deploy` tail (this pipeline has no pipeline-step auto-invoke past
+Step 5.5; the `/ship` → `/land-and-deploy` → DONE-mark sequence is described in
+SKILL.md Routing). Right AFTER `/ship` opens the PR (PR identifier known) and
+BEFORE `/land-and-deploy` merges it, read the scratch file and
+`gh pr edit "$PR_URL"` to insert-or-replace a `### Registered-doc requirements`
+subsection under the PR body's `## Documentation` section. Use the `$PR_URL` from
+`/ship`'s output (the agent has it at this point in the Routing chain — like
+defect, this pipeline has no `$PR_NUMBER`; `gh pr view` / `gh pr edit` both accept
+a URL).
+
+**ONE site covers both single-TODO and drain mode** — they converge on the same
+agent-driven post-handoff `/ship` → `/land-and-deploy` chain, so the surfacing
+runs once per shipped PR right after that PR's `/ship`. (In drain mode the
+producer re-writes the scratch per iteration at that TODO's Step 5.5, so reading
+it right after the same iteration's `/ship` keeps it correct for that PR.)
+`drain-one-todo.sh` is **NOT** a surfacing site — it only emits
+`RESULT: … PR_URL=<url>`; the surfacing lives in the agent-driven tail, not in
+that script.
+
+This is **best-effort and NEVER halts the run**: a failed `gh pr edit` (or a
+missing scratch file — Step 5.5 may have been a no-op path) logs a one-line note
+and control proceeds to `/land-and-deploy`. The verdicts still live in the run
+output + the scratch file regardless. There is **NO upstream `/ship`
+modification** — this is a workbench-owned step. All three cj_goal orchestrators
+surface the verdict (`/CJ_goal_feature` Step 4.6, `/CJ_goal_defect` Step 9.5,
+`/CJ_goal_todo_fix` here); the Step 6.7 producer is shared by all three. The
+scratch path is the LITERAL `.cj-goal-feature/registered-doc-verdicts.md` (NOT
+verb-renamed — only `.cj-goal-feature/` is gitignored).
+
+```bash
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
+if [ -n "$PR_URL" ] && [ -f "$_VERDICT_FILE" ]; then
+  # Read the current PR body, then insert-or-replace the
+  # '### Registered-doc requirements' subsection under '## Documentation'.
+  _BODY=$(gh pr view "$PR_URL" --json body -q .body 2>/dev/null || echo "")
+  _VERDICTS=$(cat "$_VERDICT_FILE")
+
+  # Idempotent splice (replace-if-present): strip any existing
+  # '### Registered-doc requirements' block (up to the next '###'/'##' or EOF),
+  # then append the fresh block under the '## Documentation' heading. If no
+  # '## Documentation' section exists in the body, append one at the end.
+  _NEW_BODY=$(printf '%s\n' "$_BODY" | awk '
+    /^### Registered-doc requirements/ {skip=1; next}
+    skip && /^#{2,3} / {skip=0}
+    !skip {print}
+  ')
+  if printf '%s\n' "$_NEW_BODY" | grep -q '^## Documentation'; then
+    _NEW_BODY=$(printf '%s\n' "$_NEW_BODY" | awk -v v="$_VERDICTS" '
+      {print}
+      /^## Documentation/ && !done {print ""; print v; done=1}
+    ')
+  else
+    _NEW_BODY=$(printf '%s\n\n## Documentation\n\n%s\n' "$_NEW_BODY" "$_VERDICTS")
+  fi
+
+  if gh pr edit "$PR_URL" --body "$_NEW_BODY" 2>/dev/null; then
+    echo "[registered-doc] surfaced verdicts into PR $PR_URL body (## Documentation → ### Registered-doc requirements)"
+  else
+    echo "[registered-doc] gh pr edit failed for PR $PR_URL — verdicts remain in the run output + $_VERDICT_FILE (best-effort, not halting)"
+  fi
+else
+  echo "[registered-doc] no verdict scratch file (or no PR URL) — skipping PR-body surfacing (best-effort, not halting)"
+fi
+```
+
+Control always proceeds to `/land-and-deploy` — this step has no halt path.

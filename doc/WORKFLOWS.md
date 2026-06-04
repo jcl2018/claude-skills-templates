@@ -85,6 +85,8 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID yet; idempotent)
    │
    ▼  /ship                                  (Gate #2 fires; halt on [ship-declined])
    │
+   ▼  Step 9.5 — registered-doc verdicts → PR body   (post-/ship gh pr edit "$PR_URL"; best-effort; T000039)
+   │
    ▼  /land-and-deploy --suppress-readiness-gate
    │
    ▼  telemetry → ~/.gstack/analytics/CJ_goal_defect.jsonl
@@ -123,6 +125,9 @@ T-task scaffold (TRACKER + test-plan, pure bash)
    │
    ▼
 /ship   (Gate #2 fires per drained TODO — human approves diff)
+   │
+   ▼
+Step 5.6 — registered-doc verdicts → PR body   (post-/ship gh pr edit "$PR_URL"; best-effort; T000039)
    │
    ▼
 /land-and-deploy   (auto-merge + verify production)
