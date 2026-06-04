@@ -41,6 +41,9 @@ design-summary approval gate   [INLINE AUQ — go/no-go]
 /ship   [INLINE — diff-review AUQ suppressed; opens PR]
    │
    ▼
+Step 4.6 — registered-doc verdicts → PR body   [post-/ship gh pr edit; best-effort; T000038]
+   │
+   ▼
 STOP at PR   (human reviews + merges; /land-and-deploy is SEPARATE)
    │
    ▼

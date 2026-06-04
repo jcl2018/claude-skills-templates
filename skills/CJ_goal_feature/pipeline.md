@@ -624,6 +624,66 @@ There is **no pre-build plan-review Step, no automatic merge, and no
 `/land-and-deploy`** — the pipeline STOPs at the PR (P0 #3). The merge + deploy
 are separate human steps the operator performs after reviewing the PR.
 
+## Step 4.6: Surface registered-doc verdicts into the PR body (best-effort; NEVER halts)
+
+The Step 5.5 doc-sync wrapper (`/CJ_document-release`) ran a Registered-doc
+requirements audit (its Step 6.7) and wrote the verdict block to the gitignored
+scratch file `.cj-goal-feature/registered-doc-verdicts.md`. That block dies in
+the wrapper RESULT otherwise — upstream `/ship` Step 18 regenerates the PR body
+from a fresh `/document-release` subagent that never sees the wrapper output. So
+surface it deterministically here, now that Step 4 has opened the PR and
+`$PR_NUMBER` is known: read the scratch file and `gh pr edit <PR#>` to
+insert-or-replace a `### Registered-doc requirements` subsection under the PR
+body's `## Documentation` section.
+
+This is **best-effort and NEVER halts the run**: a failed `gh pr edit` (or a
+missing scratch file — Step 5.5 may have been a no-op path) logs a one-line note
+and control proceeds to Step 5. The verdicts still live in the run output + the
+scratch file regardless. There is **NO upstream `/ship` modification** — this is
+a workbench-owned pipeline step. v1 wires this into `/CJ_goal_feature` ONLY (the
+PR-stop orchestrator where PR review matters most; `/CJ_goal_defect` +
+`/CJ_goal_todo_fix` surfacing is a Job-2.1 follow-up — they auto-land, so a
+PR-body verdict has a short review window). The Step 6.7 producer is shared by
+all three regardless.
+
+```bash
+_VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
+if [ -n "$PR_NUMBER" ] && [ -f "$_VERDICT_FILE" ]; then
+  # Read the current PR body, then insert-or-replace the
+  # '### Registered-doc requirements' subsection under '## Documentation'.
+  _BODY=$(gh pr view "$PR_NUMBER" --json body -q .body 2>/dev/null || echo "")
+  _VERDICTS=$(cat "$_VERDICT_FILE")
+
+  # Idempotent splice (replace-if-present): strip any existing
+  # '### Registered-doc requirements' block (up to the next '###'/'##' or EOF),
+  # then append the fresh block under the '## Documentation' heading. If no
+  # '## Documentation' section exists in the body, append one at the end.
+  _NEW_BODY=$(printf '%s\n' "$_BODY" | awk '
+    /^### Registered-doc requirements/ {skip=1; next}
+    skip && /^#{2,3} / {skip=0}
+    !skip {print}
+  ')
+  if printf '%s\n' "$_NEW_BODY" | grep -q '^## Documentation'; then
+    _NEW_BODY=$(printf '%s\n' "$_NEW_BODY" | awk -v v="$_VERDICTS" '
+      {print}
+      /^## Documentation/ && !done {print ""; print v; done=1}
+    ')
+  else
+    _NEW_BODY=$(printf '%s\n\n## Documentation\n\n%s\n' "$_NEW_BODY" "$_VERDICTS")
+  fi
+
+  if gh pr edit "$PR_NUMBER" --body "$_NEW_BODY" 2>/dev/null; then
+    echo "[registered-doc] surfaced verdicts into PR #$PR_NUMBER body (## Documentation → ### Registered-doc requirements)"
+  else
+    echo "[registered-doc] gh pr edit failed for PR #$PR_NUMBER — verdicts remain in the run output + $_VERDICT_FILE (best-effort, not halting)"
+  fi
+else
+  echo "[registered-doc] no verdict scratch file (or no PR#) — skipping PR-body surfacing (best-effort, not halting)"
+fi
+```
+
+Control always proceeds to Step 5 — this step has no halt path.
+
 ## Step 5: STOP at the PR
 
 The pipeline is complete the moment `/ship` opens the PR. The end-state is

@@ -369,6 +369,139 @@ else
 fi
 ```
 
+## Step 6.7: Registered-doc requirements audit (ADVISORY — never halts)
+
+This step runs on the GREEN / green-noop TAIL of Step 6 — only after the
+auto-commit RESULT line has printed (so it is on the non-exiting path; Step 6's
+`[doc-sync-non-doc-write]` / `[doc-sync-red]` halts have already exited before
+control reaches here). It is **strictly advisory**: it emits one verdict per
+registered doc and NEVER halts, exits non-green, or blocks `/ship`. A
+`missing-requirement` verdict is a soft finding, not a halt.
+
+This is the **first real producer** for the workbench's PR-body audit
+subheadings — see CLAUDE.md `## Registered-doc requirements audit` (the
+convention this step implements) and `### Reporting`. The agent running the
+wrapper performs the judgment; the deliverable is a grep-able block written to
+BOTH the wrapper RESULT and a gitignored scratch file the orchestrator surfaces
+post-`/ship`.
+
+**What "registered docs" means.** Two sets, both enumerated dynamically (no
+hardcoded counts):
+
+1. **The tracked-doc/ files** — every entry in the CLAUDE.md `### Tracked doc/
+   files manifest` block, each carrying a `requirement:` value (F000034 manifest
+   + the Job-2 `requirement:` extension).
+2. **The active routable skill MDs** — every skill enumerated by the same
+   selector the F000030 New-skills check uses; each skill's requirement is its
+   optional `doc_requirement` in `skills-catalog.json`, else the **shared
+   default skill-MD requirement** (see CLAUDE.md `## Registered-doc requirements
+   audit`).
+
+### 6.7.1 — Parse the tracked-doc/ requirements
+
+Parse the CLAUDE.md `### Tracked doc/ files manifest` YAML-ish block (the same
+block Check 15a reads). For each `- path:` entry, capture BOTH the `path:` value
+AND its `requirement:` child value. The `requirement:` value MAY WRAP across a
+continuation line (a soft-wrapped long sentence), so read the FULL value, not
+just the first whitespace-token — concatenate continuation lines until the next
+`- path:` / `audit_class:` / `owner:` / `requirement:` key or the closing fence:
+
+```bash
+_CLAUDE="$_REPO_ROOT/CLAUDE.md"
+# Extract the manifest block: from '### Tracked doc/ files manifest' to the next
+# closing ``` after its opening fence. Then walk entries, capturing path + the
+# (possibly multi-line) requirement value. Implemented as agent-side parsing of
+# the captured block — the orchestrator-model reads each `- path:` group and its
+# `requirement:` value (joining wrapped continuation lines into one string).
+awk '
+  /^### Tracked doc\/ files manifest/ {inhdr=1}
+  inhdr && /^```yaml/ {infence=1; next}
+  inhdr && infence && /^```/ {infence=0; inhdr=0}
+  inhdr && infence {print}
+' "$_CLAUDE"
+```
+
+For each captured `(path, requirement)` pair: the registered doc is `path`, and
+its declared requirement is the full `requirement:` string. A manifest entry with
+NO `requirement:` child → verdict `missing-requirement` for that doc.
+
+### 6.7.2 — Enumerate the skill MDs + their requirements
+
+Enumerate active routable skills with the New-skills selector, and read each
+skill's optional `doc_requirement` (absent ⇒ the shared default):
+
+```bash
+_CATALOG="$_REPO_ROOT/skills-catalog.json"
+# Active routable skills (non-empty files array) — the SAME selector the
+# F000030 New-skills check uses; no hardcoded skill count.
+SKILL_NAMES=$(jq -r '.[] | select(.status=="active") | select((.files | length) > 0) | .name' "$_CATALOG")
+
+# The shared default skill-MD requirement (used when a skill has no doc_requirement):
+SHARED_DEFAULT="The SKILL.md frontmatter \`description\` and the documented behavior/steps match the skill's current implementation; the skill's USAGE.md is current."
+
+for _name in $SKILL_NAMES; do
+  _req=$(jq -r --arg n "$_name" '.[] | select(.name==$n) | .doc_requirement // empty' "$_CATALOG")
+  [ -z "$_req" ] && _req="$SHARED_DEFAULT"
+  # registered doc = skills/$_name/SKILL.md ; requirement = $_req
+done
+```
+
+### 6.7.3 — Judge each registered doc
+
+Determine the diff base for this run (the merge-base of the branch against the
+default branch, matching how `/document-release` scopes its own audit):
+
+```bash
+_BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo "")
+# Per-doc judgment input: the doc's content + its requirement + `git diff <base>...HEAD`.
+[ -n "$_BASE" ] && git diff "$_BASE"...HEAD --stat || true
+```
+
+For EACH registered doc (the tracked-doc/ files from 6.7.1 AND the skill MDs from
+6.7.2), the agent reads the doc + its requirement + the run's `git diff
+<base>...HEAD` and assigns ONE verdict:
+
+- `up-to-date` — the doc satisfies its requirement given what this run changed.
+- `stale: <one-line why>` — the doc no longer satisfies its requirement (e.g.
+  a SKILL.md whose described steps no longer match its implementation, an
+  ARCHITECTURE roster missing a skill this run added).
+- `missing-requirement` — the registered doc has NO declared requirement (a
+  tracked-doc/ manifest entry with no `requirement:` child). Soft; never a halt.
+- `n/a` — the doc is registered but out of scope for this run's judgment.
+
+### 6.7.4 — Emit the block (RESULT + scratch file)
+
+Compose the grep-able block and write it to BOTH the wrapper RESULT (stdout) AND
+the gitignored scratch file `"$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"`
+(the `.cj-goal-feature/` dir is already gitignored; the orchestrator's post-`/ship`
+surfacing step reads this file). Emit the positive line `Registered-doc
+requirements: all current` ONLY when EVERY verdict is `up-to-date`:
+
+```bash
+_VERDICT_DIR="$_REPO_ROOT/.cj-goal-feature"
+mkdir -p "$_VERDICT_DIR"
+_VERDICT_FILE="$_VERDICT_DIR/registered-doc-verdicts.md"
+
+# The agent composes $VERDICT_BODY as one verdict line per registered doc, e.g.:
+#   doc/WORKFLOWS.md: up-to-date
+#   skills/CJ_goal_defect/SKILL.md: stale — chain diagram omits Step 5.5
+# then appends the positive line ONLY if every verdict above is up-to-date.
+{
+  echo "### Registered-doc requirements"
+  printf '%s\n' "$VERDICT_BODY"
+  # positive line ONLY when all up-to-date:
+  if [ "$ALL_UP_TO_DATE" = "true" ]; then
+    echo "Registered-doc requirements: all current"
+  fi
+} | tee "$_VERDICT_FILE"
+```
+
+The block is ADVISORY: control falls straight through to Step 7. No exit, no
+halt marker, no RESULT=red is emitted by this step under any verdict — a fully
+`stale`/`missing-requirement` audit still proceeds to `/ship`. The verdicts
+inform the reviewer; they do not gate the pipeline (v1 advisory posture, per
+CLAUDE.md `## Registered-doc requirements audit`).
+
 ## Step 7: Success summary
 
 Print a single-line success summary the orchestrator can grep:

@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-04T08:47:37Z"
+last-updated: "2026-06-04T17:44:06Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -44,15 +44,19 @@ last-updated: "2026-06-04T08:47:37Z"
 ## Mental model
 
 A thin workbench wrapper around upstream gstack `/document-release` that
-adds three workbench-specific concerns: (1) `--docs <comma-list>` per-doc
+adds four workbench-specific concerns: (1) `--docs <comma-list>` per-doc
 subset (best-effort filter via project-context block; documentation-only,
 not enforced); (2) halt-on-red contract that emits `[doc-sync-red]` on
 upstream failure so the calling orchestrator HALTs instead of silently
 continuing; (3) doc-only auto-commit gated by a per-repo whitelist loaded
 from `cj-document-release.json` (F000037), with a `[doc-sync-non-doc-write]`
-HALT if upstream writes anything outside that whitelist. The result is that
-orchestrator sessions can call CJ_document-release after QA, and `/ship`
-(next pipeline step) sees a clean tree where any doc updates are pre-committed.
+HALT if upstream writes anything outside that whitelist; (4) a registered-doc
+requirements audit (T000038, Step 6.7) that emits advisory `up-to-date` /
+`stale` / `missing-requirement` verdicts per registered doc (the tracked-doc/
+manifest entries + active skill MDs) into the PR body — see CLAUDE.md
+`## Registered-doc requirements audit`. The result is that orchestrator
+sessions can call CJ_document-release after QA, and `/ship` (next pipeline
+step) sees a clean tree where any doc updates are pre-committed.
 
 ### Per-repo config
 

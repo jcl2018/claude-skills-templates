@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.28] - 2026-06-04
+
+### Added
+
+- **`/CJ_document-release` now emits per-registered-doc "is this up to date against its requirement?" verdicts into the PR body (T000038 — Job 2 of the document-release tightening).** Job 1 (T000037) re-cut the top-level doc; this is the audit half. Every **registered** doc now carries its requirement in its registration — the 3 `doc/*.md` files via a new `requirement:` field on each tracked-doc manifest entry, and skill MDs via an optional `doc_requirement` in `skills-catalog.json` (else a shared default) — and a new advisory **Step 6.7** in the `/CJ_document-release` wrapper reads those registries, enumerates registered docs, agent-judges each against its requirement + the branch diff, and emits a `### Registered-doc requirements` block (verdicts: `up-to-date` / `stale: <why>` / `missing-requirement`; positive line `Registered-doc requirements: all current`) to its RESULT + a gitignored scratch file. A new post-`/ship` **Step 4.6** in the `/CJ_goal_feature` pipeline reads that scratch file and `gh pr edit`s the verdict section into the PR body — so the verdict actually reaches a reviewer (the producer→PR-body path is fully wired and guarded by two deterministic `scripts/test.sh` smoke checks, so an inert version can't ship). Advisory only: agent-judged, never a hard gate, and `validate.sh`'s hard gates (Check 14/15/16) are untouched. New `doc/ARCHITECTURE.md` + CLAUDE.md (`## Registered-doc requirements audit`) reference sections. Dogfooded on this PR: the audit flagged `doc/WORKFLOWS.md` stale (its `CJ_goal_feature` chart omitted the new Step 4.6) and the chart was fixed in the same PR → all current. `/CJ_goal_defect` + `/CJ_goal_todo_fix` surfacing + broadening the registered set past `status==active` are deferred to Job-2.1. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.27] - 2026-06-04
 
 ### Changed

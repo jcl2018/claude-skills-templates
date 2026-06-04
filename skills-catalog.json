@@ -298,6 +298,7 @@
       "skills/CJ_document-release/SKILL.md"
     ],
     "templates": [],
+    "doc_requirement": "The wrapper flow + the cj-document-release.json schema reference match the current cj-document-release-config.sh subcommands and the registered-doc requirements audit step.",
     "status": "experimental"
   },
   {
