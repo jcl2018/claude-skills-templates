@@ -40,7 +40,25 @@ fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 # to install them); the test expectations must mirror that behavior.
 SKILL_COUNT=$(jq '[.[] | select(.files | length > 0) | select((.status // "active") != "deprecated")] | length' "$CATALOG")
 
+# --- Symlink capability probe (F000044 / S000080) ---------------------------
+# Git Bash on Windows cannot make real symlinks (`ln -s` copies the target), so
+# the symlink-MODE cases below are guarded on this flag: they run unchanged on a
+# symlink-capable host (macOS/Linux/CI — byte-identical to before) and skip with
+# a logged note on Git Bash, where the copy-mode + mode-agnostic cases still run.
+# Honors SKILLS_DEPLOY_FORCE_COPY=1 (the same override skills-deploy's own probe
+# uses) so `SKILLS_DEPLOY_FORCE_COPY=1 ./test-deploy.sh` faithfully simulates the
+# Git Bash install path (every install copy-mode) on a capable host.
+SYMLINK_CAPABLE=no
+__sl_probe_dir=$(mktemp -d)
+if ln -s "$__sl_probe_dir/target" "$__sl_probe_dir/link" 2>/dev/null && [ -L "$__sl_probe_dir/link" ]; then
+  SYMLINK_CAPABLE=yes
+fi
+rm -rf "$__sl_probe_dir" 2>/dev/null || true
+[ "${SKILLS_DEPLOY_FORCE_COPY:-}" = "1" ] && SYMLINK_CAPABLE=no
+skip_sl() { echo "  SKIP: $1 (no symlink support on this host)"; }
+
 echo "=== Deploy script tests ==="
+echo "symlink-capable host: $SYMLINK_CAPABLE"
 echo ""
 
 # Test 1: Install all skills
@@ -59,11 +77,21 @@ teardown_env
 echo "Test 2: Multi-file skill (CJ_personal-workflow)"
 setup_env
 "$DEPLOY" install CJ_personal-workflow >/dev/null 2>&1
-md_count=$(find "$SKILLS_DEPLOY_TARGET/CJ_personal-workflow" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
-if [ "$md_count" -ge 3 ]; then
-  ok "CJ_personal-workflow has $md_count .md symlinks"
+if [ "$SYMLINK_CAPABLE" = yes ]; then
+  md_count=$(find "$SKILLS_DEPLOY_TARGET/CJ_personal-workflow" -name "*.md" -type l 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$md_count" -ge 3 ]; then
+    ok "CJ_personal-workflow has $md_count .md symlinks"
+  else
+    fail_test "Expected 3+ .md symlinks, got $md_count"
+  fi
 else
-  fail_test "Expected 3+ .md symlinks, got $md_count"
+  # Git Bash: copy-mode lands regular files, not symlinks — assert on files.
+  md_count=$(find "$SKILLS_DEPLOY_TARGET/CJ_personal-workflow" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$md_count" -ge 3 ]; then
+    ok "CJ_personal-workflow has $md_count .md files (copy-mode)"
+  else
+    fail_test "Expected 3+ .md files, got $md_count"
+  fi
 fi
 teardown_env
 
@@ -193,17 +221,21 @@ teardown_env
 
 # Test 9: Doctor detects broken symlink
 echo "Test 9: Doctor detects broken symlink"
-setup_env
-"$DEPLOY" install CJ_system-health >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
-ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
-output=$("$DEPLOY" doctor 2>&1)
-if echo "$output" | grep -q "broken symlink"; then
-  ok "Doctor detects broken symlink"
+if [ "$SYMLINK_CAPABLE" = yes ]; then
+  setup_env
+  "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+  rm -f "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+  ln -s /nonexistent/path "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+  output=$("$DEPLOY" doctor 2>&1)
+  if echo "$output" | grep -q "broken symlink"; then
+    ok "Doctor detects broken symlink"
+  else
+    fail_test "Doctor missed broken symlink"
+  fi
+  teardown_env
 else
-  fail_test "Doctor missed broken symlink"
+  skip_sl "Test 9: Doctor detects broken symlink"
 fi
-teardown_env
 
 # Test 10: Non-existent skill name
 echo "Test 10: Non-existent skill name"
@@ -229,16 +261,20 @@ teardown_env
 
 # Test 12: Relink repairs broken symlink
 echo "Test 12: Relink repairs broken symlink"
-setup_env
-"$DEPLOY" install CJ_system-health >/dev/null 2>&1
-rm -f "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
-"$DEPLOY" relink >/dev/null 2>&1
-if [ -L "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md" ] && [ -e "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md" ]; then
-  ok "Relink restored broken symlink"
+if [ "$SYMLINK_CAPABLE" = yes ]; then
+  setup_env
+  "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+  rm -f "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+  "$DEPLOY" relink >/dev/null 2>&1
+  if [ -L "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md" ] && [ -e "$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md" ]; then
+    ok "Relink restored broken symlink"
+  else
+    fail_test "Relink did not restore symlink"
+  fi
+  teardown_env
 else
-  fail_test "Relink did not restore symlink"
+  skip_sl "Test 12: Relink repairs broken symlink"
 fi
-teardown_env
 
 ### ============================================================
 ### Copy-mode install tests (S000079 — symlink-free install)
@@ -336,38 +372,51 @@ fi
 teardown_env
 
 # Test C6: Symlink-mode install records install_kind=symlink (no source_checksums)
+# Symlink-mode precondition — only runs where real symlinks work (skipped on Git
+# Bash, where the natural install is copy-mode and C1 is the recorded-kind test).
 echo "Test C6: Symlink-mode records install_kind=symlink"
-setup_env
-"$DEPLOY" install CJ_system-health >/dev/null 2>&1
-skill_md="$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
-if [ -L "$skill_md" ]; then
-  ok "Symlink-mode SKILL.md is a symlink (byte-identical legacy path)"
+if [ "$SYMLINK_CAPABLE" = yes ]; then
+  setup_env
+  "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+  skill_md="$SKILLS_DEPLOY_TARGET/CJ_system-health/SKILL.md"
+  if [ -L "$skill_md" ]; then
+    ok "Symlink-mode SKILL.md is a symlink (byte-identical legacy path)"
+  else
+    fail_test "Symlink-mode SKILL.md is not a symlink"
+  fi
+  kind=$(jq -r '.skills["CJ_system-health"].install_kind // "ABSENT"' "$SKILLS_DEPLOY_MANIFEST")
+  has_sc=$(jq -r 'if .skills["CJ_system-health"].source_checksums then "yes" else "no" end' "$SKILLS_DEPLOY_MANIFEST")
+  if [ "$kind" = "symlink" ] && [ "$has_sc" = "no" ]; then
+    ok "Symlink-mode manifest has install_kind=symlink and no source_checksums"
+  else
+    fail_test "Symlink-mode manifest wrong (kind=$kind has_source_checksums=$has_sc)"
+  fi
+  teardown_env
 else
-  fail_test "Symlink-mode SKILL.md is not a symlink"
+  skip_sl "Test C6: Symlink-mode records install_kind=symlink"
 fi
-kind=$(jq -r '.skills["CJ_system-health"].install_kind // "ABSENT"' "$SKILLS_DEPLOY_MANIFEST")
-has_sc=$(jq -r 'if .skills["CJ_system-health"].source_checksums then "yes" else "no" end' "$SKILLS_DEPLOY_MANIFEST")
-if [ "$kind" = "symlink" ] && [ "$has_sc" = "no" ]; then
-  ok "Symlink-mode manifest has install_kind=symlink and no source_checksums"
-else
-  fail_test "Symlink-mode manifest wrong (kind=$kind has_source_checksums=$has_sc)"
-fi
-teardown_env
 
 # Test C7: Back-compat — a manifest record with NO install_kind is treated as symlink
+# Precondition is a symlink-mode base install (so the stripped-kind manifest maps
+# to symlink-default + real symlinks); skipped on Git Bash where the base install
+# is copy-mode and the symlink-default doctor branch can't be satisfied.
 echo "Test C7: Absent install_kind defaults to symlink (back-compat)"
-setup_env
-"$DEPLOY" install CJ_system-health >/dev/null 2>&1
-# Simulate a pre-S000079 install by stripping the install_kind field.
-jq 'del(.skills["CJ_system-health"].install_kind)' "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.t" \
-  && mv "$SKILLS_DEPLOY_MANIFEST.t" "$SKILLS_DEPLOY_MANIFEST"
-output=$("$DEPLOY" doctor 2>&1)
-if echo "$output" | grep -qE "Health: (OK|0 errors)"; then
-  ok "Doctor treats absent install_kind as symlink (healthy)"
+if [ "$SYMLINK_CAPABLE" = yes ]; then
+  setup_env
+  "$DEPLOY" install CJ_system-health >/dev/null 2>&1
+  # Simulate a pre-S000079 install by stripping the install_kind field.
+  jq 'del(.skills["CJ_system-health"].install_kind)' "$SKILLS_DEPLOY_MANIFEST" > "$SKILLS_DEPLOY_MANIFEST.t" \
+    && mv "$SKILLS_DEPLOY_MANIFEST.t" "$SKILLS_DEPLOY_MANIFEST"
+  output=$("$DEPLOY" doctor 2>&1)
+  if echo "$output" | grep -qE "Health: (OK|0 errors)"; then
+    ok "Doctor treats absent install_kind as symlink (healthy)"
+  else
+    fail_test "Doctor on absent install_kind not healthy: $output"
+  fi
+  teardown_env
 else
-  fail_test "Doctor on absent install_kind not healthy: $output"
+  skip_sl "Test C7: Absent install_kind defaults to symlink (back-compat)"
 fi
-teardown_env
 
 ### ============================================================
 ### skills-update-check tests (F000009)

@@ -55,6 +55,17 @@ git clone https://github.com/jcl2018/claude-skills-templates.git
 claude --plugin-dir ./claude-skills-templates
 ```
 
+## Running on Windows
+
+The workbench is POSIX-shell software. On Windows it runs two ways:
+
+- **WSL2 (recommended).** A real Linux environment — everything behaves exactly as on macOS/Linux, including symlink-based `skills-deploy install`.
+- **Git Bash (supported).** The bash that ships with [Git for Windows](https://gitforwindows.org/) — the same shell Claude Code uses to run skill preambles on Windows. Real symlinks are unavailable there, so `skills-deploy install` automatically falls back to **copy-mode** (real files + checksum-tracked drift detection) instead of symlinks.
+
+**Prerequisites** (both paths): `git`, `jq`, `gh`, and `python3` (the last only for the Copilot bundle / `copilot-deploy.py`). On Git Bash, `git` and `jq` come with Git for Windows; install `gh` from [cli.github.com](https://cli.github.com/).
+
+Line endings are pinned to LF by `.gitattributes` (`* text=auto eol=lf`), so shell scripts stay runnable under bash even when `core.autocrlf` is on. A `windows-latest` CI job (`.github/workflows/windows.yml`) runs the Windows-relevant test subset under Git Bash on every PR, so Windows support is exercised continuously. Run the same checks locally with `bash scripts/windows-smoke.sh`.
+
 ## gstack plans live in this repo
 
 Plans, designs, and reviews from gstack skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/context-save`) land at `<repo>/.gstack/` and are committed to git, so PR reviewers see the design intent that produced the code and design history travels alongside code history. Machine-local gstack state (sessions, analytics, learnings) stays out of git via `.gitignore`.

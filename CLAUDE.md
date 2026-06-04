@@ -13,6 +13,21 @@ cd claude-skills-templates
 ./scripts/test.sh              # run full test suite
 ```
 
+## Running on Windows
+
+This workbench is POSIX-shell software and supports Windows two ways (F000044):
+**WSL2** (recommended — behaves identically to macOS/Linux) and **Git Bash**
+(the shell Claude Code uses to run skill preambles on Windows). On Git Bash real
+symlinks are unavailable, so `skills-deploy install` auto-falls-back to
+**copy-mode** (real files + checksum-tracked drift) — see `scripts/skills-deploy`
+`_can_symlink` + the manifest `install_kind`. When editing scripts, keep them
+POSIX + LF (`.gitattributes` pins `eol=lf`) and use the portable `date_to_epoch`
+idiom (probe `date --version` → GNU `date -d`, else BSD `date -j -f`), never
+GNU-only `date -d`. The `windows-latest` Git Bash CI job
+(`.github/workflows/windows.yml`) gates every PR; run the same checks locally
+with `bash scripts/windows-smoke.sh`. Full feature:
+`work-items/features/ops/F000044_windows_wsl2_git_bash_support/`.
+
 ## Skill routing
 
 Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
