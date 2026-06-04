@@ -134,6 +134,31 @@ file_checksum() {
   (shasum -a 256 "$1" 2>/dev/null || sha256sum "$1" 2>/dev/null) | awk '{print $1}'
 }
 
+# Probe whether real symlinks work in $SKILLS_TARGET (S000079). On macOS/Linux/WSL2
+# `ln -s` creates a true symlink; on Git Bash `ln -s` copies-by-default (or needs
+# Developer Mode/admin), so the probe result drives the install mode. We probe in
+# $SKILLS_TARGET itself (not /tmp) because the symlink capability is per-filesystem
+# and the target may live on a different mount than $TMPDIR.
+# Override: SKILLS_DEPLOY_FORCE_COPY=1 forces "no" (copy-mode) regardless of probe —
+# used by tests to exercise copy-mode on a symlink-capable host.
+# Echoes "yes" (real symlinks work) or "no" (use copy-mode). Never fails the script.
+_can_symlink() {
+  if [ "${SKILLS_DEPLOY_FORCE_COPY:-}" = "1" ]; then
+    echo "no"
+    return 0
+  fi
+  mkdir -p "$SKILLS_TARGET" 2>/dev/null || true
+  local probe_src probe_link result="no"
+  probe_src=$(mktemp "$SKILLS_TARGET/.symprobe.src.XXXXXX" 2>/dev/null) || { echo "no"; return 0; }
+  probe_link="${probe_src}.lnk"
+  rm -f "$probe_link" 2>/dev/null || true
+  if ln -s "$probe_src" "$probe_link" 2>/dev/null && [ -L "$probe_link" ]; then
+    result="yes"
+  fi
+  rm -f "$probe_src" "$probe_link" 2>/dev/null || true
+  echo "$result"
+}
+
 # Validate template name is safe (no path traversal)
 # Allows one subfolder level: "CJ_company-workflow/tracker-feature.md"
 # Blocks ".." segments to prevent path traversal
@@ -197,6 +222,17 @@ do_install() {
 
   local manifest installed=0 skipped=0 migrated=0
   manifest=$(manifest_read)
+
+  # Resolve install mode ONCE per run (S000079). symlink-capable platforms
+  # (macOS/Linux/WSL2) take the byte-identical legacy `ln -snf` path; Git Bash
+  # (no usable symlinks) falls back to copy-mode (`cp` + recorded source_checksums).
+  local install_kind
+  if [ "$(_can_symlink)" = "yes" ]; then
+    install_kind="symlink"
+  else
+    install_kind="copy"
+    echo "  INFO: symlinks unavailable in $SKILLS_TARGET — installing skills in copy-mode"
+  fi
 
   for name in "${skills[@]}"; do
     # Source directory is catalog-driven (F000006): dirname(files[0]). Empty
@@ -265,17 +301,32 @@ do_install() {
         ;;
     esac
 
-    # Symlink all .md and .json files from source
+    # Install all .md and .json files from source. symlink-mode: byte-identical
+    # legacy `ln -snf`. copy-mode (S000079): `cp` the file + accumulate its SHA256
+    # into a per-skill source_checksums object (keyed by filename) so copy-mode
+    # doctor/relink have a source of truth to verify against.
+    local checksums_json="{}"
     for f in "$src"/*.md "$src"/*.json; do
       [ -f "$f" ] || continue
       local fname
       fname=$(basename "$f")
       # Skip dev-only files
       case "$fname" in CHANGELOG.md|DESIGN.md) continue ;; esac
-      ln -snf "$f" "$SKILLS_TARGET/$name/$fname"
+      if [ "$install_kind" = "symlink" ]; then
+        ln -snf "$f" "$SKILLS_TARGET/$name/$fname"
+      else
+        # Replace any pre-existing symlink/file with a regular-file copy.
+        rm -f "$SKILLS_TARGET/$name/$fname" 2>/dev/null || true
+        cp "$f" "$SKILLS_TARGET/$name/$fname"
+        local fsum
+        fsum=$(file_checksum "$f"); [ -n "$fsum" ] || fsum="unknown"
+        checksums_json=$(echo "$checksums_json" | jq --arg k "$fname" --arg v "$fsum" '.[$k] = $v')
+      fi
     done
 
-    # Symlink subdirectories from source (examples/, reference/, philosophy/, fixtures/)
+    # Install subdirectories from source (examples/, reference/, philosophy/, fixtures/).
+    # symlink-mode: legacy `ln -snf`. copy-mode (S000079): rm -rf + cp -R (recursive
+    # copy). Subdir contents are presence-checked by doctor, not deep-hashed.
     for d in "$src"/*/; do
       [ -d "$d" ] || continue
       local dname
@@ -302,15 +353,26 @@ do_install() {
           continue
         fi
       fi
-      ln -snf "$d" "$dtarget"
+      if [ "$install_kind" = "symlink" ]; then
+        ln -snf "$d" "$dtarget"
+      else
+        rm -rf "$dtarget" 2>/dev/null || true
+        cp -R "$d" "$dtarget"
+      fi
     done
 
     # Manifest path comes from catalog files[0] so it reflects the real source
-    # location, not a guess.
+    # location, not a guess. symlink-mode records {path, installed_at, install_kind};
+    # copy-mode additionally records source_checksums for drift detection (S000079).
     local manifest_path
     manifest_path=$(skill_md_path "$name")
-    manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "$manifest_path" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '.skills[$n] = {path: $p, installed_at: $t}')
+    if [ "$install_kind" = "symlink" ]; then
+      manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "$manifest_path" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.skills[$n] = {path: $p, installed_at: $t, install_kind: "symlink"}')
+    else
+      manifest=$(echo "$manifest" | jq --arg n "$name" --arg p "$manifest_path" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson sc "$checksums_json" \
+        '.skills[$n] = {path: $p, installed_at: $t, install_kind: "copy", source_checksums: $sc}')
+    fi
     installed=$((installed + 1))
   done
 
@@ -532,26 +594,47 @@ do_remove() {
     fc_rm=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .files | length' "$CATALOG" 2>/dev/null || echo "0")
     [ "$fc_rm" -eq 0 ] && tpl_only=true
 
-    if [ "$tpl_only" = false ]; then
-      # Verify ownership before removing
-      local owner
-      owner=$(skill_owner "$name")
-      if [ "$owner" != "ours" ]; then
-        echo "  SKIP: $name is not owned by this repo (owner: $owner)"
-        continue
-      fi
+    # Read the recorded install_kind for this skill (S000079). Absent field →
+    # "symlink" (back-compat: installs predating the field were all symlinks).
+    local rm_kind
+    rm_kind=$(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].install_kind // "symlink"')
 
-      # Remove symlinks only (not regular files)
-      for f in "$SKILLS_TARGET/$name"/*.md "$SKILLS_TARGET/$name"/*.json; do
-        [ -L "$f" ] && rm -f "$f"
-      done
-      # Remove subdirectory symlinks
-      for d in "$SKILLS_TARGET/$name"/*/; do
-        local dpath
-        dpath="$(dirname "$d")/$(basename "$d")"
-        [ -L "$dpath" ] && rm -f "$dpath"
-      done
-      rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+    if [ "$tpl_only" = false ]; then
+      if [ "$rm_kind" = "copy" ]; then
+        # Copy-mode: the installed files are regular-file copies we own. Remove the
+        # recorded regular files + any copied subdirs. skill_owner() returns "manual"
+        # for regular files, so the symlink-mode ownership gate is skipped here; the
+        # manifest install_kind=copy record is the ownership signal.
+        for f in "$SKILLS_TARGET/$name"/*.md "$SKILLS_TARGET/$name"/*.json; do
+          [ -f "$f" ] && [ ! -L "$f" ] && rm -f "$f"
+        done
+        for d in "$SKILLS_TARGET/$name"/*/; do
+          local dpath
+          dpath="$(dirname "$d")/$(basename "$d")"
+          [ -d "$dpath" ] && [ ! -L "$dpath" ] && rm -rf "$dpath"
+        done
+        rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+      else
+        # Verify ownership before removing
+        local owner
+        owner=$(skill_owner "$name")
+        if [ "$owner" != "ours" ]; then
+          echo "  SKIP: $name is not owned by this repo (owner: $owner)"
+          continue
+        fi
+
+        # Remove symlinks only (not regular files)
+        for f in "$SKILLS_TARGET/$name"/*.md "$SKILLS_TARGET/$name"/*.json; do
+          [ -L "$f" ] && rm -f "$f"
+        done
+        # Remove subdirectory symlinks
+        for d in "$SKILLS_TARGET/$name"/*/; do
+          local dpath
+          dpath="$(dirname "$d")/$(basename "$d")"
+          [ -L "$dpath" ] && rm -f "$dpath"
+        done
+        rmdir "$SKILLS_TARGET/$name" 2>/dev/null || true
+      fi
     fi
 
     # Clean up templates owned by this skill
@@ -654,6 +737,11 @@ do_relink() {
       continue
     fi
 
+    # Branch on recorded install_kind (S000079); absent field → "symlink"
+    # (back-compat for installs predating the field).
+    local rl_kind
+    rl_kind=$(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].install_kind // "symlink"')
+
     mkdir -p "$SKILLS_TARGET/$name"
     for f in "$src"/*.md "$src"/*.json; do
       [ -f "$f" ] || continue
@@ -661,25 +749,55 @@ do_relink() {
       fname=$(basename "$f")
       case "$fname" in CHANGELOG.md|DESIGN.md) continue ;; esac
       local target="$SKILLS_TARGET/$name/$fname"
-      if [ -L "$target" ] && [ "$(readlink "$target")" = "$f" ]; then
-        ok=$((ok + 1))
+      if [ "$rl_kind" = "copy" ]; then
+        # Re-copy when the installed file is missing or its SHA drifted from the
+        # recorded source_checksums entry (mirrors template relink-on-drift below).
+        local expected_sum actual_sum
+        expected_sum=$(echo "$manifest" | jq -r --arg n "$name" --arg k "$fname" '.skills[$n].source_checksums[$k] // ""')
+        if [ -f "$target" ] && [ ! -L "$target" ]; then
+          actual_sum=$(file_checksum "$target")
+        else
+          actual_sum=""
+        fi
+        if [ -n "$actual_sum" ] && [ "$actual_sum" = "$expected_sum" ]; then
+          ok=$((ok + 1))
+        else
+          rm -f "$target" 2>/dev/null || true
+          cp "$f" "$target"
+          fixed=$((fixed + 1))
+        fi
       else
-        ln -snf "$f" "$target"
-        fixed=$((fixed + 1))
+        if [ -L "$target" ] && [ "$(readlink "$target")" = "$f" ]; then
+          ok=$((ok + 1))
+        else
+          ln -snf "$f" "$target"
+          fixed=$((fixed + 1))
+        fi
       fi
     done
 
-    # Repair subdirectory symlinks
+    # Repair subdirectories. copy-mode: presence-check + re-copy if missing.
+    # symlink-mode: legacy symlink repair.
     for d in "$src"/*/; do
       [ -d "$d" ] || continue
       local dname
       dname=$(basename "$d")
       local dtarget="$SKILLS_TARGET/$name/$dname"
-      if [ -L "$dtarget" ] && [ -e "$dtarget" ]; then
-        ok=$((ok + 1))
+      if [ "$rl_kind" = "copy" ]; then
+        if [ -d "$dtarget" ] && [ ! -L "$dtarget" ]; then
+          ok=$((ok + 1))
+        else
+          rm -rf "$dtarget" 2>/dev/null || true
+          cp -R "$d" "$dtarget"
+          fixed=$((fixed + 1))
+        fi
       else
-        ln -snf "$d" "$dtarget"
-        fixed=$((fixed + 1))
+        if [ -L "$dtarget" ] && [ -e "$dtarget" ]; then
+          ok=$((ok + 1))
+        else
+          ln -snf "$d" "$dtarget"
+          fixed=$((fixed + 1))
+        fi
       fi
     done
   done
@@ -824,6 +942,58 @@ do_doctor() {
       echo "  OK: $name (templates-only)"
       continue
     fi
+
+    # Branch on recorded install_kind (S000079); absent field → "symlink"
+    # (back-compat for installs predating the field).
+    local dr_kind
+    dr_kind=$(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].install_kind // "symlink"')
+
+    if [ "$dr_kind" = "copy" ]; then
+      # Copy-mode: verify each recorded source_checksums entry by re-hashing the
+      # installed regular file; mismatch or missing → FAIL (mirrors the template
+      # checksum FAIL below). Subdir contents are presence-checked, not deep-hashed.
+      if [ ! -d "$target_dir" ]; then
+        echo "  FAIL: $name — target directory missing"
+        errors=$((errors + 1))
+      else
+        local copy_ok=true
+        while IFS=$'\t' read -r cf csum; do
+          [ -n "$cf" ] || continue
+          local cfile="$target_dir/$cf"
+          if [ ! -f "$cfile" ]; then
+            echo "  FAIL: $name/$cf — file missing (copy-mode)"
+            errors=$((errors + 1))
+            copy_ok=false
+          else
+            local cactual
+            cactual=$(file_checksum "$cfile")
+            if [ "$csum" != "unknown" ] && [ -n "$csum" ] && [ "$cactual" != "$csum" ]; then
+              echo "  FAIL: $name/$cf — content differs from source (copy-mode drift)"
+              errors=$((errors + 1))
+              copy_ok=false
+            fi
+          fi
+        done < <(echo "$manifest" | jq -r --arg n "$name" '.skills[$n].source_checksums // {} | to_entries[] | .key + "\t" + .value')
+        # Subdir presence-check (not deep-hashed) when source is available.
+        if [ -d "$src" ]; then
+          for sd in "$src"/*/; do
+            [ -d "$sd" ] || continue
+            local sdname
+            sdname=$(basename "$sd")
+            if [ ! -d "$target_dir/$sdname" ]; then
+              echo "  FAIL: $name/$sdname — subdirectory missing (copy-mode)"
+              errors=$((errors + 1))
+              copy_ok=false
+            fi
+          done
+        fi
+        if [ "$copy_ok" = true ]; then
+          echo "  $_label"
+        fi
+      fi
+      continue
+    fi
+
     if [ ! -d "$target_dir" ]; then
       echo "  FAIL: $name — target directory missing"
       errors=$((errors + 1))

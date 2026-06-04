@@ -840,6 +840,48 @@ else
   fail_test "CLAUDE.md still documents --overwrite as opt-in — D000015 docs not synced"
 fi
 
+echo ""
+echo "Regression test (S000079): skills-deploy copy-mode fallback (symlink-free install)..."
+
+# Background: on Git Bash `ln -s` copies-by-default / needs admin, so skills-deploy
+# falls back to copy-mode: regular-file copies + a manifest install_kind + per-file
+# source_checksums, with doctor/remove/relink branching on install_kind (default
+# "symlink" when the field is absent, for back-compat). This is a KNOWN BLIND SPOT:
+# every prior skills-deploy change needed a parallel test.sh structural guard and it
+# was forgotten repeatedly. These structural greps fail loudly if the copy-mode
+# scaffolding is dropped in a refactor; the behavioral coverage runs end-to-end via
+# test-deploy.sh (Tests C1–C7), invoked below.
+
+# Check 1: _can_symlink probe helper exists
+if grep -qE '^_can_symlink\(\) \{' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy defines the _can_symlink() probe (S000079)"
+else
+  fail_test "scripts/skills-deploy missing _can_symlink() probe — copy-mode mode-selection regressed (S000079 guard)"
+fi
+
+# Check 2: SKILLS_DEPLOY_FORCE_COPY override is honored
+if grep -qF 'SKILLS_DEPLOY_FORCE_COPY' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy honors SKILLS_DEPLOY_FORCE_COPY override (S000079)"
+else
+  fail_test "scripts/skills-deploy dropped SKILLS_DEPLOY_FORCE_COPY override (S000079 guard)"
+fi
+
+# Check 3: install resolves an install_kind and copy-mode records source_checksums
+if grep -qE 'install_kind="copy"' "$REPO_ROOT/scripts/skills-deploy" \
+   && grep -qF 'source_checksums' "$REPO_ROOT/scripts/skills-deploy"; then
+  ok "scripts/skills-deploy writes install_kind + source_checksums in copy-mode (S000079)"
+else
+  fail_test "scripts/skills-deploy missing install_kind/source_checksums manifest schema (S000079 guard)"
+fi
+
+# Check 4: doctor/remove/relink default an absent install_kind to "symlink" (back-compat)
+default_count=$(grep -cF '.install_kind // "symlink"' "$REPO_ROOT/scripts/skills-deploy" || true)
+if [ "$default_count" -ge 3 ]; then
+  ok "scripts/skills-deploy defaults absent install_kind to symlink in doctor/remove/relink ($default_count sites; S000079)"
+else
+  fail_test "scripts/skills-deploy back-compat default '.install_kind // \"symlink\"' present at only $default_count site(s), expected >=3 (S000079 guard)"
+fi
+
 
 # ---------- copilot-deploy.py: install → doctor → remove round-trip ----------
 # Guards against regressions in the 264-LoC Python installer. Tier 1 smoke:
