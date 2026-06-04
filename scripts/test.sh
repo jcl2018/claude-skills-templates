@@ -1164,6 +1164,25 @@ else
   fail_test "tests/cj-worktree-cleanup.test.sh failed (rc=$_cwct_rc) — run \`bash tests/cj-worktree-cleanup.test.sh\` directly to see"
 fi
 
+# Regression test (F000011 fix, Approach A): the post-merge git hook installed by
+# setup-hooks.sh must redeploy skills (Section 1) but NOT auto-edit work-item
+# trackers. The former Phase-3 lifecycle-gate block dirtied main on every
+# main-moving pull (breaking post-land-sync.sh's `pull --ff-only` and re-arming
+# cj-worktree-init.sh's dirty-checkout guard). setup-hooks.test.sh Smoke 1
+# installs into a throwaway temp repo and asserts the generated post-merge hook
+# has Section 1 but no check-gates-update / Phase-3 auto-tick. Registration is
+# MANDATORY — scripts/test.sh discovery is hand-written, NOT glob-based; an
+# unregistered tests/*.test.sh silently never runs (this file was previously
+# unregistered).
+echo ""
+echo "Running tests/setup-hooks.test.sh (post-merge hook: no tracker auto-tick after F000011 fix)..."
+if bash "$REPO_ROOT/tests/setup-hooks.test.sh" >/dev/null 2>&1; then
+  ok "tests/setup-hooks.test.sh: installed post-merge hook redeploys but no longer auto-ticks trackers (F000011 fix)"
+else
+  _shk_rc=$?
+  fail_test "tests/setup-hooks.test.sh failed (rc=$_shk_rc) — run \`bash tests/setup-hooks.test.sh\` directly to see"
+fi
+
 # Regression test (drain-one-todo worktree-init path resolution defect):
 # drain-one-todo.sh must resolve scripts/cj-worktree-init.sh via the
 # workbench-source path in ~/.claude/.skills-templates.json (.source) — the

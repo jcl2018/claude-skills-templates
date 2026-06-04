@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.19] - 2026-06-04
+
+### Fixed
+
+- **Disabled the post-merge Phase-3 lifecycle-gate auto-tick — it dirtied `main` on every pull and mis-linked PRs (D000029 / F000011).** The auto-installed post-merge git hook (source: `scripts/setup-hooks.sh`) auto-edited work-item `*_TRACKER.md` files on `main` after every pull via `scripts/check-gates-update.sh`. Two bugs: it resolved the shipping PR with `gh pr list --search <id>` (matches the ID in title OR body → mis-links during ID collisions; it once wrote a `PR #202` link into a tracker that shipped via #203), and it **left the edit uncommitted**, dirtying `main` on every main-moving pull — which broke `post-land-sync.sh`'s `git pull --ff-only`, re-armed `cj-worktree-init.sh`'s dirty-checkout guard, and polluted the next worktree's branch (it bit three times in one session). Root cause: a post-merge hook **cannot** cleanly mutate a tracked file on `main` — any edit either dirties the tree or, if committed, creates a local-ahead commit that diverges `main`. Fix (Approach A): removed the Phase-3 auto-update (Section 2) from the post-merge hook; kept Section 1 (the D000013 skills/templates re-deploy). The merged PR is the source of truth; the "merged & deployed" gate checkbox is no longer auto-ticked (mark by hand if wanted), and `check-gates-update.sh` stays as a manual operator tool. Also **registered `tests/setup-hooks.test.sh` in `scripts/test.sh`** — it had never been wired into the suite, so it never ran in CI; Smoke 0 now asserts the auto-tick is *absent* and a new Smoke 1 installs into a temp repo and verifies the generated hook keeps Section 1 but drops the Phase-3 block. After landing, re-run `scripts/setup-hooks.sh` to refresh the live `.git/hooks/post-merge`. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.18] - 2026-06-04
 
 ### Changed
