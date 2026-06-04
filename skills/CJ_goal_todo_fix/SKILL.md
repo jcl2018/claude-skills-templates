@@ -25,8 +25,17 @@ Per-TODO chain (both modes share this):
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
    → /CJ_implement-from-spec → /CJ_qa-work-item (leaf Agent subagents, halt-on-red between)
-   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark → telemetry line
+   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2 → /land-and-deploy → TODOS.md DONE-mark
+   → worktree cleanup (best-effort; cj-worktree-cleanup.sh --caller todo) → telemetry line
 ```
+
+Worktree cleanup is best-effort, post-land, and **never halts the run** — todo
+calls `cj-worktree-cleanup.sh --caller todo` directly (it does NOT route through
+`cj-goal-common.sh`, same as its create step). Single-TODO mode wires it at the
+agent-layer terminal (after `/land-and-deploy` + DONE-mark, see Routing below);
+drain mode wires it at `drain-one-todo.sh`'s per-iteration terminal. The
+just-shipped TODO's own `cj-todo-*` worktree (PR now MERGED) is swept along with
+other landed cj-* worktrees; the root checkout is refreshed.
 
 The T-task scaffold runs in pure bash (`todo_fix.sh:608-693` — ID picker +
 `tracker-task.md` template), so the dispatched chain is exactly
@@ -195,6 +204,39 @@ there). The script reads the current repo's `TODOS.md`, `work-items/`, and
 writes to the same. Workbench developers iterating on the script must
 `./scripts/skills-deploy install` to sync changes (the existing convention)
 or invoke `bash skills/CJ_goal_todo_fix/scripts/todo_fix.sh` directly while testing.
+
+### Agent-layer terminal: worktree cleanup (best-effort, post-land; NEVER halts)
+
+After the orchestrator consumes the `CJ_GOAL_HANDOFF` block and drives the chain
+to completion — `/CJ_implement-from-spec` → `/CJ_qa-work-item` → `/CJ_document-release`
+→ `/ship` → `/land-and-deploy` → the `TODOS.md` DONE-mark — it runs the post-run
+worktree janitor (T000036). This is the teardown mirror of the single-TODO
+worktree-create preamble above. **todo does NOT route through `cj-goal-common.sh`**
+(it already calls `cj-worktree-init.sh` directly at create time), so it calls
+`cj-worktree-cleanup.sh --caller todo` **directly** — same convention as its
+create step. Resolve the helper via the manifest `.source` (the same probe the
+single-TODO worktree preamble uses), then:
+
+```bash
+# Agent-layer terminal — AFTER /land-and-deploy + TODOS.md DONE-mark, NOT inside
+# todo_fix.sh (which only emits a handoff + exits 0 before land happens).
+_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_CLEAN=""
+if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-cleanup.sh" ]; then
+  _CLEAN="$_S/scripts/cj-worktree-cleanup.sh"
+elif [ -x "$(git rev-parse --show-toplevel 2>/dev/null)/scripts/cj-worktree-cleanup.sh" ]; then
+  _CLEAN="$(git rev-parse --show-toplevel)/scripts/cj-worktree-cleanup.sh"
+fi
+[ -n "$_CLEAN" ] && bash "$_CLEAN" --caller todo 2>/dev/null || true
+```
+
+The just-shipped TODO's own `cj-todo-*` worktree is swept too (its PR is MERGED),
+along with any other MERGED/CLOSED cj-* worktrees; the root checkout is refreshed.
+Cleanup is strictly best-effort: a failed sweep is ignored and the run still
+reports `green`. It runs only AFTER the PR is safely landed, so it can never
+endanger shipped work. This is the single-TODO-mode seam; drain mode wires the
+same `cj-worktree-cleanup.sh --caller todo` call at `drain-one-todo.sh`'s
+per-iteration terminal instead.
 
 ## Halt classes / end states
 
