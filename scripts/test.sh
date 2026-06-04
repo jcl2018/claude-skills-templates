@@ -1866,6 +1866,47 @@ else
 fi
 set -e
 
+# ---------- T000040: doc/WORKFLOWS.md Touches blocks carry all 4 anchored bullets ----------
+# STANDALONE hermetic smoke check (mirrors the F000045/S000081 + T000038/T000039
+# blocks). The granular-enumeration rule (T000040) requires each CJ_goal_* section
+# to enumerate ALL skills/steps/tools/shell via a 4-bullet Touches block — Skills
+# dispatched / Steps · phases / Scripts · tools · shell / Docs touched. validate.sh
+# Check 15b structurally enforces it on every CJ_goal_* catalog entry; this smoke
+# check is a redundant standalone guard asserting the 3 REAL sections in
+# doc/WORKFLOWS.md carry all 4 anchored bullets (`^- \*\*Skills` / `^- \*\*Steps` /
+# `^- \*\*Scripts` / `^- \*\*Docs`). Patterns are LINE-ANCHORED on the bullet shape,
+# NOT bare substrings (a bare `Steps` would false-match a chart node like `Step 5.5`).
+# The zzz-test-scaffold fixture is non-CJ_goal_* and is NOT touched — Check 15b's
+# loop is `select(.name | startswith("CJ_goal_"))`, so the sub-check never iterates it.
+echo ""
+echo "Checking T000040 doc/WORKFLOWS.md Touches blocks (4 anchored bullets per CJ_goal_* section)..."
+_T40_WF="$REPO_ROOT/doc/WORKFLOWS.md"
+set +e
+if [ ! -f "$_T40_WF" ]; then
+  fail_test "T000040: doc/WORKFLOWS.md not found at $_T40_WF"
+else
+  for _t40_skill in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix; do
+    # Extract the section body (between `### <name>` and the next `^### `), same
+    # flag-based awk shape validate.sh Check 15b uses.
+    _t40_section=$(awk -v skill="$_t40_skill" '
+      $0 == "### " skill {flag=1; next}
+      /^### / {flag=0}
+      flag {print}
+    ' "$_T40_WF")
+    _t40_missing=""
+    echo "$_t40_section" | grep -qE '^- \*\*Skills'  || _t40_missing="$_t40_missing Skills"
+    echo "$_t40_section" | grep -qE '^- \*\*Steps'   || _t40_missing="$_t40_missing Steps"
+    echo "$_t40_section" | grep -qE '^- \*\*Scripts' || _t40_missing="$_t40_missing Scripts"
+    echo "$_t40_section" | grep -qE '^- \*\*Docs'    || _t40_missing="$_t40_missing Docs"
+    if [ -z "$_t40_missing" ]; then
+      ok "T000040: doc/WORKFLOWS.md section '$_t40_skill' Touches block has all 4 anchored bullets (Skills/Steps/Scripts/Docs)"
+    else
+      fail_test "T000040: doc/WORKFLOWS.md section '$_t40_skill' Touches block missing anchored bullet(s):$_t40_missing"
+    fi
+  done
+fi
+set -e
+
 # Summary
 echo ""
 echo "=== Test Summary ==="

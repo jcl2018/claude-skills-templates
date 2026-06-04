@@ -673,6 +673,32 @@ if [ -f "$CATALOG_FILE" ]; then
     else
       echo "  PASS: $CATALOG_FILE has section for $SKILL_NAME"
     fi
+    # 15b-touches (T000040): the **Touches** block MUST carry all four canonical
+    # bullets — Skills dispatched / Steps · phases / Scripts · tools · shell /
+    # Docs touched — at the granular helper + named-step level. Patterns are
+    # LINE-ANCHORED on the bullet shape (`^- \*\*<dim>`), NOT bare substrings:
+    # SECTION above is the WHOLE section body (chart + prose + Touches), so a bare
+    # `Steps` would false-match a chart node (`Step 5.5`) or an Invoke-when
+    # sentence and pass a section with NO Touches bullet, defeating the check. The
+    # anchored bullet line is the deterministic structural guarantee; completeness
+    # WITHIN each bullet stays agent-judged (CJ_document-release Step 6.7 audit +
+    # the doc/WORKFLOWS.md `requirement:` in the CLAUDE.md tracked-doc manifest).
+    if ! echo "$SECTION" | grep -qE '^- \*\*Skills'; then
+      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Skills dispatched' bullet (expected a line matching '^- **Skills')"
+      ERRORS=$((ERRORS+1))
+    fi
+    if ! echo "$SECTION" | grep -qE '^- \*\*Steps'; then
+      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Steps · phases' bullet (expected a line matching '^- **Steps')"
+      ERRORS=$((ERRORS+1))
+    fi
+    if ! echo "$SECTION" | grep -qE '^- \*\*Scripts'; then
+      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Scripts · tools · shell' bullet (expected a line matching '^- **Scripts')"
+      ERRORS=$((ERRORS+1))
+    fi
+    if ! echo "$SECTION" | grep -qE '^- \*\*Docs'; then
+      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Docs touched' bullet (expected a line matching '^- **Docs')"
+      ERRORS=$((ERRORS+1))
+    fi
   done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
 fi
 

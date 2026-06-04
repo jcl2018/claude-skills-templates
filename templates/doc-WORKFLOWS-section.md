@@ -61,9 +61,18 @@
 **Touches:**
 
 - **Skills dispatched:** {the skills this workflow invokes, in order — e.g. /office-hours, /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item, /CJ_document-release (Step 5.5), /ship[, /land-and-deploy]. Note any that run as leaf subagents vs inline, and /CJ_personal-workflow running transitively at boundaries.}
-- **Scripts / tools:** {the helper scripts + tools it consumes — e.g. scripts/cj-goal-common.sh (--phase …, --mode …), scripts/cj-worktree-init.sh (--caller …), scripts/cj-worktree-cleanup.sh, scripts/check-version-queue.sh.}
-- **Docs it updates:** {what the Step 5.5 /CJ_document-release pass folds into the PR — typically README.md, CHANGELOG.md, CLAUDE.md, and doc/** / templates/doc-* per the cj-document-release.json whitelist. Note any workflow-specific doc writes, e.g. the TODOS.md DONE-mark for CJ_goal_todo_fix.}
+- **Steps · phases:** {the named pipeline steps + cj-goal-common.sh phases in order — e.g. --phase sync (pre-build skills-sync) → --phase worktree + Fork-1 base-freshness → isolation gate (--assert-isolated) → office-hours/design-gate → scaffold/implement/qa → doc-sync (Step 5.5) → /ship → registered-doc verdicts (Step 4.6/5.6/9.5) → terminal (STOP at PR / land-and-deploy) → worktree-cleanup (--phase cleanup) → telemetry. This bullet is the enforceable completeness anchor — enumerate the worktree-init … teardown lifecycle, not just the skills.}
+- **Scripts · tools · shell:** {the named helper scripts + tools it consumes — e.g. scripts/cj-goal-common.sh (--phase sync / worktree / pr-check / cleanup / telemetry, --mode …), scripts/cj-worktree-init.sh (--caller …, Fork-1 base-freshness + --assert-isolated), scripts/cj-worktree-cleanup.sh, scripts/check-version-queue.sh. NAMED helpers only — NOT raw git/gh, and NOT post-land-sync.sh (it is the internal core --phase sync reuses + a manual operator step, not an orchestrator step).}
+- **Docs touched:** {what the Step 5.5 /CJ_document-release pass folds into the PR — typically README.md, CHANGELOG.md, CLAUDE.md, and doc/** / templates/doc-* per the cj-document-release.json whitelist. Note any workflow-specific doc writes, e.g. the TODOS.md DONE-mark for CJ_goal_todo_fix.}
 
 <!-- The Touches block is prose (human-readable), not a machine-parseable
      manifest. It answers "what does this workflow touch / what is its blast
-     radius?" at a glance. Keep it to the three bullets above. -->
+     radius?" at a glance. ALL FOUR bullets are REQUIRED (Skills dispatched /
+     Steps · phases / Scripts · tools · shell / Docs touched) — enumerate to the
+     named-helper + named-step level (worktree init/teardown, --phase sync,
+     isolation gate, check-version-queue, the verdict-surfacing producers). The
+     four bullets are STRUCTURALLY enforced by validate.sh Check 15b (each must
+     match `^- \*\*Skills` / `^- \*\*Steps` / `^- \*\*Scripts` / `^- \*\*Docs`);
+     completeness within each bullet is agent-judged (Step 6.7 registered-doc
+     audit). Granularity ceiling: named helpers + steps only, NOT raw git/gh,
+     NOT post-land-sync.sh. -->
