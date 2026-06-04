@@ -39,11 +39,14 @@ The CJ_ skill family in this workbench is fronted by two intent-named verbs:
 (/CJ_personal-workflow), per-phase skills (/CJ_scaffold-work-item,
 /CJ_implement-from-spec, /CJ_qa-work-item, /CJ_document-release) that the
 orchestrators dispatch as leaf subagents, and standalone utilities
-(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix, /CJ_repo-init). /CJ_goal_todo_fix bridges
+(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix, /CJ_repo-init, /CJ_portability-audit). /CJ_goal_todo_fix bridges
 TODOS.md rows to the shipping pipeline in one keystroke — see
 `skills/CJ_goal_todo_fix/SKILL.md`.
 /CJ_repo-init verifies/scaffolds the per-repo prerequisites (cj-document-release.json,
 CJ-DOC-RELEASE.md, TODOS.md, work-items/) that the CJ_ family needs to run in a given repo.
+/CJ_portability-audit (F000047) is the producer-side mirror of /CJ_repo-init — a static
+lint that checks each catalog skill's declared `portability` against its actual
+repo-local dependencies (wired into `validate.sh` as advisory Check 18).
 /CJ_document-release (F000036) is the inline doc-sync wrapper invoked at
 Step 5.5 of every cj_goal orchestrator (between QA pass and `/ship`) — folds
 doc updates into the same code PR rather than chasing them post-merge.

@@ -276,6 +276,106 @@ Operator-invoked directly; not part of a chain.
 - **Scripts · tools · shell:** Bash / Read / Write; AskUserQuestion (the one scaffold confirm).
 - **Reads / writes:** reads the target repo root + `skills-catalog.json`; on confirm writes the missing per-repo prerequisites (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`, `work-items/` tree) from portable seeds.
 
+#### CJ_portability-audit
+
+**Status:** experimental
+**Source:** `skills/CJ_portability-audit/SKILL.md` · `skills/CJ_portability-audit/USAGE.md` · engine `scripts/cj-portability-audit.sh`
+**Invoke when:** you want to verify the workbench's own skills HONESTLY declare their `portability` — the producer-side mirror of `/CJ_repo-init`. A static lint over the catalog that flags a skill declaring `standalone` while it *executes* a repo-local workbench helper a fresh target repo won't have; read-only and advisory (also wired into `validate.sh` as Check 18). The full correct-behavior spec — the strict tier ladder, the EXECUTED-vs-documented rule, the carve-outs, and the expected-findings table — is in the `## Utility audits` → `### /CJ_portability-audit` section just below.
+**Touches:**
+
+- **Scripts · tools · shell:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the manifest `.source`); Bash / Read / Grep. Also invoked by `scripts/validate.sh` Check 18.
+- **Reads / writes:** reads `skills-catalog.json` (+ optional `portability_requires`) + each audited skill's files; read-only — prints the per-skill verdict table, mutates nothing.
+
+## Utility audits
+
+### /CJ_portability-audit
+
+**Status:** experimental (F000047 Story 1 / S000083; the static-lint Layer 1)
+**Source:** `skills/CJ_portability-audit/SKILL.md` · `skills/CJ_portability-audit/USAGE.md` · engine `scripts/cj-portability-audit.sh`
+
+**Invoke when:** you want to verify the workbench's own skills HONESTLY declare their `portability` — i.e. whether a skill declared `standalone` quietly reaches for repo-local artifacts a fresh target repo will not have. The **producer-side** counterpart to `/CJ_repo-init`'s consumer-side prereq check. Not part of a `cj_goal` chain — a single-step utility (this section documents its correct behavior verbatim per the F000047 design D4, operator-requested; it is NOT a `CJ_goal_*` orchestrator, so `validate.sh` Check 15b neither requires nor rejects it).
+
+> This is the authoritative **correct-behavior spec** for the engine: the tier ladder, the EXECUTED-vs-documented rule, the carve-outs, and the expected-findings table. The operator reads this to confirm the implementation (`scripts/cj-portability-audit.sh`) matches the intended behavior. The same contract is mirrored in the skill's `SKILL.md`.
+
+**Workflow:**
+
+```
+skills-catalog.json (+ optional portability_requires per entry)
+   │  jq: status != "deprecated"  &&  (files | length) > 0   (runtime-derived; NO hardcoded count)
+   ▼
+for each audited skill:
+   │   collect files = catalog files[] + skill-dir *.md + skill-dir scripts/*.sh
+   ▼
+classify each repo-local dependency reference:
+   │   EXECUTED   = runnable position — bash "$X" / source "$X" / [ -f "$X" ] / [ -x "$X" ]
+   │               inside a ```bash fence OR a .sh engine script
+   │   DOCUMENTED = prose / table / comment mention
+   │   (root scripts/*.sh helper set is GLOBBED at runtime — never hardcoded;
+   │    only the root-config set + the GitHub slug are literals)
+   ▼
+apply carve-outs:
+   │   bundled-own-script:        scripts/*.sh under skills/<name>/scripts/ → OK (never a finding)
+   │   self-resolution preamble:  .source / root-script engine-locate reach-back →
+   │                              OK-with-note for workbench|local-only; FINDING for standalone
+   │   portability_requires:      a listed (adjudicated) dep → OK; a stale listed dep → note
+   ▼
+classify each EXECUTED hit (and, for standalone, a root-helper path named in the
+contract) against the STRICT tier ladder:
+   │   standalone  ⊂  local-only  ⊂  workbench
+   │   dep within declared tier → OK; dep exceeding it → FINDING
+   ▼
+per-skill verdict:  portable  /  portable-with-notes  /  findings:<list>
+   │   finding text: "<skill> declared <tier> but depends on <dep> (needs <higher-tier>)"
+   ▼
+two surfaces share the engine:
+   ├──►  /CJ_portability-audit skill          → rich per-skill verdict table
+   └──►  validate.sh Check 18 (advisory)      → prints findings, EXITS 0 in v1
+                                                (PORTABILITY_STRICT=1 → hard-fail)
+```
+
+**Strict tier ladder (each tier's ALLOWED dependency set; the bar is "works in a repo that has never seen this workbench"):**
+
+| Tier | ALLOWED | A dep beyond this is a FINDING |
+|---|---|---|
+| `standalone` | own bundled scripts (`skills/<name>/scripts/`) + repo-init prereqs (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`, `work-items/`) | root `scripts/*.sh`, `.source` reach-back, `CLAUDE.md` reads, root config, the GitHub slug |
+| `local-only` | standalone's set PLUS the user's `~/.claude` deployed state | root workbench helpers, `.source` reach-back, root config |
+| `workbench` | everything PLUS root `scripts/*.sh`, `.source` reach-back, `CLAUDE.md` reads, root config | (nothing — this is the tier for skills that operate ON the workbench) |
+
+An unknown `portability` value (not in the closed enum `{standalone, local-only, workbench}`) is itself a finding.
+
+**Expected v1 findings (raw `--no-adjudication` view, BEFORE the `portability_requires` pre-seed):**
+
+The precise EXECUTED-vs-documented rule flags exactly the skills that **execute** a ROOT workbench helper (or, for `CJ_repo-init`, engine-locate its own ROOT engine via the self-resolution preamble) — 5 skills:
+
+| Skill | Declared | EXECUTED repo-local dep | Verdict |
+|---|---|---|---|
+| `CJ_goal_feature` | `standalone` | `scripts/cj-goal-common.sh`, `scripts/cj-worktree-init.sh`, `CLAUDE.md` | **FINDING** (should be `workbench`) — the D4 headline (mislabeled orchestrator) |
+| `CJ_goal_defect` | `standalone` | `scripts/cj-goal-common.sh`, `scripts/cj-worktree-init.sh`, `CLAUDE.md` | **FINDING** (mislabeled orchestrator) |
+| `CJ_goal_todo_fix` | `standalone` | `scripts/cj-goal-common.sh`, `scripts/cj-worktree-init.sh`, `scripts/cj-worktree-cleanup.sh` | **FINDING** (mislabeled orchestrator) |
+| `CJ_personal-workflow` | `standalone` | `scripts/check-gates-update.sh` (executed inside a ```bash fence at Step 13.5) | **FINDING** (genuinely workbench-coupled) |
+| `CJ_repo-init` | `standalone` | `scripts/cj-repo-init.sh` (self-resolution preamble to its own ROOT engine) | **FINDING** (self-resolution-preamble class — standalone reach-back) |
+
+**Correctly NOT flagged (the EXECUTED-vs-documented precision rule at work — AC-2):**
+
+| Skill | Declared | Why NOT a finding |
+|---|---|---|
+| `CJ_qa-work-item` | `standalone` | references `scripts/test.sh` ONLY as a prose citation (`"see scripts/test.sh:42"`); it executes the per-work-item test-plan `Script/Command` column, NOT a hardcoded root helper → **DOCUMENTED**, not executed → not a finding. (The F000047 design's loose-grep evidence over-counted this; the precise rule is more accurate.) |
+| `CJ_implement-from-spec` | `standalone` | references `scripts/validate.sh`/`test.sh`/`test-deploy.sh` ONLY in its sensitive-surface PATH-PATTERN list (backticked prose it scans FOR) → **DOCUMENTED**, not executed → not a finding |
+| `CJ_document-release` | `workbench` | root scripts + `.source` + `CLAUDE.md` — all within-tier → **OK** (`portable-with-notes`) |
+| `CJ_suggest` | `local-only` | `~/.claude` deployed state + own bundled `scripts/suggest.sh` → **OK** |
+| `CJ_system-health`, `CJ_scaffold-work-item`, `CJ_improve-queue` | `standalone` | only the passive `.source` update-nudge (a fail-soft `\|\| true` nudge reaching the non-`.sh` `skills-update-check`), no executed ROOT `.sh` → **OK** (`portable`) |
+| `CJ_portability-audit` | `workbench` | its own ROOT engine via `.source` (within-tier) → **OK** (`portable-with-notes`) |
+
+The audit does NOT auto-fix. The operator resolves each finding either by an **honest relabel** of the skill's `portability` (the candid fix for the orchestrators — they genuinely need the workbench) OR by **adjudicating** the dep via the optional `portability_requires` accepted-deps catalog field. v1 **pre-seeds** `portability_requires` for the 5 flagged skills so the default (adjudicated) run + `validate.sh` Check 18 land **green-by-adjudication**, with each accepted dep visible + auditable in the catalog — while `--no-adjudication` still shows the reasoning above (proving the audit is non-no-op).
+
+**Posture:** ADVISORY in v1 — `validate.sh` Check 18 prints findings and **exits 0**; the engine itself exits 0 in default mode. `PORTABILITY_STRICT=1` flips Check 18 (and the engine's exit code) to hard-fail — the documented Story-2 follow-up, once the workbench's declarations are fully reconciled.
+
+**Touches:**
+
+- **Skills dispatched:** none (a single-step utility; no chain).
+- **Scripts / tools:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the manifest `.source`), invoked by the skill AND by `scripts/validate.sh` Check 18. Layer 2 (`scripts/eval.sh --portability`) is a single `CJ_suggest` proof-of-life case in v1.
+- **Docs it updates:** none — read-only. (Resolving a finding is a separate operator edit to `skills-catalog.json`.)
+
 ## See also
 
 - [`doc/PHILOSOPHY.md`](PHILOSOPHY.md) — workbench-level overview + the routing **decision tree** (which skill to pick for a given intent). Read this when you know what you want to do but aren't sure which skill to invoke; read this file (WORKFLOWS.md) when you want to understand the shape and blast radius of a `cj_goal` workflow end-to-end.

@@ -1906,6 +1906,175 @@ else
   done
 fi
 set -e
+# ---------- F000047 / S000083: portability-audit engine integration fixture ----------
+# THE PARALLEL test.sh EDIT every new validate.sh check needs (the systematically-
+# forgotten step — F000032/F000034/F000035 all hit it; pre-flighted here). Check 18
+# (scripts/validate.sh) runs the shared static-lint engine scripts/cj-portability-audit.sh;
+# this block is its regression fixture. HERMETIC: builds a SYNTHETIC catalog + skill
+# tree in a throwaway tmpdir and runs the engine via --catalog against it — it never
+# touches the real skills-catalog.json. Asserts the load-bearing classifier behaviors
+# (TEST-SPEC S2 + S8): a standalone skill EXECUTING a root helper -> FINDING; a
+# DOCUMENTED-only mention -> NOT a finding; a bundled-own script -> OK; a
+# portability_requires-adjudicated dep -> OK; a stale portability_requires entry -> note.
+echo ""
+echo "Integration test (F000047 / S000083): cj-portability-audit.sh engine fixture..."
+_PA_ENGINE="$REPO_ROOT/scripts/cj-portability-audit.sh"
+if [ ! -f "$_PA_ENGINE" ]; then
+  fail_test "S000083: scripts/cj-portability-audit.sh missing (the portability-audit engine)"
+else
+  _PA_TMP=$(mktemp -d -t test-sh-portability-XXXXXX)
+  # Synthetic repo: a scripts/ with a ROOT helper, plus 4 synthetic skills.
+  mkdir -p "$_PA_TMP/scripts"
+  printf '#!/usr/bin/env bash\necho hi\n' > "$_PA_TMP/scripts/zzz-root-helper.sh"
+  chmod +x "$_PA_TMP/scripts/zzz-root-helper.sh"
+
+  # Skill A: standalone, EXECUTES the root helper inside a ```bash fence -> FINDING.
+  mkdir -p "$_PA_TMP/skills/zzz-exec-standalone"
+  cat > "$_PA_TMP/skills/zzz-exec-standalone/SKILL.md" <<'PASK'
+---
+name: zzz-exec-standalone
+description: "fixture — standalone skill that executes a root helper."
+---
+Run the helper:
+```bash
+bash "$REPO_ROOT/scripts/zzz-root-helper.sh"
+```
+PASK
+
+  # Skill B: standalone, only DOCUMENTS the root helper in prose -> NOT a finding.
+  mkdir -p "$_PA_TMP/skills/zzz-doc-standalone"
+  cat > "$_PA_TMP/skills/zzz-doc-standalone/SKILL.md" <<'PASK'
+---
+name: zzz-doc-standalone
+description: "fixture — standalone skill that only mentions a root helper in prose."
+---
+This skill is related to the scripts/zzz-root-helper.sh tooling but never runs it.
+PASK
+
+  # Skill C: standalone, references a BUNDLED-OWN script (under its own dir) -> OK.
+  mkdir -p "$_PA_TMP/skills/zzz-bundled-standalone/scripts"
+  printf '#!/usr/bin/env bash\necho own\n' > "$_PA_TMP/skills/zzz-bundled-standalone/scripts/own.sh"
+  cat > "$_PA_TMP/skills/zzz-bundled-standalone/SKILL.md" <<'PASK'
+---
+name: zzz-bundled-standalone
+description: "fixture — standalone skill that executes its OWN bundled script."
+---
+Run my own script:
+```bash
+bash "$HOME/.claude/skills/zzz-bundled-standalone/scripts/own.sh"
+```
+PASK
+
+  # Skill D: standalone, EXECUTES the root helper BUT adjudicated via
+  # portability_requires (+ one stale entry) -> OK with a stale note.
+  mkdir -p "$_PA_TMP/skills/zzz-adjudicated-standalone"
+  cat > "$_PA_TMP/skills/zzz-adjudicated-standalone/SKILL.md" <<'PASK'
+---
+name: zzz-adjudicated-standalone
+description: "fixture — standalone skill whose root-helper dep is adjudicated."
+---
+Run the helper:
+```bash
+bash "$REPO_ROOT/scripts/zzz-root-helper.sh"
+```
+PASK
+
+  cat > "$_PA_TMP/skills-catalog.json" <<'PCAT'
+[
+  {"name":"zzz-exec-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-exec-standalone/SKILL.md"],"templates":[],"status":"experimental"},
+  {"name":"zzz-doc-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-doc-standalone/SKILL.md"],"templates":[],"status":"experimental"},
+  {"name":"zzz-bundled-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-bundled-standalone/SKILL.md"],"templates":[],"status":"experimental"},
+  {"name":"zzz-adjudicated-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-adjudicated-standalone/SKILL.md"],"templates":[],"portability_requires":["scripts/zzz-root-helper.sh","scripts/zzz-stale-no-longer-referenced.sh"],"status":"experimental"}
+]
+PCAT
+
+  # Run the engine against the synthetic catalog (raw — no adjudication).
+  _PA_RAW=$(bash "$_PA_ENGINE" --catalog "$_PA_TMP/skills-catalog.json" --no-adjudication 2>&1)
+  # Run again WITH adjudication (default mode honors portability_requires).
+  _PA_ADJ=$(bash "$_PA_ENGINE" --catalog "$_PA_TMP/skills-catalog.json" 2>&1)
+
+  # (a) standalone EXECUTING the root helper -> FINDING naming the dep.
+  if printf '%s\n' "$_PA_RAW" | grep -qE 'zzz-exec-standalone.*findings.*zzz-root-helper\.sh'; then
+    ok "S000083a: standalone skill executing a root helper yields a FINDING naming the dep"
+  else
+    fail_test "S000083a: expected a finding for zzz-exec-standalone -> scripts/zzz-root-helper.sh; got: $(printf '%s' "$_PA_RAW" | grep zzz-exec-standalone)"
+  fi
+
+  # (b) standalone only DOCUMENTING the helper -> NOT a finding (portable*).
+  if printf '%s\n' "$_PA_RAW" | grep -E 'zzz-doc-standalone' | grep -qv 'findings'; then
+    ok "S000083b: standalone skill only documenting a root helper is NOT a finding (EXECUTED-vs-documented precision)"
+  else
+    fail_test "S000083b: zzz-doc-standalone should be portable (documented-only), but got a finding: $(printf '%s' "$_PA_RAW" | grep zzz-doc-standalone)"
+  fi
+
+  # (c) bundled-own-script carve-out -> OK (no finding).
+  if printf '%s\n' "$_PA_RAW" | grep -E 'zzz-bundled-standalone' | grep -qv 'findings'; then
+    ok "S000083c: standalone skill executing its OWN bundled script is OK (bundled-own carve-out)"
+  else
+    fail_test "S000083c: zzz-bundled-standalone should be OK (own script), but got a finding: $(printf '%s' "$_PA_RAW" | grep zzz-bundled-standalone)"
+  fi
+
+  # (d) portability_requires adjudication -> OK in default mode.
+  if printf '%s\n' "$_PA_ADJ" | grep -E 'zzz-adjudicated-standalone' | grep -qv 'findings'; then
+    ok "S000083d: a portability_requires-adjudicated dep is OK in default (adjudicated) mode"
+  else
+    fail_test "S000083d: zzz-adjudicated-standalone should be OK after adjudication, but got a finding: $(printf '%s' "$_PA_ADJ" | grep zzz-adjudicated-standalone)"
+  fi
+
+  # (e) the SAME skill IS a finding in --no-adjudication mode (proves adjudication is what flips it).
+  if printf '%s\n' "$_PA_RAW" | grep -qE 'zzz-adjudicated-standalone.*findings'; then
+    ok "S000083e: the adjudicated skill is a FINDING in --no-adjudication mode (adjudication is load-bearing)"
+  else
+    fail_test "S000083e: zzz-adjudicated-standalone should be a finding raw (pre-adjudication); got: $(printf '%s' "$_PA_RAW" | grep zzz-adjudicated-standalone)"
+  fi
+
+  # (f) stale portability_requires entry -> informational note, never a finding.
+  if printf '%s\n' "$_PA_ADJ" | grep -qF "portability_requires entry 'scripts/zzz-stale-no-longer-referenced.sh' no longer referenced"; then
+    ok "S000083f: a stale portability_requires entry surfaces as an informational note (not a finding)"
+  else
+    fail_test "S000083f: expected a stale-entry note for scripts/zzz-stale-no-longer-referenced.sh; adj output: $_PA_ADJ"
+  fi
+
+  rm -rf "$_PA_TMP"
+fi
+
+# (g) The advisory check is WIRED into validate.sh (Check 18) — proves the
+# parallel validate.sh edit exists and its output is visible (TEST-SPEC S2/S3:
+# `bash scripts/test.sh ... | grep -q 'portability'`). Capture-then-grep (not a
+# pipe in the `if`) so `set -e` + validate.sh's own exit code can't mask the
+# match, and the captured output is inspectable on failure.
+set +e
+_S83G_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1)
+set -e
+if printf '%s\n' "$_S83G_OUT" | grep -qiE 'Check 18: skill portability audit'; then
+  ok "S000083g: validate.sh runs the portability audit as Check 18 (advisory check wired)"
+else
+  fail_test "S000083g: validate.sh is missing the 'Check 18: skill portability audit' advisory check (the parallel validate.sh edit)"
+fi
+
+# (h) PORTABILITY_STRICT=1 flips the engine's exit code to non-zero when findings
+# remain (the documented future hard-fail path). Use the synthetic raw-finding set.
+_PA_TMP2=$(mktemp -d -t test-sh-portability2-XXXXXX)
+mkdir -p "$_PA_TMP2/scripts" "$_PA_TMP2/skills/zzz-strict"
+printf '#!/usr/bin/env bash\necho hi\n' > "$_PA_TMP2/scripts/zzz-root-helper.sh"
+cat > "$_PA_TMP2/skills/zzz-strict/SKILL.md" <<'PASK'
+---
+name: zzz-strict
+description: "fixture."
+---
+```bash
+bash "$REPO_ROOT/scripts/zzz-root-helper.sh"
+```
+PASK
+cat > "$_PA_TMP2/skills-catalog.json" <<'PCAT'
+[{"name":"zzz-strict","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-strict/SKILL.md"],"templates":[],"status":"experimental"}]
+PCAT
+if PORTABILITY_STRICT=1 bash "$_PA_ENGINE" --catalog "$_PA_TMP2/skills-catalog.json" >/dev/null 2>&1; then
+  fail_test "S000083h: PORTABILITY_STRICT=1 should exit non-zero with an unresolved finding, but exited 0"
+else
+  ok "S000083h: PORTABILITY_STRICT=1 flips the engine exit code to non-zero on an unresolved finding (hard-fail path)"
+fi
+rm -rf "$_PA_TMP2"
 
 # Summary
 echo ""

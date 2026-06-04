@@ -9,6 +9,7 @@
 #   bash scripts/eval.sh                              # all skills, all cases
 #   bash scripts/eval.sh CJ_personal-workflow            # all cases for one skill
 #   bash scripts/eval.sh CJ_personal-workflow case-name  # single case
+#   bash scripts/eval.sh --portability                   # Layer-2 portability eval (F000047)
 #
 # Exit 0 = all cases pass. Exit 1 = at least one case failed.
 #
@@ -21,6 +22,18 @@ set -euo pipefail
 EVAL_ROOT="$REPO_ROOT/tests/eval"
 WORKBENCH_SKILLS="$REPO_ROOT/skills"
 WORKBENCH_TEMPLATES="$REPO_ROOT/templates"
+
+# ---- Layer-2 portability eval mode (F000047 / S000083) -----------------------
+# A SEPARATE mode (not part of the per-case discovery flow): drive ONE leaf skill
+# (CJ_suggest — pure-output, local-only, no AUQ) via `claude --print` against a
+# STRIPPED, .source-neutralized scratch repo to prove it degrades gracefully when
+# the workbench is absent. This is the v1 proof-of-life that the --portability
+# mode + the fixture-prep helper EXIST; broad coverage across runnable skills +
+# nightly CI is deferred to Story 2 (it re-imports the parked eval-harness
+# cost/flake — D000023). Opt-in only; NEVER per-PR.
+if [ "${1:-}" = "--portability" ]; then
+  exec bash "$EVAL_ROOT/lib/run-portability-case.sh" "$REPO_ROOT" "${2:-CJ_suggest}"
+fi
 
 skill_filter="${1:-}"
 case_filter="${2:-}"

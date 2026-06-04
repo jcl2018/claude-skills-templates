@@ -792,6 +792,45 @@ done
 N_ALLOW=$(echo "$ALLOWED_ROOT_MD" | grep -c . || true)
 [ "$N_ALLOW" -gt 0 ] && echo "  PASS: root *.md allowlist parsed ($N_ALLOW entries)"
 
+# Check 18: portability audit (F000047 / S000083) — ADVISORY.
+# Runs the shared static-lint engine (scripts/cj-portability-audit.sh) over the
+# catalog-derived skill set and prints its per-skill verdict table. The engine
+# compares each skill's declared `portability` against its ACTUAL executed
+# repo-local dependencies (strict tier ladder; EXECUTED-vs-documented precision;
+# bundled-own + scoped self-resolution-preamble carve-outs; `portability_requires`
+# adjudication). v1 posture is ADVISORY: findings print but do NOT fail validate
+# (the workbench has real declared-vs-actual mismatches today, adjudicated green
+# via pre-seeded `portability_requires`). Setting PORTABILITY_STRICT=1 flips it to
+# a hard gate (findings -> ERROR) — the documented Story-2 follow-up once the
+# declarations are fully reconciled. The engine itself always exits 0 in default
+# mode; this check inspects its FINDINGS=<n> tail.
+echo ""
+echo "=== Check 18: skill portability audit (advisory) ==="
+PA_ENGINE="$REPO_ROOT/scripts/cj-portability-audit.sh"
+if [ ! -x "$PA_ENGINE" ] && [ ! -f "$PA_ENGINE" ]; then
+  echo "  SKIP: scripts/cj-portability-audit.sh not found (engine absent)"
+else
+  PA_OUT=$(bash "$PA_ENGINE" 2>&1) || true
+  # Echo the engine's table verbatim, indented, so findings are visible in the run.
+  while IFS= read -r _pa_line; do
+    echo "  $_pa_line"
+  done <<PA_TABLE
+$PA_OUT
+PA_TABLE
+  PA_FINDINGS=$(printf '%s\n' "$PA_OUT" | sed -n 's/^FINDINGS=\([0-9][0-9]*\)$/\1/p' | head -1)
+  PA_FINDINGS=${PA_FINDINGS:-0}
+  if [ "$PA_FINDINGS" -gt 0 ]; then
+    if [ "${PORTABILITY_STRICT:-0}" = "1" ]; then
+      echo "  ERROR: $PA_FINDINGS skill(s) have unresolved portability findings (PORTABILITY_STRICT=1)"
+      ERRORS=$((ERRORS+1))
+    else
+      echo "  ADVISORY: $PA_FINDINGS skill(s) have portability findings (advisory in v1; set PORTABILITY_STRICT=1 to hard-fail). Resolve by relabeling the skill's portability or adding the dep to its portability_requires."
+    fi
+  else
+    echo "  PASS: portability audit clean ($PA_FINDINGS findings after adjudication)"
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="
