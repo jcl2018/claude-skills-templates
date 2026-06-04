@@ -15,7 +15,10 @@
 #      Mental model / Common pitfalls / Related skills)
 #   8. skills-catalog.json contains CJ_document-release entry with
 #      status=experimental + portability=workbench
-#   9. doc/SKILL-CATALOG.md has the `### CJ_document-release` section
+#   9. doc/ARCHITECTURE.md component roster has the **CJ_document-release** entry
+#      (T000037: the skill moved from the retired per-skill catalog doc's
+#      phase-step section to the ARCHITECTURE non-workflow roster — only
+#      CJ_goal_* orchestrators get a doc/WORKFLOWS.md section now)
 #  10. `[doc-sync-red]` halt-marker grep returns ≥1 in SKILL.md
 #  11. `[doc-sync-non-doc-write]` halt-marker grep returns ≥1 in SKILL.md
 #  12. Branch refusal prose grep returns ≥1 in SKILL.md
@@ -36,7 +39,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SKILL_MD="$REPO_ROOT/skills/CJ_document-release/SKILL.md"
 USAGE_MD="$REPO_ROOT/skills/CJ_document-release/USAGE.md"
 CATALOG="$REPO_ROOT/skills-catalog.json"
-SKILL_CATALOG="$REPO_ROOT/doc/SKILL-CATALOG.md"
+ARCHITECTURE_DOC="$REPO_ROOT/doc/ARCHITECTURE.md"
 
 echo "=== cj-document-release: skill structure + body assertions ==="
 
@@ -111,19 +114,20 @@ else
   fail_test "skills-catalog.json: CJ_document-release entry wrong (status=$CATALOG_STATUS portability=$CATALOG_PORTABILITY)"
 fi
 
-# 9. doc/SKILL-CATALOG.md section exists
-if grep -qE '^### CJ_document-release$' "$SKILL_CATALOG" 2>/dev/null; then
-  ok "doc/SKILL-CATALOG.md has ### CJ_document-release section"
+# 9. doc/ARCHITECTURE.md component roster entry exists (T000037: moved here from
+# the retired per-skill catalog doc's phase-step section)
+if grep -qE '^- \*\*CJ_document-release\*\*' "$ARCHITECTURE_DOC" 2>/dev/null; then
+  ok "doc/ARCHITECTURE.md component roster has the **CJ_document-release** entry"
 else
-  fail_test "doc/SKILL-CATALOG.md missing ### CJ_document-release section"
+  fail_test "doc/ARCHITECTURE.md component roster missing the **CJ_document-release** entry"
 fi
 
-# 9b. The section has the phase-step tag (Check 15b will fail otherwise; this
-# duplicates that check for fast feedback)
-if grep -q '(phase-step in /CJ_goal_feature chain)' "$SKILL_CATALOG" 2>/dev/null; then
-  ok "doc/SKILL-CATALOG.md has the (phase-step in /CJ_goal_feature chain) tag"
+# 9b. The roster entry names the Step 5.5 inline doc-sync role (the phase-step
+# semantics, now carried in prose rather than a closed-enum tag)
+if grep -qE '^- \*\*CJ_document-release\*\* .*Step 5\.5' "$ARCHITECTURE_DOC" 2>/dev/null; then
+  ok "doc/ARCHITECTURE.md CJ_document-release roster entry names the Step 5.5 inline role"
 else
-  fail_test "doc/SKILL-CATALOG.md missing (phase-step in /CJ_goal_feature chain) tag"
+  fail_test "doc/ARCHITECTURE.md CJ_document-release roster entry missing the Step 5.5 role description"
 fi
 
 # 10. [doc-sync-red] halt-marker grep

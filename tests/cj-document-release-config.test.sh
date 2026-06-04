@@ -5,7 +5,7 @@
 # (F000037). Validates the JSON file itself — schema_version, whitelist_patterns
 # shape, categories shape, identifier-shape category names, and F000036-compat
 # category presence (readme, changelog, claude, architecture, philosophy,
-# skill-catalog).
+# workflows).
 #
 # Asserts (≥6):
 #   1. cj-document-release.json is valid JSON (`jq empty` passes)
@@ -15,7 +15,7 @@
 #   5. Every .categories[*] value is a non-empty array of strings
 #   6. Every category name matches identifier regex ^[a-z][a-z0-9-]*$
 #   7. All 6 F000036-compat categories present (readme, changelog, claude,
-#      architecture, philosophy, skill-catalog)
+#      architecture, philosophy, workflows)
 
 set -uo pipefail
 
@@ -89,7 +89,7 @@ else
 fi
 
 # 7. F000036-compat: 6 named categories present
-F36_COMPAT="readme changelog claude architecture philosophy skill-catalog"
+F36_COMPAT="readme changelog claude architecture philosophy workflows"
 MISSING=""
 for cat in $F36_COMPAT; do
   if ! jq -e --arg c "$cat" '.categories | has($c)' "$CONFIG" >/dev/null 2>&1; then
@@ -97,7 +97,7 @@ for cat in $F36_COMPAT; do
   fi
 done
 if [ -z "$MISSING" ]; then
-  ok "all 6 F000036-compat categories present (readme, changelog, claude, architecture, philosophy, skill-catalog)"
+  ok "all 6 F000036-compat categories present (readme, changelog, claude, architecture, philosophy, workflows)"
 else
   fail_test "F000036-compat categories missing:$MISSING"
 fi

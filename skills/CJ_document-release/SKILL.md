@@ -192,7 +192,7 @@ strict-required). Step 4 resolves each requested token via
 declared in `categories` cause the helper to exit 1 with `[doc-sync-no-config]`,
 which the wrapper passes through verbatim. The workbench's bundled JSON seeds
 the F000036-compat set (`readme`, `changelog`, `claude`, `architecture`,
-`philosophy`, `skill-catalog`) so day-1 behavior is unchanged; other repos
+`philosophy`, `workflows`) so day-1 behavior is unchanged; other repos
 adopting `/CJ_document-release` declare their own categories. Upstream
 `/document-release` still decides what to actually audit — the filter is
 best-effort communication of operator intent via the project-context block.

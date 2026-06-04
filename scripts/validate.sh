@@ -593,14 +593,19 @@ while IFS= read -r SKILL_NAME; do
   fi
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
-# Check 15: doc/ manifest + SKILL-CATALOG.md completeness
-# F000034: every doc/*.md must be registered in the CLAUDE.md manifest; the
-# SKILL-CATALOG.md entry must list every active routable skill with at least
-# one of (a) a fenced ASCII workflow chart, or (b) an explicit tag line
-# matching one of `(single-step utility)` / `(validator)` / `(phase-step in
-# /CJ_goal_feature chain)`. No silent omission.
+# Check 15: doc/ manifest + WORKFLOWS.md completeness
+# F000034 + T000037: every doc/*.md must be registered in the CLAUDE.md manifest
+# (15a); the WORKFLOWS.md doc must carry a section for every WORKFLOW skill — the
+# CJ_goal_* orchestrators (15b) — with at least one of (a) a fenced ASCII workflow
+# chart, or (b) an explicit tag line matching one of `(single-step utility)` /
+# `(validator)` / `(phase-step in /CJ_goal_feature chain)`. The 15b predicate is
+# re-scoped to `startswith("CJ_goal_")` (T000037): only the workflow orchestrators
+# are enforced here; the component skills they dispatch live in the
+# doc/ARCHITECTURE.md `## Component skills (non-workflow roster)` (documentation,
+# not Check-enforced) and are guaranteed visible by the PHILOSOPHY.md decision-tree
+# New-skills check. No silent omission of a workflow.
 echo ""
-echo "=== Check 15: doc/ manifest + SKILL-CATALOG.md completeness ==="
+echo "=== Check 15: doc/ manifest + WORKFLOWS.md completeness ==="
 
 # 15a: enumerate manifest entries (parse the YAML block under
 # `### Tracked doc/ files manifest` in CLAUDE.md).
@@ -629,8 +634,11 @@ for p in $MANIFEST_PATHS; do
   fi
 done
 
-# 15b: SKILL-CATALOG.md per-skill completeness (only if catalog file exists)
-CATALOG_FILE="doc/SKILL-CATALOG.md"
+# 15b: WORKFLOWS.md per-workflow completeness (only if the doc exists).
+# Re-scoped (T000037): enforce a section ONLY for the CJ_goal_* workflow
+# orchestrators (today: CJ_goal_feature, CJ_goal_defect, CJ_goal_todo_fix), not
+# for every routable skill. Component skills live in doc/ARCHITECTURE.md's roster.
+CATALOG_FILE="doc/WORKFLOWS.md"
 if [ -f "$CATALOG_FILE" ]; then
   # Tag regex: matches the tag anywhere in the line (markdown often wraps it in
   # backticks for inline-code styling: `(validator)`, `(single-step utility)`,
@@ -665,7 +673,7 @@ if [ -f "$CATALOG_FILE" ]; then
     else
       echo "  PASS: $CATALOG_FILE has section for $SKILL_NAME"
     fi
-  done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
+  done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
 fi
 
 # Check 16: cj-document-release.json schema enforcement (F000037)

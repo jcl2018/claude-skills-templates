@@ -10,7 +10,7 @@ The two intent-named front doors capture the dominant workflows: `/CJ_goal_featu
 
 ## Two delivery surfaces, one contract
 
-The templates and validation surface reach two kinds of consumer, and the repo is deliberately not Claude-only. On Claude Code, the `CJ_` skills orchestrate the doc-first workflow directly. On machines without Claude — where the contributor drives **GitHub Copilot** instead — the self-contained `work-copilot/` bundle carries the same work-item templates + `/validate` workflow + ambient guidance, deployed via `scripts/copilot-deploy.py`. What ports across both is the doc-first *contract* (templates + validation + conventions); what does NOT port is the pipeline automation — the `CJ_` orchestrators are Claude-only by design. `work-copilot/` is canonical (no upstream sync) and its integrity is enforced by `scripts/validate.sh` Error check 10. See [doc/ARCHITECTURE.md](ARCHITECTURE.md#the-work-copilot-copilot-bundle-parallel-delivery-surface) for the deploy mechanism and [doc/SKILL-CATALOG.md](SKILL-CATALOG.md#work-copilot) for the operator-facing entry.
+The templates and validation surface reach two kinds of consumer, and the repo is deliberately not Claude-only. On Claude Code, the `CJ_` skills orchestrate the doc-first workflow directly. On machines without Claude — where the contributor drives **GitHub Copilot** instead — the self-contained `work-copilot/` bundle carries the same work-item templates + `/validate` workflow + ambient guidance, deployed via `scripts/copilot-deploy.py`. What ports across both is the doc-first *contract* (templates + validation + conventions); what does NOT port is the pipeline automation — the `CJ_` orchestrators are Claude-only by design. `work-copilot/` is canonical (no upstream sync) and its integrity is enforced by `scripts/validate.sh` Error check 10. See [doc/ARCHITECTURE.md](ARCHITECTURE.md#the-work-copilot-copilot-bundle-parallel-delivery-surface) for the deploy mechanism and the operator-facing bundle reference.
 
 ## Design principles and tradeoffs
 
@@ -125,7 +125,7 @@ START: What's your input?
 | Health check the workbench | `/CJ_system-health` — [USAGE](../skills/CJ_system-health/USAGE.md) |
 | Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` — [USAGE](../skills/CJ_improve-queue/USAGE.md) |
 
-> **Not on Claude Code?** The decision tree above is the Claude-skill surface. If your machine runs **GitHub Copilot** instead, the `work-copilot/` bundle mirrors the same work-item + `/validate` workflow — see [doc/SKILL-CATALOG.md → work-copilot](SKILL-CATALOG.md#work-copilot). The `CJ_` orchestrators themselves are Claude-only.
+> **Not on Claude Code?** The decision tree above is the Claude-skill surface. If your machine runs **GitHub Copilot** instead, the `work-copilot/` bundle mirrors the same work-item + `/validate` workflow — see [doc/ARCHITECTURE.md → The work-copilot Copilot bundle](ARCHITECTURE.md#the-work-copilot-copilot-bundle-parallel-delivery-surface). The `CJ_` orchestrators themselves are Claude-only.
 
 ### Internal phase-step skills — called transitively, do not route directly
 
