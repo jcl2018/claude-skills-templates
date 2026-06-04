@@ -1798,6 +1798,40 @@ if [ -x "$_S078_IQ" ]; then
 fi
 set -e
 
+# ---------- T000038: registered-doc requirements audit is WIRED (not inert) ----------
+# Two deterministic smoke checks proving the FULL producer->PR-body path is wired.
+# The verdict CONTENT is agent-judged (non-deterministic); these guard the WIRING:
+# the wrapper SKILL.md contains the producer step (§6a) AND the CJ_goal_feature
+# pipeline contains the post-/ship surfacing step (§6b). Together they prevent
+# shipping an inert feature (the second-adversarial-review requirement).
+echo ""
+echo "Checking T000038 registered-doc audit wiring (producer + surfacing)..."
+_T38_PRODUCER="$REPO_ROOT/skills/CJ_document-release/SKILL.md"
+_T38_SURFACE="$REPO_ROOT/skills/CJ_goal_feature/pipeline.md"
+set +e
+# (§6a) PRODUCER wired in the CJ_document-release wrapper SKILL.md: the jq
+#       skill-enumeration selector AND the emit-block heading AND the scratch-file write.
+_t38a=1
+grep -qF 'select((.files | length) > 0)' "$_T38_PRODUCER" || _t38a=0
+grep -qF '### Registered-doc requirements' "$_T38_PRODUCER" || _t38a=0
+grep -qF '.cj-goal-feature/registered-doc-verdicts.md' "$_T38_PRODUCER" || _t38a=0
+if [ "$_t38a" -eq 1 ]; then
+  ok "T000038a: CJ_document-release/SKILL.md contains the producer step (jq selector + '### Registered-doc requirements' emit + scratch-file write)"
+else
+  fail_test "T000038a: CJ_document-release/SKILL.md missing a producer-wiring substring (jq 'select((.files | length) > 0)' / '### Registered-doc requirements' / '.cj-goal-feature/registered-doc-verdicts.md') — the audit producer is inert"
+fi
+# (§6b) SURFACING wired in CJ_goal_feature/pipeline.md: the Step 4.6 PR-body edit
+#       (gh pr edit) AND the scratch-file read (registered-doc-verdicts.md).
+_t38b=1
+grep -qF 'gh pr edit' "$_T38_SURFACE" || _t38b=0
+grep -qF 'registered-doc-verdicts.md' "$_T38_SURFACE" || _t38b=0
+if [ "$_t38b" -eq 1 ]; then
+  ok "T000038b: CJ_goal_feature/pipeline.md contains the Step 4.6 surfacing step ('gh pr edit' + 'registered-doc-verdicts.md' scratch read)"
+else
+  fail_test "T000038b: CJ_goal_feature/pipeline.md missing a surfacing-wiring substring ('gh pr edit' / 'registered-doc-verdicts.md') — verdicts never reach the PR body"
+fi
+set -e
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
