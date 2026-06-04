@@ -323,5 +323,25 @@
     ],
     "templates": [],
     "status": "experimental"
+  },
+  {
+    "name": "CJ_repo-init",
+    "version": "0.1.0",
+    "description": "Detect which CJ_ skills are deployed, verify each one's per-repo prerequisites (cj-document-release.json, TODOS.md, work-items/ tree), print a health table, and on one confirm scaffold the missing repo-level prerequisites from generic portable seeds. Standalone utility — in-place, no worktree/ship. Use when: 'set up this repo for the CJ skills', 'init repo prerequisites', 'make this repo ready for CJ_', 'bootstrap repo config', 'verify repo prerequisites'.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "Bash",
+        "Read",
+        "AskUserQuestion"
+      ]
+    },
+    "portability": "standalone",
+    "files": [
+      "skills/CJ_repo-init/SKILL.md"
+    ],
+    "templates": [],
+    "status": "experimental"
   }
 ]

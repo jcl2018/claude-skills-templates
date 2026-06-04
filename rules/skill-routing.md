@@ -14,3 +14,4 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "fix this TODO", "auto-resolve TODOs", "clear the TODO backlog", "ship the next TODO", "close TODOs from TODOS.md", "auto-ship TODOs", "resolve a TODO end-to-end" -> /CJ_goal_todo_fix [<T-ID> | "<fragment>"]
 - "fix TODO backlog continuously", "loop through TODOs", "auto-clear TODOs" -> /loop /CJ_goal_todo_fix
 - "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "check this Anthropic article", "add this pattern to TODOS" -> /CJ_improve-queue evaluate <url>
+- "set up this repo for the CJ skills", "init repo prerequisites", "make this repo ready for CJ_", "bootstrap repo config", "verify repo prerequisites" -> /CJ_repo-init
