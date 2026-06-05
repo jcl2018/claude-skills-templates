@@ -302,7 +302,13 @@ function is_exec(l, t,    pre, idx) {
   pre = substr(l, 1, idx-1)
   if (pre ~ /(bash|sh|source|\.)[ \t]+[^ \t]*$/) return 1
   if (pre ~ /\[[ \t]+-[fxrsd][ \t]+[^ \t]*$/) return 1
-  if (pre ~ /(^|[;&|(])[ \t]*[^ \t]*$/) return 1
+  # statement-start command: the token must come IMMEDIATELY after a delimiter +
+  # optional whitespace (nothing between). The old `[^ \t]*$` tail let a quote
+  # through, so a quoted seed-data literal at line-start (e.g. `    "CLAUDE.md",`
+  # inside a whitelist array the engine WRITES) was mis-read as an executed read.
+  # Requiring `$` after the whitespace keeps real bare-command execution while
+  # dropping indented/quoted string literals (the seed-data false positive).
+  if (pre ~ /(^|[;&|(])[ \t]*$/) return 1
   if (pre ~ /\$\([ \t]*$/) return 1
   if (l ~ /\$(REPO_ROOT|_SRC|_S|_RI|root|ROOT|src|SRC)[^ \t]*\/?scripts\//) return 1
   return 0

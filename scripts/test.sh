@@ -2029,12 +2029,42 @@ bash "$REPO_ROOT/scripts/zzz-root-helper.sh"
 ```
 PASK
 
+  # Skill E: standalone, bundles a .sh that contains a config filename as a
+  # QUOTED STRING-LITERAL in seed data it WRITES (e.g. "CLAUDE.md" in a JSON
+  # array) -> NOT a finding. Guards the is_exec precision fix (D000032): in a
+  # .sh every token is "runnable", so before the fix the seed literal was
+  # mis-read as an executed read of the workbench CLAUDE.md.
+  mkdir -p "$_PA_TMP/skills/zzz-seed-standalone/scripts"
+  cat > "$_PA_TMP/skills/zzz-seed-standalone/scripts/seed.sh" <<'PSEED'
+#!/usr/bin/env bash
+# Scaffold a generic config — these filenames are SEED DATA we WRITE, not reads.
+cat <<JSON
+{
+  "whitelist_patterns": [
+    "README.md",
+    "CLAUDE.md"
+  ]
+}
+JSON
+PSEED
+  cat > "$_PA_TMP/skills/zzz-seed-standalone/SKILL.md" <<'PASK'
+---
+name: zzz-seed-standalone
+description: "fixture — standalone skill whose bundled engine writes config filenames as seed data."
+---
+Run my bundled engine:
+```bash
+bash "$HOME/.claude/skills/zzz-seed-standalone/scripts/seed.sh"
+```
+PASK
+
   cat > "$_PA_TMP/skills-catalog.json" <<'PCAT'
 [
   {"name":"zzz-exec-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-exec-standalone/SKILL.md"],"templates":[],"status":"experimental"},
   {"name":"zzz-doc-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-doc-standalone/SKILL.md"],"templates":[],"status":"experimental"},
   {"name":"zzz-bundled-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-bundled-standalone/SKILL.md"],"templates":[],"status":"experimental"},
-  {"name":"zzz-adjudicated-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-adjudicated-standalone/SKILL.md"],"templates":[],"portability_requires":["scripts/zzz-root-helper.sh","scripts/zzz-stale-no-longer-referenced.sh"],"status":"experimental"}
+  {"name":"zzz-adjudicated-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-adjudicated-standalone/SKILL.md"],"templates":[],"portability_requires":["scripts/zzz-root-helper.sh","scripts/zzz-stale-no-longer-referenced.sh"],"status":"experimental"},
+  {"name":"zzz-seed-standalone","version":"0.1.0","description":"x","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-seed-standalone/SKILL.md","skills/zzz-seed-standalone/scripts/seed.sh"],"templates":[],"status":"experimental"}
 ]
 PCAT
 
@@ -2062,6 +2092,15 @@ PCAT
     ok "S000083c: standalone skill executing its OWN bundled script is OK (bundled-own carve-out)"
   else
     fail_test "S000083c: zzz-bundled-standalone should be OK (own script), but got a finding: $(printf '%s' "$_PA_RAW" | grep zzz-bundled-standalone)"
+  fi
+
+  # (i) bundled .sh containing a config filename as a SEED-DATA string-literal ->
+  # NOT a finding (is_exec precision; D000032). Without the fix, the quoted
+  # "CLAUDE.md" inside the engine's seed array is mis-read as an executed read.
+  if printf '%s\n' "$_PA_RAW" | grep -E 'zzz-seed-standalone' | grep -qv 'findings'; then
+    ok "S000083i: bundled .sh writing a config filename as a quoted seed literal is NOT a finding (is_exec precision)"
+  else
+    fail_test "S000083i: zzz-seed-standalone should be OK (seed data, not an executed read), but got a finding: $(printf '%s' "$_PA_RAW" | grep zzz-seed-standalone)"
   fi
 
   # (d) portability_requires adjudication -> OK in default mode.

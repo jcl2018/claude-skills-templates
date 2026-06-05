@@ -310,8 +310,8 @@ Operator-invoked directly; not part of a chain.
 #### CJ_repo-init
 
 **Status:** experimental
-**Category:** standalone — *known debt: its engine `scripts/cj-repo-init.sh` lives at the repo root, so the skill self-reaches its own root helper; the honest fix is to bundle the engine under `skills/CJ_repo-init/scripts/` to make it truly standalone (a separate follow-up; carried explicitly rather than relabeled to `workbench`).*
-**Source:** `skills/CJ_repo-init/SKILL.md` · `skills/CJ_repo-init/USAGE.md`
+**Category:** standalone — genuinely standalone: its engine is **bundled** at `skills/CJ_repo-init/scripts/cj-repo-init.sh` (D000032), resolved repo-local-first then via the deployed `~/.claude/skills/CJ_repo-init/scripts/` copy, so it needs no root `scripts/` or `.source` reach-back and `/CJ_portability-audit --no-adjudication` is clean.
+**Source:** `skills/CJ_repo-init/SKILL.md` · `skills/CJ_repo-init/USAGE.md` · engine `skills/CJ_repo-init/scripts/cj-repo-init.sh`
 **Invoke when:** preparing a repo for the CJ_ family — detects which CJ_ skills are deployed, verifies each one's per-repo prerequisites (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`, `work-items/` tree), prints a health table, and on one confirm scaffolds the missing prerequisites from generic portable seeds; in-place, no worktree/ship; idempotent.
 **Touches:**
 
@@ -397,7 +397,7 @@ The precise EXECUTED-vs-documented rule flags exactly the skills that **execute*
 | `CJ_goal_defect` | `standalone` | `scripts/cj-goal-common.sh`, `scripts/cj-worktree-init.sh`, `CLAUDE.md` | **FINDING** (mislabeled orchestrator) |
 | `CJ_goal_todo_fix` | `standalone` | `scripts/cj-goal-common.sh`, `scripts/cj-worktree-init.sh`, `scripts/cj-worktree-cleanup.sh` | **FINDING** (mislabeled orchestrator) |
 | `CJ_personal-workflow` | `standalone` | `scripts/check-gates-update.sh` (executed inside a ```bash fence at Step 13.5) | **FINDING** (genuinely workbench-coupled) |
-| `CJ_repo-init` | `standalone` | `scripts/cj-repo-init.sh` (self-resolution preamble to its own ROOT engine) | **FINDING** (self-resolution-preamble class — standalone reach-back) |
+| `CJ_repo-init` | `standalone` | `scripts/cj-repo-init.sh` (was a self-resolution preamble to its own ROOT engine) | **FINDING → RESOLVED** (D000032 bundled the engine under `skills/CJ_repo-init/scripts/`; now genuinely `standalone`, no relabel — `--no-adjudication` clean) |
 
 **Correctly NOT flagged (the EXECUTED-vs-documented precision rule at work — AC-2):**
 

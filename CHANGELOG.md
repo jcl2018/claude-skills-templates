@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.41] - 2026-06-05
+
+### Fixed
+
+- **`/CJ_repo-init` is now genuinely `standalone` (engine bundled), and `/CJ_portability-audit` no longer false-flags seed-data string literals (D000032).** Surfaced by an "are all skills actually standalone?" audit pass. `/CJ_repo-init` declared `portability: standalone` but executed `scripts/cj-repo-init.sh` — a workbench **root** helper that does not exist in a fresh consumer repo, the very thing `/CJ_repo-init` bootstraps. It passed the default audit only via a `portability_requires` adjudication (documented debt, v6.0.36 / T000042). The fix **bundles the engine** at `skills/CJ_repo-init/scripts/cj-repo-init.sh` (`git mv`), so it deploys with the skill into `~/.claude/skills/CJ_repo-init/scripts/`; the SKILL.md resolves it repo-local-first then via that deployed copy (no root `scripts/` or `.source` reach-back), the catalog adds the bundled file to `files` and **drops the `portability_requires` adjudication**. Bundling then exposed a **precision bug in the audit itself**: `is_exec()`'s statement-start clause (`(^|[;&|(])[ \t]*[^ \t]*$`) matched a *quoted* string literal at line-start, so config filenames the engine writes as **seed data** (e.g. `"CLAUDE.md"` in a `whitelist_patterns` array it scaffolds into a consumer repo) were mis-classified as executed reads. Tightening the clause to `(^|[;&|(])[ \t]*$` keeps real bare-command execution while dropping indented/quoted literals; `scripts/test.sh` gains **S000083i** guarding it. Result: `cj-portability-audit.sh --no-adjudication` reports `CJ_repo-init … portable`, `FINDINGS=0` — genuinely standalone, verified not adjudicated, with **no other skill's verdict regressed** (S000083a–h intact). `doc/PHILOSOPHY.md` + `doc/WORKFLOWS.md` now mark the debt resolved. Found + fixed end-to-end via `/CJ_goal_defect`. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.40] - 2026-06-05
 
 ### Added
