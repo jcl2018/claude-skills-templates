@@ -576,28 +576,105 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # produce invalid frontmatter that wedges the promoted work-item.
 DRAFT_DESC_YAML=$(printf '%s' "$DRAFT_DESC" | tr -d '\r\n' | sed 's/\\/\\\\/g; s/"/\\"/g')
 
-# step 3 — DURABLE COMMIT POINT. Write the canonical TRACKER. auto_scaffolded +
-# promoted_from_draft are additive frontmatter keys; the CJ_personal-workflow
-# validator is pass-through on extra keys, so no manifest/allowlist change is
-# required.
+# step 3 — DURABLE COMMIT POINT. Write the canonical TRACKER as a FULLY
+# tracker-defect.md-compliant work-item: all required frontmatter fields
+# (name/type/id/status/created/updated/repo/branch/blocked_by) PLUS the full
+# section set (## Lifecycle with 3 phases + 11 gate checkboxes, Reproduction
+# Steps, Todos, Log, PRs, Files, Insights, Journal). A minimal tracker (only
+# frontmatter + Bug Report + Journal) FAILS the `/CJ_personal-workflow check`
+# boundary gate that `/CJ_qa-work-item` runs at Step 8 (missing required
+# sections / phases / checkbox count / frontmatter fields → "Phase 2
+# incomplete" refusal). Phase 1 + Phase 2 gates are marked checked: by here the
+# root cause is found and the branch + (imminently, Step 7.5) the RCA/test-plan
+# exist, and the Phase-2 `Fix committed` gate is made true by Step 7.6's commit
+# (which runs BEFORE Step 8 QA). auto_scaffolded + promoted_from_draft are
+# additive keys (the validator is pass-through on extras).
+_TRACKER_DATE="${NOW%%T*}"
+_TRACKER_REPO=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+case "$_TRACKER_REPO" in */.claude/worktrees/*) _TRACKER_REPO="${_TRACKER_REPO%%/.claude/worktrees/*}" ;; esac
+_TRACKER_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 cat > "$CANON_DIR/${DEFECT_ID}_TRACKER.md" <<TRK
 ---
-type: defect
-id: $DEFECT_ID
 name: "$DRAFT_DESC_YAML"
-status: phase-1-investigating
-created: $NOW
+type: defect
+id: "$DEFECT_ID"
+status: active
+created: "$_TRACKER_DATE"
+updated: "$_TRACKER_DATE"
+repo: "$_TRACKER_REPO"
+branch: "$_TRACKER_BRANCH"
+blocked_by: ""
 auto_scaffolded: true
 promoted_from_draft: .inbox/$DRAFT_SLUG
 ---
 
-# $DEFECT_ID: $DRAFT_DESC
+## Lifecycle
 
-## Bug Report
+### Phase 1: Track
+
+1. Reproduction documented (see Reproduction Steps + the bug report)
+2. Working branch created: $_TRACKER_BRANCH
+3. Required docs scaffolded ($DEFECT_ID RCA + test-plan — written at Step 7.5)
+4. /investigate populated the root cause (Iron-Law gate passed)
+
+**Gates:**
+- [x] Reproduction steps documented
+- [x] Working branch created (branch field populated)
+- [x] Required docs scaffolded (RCA + test-plan)
+- [x] Root cause identified (or best hypothesis logged)
+
+### Phase 2: Implement
+
+1. /investigate Phase 4 wrote the fix directly to source
+2. Regression test added covering the defect scenario
+3. Fix + work-item artifacts committed (Step 7.6, before QA)
+4. RCA updated with the final root cause
+
+**Gates:**
+- [x] Fix committed
+- [x] RCA doc updated
+- [x] Todos section reflects remaining work (no stale items)
+
+### Phase 3: Ship
+
+1. /CJ_qa-work-item — verify the test-plan rows (Step 8)
+2. /CJ_document-release — doc-sync (Step 5.5)
+3. /ship — open the fix PR (Step 9)
+4. /land-and-deploy — merge + verify (Step 10)
+
+**Gates:**
+- [ ] /CJ_personal-workflow check — validation passed
+- [ ] Test-plan verified (regression scenarios passing)
+- [ ] /ship — PR created
+- [ ] /land-and-deploy — merged and deployed
+
+## Reproduction Steps
+
 $DRAFT_DESC
 
+## Todos
+
+- [ ] Ship via /ship (Gate #2 human diff review)
+- [ ] Land via /land-and-deploy
+
+## Log
+
+- $_TRACKER_DATE: Promoted from draft .inbox/$DRAFT_SLUG after /investigate populated the root cause. Domain defaulted to '$DOMAIN'; relocate to a more specific subdir if needed.
+
+## PRs
+
+<!-- PR links populated at /ship. -->
+
+## Files
+
+<!-- Affected files are listed in the RCA Affected Components table. -->
+
+## Insights
+
+<!-- Root cause + patterns discovered; see the $DEFECT_ID RCA. -->
+
 ## Journal
-- $NOW [auto-scaffolded] /CJ_goal_defect captured "$DRAFT_DESC" as draft .inbox/$DRAFT_SLUG, then promoted to $DEFECT_ID after /investigate populated the root cause. Domain defaulted to '$DOMAIN'; \`mv\` to a more specific subdir if needed.
+- $NOW [auto-scaffolded] /CJ_goal_defect captured the bug as draft .inbox/$DRAFT_SLUG, then promoted to $DEFECT_ID after /investigate populated the root cause. Domain defaulted to '$DOMAIN'.
 TRK
 
 # step 4 — rebind ALL downstream vars to canonical paths. Step 7.5+ is
@@ -618,7 +695,8 @@ echo "Root cause found, so I converted the draft into defect $DEFECT_ID at $CANO
 ```
 
 After Step 7.4, `$DEFECT_DIR`/`$DEFECT_ID`/`$TRACKER`/`$RCA_PATH`/`$TEST_PLAN_PATH`
-are the canonical post-promotion values. Steps 7.5-12 are unchanged.
+are the canonical post-promotion values. Steps 7.5 onward operate on these
+rebound vars; Step 7.6 (commit the fix before QA) is new.
 
 ## Step 7.5: Write artifacts (RCA + test-plan)
 
@@ -652,17 +730,48 @@ If `$TEST_PLAN_PATH` exists, use Edit to add a new row to its table:
 If `$TEST_PLAN_PATH` does NOT exist, create it from the same template with
 frontmatter + the table headers + the new row.
 
+## Step 7.6: Commit the fix + work-item artifacts (BEFORE Step 8 QA)
+
+`/investigate` Phase 4 wrote the fix DIRECTLY to source but did NOT commit it.
+Two downstream gates require a COMMITTED fix on a clean tree, so the commit
+happens HERE, before QA:
+
+- **`/CJ_qa-work-item` boundary check (Step 8).** For a defect it runs
+  `/CJ_personal-workflow check` and refuses unless the Phase-2 `Fix committed`
+  implementer gate is checked — and that gate is only honest once the fix is
+  actually committed. (The Step 7.4 tracker pre-marks it checked; this commit
+  makes it true.)
+- **`/CJ_document-release` clean-tree gate (Step 5.5).** It refuses on any
+  uncommitted NON-DOC change; the fix files + the work-item artifacts are
+  non-doc.
+
+Commit the investigate-written fix together with the just-scaffolded work-item
+artifacts (TRACKER + RCA + test-plan):
+
+```bash
+_SUBJ=$(printf '%s' "$DRAFT_DESC" | tr '\n' ' ' | cut -c1-60)
+git add -A
+git commit -m "fix: $DEFECT_ID $_SUBJ"
+```
+
+(`/ship` at Step 9 adds the VERSION/CHANGELOG bump as a follow-on commit; the
+squash-merge subject is reconciled at land time per the repo's merge convention.)
+
 ## Step 8: Chain to /CJ_qa-work-item
 
 Invoke `/CJ_qa-work-item` via the Skill tool on the canonical defect dir
-(`$DEFECT_DIR`). The QA skill runs the smoke rows from the test-plan; defects
-emit `E2E=ambiguous`.
+(`$DEFECT_DIR`). The compliant Step 7.4 tracker + the Step 7.6 commit mean the
+boundary check passes; the QA skill runs the smoke rows from the test-plan and
+records a `[qa-pass]` journal entry (defects emit `E2E=ambiguous`).
 
 If QA returns red: halt with `[qa-red]` (re-use the existing CJ_qa-work-item
 halt marker — do NOT mint a new one), append a journal entry with `pr_url=N/A`,
 print the C7 3-line block. Telemetry: `end_state=halted_at_qa`.
 
-If green: continue to Step 5.5 (Doc-sync), then Step 9 (/ship).
+If green: QA appended a `[qa-pass]` entry to the tracker, so the tree is dirty
+again with a NON-DOC change. Commit that tracker update (`git add` the tracker +
+`git commit`) so Step 5.5's clean-tree gate sees a clean non-doc tree, then
+continue to Step 5.5 (Doc-sync) → Step 9 (/ship).
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
