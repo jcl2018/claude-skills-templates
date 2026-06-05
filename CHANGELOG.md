@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.37] - 2026-06-04
+
+### Changed
+
+- **TODOS.md hygiene: closed the obsolete "Re-do brief-mode for `/CJ_personal-pipeline`" row + salvaged its valid kernel.** A `/CJ_goal_todo_fix` hygiene pass found the top-ranked easy-fix candidate was un-drainable: it targets `/CJ_personal-pipeline`, a skill **deleted by F000039 (v6.0.9)**, and its whole framing (closed PR #79, the S000029 ID collision, the `--auto` vs manual-mode constraint, step "(2) `/CJ_personal-pipeline`") references infrastructure that no longer exists — plus the "Re-do" heading would have tripped the drain's own design-keyword pre-flight gate. Struck the row through with an OBSOLETE note (archival body preserved) and re-filed its one still-valid idea — **small, well-scoped work-items shouldn't need the full `/office-hours` design phase** — as a fresh, dead-infra-free row ("Lighter 'brief' design path for small work-items in the cj_goal family", P3/M) scoped to today's `/CJ_goal_feature`. TODOS.md-only; no code change.
+
 ## [6.0.36] - 2026-06-04
 
 ### Added
