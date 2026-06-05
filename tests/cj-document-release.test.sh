@@ -28,6 +28,14 @@
 #  14. --docs arg parse prose mentioned (grep ≥1) in SKILL.md
 #  15. --docs README example prose mentioned in SKILL.md (Usage block)
 #  16. --docs all token mentioned in SKILL.md
+#  ... 17-24: F000037 cj-document-release.json + helper assertions ...
+#  25. SKILL.md has NO bare `bash scripts/cj-document-release-config.sh`
+#      invocation (cross-repo portability anti-regression)
+#  26. SKILL.md uses resolved `bash "$_CFG_HELPER"` >=4× + references the
+#      manifest `.source` reach-back (.skills-templates.json)
+#  27. The REAL helper, run from a temp git repo with no scripts/ dir, parses
+#      THAT repo's cj-document-release.json (cwd-toplevel resolution — the
+#      load-bearing property the .source-reach-back fix depends on)
 
 set -uo pipefail
 
@@ -267,6 +275,77 @@ if grep -qF 'cj-document-release.json' "$SKILL_MD" 2>/dev/null; then
   ok "SKILL.md references cj-document-release.json (F000037 rewrite)"
 else
   fail_test "SKILL.md does not reference cj-document-release.json (F000037 rewrite missing)"
+fi
+
+# --- Cross-repo portability of the helper resolution (D000030) ---
+# The wrapper used to invoke the helper via a bare relative `scripts/...` path,
+# which resolves against cwd and fails in any consumer repo (rc=127 →
+# spurious [doc-sync-no-config] HALT). The fix resolves the helper repo-local
+# first, then via the manifest .source reach-back, and re-resolves per bash
+# block. These three assertions lock that in.
+
+# 25. Static anti-regression: NO bare `bash scripts/cj-document-release-config.sh`
+# invocation remains anywhere in SKILL.md (the cross-repo failure mode).
+_BARE_COUNT=$(grep -cF 'bash scripts/cj-document-release-config.sh' "$SKILL_MD" 2>/dev/null || true)
+if [ "${_BARE_COUNT:-0}" -eq 0 ]; then
+  ok "SKILL.md has NO bare 'bash scripts/cj-document-release-config.sh' invocation"
+else
+  fail_test "SKILL.md still has $_BARE_COUNT bare 'bash scripts/cj-document-release-config.sh' invocation(s) — non-portable across repos"
+fi
+
+# 26. Static wiring: the resolved form `bash "$_CFG_HELPER"` appears >= 4 times
+# (4 executable call sites: --validate, 2× --expand-whitelist, --resolve), AND
+# SKILL.md references the .source reach-back (.skills-templates.json) in a
+# helper-resolution context.
+_RESOLVED_COUNT=$(grep -cF 'bash "$_CFG_HELPER"' "$SKILL_MD" 2>/dev/null || true)
+if [ "${_RESOLVED_COUNT:-0}" -ge 4 ] \
+   && grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null \
+   && grep -qF '_CFG_HELPER' "$SKILL_MD" 2>/dev/null; then
+  ok "SKILL.md uses 'bash \"\$_CFG_HELPER\"' >=4× and references the .source reach-back (got $_RESOLVED_COUNT)"
+else
+  fail_test "SKILL.md resolved-helper wiring incomplete (bash \"\$_CFG_HELPER\" count=$_RESOLVED_COUNT, .source reach-back present=$(grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null && echo yes || echo no))"
+fi
+
+# 27. Functional portability of the REAL helper: a .source-resolved (or any
+# absolute-path) helper invoked with cwd = a DIFFERENT git repo must parse THAT
+# repo's cj-document-release.json (the helper reads its config from the cwd's
+# `git rev-parse --show-toplevel`, NOT its own $0 location). This is the
+# load-bearing property the fix depends on. Build a hermetic temp git repo with
+# a valid config + NO scripts/ dir, run the actual repo helper from inside it.
+if [ -x "$HELPER" ]; then
+  _TMP_REPO=$(mktemp -d 2>/dev/null || mktemp -d -t cjdr) || _TMP_REPO=""
+  if [ -n "$_TMP_REPO" ] && [ -d "$_TMP_REPO" ]; then
+    (
+      git -C "$_TMP_REPO" init -q 2>/dev/null
+      # Minimal valid schema_version 1 config unique to the temp repo.
+      cat > "$_TMP_REPO/cj-document-release.json" <<'JSON'
+{
+  "schema_version": 1,
+  "whitelist_patterns": ["README.md"],
+  "categories": { "readme": ["README.md"] }
+}
+JSON
+      # Run the ACTUAL repo helper from cwd = temp repo (no scripts/ here).
+      cd "$_TMP_REPO" || exit 3
+      _OUT=$(bash "$HELPER" --validate 2>&1)
+      _RC=$?
+      [ "$_RC" -eq 0 ] || { echo "rc=$_RC out=$_OUT"; exit 1; }
+      # Prove it read the TEMP repo's config (schema_version 1 → "OK schema_version=1").
+      printf '%s' "$_OUT" | grep -qF 'OK schema_version=1' || { echo "unexpected validate output: $_OUT"; exit 2; }
+      exit 0
+    )
+    _FUNC_RC=$?
+    rm -rf "$_TMP_REPO"
+    if [ "$_FUNC_RC" -eq 0 ]; then
+      ok "real helper parses cwd-toplevel config (portable: ran from a temp repo with no scripts/ dir)"
+    else
+      fail_test "real helper not cwd-portable (--validate from temp repo failed, rc=$_FUNC_RC)"
+    fi
+  else
+    fail_test "could not create temp repo for portability test (mktemp -d failed)"
+  fi
+else
+  fail_test "helper portability test skipped (helper not executable)"
 fi
 
 echo

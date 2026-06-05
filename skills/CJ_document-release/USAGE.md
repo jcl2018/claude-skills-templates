@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-04T20:26:54Z"
+last-updated: "2026-06-05T06:03:23Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -67,7 +67,14 @@ working tree, e.g. `doc/**/*.md`), and (b) the `categories` map that
 resolves `--docs <token>` flags into concrete file lists (e.g.
 `"readme": ["README.md"]`). Schema is versioned (`schema_version: 1`); the
 helper at `scripts/cj-document-release-config.sh` parses + validates +
-expands. Strict-required posture (no fallback): the wrapper HALTs with
+expands. The wrapper resolves that helper repo-local-first, then via the
+manifest `.source` path (`~/.claude/.skills-templates.json`) — the same
+reach-back `post-land-sync.sh` / `skills-update-check` use — so doc-sync works
+when a `cj_goal_*` run executes from ANY consumer repo, not just the workbench.
+A `.source`-resolved helper still parses THAT repo's own
+`cj-document-release.json` because the helper reads its config from the cwd's
+git toplevel (`git rev-parse --show-toplevel`), not from its own location.
+Strict-required posture (no fallback): the wrapper HALTs with
 `[doc-sync-no-config]` BEFORE any audit when the JSON is missing, invalid,
 or schema_version-unsupported. Every adopting repo declares its own JSON;
 the workbench's bundled JSON seeds the F000036-compat set.

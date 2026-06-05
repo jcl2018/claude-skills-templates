@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.38] - 2026-06-04
+
+### Fixed
+
+- **`/CJ_document-release` now resolves its config helper from any repo, not just the workbench (D000030).** The wrapper invoked its config-parser `scripts/cj-document-release-config.sh` via a bare relative path at four call sites (Steps 0.5/2/3/6), so the helper only resolved when the current working directory was the workbench clone. A `cj_goal_*` run in any *consumer* repo (a downstream project that adopted `/CJ_document-release` and scaffolded a valid `cj-document-release.json`) reached Step 5.5 doc-sync, ran `bash scripts/cj-document-release-config.sh --validate`, got rc=127 (No such file), and HALTed with a spurious `[doc-sync-no-config]` despite a perfectly valid config. The fix resolves the helper **repo-local-first, then via the manifest `.source`** (`~/.claude/.skills-templates.json`) — the same reach-back `post-land-sync.sh` and `skills-update-check` use — re-resolved per bash block (shell vars don't persist across the skill's separate fences); an unreachable helper still HALTs `[doc-sync-no-config]` with a clear reason. The fix is safe because the helper reads its config from the cwd's git toplevel (`git rev-parse --show-toplevel`), so a `.source`-resolved helper still parses the consumer repo's own `cj-document-release.json` — never the workbench's. Regression coverage adds three assertions to `tests/cj-document-release.test.sh` (no bare-path invocation remains; the resolved `bash "$_CFG_HELPER"` form + the `.source` reach-back are present; a functional test runs the real helper from a temp repo with no `scripts/` dir and asserts it parses THAT repo's config). `USAGE.md` documents the behavior. Found + fixed end-to-end via `/CJ_goal_defect`. `validate.sh` + `scripts/test.sh` green.
+
 ## [6.0.37] - 2026-06-04
 
 ### Changed
