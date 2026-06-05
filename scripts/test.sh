@@ -1866,6 +1866,39 @@ else
 fi
 set -e
 
+# ---------- D000031: CJ_goal_defect Step 7.4 emits a tracker-defect.md-compliant tracker ----------
+# A minimal promoted tracker (frontmatter + ## Bug Report + ## Journal only) FAILS the
+# `/CJ_personal-workflow check` boundary gate `/CJ_qa-work-item` runs at Step 8 (missing
+# required frontmatter fields + ## Lifecycle / 3 phases / 11 checkboxes / sections), so
+# every cj_goal_defect run halted at QA. This extracts the Step 7.4 TRK heredoc and
+# asserts full tracker-defect.md compliance, AND that the Step 7.6 commit-before-QA step
+# exists (the Phase-2 `Fix committed` gate + doc-sync clean-tree gate both need it).
+echo ""
+echo "Checking D000031 CJ_goal_defect promotes a compliant tracker (Step 7.4 + 7.6)..."
+_D31_PIPE="$REPO_ROOT/skills/CJ_goal_defect/pipeline.md"
+set +e
+_D31_TRK=$(awk '/<<TRK$/{f=1;next} /^TRK$/{f=0} f' "$_D31_PIPE")
+_d31=1; _d31_why=""
+for _k in name type id status created updated repo branch blocked_by; do
+  printf '%s\n' "$_D31_TRK" | grep -qE "^${_k}:" || { _d31=0; _d31_why="$_d31_why missing-fm:$_k"; }
+done
+printf '%s\n' "$_D31_TRK" | grep -qF '## Lifecycle' || { _d31=0; _d31_why="$_d31_why no-lifecycle"; }
+for _p in 'Phase 1: Track' 'Phase 2: Implement' 'Phase 3: Ship'; do
+  printf '%s\n' "$_D31_TRK" | grep -qF "### $_p" || { _d31=0; _d31_why="$_d31_why no:$_p"; }
+done
+_d31_cb=$(printf '%s\n' "$_D31_TRK" | awk '/^## Lifecycle/{f=1;next} f&&/^## /{f=0} f' | grep -cE '^- \[[ xX]\]')
+[ "${_d31_cb:-0}" -ge 11 ] || { _d31=0; _d31_why="$_d31_why lifecycle-checkboxes=$_d31_cb<11"; }
+for _s in 'Reproduction Steps' 'Todos' 'Log' 'PRs' 'Files' 'Insights' 'Journal'; do
+  printf '%s\n' "$_D31_TRK" | grep -qF "## $_s" || { _d31=0; _d31_why="$_d31_why no-sec:$_s"; }
+done
+grep -qF '## Step 7.6: Commit the fix' "$_D31_PIPE" || { _d31=0; _d31_why="$_d31_why no-step7.6"; }
+if [ "$_d31" -eq 1 ]; then
+  ok "D000031: CJ_goal_defect Step 7.4 emits a tracker-defect.md-compliant tracker (9 frontmatter fields + 3 phases + ${_d31_cb} lifecycle checkboxes + all sections) and Step 7.6 commits before QA"
+else
+  fail_test "D000031: CJ_goal_defect promotion tracker not compliant / missing commit step —$_d31_why"
+fi
+set -e
+
 # ---------- T000040: doc/WORKFLOWS.md Touches blocks carry all 4 anchored bullets ----------
 # STANDALONE hermetic smoke check (mirrors the F000045/S000081 + T000038/T000039
 # blocks). The granular-enumeration rule (T000040) requires each CJ_goal_* section
