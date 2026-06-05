@@ -214,12 +214,34 @@ HIGHEST=$LOCAL_MAX
 # Force base-10 in arithmetic context: bash interprets leading-zero strings
 # like "000029" as octal, which fails on digits 8/9. The 10# prefix is
 # bash-specific but zsh tolerates it (with OCTAL_ZEROES unset, the default).
-NEW_ID=$(printf "${PREFIX}%06d" $((10#$HIGHEST + 1)))
+
+# Source 4: atomic claim dir (F000048 — closes the pre-push race the Source-2
+# comment above flags as uncovered). Sources 1-3 are point-in-time and CANNOT
+# see a sibling worktree that has not yet pushed/opened a PR, so two parallel
+# worktrees scaffolding from the same baseline both compute the same HIGHEST and
+# both mint HIGHEST+1. cj-id-claim.sh adds a 4th source on top: an atomic `mkdir`
+# CAS in the SHARED `.git` common-dir (instantly visible to every sibling
+# worktree). It claims strictly above max($HIGHEST, any live claim), so
+# concurrent *worktrees* (distinct branches → pure mint) always get distinct IDs;
+# same-branch reuse is best-effort (at most one re-run reuses a given pending
+# claim). Two deliberately-different git-dir
+# queries: the script is located via `--show-toplevel` (the CALLER's own
+# worktree's scripts/), while cj-id-claim.sh resolves the claim dir under
+# `--git-common-dir` (the SHARED .git) — that split is what makes the lock
+# cross-worktree. Fail-soft: if the helper is absent/non-executable or returns
+# nothing, fall back to the existing 3-source printf so scaffold never breaks
+# (deploys without the helper degrade cleanly to point-in-time IDs).
+NEW_ID=""
+_CLAIM="$(git rev-parse --show-toplevel)/scripts/cj-id-claim.sh"
+if [ -x "$_CLAIM" ]; then
+  NEW_ID=$("$_CLAIM" --prefix "$PREFIX" --floor "$HIGHEST" | sed -n 's/^CLAIMED_ID=//p')
+fi
+[ -n "$NEW_ID" ] || NEW_ID=$(printf "${PREFIX}%06d" $((10#$HIGHEST + 1)))
 ```
 
-Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect. The PR-claim and origin/main checks apply to all four prefixes uniformly: any open PR adding a `${PREFIX}NNNNNN_*_TRACKER.md` file, OR any such file already present on `origin/main`, counts as claiming that ID.
+Where `PREFIX` is `F` for feature, `S` for user-story, `T` for task, `D` for defect. The PR-claim and origin/main checks apply to all four prefixes uniformly: any open PR adding a `${PREFIX}NNNNNN_*_TRACKER.md` file, OR any such file already present on `origin/main`, counts as claiming that ID. Source 4 (the atomic claim dir) adds the only continuously-atomic source — it is the cross-worktree lock that the point-in-time Sources 1-3 cannot provide; Sources 2+3 remain the cross-clone backstop post-push.
 
-Result: `NEW_ID` (e.g., `F000010`), guaranteed not to collide with local state, any open PR's claimed IDs, OR origin/main's latest state.
+Result: `NEW_ID` (e.g., `F000010`), guaranteed not to collide with local state, any open PR's claimed IDs, origin/main's latest state, OR a concurrent same-machine sibling worktree's atomic claim.
 
 ## Step 6: Determine Slug
 

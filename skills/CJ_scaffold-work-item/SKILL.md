@@ -1,7 +1,7 @@
 ---
 name: CJ_scaffold-work-item
 description: "Scaffold a CJ_personal-workflow work item from an /office-hours design doc. Reads design + templates + manifest + WORKFLOW.md, produces a compliant work-item directory tree with all required artifacts. Runs /CJ_personal-workflow check at boundaries; idempotent (re-run on same input is NO-OP)."
-version: 1.0.0
+version: 1.0.1
 allowed-tools:
   - Bash
   - Read

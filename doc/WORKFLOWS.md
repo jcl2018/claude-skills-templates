@@ -214,12 +214,12 @@ Dispatched by the orchestrators as depth-≤2 leaf subagents.
 #### CJ_scaffold-work-item
 
 **Status:** experimental
-**Category:** standalone (writes a `work-items/` tree from templates; no root workbench helper executed)
+**Category:** standalone (writes a `work-items/` tree from templates; at Step 5.1 it *optionally* executes `scripts/cj-id-claim.sh` for an atomic cross-worktree ID claim, fail-soft to the 3-source check when the helper is absent — so no hard workbench dependency)
 **Source:** `skills/CJ_scaffold-work-item/SKILL.md` · `skills/CJ_scaffold-work-item/USAGE.md`
 **Invoke when:** distilling an APPROVED `/office-hours` design doc into a compliant `work-items/<type>/<id>_<slug>/` tree (TRACKER + per-type artifacts + lifecycle gates); idempotent (re-run on the same input is a NO-OP).
 **Touches:**
 
-- **Scripts · tools · shell:** Read / Write / Edit; runs `/CJ_personal-workflow check` at the scaffold boundaries (no standalone helper script).
+- **Scripts · tools · shell:** Read / Write / Edit; runs `/CJ_personal-workflow check` at the scaffold boundaries; Step 5.1 ID-minting calls `scripts/cj-id-claim.sh` (atomic `mkdir`-CAS claim in the shared `.git` common-dir — the 4th ID source closing the pre-push race) with a fail-soft fallback to the 3-source `printf` when the helper is absent.
 - **Reads / writes:** reads the APPROVED `/office-hours` design doc + `templates/CJ_personal-workflow/*` + `personal-artifact-manifests.json`; writes the new `work-items/<type>/<id>_<slug>/` tree.
 
 #### CJ_implement-from-spec
