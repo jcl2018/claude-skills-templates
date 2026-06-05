@@ -1412,6 +1412,23 @@ else
   fail_test "tests/cj-goal-common-sync.test.sh failed (rc=$_cgcs_rc) — run \`bash tests/cj-goal-common-sync.test.sh\` directly to see"
 fi
 
+# Regression test (F000048 / S000084): scripts/cj-id-claim.sh — the atomic
+# scaffold-time ID-claim engine that closes the scaffold-before-push race. Seven
+# cases incl. the LOOPED concurrent race (25 rounds, distinct IDs), both reap
+# modes (on-origin + TTL), prefix isolation, same-branch reuse, and cwd-independent
+# shared-claim-root resolution from a linked worktree + a nested subdir. Hermetic:
+# every claim happens inside a throwaway sandbox repo (live workbench .git untouched).
+# MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based; an
+# unregistered tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/cj-id-claim.test.sh (F000048 atomic ID-claim engine: race + reap + reuse + worktree resolution)..."
+if bash "$REPO_ROOT/tests/cj-id-claim.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-id-claim.test.sh: all 10 cases pass (incl. 25-round concurrent race with 0 duplicates + reuse floor/CAS/dry-run regressions)"
+else
+  _cic_rc=$?
+  fail_test "tests/cj-id-claim.test.sh failed (rc=$_cic_rc) — run \`bash tests/cj-id-claim.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.

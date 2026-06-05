@@ -1,9 +1,9 @@
 ---
 skill-name: "CJ_scaffold-work-item"
-version: 1.0.0
+version: 1.0.1
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-01"
+last-updated: "2026-06-04T23:45:00Z"
 ---
 
 # Skill Usage: CJ_scaffold-work-item
@@ -32,6 +32,15 @@ A pure transformer: design doc + templates + manifest + WORKFLOW.md → a compli
 `personal-artifact-manifests.json` to learn which artifacts each work-item type
 requires; writes one file per required artifact; runs `/CJ_personal-workflow check`
 at boundaries to confirm structural compliance.
+
+The fresh ID (Step 5.1) is minted from FOUR sources: the local work-items tree,
+open PRs, `origin/main`, and — when `scripts/cj-id-claim.sh` is present (F000048)
+— an atomic `mkdir` claim dir in the SHARED `.git` common-dir. The first three
+are point-in-time and cannot see a concurrent sibling worktree that has not yet
+pushed; the claim dir is the continuously-atomic 4th source that gives two
+parallel same-machine scaffolds distinct IDs, closing the pre-push collision the
+post-merge renumber used to recover by hand. If the helper is absent, Step 5.1
+falls back to the 3-source `printf` and still mints an ID (the skill never breaks).
 
 ## Common pitfalls
 
