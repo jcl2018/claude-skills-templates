@@ -3,7 +3,7 @@ skill-name: "CJ_repo-init"
 version: 0.1.0
 status: experimental
 created: "2026-06-03"
-last-updated: "2026-06-04T20:25:10Z"
+last-updated: "2026-06-05T07:41:30Z"
 ---
 
 # Skill Usage: CJ_repo-init
@@ -34,7 +34,11 @@ last-updated: "2026-06-04T20:25:10Z"
 
 ## Mental model
 
-Three phases, all in one testable bash engine (`scripts/cj-repo-init.sh`):
+Three phases, all in one testable bash engine **bundled with the skill** at
+`skills/CJ_repo-init/scripts/cj-repo-init.sh` — so `/CJ_repo-init` is genuinely
+`standalone` (it deploys to `~/.claude/skills/CJ_repo-init/scripts/` and needs no
+workbench root `scripts/` or `.source` reach-back, which matters because it
+bootstraps a repo that has never seen the workbench):
 (1) **detect** which CJ_ skills are deployed (read
 `~/.claude/.skills-templates.json`; fall back to `ls ~/.claude/skills/CJ_*`,
 then repo-local `skills/` for self-dev); (2) **map** each detected skill to its

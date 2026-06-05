@@ -37,8 +37,9 @@ prints the health table. In-place only — **no worktree, no branch, no `/ship`.
 
 This skill follows the workbench's documented split (CLAUDE.md "Novel pattern
 callout", precedent `scripts/skills-doc-sync-check`): the detection +
-verification + scaffolding logic lives in a testable bash engine
-(`scripts/cj-repo-init.sh`); this SKILL.md prose owns the single confirm
+verification + scaffolding logic lives in a testable bash engine bundled with
+the skill (`skills/CJ_repo-init/scripts/cj-repo-init.sh`); this SKILL.md prose
+owns the single confirm
 AskUserQuestion. The script never prompts; the skill never re-implements
 detection.
 
@@ -46,20 +47,23 @@ detection.
 
 ### Step 1: Resolve the engine path
 
-The engine lives in the user's clone at `<source>/scripts/cj-repo-init.sh` (same
-path-resolution shape as `skills-update-check` / `skills-doc-sync-check`). Prefer
-the repo-local copy when running inside the workbench; otherwise resolve via the
-deployed manifest's `.source` field:
+The engine is **bundled with the skill** at
+`skills/CJ_repo-init/scripts/cj-repo-init.sh`, so it deploys alongside the skill
+into `~/.claude/skills/CJ_repo-init/scripts/` and needs no workbench root
+`scripts/` or `.source` reach-back — that is what makes `/CJ_repo-init` genuinely
+`standalone` (it bootstraps a repo that has never seen the workbench). Resolve
+the repo-local copy when running inside the workbench, else the deployed skill
+copy:
 
 ```bash
 _RI=""
-if [ -f "$(git rev-parse --show-toplevel 2>/dev/null)/scripts/cj-repo-init.sh" ]; then
-  _RI="$(git rev-parse --show-toplevel)/scripts/cj-repo-init.sh"
-else
-  _SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-  [ -n "$_SRC" ] && [ -x "$_SRC/scripts/cj-repo-init.sh" ] && _RI="$_SRC/scripts/cj-repo-init.sh"
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/skills/CJ_repo-init/scripts/cj-repo-init.sh" ]; then
+  _RI="$_REPO_ROOT/skills/CJ_repo-init/scripts/cj-repo-init.sh"
+elif [ -x "$HOME/.claude/skills/CJ_repo-init/scripts/cj-repo-init.sh" ]; then
+  _RI="$HOME/.claude/skills/CJ_repo-init/scripts/cj-repo-init.sh"
 fi
-[ -z "$_RI" ] && { echo "Error: cj-repo-init.sh not found. Run skills-deploy install or run from the workbench."; exit 2; }
+[ -z "$_RI" ] && { echo "Error: cj-repo-init.sh not found. Run skills-deploy install."; exit 2; }
 echo "ENGINE: $_RI"
 ```
 

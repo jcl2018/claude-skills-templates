@@ -316,13 +316,11 @@
     },
     "portability": "standalone",
     "files": [
-      "skills/CJ_repo-init/SKILL.md"
+      "skills/CJ_repo-init/SKILL.md",
+      "skills/CJ_repo-init/scripts/cj-repo-init.sh"
     ],
     "templates": [],
-    "status": "experimental",
-    "portability_requires": [
-      "scripts/cj-repo-init.sh"
-    ]
+    "status": "experimental"
   },
   {
     "name": "CJ_portability-audit",

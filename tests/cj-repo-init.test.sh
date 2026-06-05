@@ -22,7 +22,7 @@ set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-ENGINE="$REPO_ROOT/scripts/cj-repo-init.sh"
+ENGINE="$REPO_ROOT/skills/CJ_repo-init/scripts/cj-repo-init.sh"
 
 ERRORS=0
 ok()        { echo "  OK:   $1"; }
