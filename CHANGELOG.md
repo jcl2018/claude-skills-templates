@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.36] - 2026-06-04
+
+### Added
+
+- **`doc/PHILOSOPHY.md` now states the portability principle, `doc/WORKFLOWS.md` shows a portability `Category` badge per skill + explains the orchestration machinery, and the catalog labels are made honest (T000042).** Three doc gaps that opened once `/CJ_portability-audit` (F000047) shipped, closed together. **(1)** A new `## The portability principle` section in PHILOSOPHY: the producer-vs-consumer framing (`/CJ_repo-init` checks a *consumer* repo's prereqs; `/CJ_portability-audit` checks the workbench's *produced* skills don't secretly need repo-local things), the strict `standalone ⊂ local-only ⊂ workbench` tier ladder with the "works in a repo that has never seen this workbench" standalone bar and the "declared must match ACTUAL executed deps" rule, and the honesty/verified-invariant posture (advisory Check 18 now, `PORTABILITY_STRICT=1` hard-gate later). Deliberately NOT added to the `## Decision tree` (it is a principle, not a routing rule). **(2)** A `**Category:**` (portability tier) badge beside the existing `**Status:**` on all 14 WORKFLOWS sections (the 3 orchestrators + every utility / phase-step / validator + the audit), plus a `## How the machinery works` glossary explaining the shared helpers — `cj-goal-common.sh` (the phase dispatcher: sync / worktree / pr-check / ship / cleanup / telemetry), `cj-worktree-init.sh`, `cj-worktree-cleanup.sh`, the `/CJ_document-release` doc-sync wrapper, and the resume state file — plus a short `**In words:**` narrative under each orchestrator chart. **(3)** To make the new badges honest, `skills-catalog.json` relabels the 3 orchestrators + `CJ_personal-workflow` from `standalone` → `workbench` (their root-script/`.source` deps are within-tier at `workbench`, so their now-unneeded `portability_requires` adjudications are dropped); `CJ_repo-init` stays `standalone` + `portability_requires` as documented debt (its engine should be bundled to make it truly standalone — a filed follow-up). The audit stays green BY TIER, not by adjudication: `FINDINGS=0`, and `--no-adjudication` drops from 5 findings to exactly 1 (`CJ_repo-init`), proving the relabel is honest and the audit non-no-op. A doc-vs-catalog `Category` drift check is filed as a deferred TODO. `validate.sh` + `scripts/test.sh` green; registered-doc audit all-current.
+
 ## [6.0.35] - 2026-06-04
 
 ### Added
