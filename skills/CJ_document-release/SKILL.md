@@ -126,7 +126,29 @@ fields missing. The wrapper HALTs immediately on non-zero exit — no fallback t
 hardcoded defaults.
 
 ```bash
-CONFIG_OUT=$(bash scripts/cj-document-release-config.sh --validate 2>&1)
+# Resolve the config helper: (1) repo-local first (workbench self-dev or a repo
+# that vendors scripts/), then (2) the deployed manifest .source path (a consumer
+# repo where the helper lives ONLY in the installed workbench). The helper reads
+# cj-document-release.json via `git rev-parse --show-toplevel`, so a .source-resolved
+# helper still parses THIS repo's config — never the workbench's.
+_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CFG_HELPER=""
+if [ -n "$_CR_REPO_ROOT" ] && [ -x "$_CR_REPO_ROOT/scripts/cj-document-release-config.sh" ]; then
+  _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+else
+  _CR_SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+  [ -n "$_CR_SRC" ] && [ -x "$_CR_SRC/scripts/cj-document-release-config.sh" ] && _CFG_HELPER="$_CR_SRC/scripts/cj-document-release-config.sh"
+fi
+if [ -z "$_CFG_HELPER" ]; then
+  echo "[doc-sync-no-config] cj-document-release-config.sh unreachable (repo-local scripts/ + manifest .source both absent)"
+  echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
+  echo "next_action=restore scripts/cj-document-release-config.sh in this repo, or fix \$HOME/.claude/.skills-templates.json .source to point at an installed workbench clone; re-run /CJ_document-release"
+  echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
+  echo "pr_url=N/A"
+  exit 1
+fi
+
+CONFIG_OUT=$(bash "$_CFG_HELPER" --validate 2>&1)
 CONFIG_RC=$?
 if [ "$CONFIG_RC" -ne 0 ]; then
   # Helper already emitted [doc-sync-no-config] <reason>; pass it through
@@ -196,7 +218,7 @@ fi
 The set of known `--docs` tokens is no longer hardcoded — it is whatever the
 repo's `cj-document-release.json` declares under `categories` (F000037
 strict-required). Step 4 resolves each requested token via
-`bash scripts/cj-document-release-config.sh --resolve <token>`; tokens NOT
+`bash "$_CFG_HELPER" --resolve <token>`; tokens NOT
 declared in `categories` cause the helper to exit 1 with `[doc-sync-no-config]`,
 which the wrapper passes through verbatim. The workbench's bundled JSON seeds
 the F000036-compat set (`readme`, `changelog`, `claude`, `architecture`,
@@ -230,8 +252,14 @@ auto-commit it later). The doc-only set is derived from the helper-expanded
 whitelist (F000037), not a hardcoded regex:
 
 ```bash
+# Re-resolve the config helper (shell vars do NOT persist across bash blocks):
+# repo-local first, else the manifest .source path.
+_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
+
 # Build doc-only file set from the config's whitelist_patterns (F000037).
-DOC_WHITELIST_SET=$(bash scripts/cj-document-release-config.sh --expand-whitelist)
+DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
 
 # Inspect uncommitted files; refuse if any are NOT in the whitelist set.
 DIRTY_FILES=$(git status --porcelain 2>/dev/null | awk '{print $2}')
@@ -262,7 +290,7 @@ everything — both outcomes are fine; the wrapper auto-commits whatever
 upstream produces (gated by the whitelist).
 
 When `--docs <token>` is set, the wrapper resolves each token to a concrete
-file list via `bash scripts/cj-document-release-config.sh --resolve <token>`.
+file list via `bash "$_CFG_HELPER" --resolve <token>`.
 A token NOT declared in the JSON's `categories` map causes the helper to exit
 1 with `[doc-sync-no-config]` — the wrapper passes that through verbatim
 (F000037 strict-required posture; no warn-and-skip fallback for unknown
@@ -271,10 +299,15 @@ tokens).
 ```bash
 AUDIT_FILES=""
 if [ -n "$DOCS_SUBSET" ]; then
+  # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
+  # repo-local first, else the manifest .source path.
+  _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
   # Resolve each comma-separated token via the helper.
   while IFS= read -r token; do
     [ -n "$token" ] || continue
-    RESOLVED=$(bash scripts/cj-document-release-config.sh --resolve "$token" 2>&1)
+    RESOLVED=$(bash "$_CFG_HELPER" --resolve "$token" 2>&1)
     RC=$?
     if [ "$RC" -ne 0 ]; then
       echo "$RESOLVED"
@@ -332,11 +365,17 @@ exit 1
 After a green `/document-release`, inspect the working tree. If any dirty
 file is OUTSIDE the doc-only whitelist, refuse to auto-commit and HALT — this
 is the upstream-misbehaved case (or an unexpected stealth-write surface).
-The whitelist set comes from `bash scripts/cj-document-release-config.sh
+The whitelist set comes from `bash "$_CFG_HELPER"
 --expand-whitelist` (F000037; reuses Step 2's expansion):
 
 ```bash
-DOC_WHITELIST_SET=$(bash scripts/cj-document-release-config.sh --expand-whitelist)
+# Re-resolve the config helper (shell vars do NOT persist across bash blocks):
+# repo-local first, else the manifest .source path.
+_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
+
+DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
 DIRTY=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep -v '^$')
 
 DOC_DIRTY=""
