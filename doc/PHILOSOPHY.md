@@ -60,6 +60,29 @@ The templates and validation surface reach two kinds of consumer, and the repo i
 - `.gstack/` — lateral / exploratory. gstack skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/context-save`) write here.
 - `work-items/` — structured per-feature. The `/CJ_personal-workflow` taxonomy that drives `/CJ_implement-from-spec` and `/CJ_qa-work-item`.
 
+## The portability principle
+
+A skill's `portability` field in `skills-catalog.json` is a promise about *where it can run*. The workbench treats that promise as a **verified invariant**, not a self-declared label — because a self-declared label nobody checks is a lie waiting to happen. Two complementary skills hold the two halves of that promise honest, one per side of the producer/consumer boundary:
+
+- **Producer side — `/CJ_portability-audit`.** Checks that the workbench's *produced* skills don't secretly depend on repo-local things a fresh target repo won't have. A static lint that compares each catalog skill's declared `portability` against its ACTUAL executed dependencies (root `scripts/*.sh` helpers, root config, `CLAUDE.md`, the manifest `.source` reach-back). It flags a skill that claims `standalone` while it *executes* a workbench helper.
+- **Consumer side — `/CJ_repo-init`.** Checks that a *consumer* repo has the prerequisites the CJ_ family needs to run there (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`, the `work-items/` tree). It verifies the destination, not the skill.
+
+The two are mirrors: `/CJ_repo-init` asks "does this repo have what the skills need?"; `/CJ_portability-audit` asks "do the skills secretly need more than they admit?"
+
+**The strict tier ladder.** Portability is a closed three-rung enum, each tier a strict superset of the one below:
+
+```
+standalone  ⊂  local-only  ⊂  workbench
+```
+
+- **`standalone`** — works in a repo that has never seen this workbench. Allowed deps: the skill's own bundled `skills/<name>/scripts/`, plus the repo-init prerequisites a consumer repo scaffolds. The bar is deliberately strict: no root `scripts/*.sh`, no `.source` reach-back, no `CLAUDE.md` reads, no root config.
+- **`local-only`** — standalone's set PLUS the user's deployed `~/.claude` state (e.g. `/CJ_suggest`'s bundled ranking helper reaching deployed state).
+- **`workbench`** — everything PLUS root `scripts/*.sh`, the `.source` reach-back, `CLAUDE.md` reads, and root config. This is the tier for skills that operate ON the workbench itself — the `cj_goal` orchestrators (they call `cj-goal-common.sh` + the worktree helpers), `/CJ_personal-workflow` (it executes a root gate-update helper), `/CJ_document-release`, and `/CJ_portability-audit`.
+
+The governing rule is **declared portability must match ACTUAL executed dependencies.** An EXECUTED dependency (a `bash "$X"` / `source "$X"` / `[ -x "$X" ]` inside a `bash` fence or a `.sh` engine) beyond the declared tier is a finding; a merely DOCUMENTED mention (a prose citation, a path-pattern the skill scans FOR) is not. The honest fix for a finding is to relabel the skill to the tier it actually needs — exactly what was done when the three orchestrators + `/CJ_personal-workflow` moved from `standalone` to `workbench` (they genuinely operate on the workbench; the `standalone` claim was a known falsehood). The escape hatch for a deliberately-accepted dep is the optional `portability_requires` catalog field, which adjudicates a named dep so it stops counting as a finding while staying visible + auditable in the catalog.
+
+**Posture: advisory now, gate later.** `/CJ_portability-audit` is wired into `scripts/validate.sh` as **advisory Check 18** — it prints findings but exits 0 in v1, so the invariant is *surfaced* without blocking. Setting `PORTABILITY_STRICT=1` flips Check 18 (and the engine's own exit code) to a hard gate — the documented follow-up, to be turned on once the workbench's declarations are fully reconciled. One acknowledged debt remains: `/CJ_repo-init` stays `standalone` while its engine lives at the repo root (`scripts/cj-repo-init.sh`), so it self-reaches its own root helper; the honest fix is to bundle that engine under `skills/CJ_repo-init/scripts/` (a separate follow-up), and until then the debt is carried explicitly rather than hidden behind a relabel.
+
 ## Documentation surfaces
 
 Each routable skill ships three documentation surfaces, in three intended audiences:
