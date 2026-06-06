@@ -28,13 +28,13 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /CJ_portability-audit requires a git 
 
 ## Overview
 
-`/CJ_portability-audit` is the **producer-side** counterpart to `/CJ_repo-init`.
-Where `/CJ_repo-init` verifies a target repo HAS the per-repo prerequisites the
-CJ_ family needs (consumer-side), this skill audits whether the workbench's own
-skills HONESTLY declare their `portability` — i.e. whether a skill declared
-`standalone` quietly reaches for repo-local artifacts (root `scripts/*.sh`
-helpers, root config, `CLAUDE.md` conventions, the manifest `.source`
-reach-back) that a fresh target repo will not have.
+`/CJ_portability-audit` is a **producer-side** static lint: it audits whether the
+workbench's own skills HONESTLY declare their `portability` — i.e. whether a skill
+declared `standalone` quietly reaches for repo-local artifacts (root `scripts/*.sh`
+helpers, root config, `CLAUDE.md` conventions, the manifest `.source` reach-back)
+that a fresh target repo will not have. (The consumer-side duty it once paired with
+— verifying a target repo HAS the per-repo doc prerequisites — now lives in
+`/CJ_document-release`'s self-bootstrap + stub-scaffold of `doc-spec.md`.)
 
 It is **advisory-first**: the current workbench HAS real declared-vs-actual
 mismatches, so v1 surfaces findings WITHOUT hard-failing. The same static engine
@@ -44,7 +44,7 @@ are reconciled).
 
 The full correct-behavior contract — the tier ladder, the EXECUTED-vs-documented
 rule, the carve-outs, and the expected-findings table — is written verbatim in
-[`doc/WORKFLOWS.md`](../../doc/WORKFLOWS.md) under `### /CJ_portability-audit`, so
+[`docs/workflow.md`](../../docs/workflow.md) under `### /CJ_portability-audit`, so
 the operator can read the intended behavior and confirm the implementation
 matches. The summary below mirrors it.
 
@@ -64,9 +64,8 @@ a hardcoded list/count), the engine:
    exact baked-in-workbench rot this skill catches).
 3. Classifies each hit against the skill's declared tier — a STRICT ladder where
    the bar is "works in a repo that has never seen this workbench":
-   - `standalone` — own bundled scripts (`skills/<name>/scripts/`) + repo-init
-     prereqs (`cj-document-release.json`, `CJ-DOC-RELEASE.md`, `TODOS.md`,
-     `work-items/`) ONLY.
+   - `standalone` — own bundled scripts (`skills/<name>/scripts/`) + the doc-spec
+     contract files (`doc-spec.md`, `docs/**`, `TODOS.md`, `work-items/`) ONLY.
    - `local-only` — standalone's set PLUS the user's `~/.claude` deployed state.
    - `workbench` — everything PLUS root `scripts/*.sh`, the `.source` reach-back,
      `CLAUDE.md` reads, root config (`skills-catalog.json`, `VERSION`, …).
@@ -147,7 +146,7 @@ it. Read the machine-readable tail:
 ### Step 3: Surface findings (no AUQ unless the operator asks to act)
 
 This skill is **read-only** by default — it reports, it does not mutate. There is
-no scaffold/fix step (unlike `/CJ_repo-init`). If `FINDINGS=0`, print a one-line
+no scaffold/fix step. If `FINDINGS=0`, print a one-line
 confirmation ("Portability: all declarations adjudicated"). If `FINDINGS>0`,
 relay each `findings:` line and explain that the operator resolves a finding two
 ways (the audit never auto-fixes):

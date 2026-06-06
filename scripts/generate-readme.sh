@@ -15,6 +15,26 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 - **`skills/`** — Claude Code skills (the `CJ_` workflow family + utilities), auto-discovered and listed below.
 - **`work-copilot/`** — a self-contained **GitHub Copilot** bundle carrying the same work-item templates + `/validate` workflow to non-Claude machines. Deploy with `python3 scripts/copilot-deploy.py install <target>`; see [`work-copilot/README.md`](work-copilot/README.md).
 
+## Repository layout
+
+```
+.
+├── doc-spec.md          # the doc contract: what docs this repo carries + what each is for
+├── docs/                # human docs (philosophy.md, workflow.md, architecture.md)
+├── skills/              # Claude Code skills (the CJ_ family + utilities)
+├── templates/           # work-item + doc authoring templates
+├── work-copilot/        # the GitHub Copilot delivery bundle (Python-CLI deployed)
+├── scripts/             # validate / test / deploy / helper scripts
+├── work-items/          # the structured per-feature work tree (features, defects, tasks)
+├── rules/               # skill-routing rules deployed to ~/.claude/rules/
+├── CLAUDE.md            # agent operating instructions (auto-loaded by Claude Code)
+├── CONTRIBUTING.md      # contributor authoring guide
+├── CHANGELOG.md         # release history
+└── TODOS.md             # operational backlog
+```
+
+For the full doc map (and the machine registry the validator parses), see [`doc-spec.md`](doc-spec.md).
+
 ## Skills
 
 HEADER
@@ -39,6 +59,23 @@ cd claude-skills-templates
 # Run full test suite
 ./scripts/test.sh
 ```
+
+## Getting started: the major workflows
+
+Once the skills are installed (see Installation below), the workbench is driven by
+a handful of `CJ_` front doors. Pick by what you have in hand:
+
+| You have... | Run | What it does |
+|-------------|-----|--------------|
+| A one-line feature topic | `/CJ_goal_feature "<topic>"` | Designs, scaffolds, implements, QAs, and opens a reviewable PR — stops at the PR for human review. |
+| A bug description | `/CJ_goal_defect "<bug>"` | Root-causes it, writes the fix + tests, and ships the deployed fix. |
+| A `TODOS.md` backlog to drain | `/CJ_goal_todo_fix` | Drains shippable TODO rows into PRs (one, or up to N in drain mode). |
+| "What should I work on?" | `/CJ_suggest` | Prints a ranked top-5 of next-up work items. |
+| "Is my `~/.claude/` healthy?" | `/CJ_system-health` | A read-only health dashboard for the install. |
+
+Every front door converges on the same `/ship` → `/land-and-deploy` tail. For the
+full workflow charts see [`docs/workflow.md`](docs/workflow.md); for the routing
+decision tree see [`docs/philosophy.md`](docs/philosophy.md).
 
 ## Installation
 

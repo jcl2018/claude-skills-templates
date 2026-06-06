@@ -246,29 +246,28 @@ else
   fail_test "validate.sh fails after manual skill creation"
 fi
 
-# Step 3b (F000038 / S000071): Check 17 root-doc placement allowlist.
+# Step 3b: Check 17 root-doc placement allowlist (now parsed from the doc-spec.md
+# registry, not the retired CLAUDE.md allowlist).
 # KNOWN BLIND SPOT — every prior new validate.sh check (Check 13/14/15/16) needed
-# a parallel zzz-test-scaffold assertion and it was forgotten each time. (Note:
-# T000037 re-scoped Check 15b to `startswith("CJ_goal_")` and REMOVED the old
-# Step 1c per-skill catalog-doc stub-append assertion — a non-orchestrator
-# fixture no longer needs a workflow-doc section, so there is nothing to assert
-# there now.)
-# This block is the Check 17 parallel. Run
-# validate.sh from $REPO_ROOT so Check 17's `find . -maxdepth 1` resolves against
-# the repo root deterministically regardless of the launch cwd. Synthesize a
-# STRAY.md root doc NOT on the allowlist → assert validate.sh exits non-zero AND
-# emits the literal Check 17 orphan prefix (`  ERROR: root doc STRAY.md is not in
-# the CLAUDE.md` — the `  ERROR:` form Checks 15/16/17 use, NOT `  FAIL:`). Then
-# rm it → assert validate.sh exits 0 again. STRAY.md is removed before Step 4 so
-# it never leaks into a later test or a dirty checkout.
+# a parallel zzz-test-scaffold assertion and it was forgotten each time. The
+# F000050 doc-spec migration re-pointed Checks 15/15a/16/17 to doc-spec.md/docs/
+# and ADDED Check 19 (no-work-item-refs in human docs); this block is updated in
+# lockstep (Step 3b = Check 17, Step 3c = Check 19) per that migration's mandate.
+# Run validate.sh from $REPO_ROOT so Check 17's `find . -maxdepth 1` resolves
+# against the repo root deterministically regardless of the launch cwd. Synthesize
+# a STRAY.md root doc NOT declared in the registry → assert validate.sh exits
+# non-zero AND emits the literal Check 17 orphan prefix (`  ERROR: root doc
+# STRAY.md is not declared in the doc-spec.md registry` — the `  ERROR:` form
+# Checks 15/16/17 use, NOT `  FAIL:`). Then rm it → assert validate.sh exits 0
+# again. STRAY.md is removed before Step 4 so it never leaks into a later test.
 touch "$REPO_ROOT/STRAY.md"
 if _C17_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
   fail_test "Check 17: validate.sh should have exited non-zero with a stray root doc (STRAY.md), but exited 0"
 else
-  if echo "$_C17_OUT" | grep -qF "  ERROR: root doc STRAY.md is not in the CLAUDE.md"; then
+  if echo "$_C17_OUT" | grep -qF "  ERROR: root doc STRAY.md is not declared in the doc-spec.md registry"; then
     ok "Check 17: stray root doc STRAY.md triggers orphan ERROR + non-zero exit"
   else
-    fail_test "Check 17: validate.sh exited non-zero but missing '  ERROR: root doc STRAY.md is not in the CLAUDE.md' substring; output: $_C17_OUT"
+    fail_test "Check 17: validate.sh exited non-zero but missing '  ERROR: root doc STRAY.md is not declared in the doc-spec.md registry' substring; output: $_C17_OUT"
   fi
 fi
 rm -f "$REPO_ROOT/STRAY.md"
@@ -276,6 +275,38 @@ if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
   ok "Check 17: validate.sh exits 0 again after the stray root doc is removed"
 else
   fail_test "Check 17: validate.sh should have exited 0 after STRAY.md removed, but exited non-zero"
+fi
+
+# Step 3c (F000050 / TEST-SPEC S3): Check 19 no-work-item-refs-in-human-docs lint.
+# THE PARALLEL test.sh EDIT the new validate.sh check needs — pre-flighted in the
+# same step as the Check 19 add (the F000032/34/35 blind spot, defused). Plant a
+# work-item ref (F000999) into a real human-doc declared by the doc-spec.md
+# registry (docs/philosophy.md), assert validate.sh exits non-zero AND emits the
+# literal Check 19 prefix, then restore the file and assert validate.sh exits 0
+# again. The plant is done on a backup-and-restore basis so the checkout is never
+# left dirty. Proves Check 19 actually FIRES, not just defaults green.
+_C19_HUMANDOC="$REPO_ROOT/docs/philosophy.md"
+if [ -f "$_C19_HUMANDOC" ]; then
+  cp "$_C19_HUMANDOC" "/tmp/c19-humandoc-backup-$$"
+  printf '\n<!-- planted ref for Check 19 negative test: F000999 -->\n' >> "$_C19_HUMANDOC"
+  if _C19_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+    fail_test "Check 19: validate.sh should have exited non-zero with a planted F000999 in a human-doc, but exited 0"
+  else
+    if echo "$_C19_OUT" | grep -qF "  ERROR: human-doc docs/philosophy.md contains work-item ref(s)"; then
+      ok "Check 19: planted F000999 in docs/philosophy.md triggers no-work-item-ref ERROR + non-zero exit"
+    else
+      fail_test "Check 19: validate.sh exited non-zero but missing the Check-19 human-doc ERROR for docs/philosophy.md; output: $_C19_OUT"
+    fi
+  fi
+  cp "/tmp/c19-humandoc-backup-$$" "$_C19_HUMANDOC"
+  rm -f "/tmp/c19-humandoc-backup-$$"
+  if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+    ok "Check 19: validate.sh exits 0 again after the planted ref is removed"
+  else
+    fail_test "Check 19: validate.sh should have exited 0 after the planted F000999 was removed, but exited non-zero"
+  fi
+else
+  fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
 fi
 
 # Step 4: frontmatter is parseable
@@ -1350,13 +1381,14 @@ else
   fail_test "tests/cj-document-release.test.sh failed (rc=$_cdr_rc) — run \`bash tests/cj-document-release.test.sh\` directly to see"
 fi
 
-# Regression test (F000037): cj-document-release.json file assertions —
-# schema_version, whitelist_patterns shape, categories shape, identifier-shape
-# category names, F000036-compat category presence.
+# Regression test (F000050): doc-spec.md registry + scripts/doc-spec.sh helper
+# assertions — registry shape, helper subcommands (--validate / --list-declared /
+# --list-human-docs / --expand-whitelist / --seed), strict failure gates, and
+# cwd-toplevel portability. Replaces the retired JSON-sidecar config checks.
 echo ""
-echo "Running tests/cj-document-release-config.test.sh (F000037 JSON file assertions)..."
+echo "Running tests/cj-document-release-config.test.sh (F000050 doc-spec.md registry + helper assertions)..."
 if bash "$REPO_ROOT/tests/cj-document-release-config.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-document-release-config.test.sh: cj-document-release.json schema_version + whitelist_patterns + categories + identifier shape all PASS"
+  ok "tests/cj-document-release-config.test.sh: doc-spec.md registry + doc-spec.sh subcommands + strict gates + portability all PASS"
 else
   _cdrc_rc=$?
   fail_test "tests/cj-document-release-config.test.sh failed (rc=$_cdrc_rc) — run \`bash tests/cj-document-release-config.test.sh\` directly to see"
@@ -1375,15 +1407,13 @@ else
   fail_test "tests/cj-goal-doc-sync-wiring.test.sh failed (rc=$_cgdsw_rc) — run \`bash tests/cj-goal-doc-sync-wiring.test.sh\` directly to see"
 fi
 
-# F000042 / S000075 — scripts/cj-repo-init.sh detection/verify/scaffold engine.
-echo ""
-echo "Running tests/cj-repo-init.test.sh (F000042 detect/verify/scaffold engine)..."
-if bash "$REPO_ROOT/tests/cj-repo-init.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-repo-init.test.sh: detect emits GAPS=n, --fix scaffolds valid seeds, idempotent re-run, invalid-config + schema_version detection, --dry-run no-write, clean degradation all pass"
-else
-  _cri_rc=$?
-  fail_test "tests/cj-repo-init.test.sh failed (rc=$_cri_rc) — run \`bash tests/cj-repo-init.test.sh\` directly to see"
-fi
+# (F000050 doc-spec migration: removed the `tests/cj-repo-init.test.sh` runner
+# block — /CJ_repo-init was retired by the doc-spec.md migration. Its doc-bootstrap
+# duty is subsumed by /CJ_document-release's self-bootstrap + stub-scaffold (covered
+# by tests/cj-document-release.test.sh + tests/cj-document-release-config.test.sh);
+# the non-doc prerequisites are lazy-created by the skills that read them. The skill
+# source + its test + its work-item history are relocated under deprecated/CJ_repo-init/
+# as archival reference, not run by this suite.)
 # Regression test (F000041): scripts/post-land-sync.sh exists + is executable,
 # --dry-run resolves `.source` + prints collection_version + would-run commands
 # without mutating, and the four guards (missing / non-git / non-main / dirty
@@ -1931,11 +1961,11 @@ set -e
 # The zzz-test-scaffold fixture is non-CJ_goal_* and is NOT touched — Check 15b's
 # loop is `select(.name | startswith("CJ_goal_"))`, so the sub-check never iterates it.
 echo ""
-echo "Checking T000040 doc/WORKFLOWS.md Touches blocks (4 anchored bullets per CJ_goal_* section)..."
-_T40_WF="$REPO_ROOT/doc/WORKFLOWS.md"
+echo "Checking docs/workflow.md Touches blocks (4 anchored bullets per CJ_goal_* section)..."
+_T40_WF="$REPO_ROOT/docs/workflow.md"
 set +e
 if [ ! -f "$_T40_WF" ]; then
-  fail_test "T000040: doc/WORKFLOWS.md not found at $_T40_WF"
+  fail_test "docs/workflow.md not found at $_T40_WF"
 else
   for _t40_skill in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix; do
     # Extract the section body (between `### <name>` and the next `^### `), same
@@ -1951,9 +1981,9 @@ else
     echo "$_t40_section" | grep -qE '^- \*\*Scripts' || _t40_missing="$_t40_missing Scripts"
     echo "$_t40_section" | grep -qE '^- \*\*Docs'    || _t40_missing="$_t40_missing Docs"
     if [ -z "$_t40_missing" ]; then
-      ok "T000040: doc/WORKFLOWS.md section '$_t40_skill' Touches block has all 4 anchored bullets (Skills/Steps/Scripts/Docs)"
+      ok "docs/workflow.md section '$_t40_skill' Touches block has all 4 anchored bullets (Skills/Steps/Scripts/Docs)"
     else
-      fail_test "T000040: doc/WORKFLOWS.md section '$_t40_skill' Touches block missing anchored bullet(s):$_t40_missing"
+      fail_test "docs/workflow.md section '$_t40_skill' Touches block missing anchored bullet(s):$_t40_missing"
     fi
   done
 fi
@@ -2186,7 +2216,7 @@ SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S85_TMP/_cj-shared/scripts" \
 SKILLS_DEPLOY_MANIFEST="$_S85_TMP/manifest.json" \
   bash "$REPO_ROOT/scripts/skills-deploy" install >/dev/null 2>&1 || true
 if [ -x "$_S85_TMP/_cj-shared/scripts/cj-goal-common.sh" ] \
-   && [ -x "$_S85_TMP/_cj-shared/scripts/cj-document-release-config.sh" ] \
+   && [ -x "$_S85_TMP/_cj-shared/scripts/doc-spec.sh" ] \
    && [ -x "$_S85_TMP/_cj-shared/scripts/skills-update-check" ]; then
   ok "S000085: skills-deploy deposits the shared scripts to _cj-shared/scripts/"
 else

@@ -54,17 +54,20 @@ The CJ_ skill family in this workbench is fronted by two intent-named verbs:
 (/CJ_personal-workflow), per-phase skills (/CJ_scaffold-work-item,
 /CJ_implement-from-spec, /CJ_qa-work-item, /CJ_document-release) that the
 orchestrators dispatch as leaf subagents, and standalone utilities
-(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix, /CJ_repo-init, /CJ_portability-audit). /CJ_goal_todo_fix bridges
+(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix, /CJ_portability-audit). /CJ_goal_todo_fix bridges
 TODOS.md rows to the shipping pipeline in one keystroke — see
 `skills/CJ_goal_todo_fix/SKILL.md`.
-/CJ_repo-init verifies/scaffolds the per-repo prerequisites (cj-document-release.json,
-CJ-DOC-RELEASE.md, TODOS.md, work-items/) that the CJ_ family needs to run in a given repo.
-/CJ_portability-audit (F000047) is the producer-side mirror of /CJ_repo-init — a static
-lint that checks each catalog skill's declared `portability` against its actual
-repo-local dependencies (wired into `validate.sh` as advisory Check 18).
-/CJ_document-release (F000036) is the inline doc-sync wrapper invoked at
+/CJ_portability-audit is the producer-side static lint that checks each catalog
+skill's declared `portability` against its actual repo-local dependencies (wired
+into `validate.sh` as an advisory check).
+/CJ_document-release is the inline doc-sync wrapper invoked at
 Step 5.5 of every cj_goal orchestrator (between QA pass and `/ship`) — folds
-doc updates into the same code PR rather than chasing them post-merge.
+doc updates into the same code PR rather than chasing them post-merge. It is also
+the keeper of the doc contract: it reads the root `doc-spec.md` registry,
+self-bootstraps a missing `doc-spec.md` from the portable Common seed, and
+stub-scaffolds any declared-but-missing doc (the duty that replaced the retired
+`/CJ_repo-init`). The non-doc per-repo prerequisites (TODOS.md, work-items/) are
+lazy-created by the skills that read them. See [`doc-spec.md`](doc-spec.md).
 
 ## CI/CD merge convention
 
@@ -220,15 +223,15 @@ skills/{skill-name}/
   *.md              # optional supporting files
 ```
 
-Additionally, every active routable skill must be documented in `doc/WORKFLOWS.md`
-(T000037 / T000041): a **`CJ_goal_*` workflow orchestrator** gets a section under
+Additionally, every active routable skill must be documented in `docs/workflow.md`:
+a **`CJ_goal_*` workflow orchestrator** gets a section under
 `## Orchestrators` with an ASCII workflow chart + a granular 4-bullet **Touches**
-block (both enforced by `scripts/validate.sh` Check 15b — T000040); every **other**
+block (both enforced by `scripts/validate.sh` Check 15b); every **other**
 routable skill (phase-steps, validators, utilities) gets an entry under
-`doc/WORKFLOWS.md` `## Utilities & phase-step skills` (the lighter per-skill shape —
+`docs/workflow.md` `## Utilities & phase-step skills` (the lighter per-skill shape —
 status + source + invoke-when + a compact Touches; not Check-enforced).
-Either way it must also appear in `doc/PHILOSOPHY.md`'s decision tree (the
-F000030 New-skills check is the no-vanish safety net that guarantees no routable
+Either way it must also appear in `docs/philosophy.md`'s decision tree (the
+New-skills check is the no-vanish safety net that guarantees no routable
 skill becomes undocumented).
 
 ### USAGE.md drift detection
@@ -345,7 +348,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
    ```
 4. Optionally create `skills/{name}/DESIGN.md` for design rationale if the skill is complex enough to warrant a developer-facing doc (template: `templates/doc-SKILL-DESIGN.md`)
 5. Create `skills/{name}/USAGE.md` using `templates/doc-SKILL-USAGE.md` and fill in all five required H2 sections (When to use / When NOT to use / Mental model / Common pitfalls / Related skills)
-6. Document the new skill in the right place (T000037 / T000041): if it is a `CJ_goal_*` **workflow orchestrator**, add a section under `doc/WORKFLOWS.md` `## Orchestrators` with a fenced ASCII workflow chart + a `**Touches:**` block (use `templates/doc-WORKFLOWS-section.md` as a starting point). The Touches block MUST carry all four canonical bullets — **Skills dispatched** / **Steps · phases** / **Scripts · tools · shell** / **Docs touched** — each enumerated at the granular named-helper + named-step level (T000040); Check 15b will ERROR if a `CJ_goal_*` skill's section is missing, lacks a chart, or is missing any of the four anchored Touches bullets. Otherwise (phase-step, validator, or utility) add an entry under `doc/WORKFLOWS.md` `## Utilities & phase-step skills` (the lighter per-skill shape — `### <skill>` heading + **Status** + **Source** + **Invoke when** + a compact **Touches**; no chart, no 4-bullet Touches, not Check-enforced). EITHER WAY, also add the skill to `doc/PHILOSOPHY.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
+6. Document the new skill in the right place: if it is a `CJ_goal_*` **workflow orchestrator**, add a section under `docs/workflow.md` `## Orchestrators` with a fenced ASCII workflow chart + a `**Touches:**` block (use `templates/doc-WORKFLOWS-section.md` as a starting point). The Touches block MUST carry all four canonical bullets — **Skills dispatched** / **Steps · phases** / **Scripts · tools · shell** / **Docs touched** — each enumerated at the granular named-helper + named-step level; Check 15b will ERROR if a `CJ_goal_*` skill's section is missing, lacks a chart, or is missing any of the four anchored Touches bullets. Otherwise (phase-step, validator, or utility) add an entry under `docs/workflow.md` `## Utilities & phase-step skills` (the lighter per-skill shape — `### <skill>` heading + **Status** + **Source** + **Invoke when** + a compact **Touches**; no chart, no 4-bullet Touches, not Check-enforced). EITHER WAY, also add the skill to `docs/philosophy.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
 7. Run `./scripts/validate.sh` to verify everything is consistent
 8. Use `/ship` to commit and create a PR
 
@@ -371,6 +374,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
+| `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
 
 ## Update-check mechanism (F000009)
 
@@ -439,63 +443,48 @@ AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).
 
-## Doc placement convention (root vs doc/)
+## Doc contract (doc-spec.md)
 
-Human-readable **explanation** docs live in `doc/` and are registered in the
-tracked-doc/ manifest (enforced by `validate.sh` Check 15 — see the `### Tracked
-doc/ files manifest` section below). Root-level `*.md` is limited to the allowlist
-below: each entry is pinned at the repo root for an external-tool or operational
-reason, not because it is "explanation" content. **Config files** stay at root
-(`skills-catalog.json`, `cj-document-release.json`, `template-registry.json`,
-`VERSION`) because tooling hardcodes `./` paths to them — the convention documents
-that placement but adds no config-file enforcement in v1. Docs under `skills/`,
-`templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own
-conventions (per-skill USAGE.md, template naming, the work-item taxonomy) and are
-out of this convention's scope.
+What docs the repo carries — and what each one is for — lives in ONE root file,
+[`doc-spec.md`](doc-spec.md). It is both the human-readable map (prose) and the
+machine source of truth (a fenced `yaml` registry parsed by `scripts/doc-spec.sh`).
+There is no second list: the registry is the source, the prose explains it.
 
-This allowlist and F000034's tracked-doc/ manifest are symmetric — together they
-partition the top-level doc surface: a new explanation doc goes to `doc/` + a
-tracked-doc manifest entry (Check 15 catches an unregistered `doc/` file); a new
-root `*.md` must be justified + added to the allowlist below with a `reason:`
-(Check 17 catches an un-allowlisted root file). Drift on either side fails
-`validate.sh`.
+- **Human docs** (`audit_class: human-doc`) live under `docs/`
+  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`) plus the
+  root `README.md`. They must exist and carry **no work-item IDs**
+  (`[FSTD]NNNNNN`) — a hard `validate.sh` lint (Check 19).
+- **Operational docs** (`audit_class: operational`) are the root `*.md` set the
+  repo pins for an external-tool reason: `doc-spec.md`, `CLAUDE.md`,
+  `CHANGELOG.md`, `CONTRIBUTING.md`, `TODOS.md`. These may reference work items.
+- **Config files** stay at root (`skills-catalog.json`, `template-registry.json`,
+  `VERSION`) because tooling hardcodes `./` paths to them. Docs under `skills/`,
+  `templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own
+  conventions and are out of this contract's scope.
 
-Two load-bearing constraints on the YAML block below (stated here in prose,
-deliberately OUTSIDE the fence): (1) the block must contain **no `#`-leading
-comment lines** — Check 17's parser disarms on any line starting with `#`, so a
-mid-block comment would silently drop every entry below it; (2) the `### Tracked
-root docs allowlist` heading text is **matched literally** by Check 17 — renaming
-it parses to an empty allowlist, which cascades to an orphan ERROR for every root
-`*.md` (it fails loudly, never silently passes, but the heading is load-bearing).
+`validate.sh` enforces the contract against the registry:
+- **Check 15/15a** — declared ⇔ on-disk: every declared doc exists AND every
+  `docs/*.md` on disk is declared (no orphans).
+- **Check 15b** — `docs/workflow.md` has a section for every `CJ_goal_*`
+  orchestrator (ASCII chart + a 4-bullet Touches block).
+- **Check 16** — the `doc-spec.md` registry schema validates (`doc-spec.sh
+  --validate`).
+- **Check 17** — every root `*.md` on disk is a declared registry path.
+- **Check 19** — no work-item IDs in any `human-doc`.
 
-### Tracked root docs allowlist
-- path: README.md
-  reason: GitHub renders it as the repo landing page
-- path: CLAUDE.md
-  reason: Claude Code auto-loads ./CLAUDE.md; moving to doc/ breaks auto-load
-- path: CHANGELOG.md
-  reason: /ship + /document-release write ./CHANGELOG.md (keep-a-changelog convention)
-- path: CONTRIBUTING.md
-  reason: GitHub surfaces it from root / docs/ / .github/ (not doc/)
-- path: TODOS.md
-  reason: operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship Step 14
-- path: CJ-DOC-RELEASE.md
-  reason: canonical /CJ_document-release contract; sits beside its machine sidecar cj-document-release.json at root and is presence-checked by /CJ_repo-init
+Add a doc by adding a registry entry to `doc-spec.md` (and creating the file). A
+new root `*.md` must be a `section: custom` registry entry, or Check 17 flags it.
 
-## /document-release workbench audit conventions
+## /CJ_document-release doc audit conventions
 
-> Canonical contract: the full, reader-facing `/CJ_document-release` contract —
-> wrapper flow, the doc-only auto-commit whitelist gate, the
-> `cj-document-release.json` schema, the registered-doc audit, and a
-> declaration-site index — lives in [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md) at
-> the repo root. The blocks below (`### Tracked doc/ files manifest` + its
-> `requirement:` strings, `### Reporting`) are the runtime-parsed machine surface
-> (read by `validate.sh` Check 15a and the `/CJ_document-release` Step 6.7 `awk`)
-> and stay verbatim and in-place here; CJ-DOC-RELEASE.md documents + indexes them.
-
-This workbench keeps two NAMED audit surfaces under `doc/`: `doc/PHILOSOPHY.md` and `doc/ARCHITECTURE.md`. They are not "any other `.md` files" — they are the explanation + mechanism-reference docs that the operator reads to understand the workbench, and `/document-release` MUST audit them for skill-routing drift on every run. The drift class is active skills that ship without an entry in `doc/PHILOSOPHY.md ## Decision tree`.
-
-`/document-release` reads this section as project context at Step 2. The audit rides that existing behavior; no upstream skill modification.
+`/CJ_document-release` (the inline Step 5.5 doc-sync wrapper) is the keeper of the
+doc contract. On every run it reads `doc-spec.md`, self-bootstraps a missing
+`doc-spec.md` from the portable Common seed (`doc-spec.sh --seed`), stub-scaffolds
+any declared-but-missing doc, derives the doc-only auto-commit whitelist from the
+registry, and runs the registered-doc audit (below). The full mechanism reference
+lives in [`docs/architecture.md`](docs/architecture.md) `## The doc-spec.md
+contract + /CJ_document-release`; the implementation is
+`skills/CJ_document-release/SKILL.md`.
 
 ### New-skills check
 
@@ -505,174 +494,64 @@ Extract the set of currently-active **routable** skill names (entries with a non
 jq -r '.[] | select(.status=="active") | select((.files | length) > 0) | .name' skills-catalog.json
 ```
 
-For each name returned, grep `doc/PHILOSOPHY.md` for a case-sensitive literal match within the `## Decision tree` heading + its body up to the next `##` heading. Missing → drift finding (`active skill not in decision tree: <name>`). This check runs on `doc/PHILOSOPHY.md` only; `doc/ARCHITECTURE.md` deliberately does not duplicate the decision tree (see ARCHITECTURE's `## Decision tree mirror` section).
+For each name returned, grep `docs/philosophy.md` for a case-sensitive literal match within the `## Decision tree` heading + its body up to the next `##` heading. Missing → drift finding (`active skill not in decision tree: <name>`). This check runs on `docs/philosophy.md` only; `docs/architecture.md` deliberately does not duplicate the decision tree (see architecture's `## Decision tree mirror` section).
 
-### Tracked doc/ files manifest
-
-Every `*.md` file under `doc/` MUST be registered in this manifest with an `audit_class`. `validate.sh` Check 15 fires ERROR for any orphan file (in `doc/` but not in the manifest) and for any manifest entry pointing to a missing file. Adding a new doc/ file is intentional; declaring its audit class is the cost of admission.
-
-```yaml
-- path: doc/PHILOSOPHY.md
-  audit_class: skill-routing-drift
-  owner: F000030 — workbench-level overview + decision tree
-  requirement: "`## Decision tree` lists every active routable skill (matches the New-skills check); the doc states the install==clone + reference-model first principle (F000049) and routes the current CJ_ skill family."
-- path: doc/ARCHITECTURE.md
-  audit_class: skill-routing-drift
-  owner: F000030 — mechanism reference
-  requirement: "The per-skill component roster now lives in doc/WORKFLOWS.md `## Utilities & phase-step skills` (T000041); `## Component skills (non-workflow roster)` here is a one-line pointer to it. Each mechanism section matches the current load-bearing scripts OR skill steps (cj-goal-common.sh phases, doc-sync, F000037 config, the registered-doc audit, work-copilot)."
-- path: doc/WORKFLOWS.md
-  audit_class: workflow-completeness
-  owner: F000034 / T000037 / T000040 — workflow-only doc (the cj_goal orchestrator chains) with ASCII charts + granular 4-dimension Touches blocks
-  requirement: "Under `## Orchestrators`, has a `### <name>` section for every `CJ_goal_*` orchestrator, each with an ASCII chart AND a Touches block carrying all four canonical bullets (Skills dispatched / Steps · phases / Scripts · tools · shell / Docs touched). Each bullet must enumerate the current chain at the GRANULAR named-helper + named-step level — every dispatched skill, every named pipeline step + `cj-goal-common.sh` phase (incl. the pre-build `--phase sync`, the worktree init/teardown lifecycle, the isolation gate, `check-version-queue.sh`, and the verdict-surfacing producer steps), every script/shell helper, every doc touched. Granularity ceiling — named workbench helpers + steps only, NOT every raw git/gh call and NOT `post-land-sync.sh` (it is the internal core `--phase sync` reuses + a manual operator step, not an orchestrator step). The four anchored bullets are STRUCTURALLY enforced by validate.sh Check 15b (which is scoped to the `## Orchestrators` sections); completeness within each bullet is agent-judged here. ALSO has a `## Utilities & phase-step skills` section (T000041) listing every non-orchestrator routable skill (the phase-step skills, the validator, the standalone utilities) in the LIGHTER per-skill shape — status + source + invoke-when + a compact Touches (Scripts · tools · shell / Reads / writes); the 4-bullet-Touches mandate above applies to the `## Orchestrators` sections ONLY, so these utility entries are NOT stale for lacking the Skills-dispatched / Steps · phases bullets."
-```
-
-`audit_class` enum (closed):
-
-- `skill-routing-drift` — F000030 retired-skill + new-skills check (already applied to PHILOSOPHY.md + ARCHITECTURE.md). Section above.
-- `workflow-completeness` — every `CJ_goal_*` workflow orchestrator has a section in doc/WORKFLOWS.md with an ASCII chart. Check 15b enforces (re-scoped by T000037 to the `CJ_goal_*` prefix; the non-orchestrator component skills live in the same doc's `## Utilities & phase-step skills` section — T000041 — guarded by the PHILOSOPHY decision-tree New-skills check, not Check 15b).
-- `static-reference` — file is hand-written reference content; audit only checks the file exists (Check 15a's `missing-from-disk` half). Reserved for future docs whose drift criteria the author hasn't worked out yet.
-- `auto-generated` — file is regenerated by a script; audit checks `script-output == on-disk content`. Reserved; v1 has no entries.
-
-`/document-release` reads this manifest as project context (the existing F000030 pattern at Step 2) and surfaces drift findings in the PR body's `## Documentation` section under a new `### Doc/ manifest drift` subheading, alongside the existing `### Skill-routing drift` subheading.
-
-### Reporting
-
-Drift findings surface in the PR body's `## Documentation` section under a new `### Skill-routing drift` subheading. One finding per line. If no findings, emit a single positive line (`Skill-routing drift: none`) so reviewers can tell the audit ran cleanly versus skipped silently.
-
-Doc/ manifest drift findings (Check 15) appear under a sibling `### Doc/ manifest drift` subheading, same one-per-line shape. Positive line: `Doc/ manifest drift: none`.
-
-Registered-doc requirement verdicts appear under a third sibling subheading `### Registered-doc requirements` (one verdict line per registered doc; positive line `Registered-doc requirements: all current` when every verdict is up-to-date). See `## Registered-doc requirements audit` below for the verdict taxonomy and the producer. All three subheadings are emitted by the same producer — the `/CJ_document-release` wrapper's Step 6.7 (the first real producer for these PR-body subheadings; the `### Skill-routing drift` / `### Doc/ manifest drift` blocks were convention-only prose until Job 2 wired Step 6.7, and emitting those two there remains OPTIONAL in v1 — `### Registered-doc requirements` is the Job-2 deliverable).
-
-## cj-document-release.json convention (F000037)
-
-> The reader-facing schema reference + the wider doc-release contract live in
-> [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md). This section is retained as the
-> SKILL.md prose anchor + the in-repo schema record; it is not the canonical
-> read.
-
-`/CJ_document-release` reads a strict-required per-repo config from
-`cj-document-release.json` at repo root. The file declares which docs the
-auto-commit whitelist gate honors AND which categories the `--docs <token>`
-flag resolves against.
-
-Schema (v1):
-
-```json
-{
-  "schema_version": 1,
-  "whitelist_patterns": ["glob", ...],
-  "categories": { "name": ["glob", ...], ... }
-}
-```
-
-Globs use `**` for any-depth recursion (`doc/**/*.md`). `validate.sh` Check 16
-enforces schema when the file exists. CJ_document-release HALTs with
-`[doc-sync-no-config]` when the file is missing/invalid/schema_version-unsupported.
-
-The workbench's own JSON seeds with the F000036 hardcoded set + workbench-specific
-paths (doc/**, templates/doc-*). Other repos adopting `/CJ_document-release`
-declare their own.
-
-Per-verb overrides (`categories_by_verb`), audit_class enum mirror from F000030's
-tracked-doc/ manifest, --docs negation, and multi-repo federation are all
-DEFERRED to future v2 schema bumps.
-
-## Registered-doc requirements audit (Job 2 / T000038)
-
-> The reader-facing summary of this audit (registered set, verdict taxonomy,
-> surfacing, posture) is consolidated in [`CJ-DOC-RELEASE.md`](CJ-DOC-RELEASE.md).
-> This section is retained as the SKILL.md prose anchor + the authoritative
-> mechanism reference for the Step 6.7 producer.
-
-This convention DOCUMENTS what the `/CJ_document-release` wrapper's **Step 6.7**
-does — it is the operator-facing reference for that producer step, NOT a
-directive to an unwired upstream. (Mechanism reality: upstream gstack
-`/document-release` does not ingest CLAUDE.md `## …audit conventions` sections as
-audit directives — its Step 2 is a fixed set of per-file heuristics. The audit
-below is produced by the workbench-owned wrapper, which already reads
-`cj-document-release.json` + builds a project-context block; Step 6.7 is the
-natural extension point. No upstream gstack modification.)
+### Registered-doc requirements audit
 
 The audit answers one general question the hard gates structurally can't: **is
-THIS registered doc up to date against ITS declared requirement?** — covering
-both the `doc/*.md` files AND the active routable skill `SKILL.md`s. It
-generalizes the shape the workbench already had (Check 14 is literally "is
-USAGE.md up to date vs its requirement, SKILL.md?" for one doc-pair).
+THIS registered doc up to date against ITS declared requirement?** — covering both
+the `doc-spec.md` registry docs AND the routable skill `SKILL.md`s. It generalizes
+the shape the workbench already had (Check 14 is literally "is USAGE.md up to date
+vs its requirement, SKILL.md?" for one doc-pair). The producer is
+`/CJ_document-release` Step 6.7.
 
-### The registered set
+**The registered set** (both enumerated dynamically; no hardcoded counts):
 
-1. **Tracked-doc/ files** — every entry in the `### Tracked doc/ files manifest`
-   block above, each carrying a bespoke `requirement:` value (the Job-2 extension
-   of the F000034 manifest). The doc's requirement is that `requirement:` string.
+1. **The registry docs** — every entry in the `doc-spec.md` registry, each
+   carrying a `requirement:` value. The doc's requirement is that string. A
+   `human-doc` entry also gets the no-work-item-ref check (any `[FSTD][0-9]{6}` →
+   `stale: contains work-item refs`).
 2. **Routable skill MDs (active OR experimental)** — every skill returned by
    `jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json`
    (the `!= "deprecated"` predicate Check 14/15b use — deliberately BROADER than
-   the F000030 New-skills check's active-only selector, so the audit covers the
-   whole CJ_ family, not just the 3 active skills; no hardcoded skill count). Each
-   skill's `SKILL.md` is a registered doc; its requirement is the skill's optional
-   `doc_requirement` field in `skills-catalog.json`, else the shared default below.
+   the New-skills check's active-only selector, so the audit covers the whole CJ_
+   family; no hardcoded skill count). Each skill's `SKILL.md` is a registered doc;
+   its requirement is the skill's optional `doc_requirement` field in
+   `skills-catalog.json`, else the shared default below.
 
-### Shared default skill-MD requirement
-
-When a skill has no `doc_requirement`, its requirement is:
+**Shared default skill-MD requirement** (when a skill has no `doc_requirement`):
 
 > The SKILL.md frontmatter `description` and the documented behavior/steps match
 > the skill's current implementation; the skill's USAGE.md is current.
 
-### Optional `doc_requirement` catalog field
-
 A skill MAY declare an optional `doc_requirement` string in its
-`skills-catalog.json` entry to OVERRIDE the shared default with a bespoke
-requirement; absent ⇒ the shared default applies. The field is tolerated by
-`validate.sh` (there is no closed catalog schema — only `status` is a closed
-enum; Check 1/2 only check SKILL.md presence + frontmatter). Authoring guidance:
-do NOT enumerate step numbers in the string (a skill that gains a new step would
-self-stale a "Step N–Step M" requirement). See the `### Catalog format` note and
-the `CJ_document-release` exemplar entry.
+`skills-catalog.json` entry to OVERRIDE the shared default; absent ⇒ the shared
+default applies. The field is tolerated by `validate.sh` (only `status` is a
+closed catalog enum). Authoring guidance: do NOT enumerate step numbers in the
+string (a skill that gains a step would self-stale a "Step N–Step M" requirement).
 
-### Verdict taxonomy
-
-Per registered doc, one verdict:
+**Verdict taxonomy** (one per registered doc):
 
 - `up-to-date` — satisfies its requirement given what the run changed.
 - `stale: <one-line why>` — no longer satisfies its requirement.
-- `missing-requirement` — the registered doc has no declared requirement (a
-  tracked-doc/ manifest entry lacking a `requirement:` child). SOFT — never a halt.
+- `missing-requirement` — the registered doc has no declared requirement. SOFT —
+  never a halt.
 - `n/a` — registered but out of scope for this run's judgment.
 
-### Surfacing
-
-The Step 6.7 producer emits a `### Registered-doc requirements` block (one
-verdict line per registered doc) to its RESULT AND writes it to the gitignored
-scratch file `.cj-goal-feature/registered-doc-verdicts.md`. The positive line
-`Registered-doc requirements: all current` is emitted ONLY when every verdict is
-`up-to-date` (so reviewers can tell the audit ran cleanly vs skipped). The block
-lands in the PR body's `## Documentation` section under `### Registered-doc
-requirements` via a post-`/ship` `gh pr edit` step in all three cj_goal
-orchestrators (`/CJ_goal_feature` **Step 4.6**, `/CJ_goal_defect` **Step 9.5**,
+**Surfacing.** The Step 6.7 producer emits a `### Registered-doc requirements`
+block (one verdict line per registered doc) to its RESULT AND writes it to the
+gitignored scratch file `.cj-goal-feature/registered-doc-verdicts.md`. The
+positive line `Registered-doc requirements: all current` is emitted ONLY when
+every verdict is `up-to-date`. The block lands in the PR body's `## Documentation`
+section via a post-`/ship` `gh pr edit` step in all three cj_goal orchestrators
+(`/CJ_goal_feature` **Step 4.6**, `/CJ_goal_defect` **Step 9.5**,
 `/CJ_goal_todo_fix` **Step 5.6**; best-effort, never halts; the Step 6.7 producer
-is shared by all three). The defect/todo surfacing was wired by T000039 (Job-2.1);
-because they auto-land, the PR-body verdict has a short review window (the verdict
-also lands in the run output + the scratch file + `/ship` Gate #2).
+is shared by all three).
 
-### Producer note
-
-Step 6.7 is the producer. The existing F000030 `### Skill-routing drift` /
-`### Doc/ manifest drift` PR-body subheadings had NO wired producer until Job 2 —
-they were aspirational prose applied ad-hoc by a knowledgeable agent. The same
-Step 6.7 is their natural home, but emitting those two there is OPTIONAL in v1;
-`### Registered-doc requirements` is the Job-2 deliverable.
-
-### Posture
-
-ADVISORY, agent-judged, NEVER a hard gate. No upstream gstack modification; no
-new hard `validate.sh` check in v1 (a registered doc lacking a requirement gets a
-soft `missing-requirement` verdict, not a CI error — hardening requirement-presence
-is a Job-2.1 follow-up). Scope: the 3 tracked-doc/ files + the active routable
-skill MDs. Root convention docs (the README / CHANGELOG / CLAUDE.md category,
-plus `CJ-DOC-RELEASE.md` — a root `.md` is in neither the catalog-skill set nor
-the tracked-doc/ manifest) are out of scope for the registered-doc audit;
-`CJ-DOC-RELEASE.md`'s enforcement is `/CJ_repo-init` presence. Upstream
+**Posture.** ADVISORY, agent-judged, NEVER a hard gate. No upstream gstack
+modification. The one HARD doc gate is `validate.sh` Check 19 (no work-item IDs in
+human-docs); everything else here is advisory. Root convention docs are covered as
+`operational` registry entries (the no-ref lint does not apply to them). Upstream
 `/document-release` already audits the README/CHANGELOG/CLAUDE.md set per-file.
 
 ## TODOS.md hygiene conventions

@@ -1,7 +1,7 @@
 <!--
-  Per-workflow section template for doc/WORKFLOWS.md (F000034 / T000037).
+  Per-workflow section template for docs/workflow.md (F000034 / T000037).
 
-  Copy this fragment into doc/WORKFLOWS.md under `## Orchestrators` and fill in
+  Copy this fragment into docs/workflow.md under `## Orchestrators` and fill in
   every placeholder. Frontmatter is intentionally absent — this is a fragment,
   not a standalone doc.
 
@@ -9,16 +9,16 @@
   CJ_goal_* workflow orchestrator (today: CJ_goal_feature, CJ_goal_defect,
   CJ_goal_todo_fix), with an ASCII chart + the 4-bullet Touches block. A
   non-orchestrator skill (phase-step, validator, utility) does NOT use this
-  fragment — add it to the doc/WORKFLOWS.md `## Utilities & phase-step skills`
+  fragment — add it to the docs/workflow.md `## Utilities & phase-step skills`
   section instead, using that section's LIGHTER per-skill shape (`### <skill>`
   heading + Status + Source + Invoke when + a compact Touches: Scripts · tools ·
   shell / Reads · writes; no chart, no 4-bullet Touches — single-step skills
   dispatch nothing and run no pipeline). Either way, always add the skill to
-  doc/PHILOSOPHY.md's decision tree, the no-vanish safety net.
+  docs/philosophy.md's decision tree, the no-vanish safety net.
 
   Check 15b in scripts/validate.sh enforces, for every `CJ_goal_*` routable
   non-deprecated skill in skills-catalog.json:
-    (a) the `### {name}` heading exists in doc/WORKFLOWS.md, AND
+    (a) the `### {name}` heading exists in docs/workflow.md, AND
     (b) the section has a fenced ``` block (the ASCII workflow chart).
   Silent omission (heading present, no chart) is forbidden.
 -->
@@ -67,7 +67,7 @@
 - **Skills dispatched:** {the skills this workflow invokes, in order — e.g. /office-hours, /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item, /CJ_document-release (Step 5.5), /ship[, /land-and-deploy]. Note any that run as leaf subagents vs inline, and /CJ_personal-workflow running transitively at boundaries.}
 - **Steps · phases:** {the named pipeline steps + cj-goal-common.sh phases in order — e.g. --phase sync (pre-build skills-sync) → --phase worktree + Fork-1 base-freshness → isolation gate (--assert-isolated) → office-hours/design-gate → scaffold/implement/qa → doc-sync (Step 5.5) → /ship → registered-doc verdicts (Step 4.6/5.6/9.5) → terminal (STOP at PR / land-and-deploy) → worktree-cleanup (--phase cleanup) → telemetry. This bullet is the enforceable completeness anchor — enumerate the worktree-init … teardown lifecycle, not just the skills.}
 - **Scripts · tools · shell:** {the named helper scripts + tools it consumes — e.g. scripts/cj-goal-common.sh (--phase sync / worktree / pr-check / cleanup / telemetry, --mode …), scripts/cj-worktree-init.sh (--caller …, Fork-1 base-freshness + --assert-isolated), scripts/cj-worktree-cleanup.sh, scripts/check-version-queue.sh. NAMED helpers only — NOT raw git/gh, and NOT post-land-sync.sh (it is the internal core --phase sync reuses + a manual operator step, not an orchestrator step).}
-- **Docs touched:** {what the Step 5.5 /CJ_document-release pass folds into the PR — typically README.md, CHANGELOG.md, CLAUDE.md, and doc/** / templates/doc-* per the cj-document-release.json whitelist. Note any workflow-specific doc writes, e.g. the TODOS.md DONE-mark for CJ_goal_todo_fix.}
+- **Docs touched:** {what the Step 5.5 /CJ_document-release pass folds into the PR — typically README.md, CHANGELOG.md, CLAUDE.md, and docs/** / templates/doc-* per the doc-spec.md registry-derived whitelist. Note any workflow-specific doc writes, e.g. the TODOS.md DONE-mark for CJ_goal_todo_fix.}
 
 <!-- The Touches block is prose (human-readable), not a machine-parseable
      manifest. It answers "what does this workflow touch / what is its blast

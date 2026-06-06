@@ -3,6 +3,26 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.48] - 2026-06-06
+
+### Added
+
+- **`doc-spec.md` — doc-driven development (F000050).** A single root `doc-spec.md` is now the one source of truth for "what docs does this repo carry and what is each for": a portable **Common** section (the four required human docs + the human-doc rules), a repo **Custom** section, and one fenced `yaml` machine registry (`schema_version: 1`; `docs[]` with `path`/`section`/`audit_class`/`purpose`/`requirement`; `audit_class ∈ {human-doc, operational}`) parsed by `scripts/doc-spec.sh` + `scripts/validate.sh` + `/CJ_document-release`. The doc-only auto-commit whitelist is now DERIVED from the registry.
+- **`validate.sh` Check 19 — no work-item refs in human docs.** A hard CI lint: any `[FSTD]NNNNNN` in an `audit_class: human-doc` declared doc fails the build. The `scripts/test.sh` `zzz-test-scaffold` fixture is updated in lockstep (planted-`F000999` negative test).
+- **Portable Common seed (`templates/doc-spec-common.md`).** A complete, minimal, valid `doc-spec.md` other repos copy to adopt the contract; `/CJ_document-release` self-bootstraps a missing `doc-spec.md` from it (with an embedded heredoc fallback in `scripts/doc-spec.sh` so the deployed helper works in a consumer repo that has no `templates/`).
+
+### Changed
+
+- **`/CJ_document-release` is now the doc-spec enforcement + self-heal engine.** It reads `doc-spec.md`, self-bootstraps a missing one (temp → `--validate` → `mv`, so a failed seed can never corrupt the file), stub-scaffolds missing declared docs (skeleton + `<!-- TODO -->`, idempotent), audits each declared doc against its `requirement` (plus the no-work-item-ref check for human-docs), and derives the doc-only whitelist from the registry.
+- **`doc/` → `docs/` (lowercase; `workflow.md` singular).** `PHILOSOPHY.md` → `docs/philosophy.md`, `ARCHITECTURE.md` → `docs/architecture.md` (absorbs the former `CJ-DOC-RELEASE.md` mechanism reference), `WORKFLOWS.md` → `docs/workflow.md`. All 41 internal work-item references scrubbed; the docs are human-facing with ASCII flowcharts. `README.md` brought to spec (folder structure + getting started).
+- **`CLAUDE.md`** drops the `### Tracked doc/ files manifest` + `### Tracked root docs allowlist` blocks (migrated into `doc-spec.md`) and points to `doc-spec.md` as the contract; the scripts table + routing prose are updated.
+
+### Removed
+
+- **`/CJ_repo-init`** retired (paired-layer: catalog `status: deprecated` + source/history relocated under `deprecated/`; removed from routing + the decision tree). Its doc-bootstrap duty is subsumed by `/CJ_document-release` self-bootstrap + stub-scaffold; the non-doc prerequisites (`TODOS.md`, `work-items/`) are lazy-created by the skills that read them.
+- **`cj-document-release.json`** deleted — the doc registry + the derived whitelist now live in `doc-spec.md`.
+- **`CJ-DOC-RELEASE.md`** removed — content absorbed into `docs/architecture.md` + `doc-spec.md`.
+
 ## [6.0.47] - 2026-06-06
 
 ### Changed

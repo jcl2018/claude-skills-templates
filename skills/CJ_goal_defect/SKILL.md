@@ -332,7 +332,7 @@ substantive end-states it inherits unchanged:
 | `halted_at_promote_lock_timeout` | `[promote-lock-timeout]` | Step 7.4 D-ID allocation mkdir-lock held >10s; promotion aborted, draft retained, no D-ID consumed |
 | `halted_at_qa` | `[qa-red]` | /CJ_qa-work-item red |
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green (upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) |
-| `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: cj-document-release.json missing/invalid/schema_version-unsupported (F000037 strict-required) |
+| `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum (a simply-absent doc-spec.md self-bootstraps, not halts) |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist (upstream-misbehaved) |
 | `halted_at_ship` | `[ship-declined]` | /ship Gate #2 declined or pre-landing review red |
 | `halted_at_deploy` | `[land-and-deploy-red]` | /land-and-deploy red (CI / merge / canary) |

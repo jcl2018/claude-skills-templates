@@ -52,8 +52,12 @@ manifest_write() {
 # is the source of truth. Templates-only entries (empty files) are included;
 # the install loop handles that branch.
 discover_skills() {
+  # The default install set EXCLUDES deprecated skills (the F000031 relocation
+  # pattern: a deprecated skill's source is archived under deprecated/ and is NOT
+  # deployed). An explicit `install <name>` still works for any catalog entry.
+  # Matches the `!= deprecated` selector test-deploy.sh's SKILL_COUNT uses.
   [ -f "$CATALOG" ] || return 0
-  jq -r '.[].name' "$CATALOG" 2>/dev/null || true
+  jq -r '.[] | select((.status // "active") != "deprecated") | .name' "$CATALOG" 2>/dev/null || true
 }
 
 # Read skill dependencies from catalog

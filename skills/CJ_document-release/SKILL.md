@@ -1,6 +1,6 @@
 ---
 name: CJ_document-release
-description: "Workbench wrapper around upstream /document-release. Adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a per-repo doc-only whitelist (non-whitelist writes HALT with [doc-sync-non-doc-write]). F000037: whitelist + --docs categories load from a strict-required cj-document-release.json at repo root; missing/invalid config HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
+description: "Workbench wrapper around upstream /document-release. Reads the root doc-spec.md registry (self-bootstraps it from the portable Common seed if missing; stub-scaffolds any missing declared doc), adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a doc-only whitelist DERIVED from the doc-spec.md registry (non-whitelist writes HALT with [doc-sync-non-doc-write]). A missing/invalid registry HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -29,76 +29,71 @@ If `NOT_A_GIT_REPO`: print `Error: /CJ_document-release requires a git repositor
 
 ## Overview
 
-> Canonical convention home: the reader-facing contract for this skill — wrapper
-> flow, the doc-only auto-commit whitelist gate, the `cj-document-release.json`
-> schema, the registered-doc audit, and a declaration-site index — lives in
-> `CJ-DOC-RELEASE.md` at the repo root (presence-checked by `/CJ_repo-init`). This
-> SKILL.md remains the implementation; the runtime-parsed CLAUDE.md anchors
-> (`### Tracked doc/ files manifest`, `## Registered-doc requirements audit`,
-> `## cj-document-release.json convention`) that Step 6.7 reads are unchanged.
+> Canonical convention home: the doc contract this skill enforces — what docs the
+> repo carries, what each is for, and the human-doc rules — lives in the root
+> `doc-spec.md` (both human prose and a machine `yaml` registry). The mechanism
+> reference (how it is parsed, enforced, and self-healed) lives in
+> `docs/architecture.md` `## The doc-spec.md contract + /CJ_document-release`.
 
 `/CJ_document-release` is a thin workbench wrapper around upstream gstack
-`/document-release`. It adds three workbench-specific concerns that the
-orchestrator family needs:
+`/document-release`. It adds four workbench-specific concerns the orchestrator
+family needs:
 
-1. **`--docs <comma-list>` per-invocation doc subset.** Operator can scope an
-   invocation to a subset of doc categories (e.g. `--docs README` or
+1. **Reads + self-heals the `doc-spec.md` contract.** The root `doc-spec.md`
+   declares the repo's docs (a fenced `yaml` registry parsed by
+   `scripts/doc-spec.sh`). If `doc-spec.md` is **missing**, the wrapper
+   self-bootstraps it from the portable Common seed and commits it. For each
+   **declared doc that is missing**, it stub-scaffolds a skeleton (title + a
+   section skeleton + a `<!-- TODO: fill in -->` marker) and commits it. Both are
+   idempotent — a re-run never writes a second copy.
+
+2. **`--docs <comma-list>` per-invocation doc subset.** Operator can scope an
+   invocation to a subset of declared docs (e.g. `--docs README` or
    `--docs README,CHANGELOG`). The subset is a documentation-only signal to
    `/document-release` via the project-context block; it is best-effort, not
-   enforced (the workbench skill does NOT reach into upstream to gate which
-   audits fire). Case-insensitive parsing; whitespace trimmed; unknown values
-   warn-and-skip; empty subset = full audit; the literal `all` is an explicit
-   no-filter token.
+   enforced. Case-insensitive parsing; whitespace trimmed; empty subset = full
+   audit; the literal `all` is an explicit no-filter token.
 
-2. **Halt-on-red contract.** If `/document-release` returns non-green (audit
-   error, mid-write failure, hard-abort), the wrapper emits `[doc-sync-red]`
-   to the caller (an orchestrator) and exits non-green. The orchestrator HALTs
-   with `halt class = halted_at_doc_sync`. This is a hard halt, not a warning.
+3. **Halt-on-red contract.** If `/document-release` returns non-green (audit
+   error, mid-write failure, hard-abort), the wrapper emits `[doc-sync-red]` to
+   the caller (an orchestrator) and exits non-green. The orchestrator HALTs with
+   `halt class = halted_at_doc_sync`. This is a hard halt, not a warning.
 
-3. **Doc-only auto-commit (whitelist gate).** After a green `/document-release`,
-   the wrapper inspects the working tree and auto-commits doc-only changes so
-   `/ship` (the next pipeline step) sees a clean tree. The whitelist is loaded
-   from `cj-document-release.json` at the repo root (F000037 strict-required):
-
-   ```json
-   {
-     "schema_version": 1,
-     "whitelist_patterns": ["README.md", "doc/**/*.md", ...],
-     "categories": { "readme": ["README.md"], ... }
-   }
-   ```
-
-   If any non-whitelist file is dirty after `/document-release` runs, the
-   wrapper refuses to auto-commit and HALTs with `[doc-sync-non-doc-write]`
-   (halt class `halted_at_doc_sync_non_doc_write`). Stealth code edits via the
-   doc-sync surface are a serious surface; the conservative whitelist closes
-   that door without an operator-override. If `cj-document-release.json` is
-   missing/invalid/schema_version-unsupported, the wrapper HALTs with
-   `[doc-sync-no-config]` BEFORE any audit runs.
+4. **Doc-only auto-commit (derived whitelist gate).** After a green
+   `/document-release`, the wrapper auto-commits doc-only changes so `/ship` sees
+   a clean tree. The whitelist is **derived from the `doc-spec.md` registry**
+   (`scripts/doc-spec.sh --expand-whitelist` = every declared `path` +
+   `doc-spec.md` + every `docs/**/*.md`). If any non-whitelist file is dirty after
+   `/document-release` runs, the wrapper refuses to auto-commit and HALTs with
+   `[doc-sync-non-doc-write]`. If `doc-spec.md` is missing/invalid, the wrapper
+   HALTs with `[doc-sync-no-config]` BEFORE any audit runs.
 
 The orchestrator invocation shape:
 
 ```
 (orchestrator session)
-       │
-       ▼
+       |
+       v
 ... QA passes green (Step 5) ...
-       │
-       ▼
-Skill(CJ_document-release)         ← THIS SKILL (no --docs in v1 orchestrator wiring)
-       │
-       ├── arg parse: --docs <list>
-       ├── branch + clean-tree gate
-       ├── project-context block (doc-only signal)
-       ├── Skill(/document-release) ─→ upstream gstack (NOT MODIFIED)
-       ├── halt-on-red [doc-sync-red] (RESULT=red)
-       ├── auto-commit doc-only (whitelist gate) [doc-sync-non-doc-write]
-       └── success summary (RESULT=green or RESULT=green-noop)
-       │
-       ▼
-/ship (Step 6)                     ← clean-tree precondition NOW satisfied
-       │
-       ▼
+       |
+       v
+Skill(CJ_document-release)         <- THIS SKILL (no --docs in v1 orchestrator wiring)
+       |
+       |-- read doc-spec.md (self-bootstrap from seed if missing)
+       |-- stub-scaffold any missing declared doc
+       |-- arg parse: --docs <list>
+       |-- branch + clean-tree gate
+       |-- project-context block (doc-only signal)
+       |-- Skill(/document-release) -> upstream gstack (NOT MODIFIED)
+       |-- halt-on-red [doc-sync-red] (RESULT=red)
+       |-- auto-commit doc-only (derived whitelist gate) [doc-sync-non-doc-write]
+       |-- registered-doc audit (advisory; + no-ref check for human-docs)
+       `-- success summary (RESULT=green or RESULT=green-noop)
+       |
+       v
+/ship (Step 6)                     <- clean-tree precondition NOW satisfied
+       |
+       v
 PR includes BOTH code + doc commits
 ```
 
@@ -114,68 +109,139 @@ PR includes BOTH code + doc commits
 `--docs` parsing is case-insensitive (`--docs readme`, `--docs README`, and
 `--docs Readme` are equivalent). Whitespace inside the comma list is trimmed
 (`--docs "README, CHANGELOG"` is accepted). Unknown values warn-and-skip
-(`--docs README,UNKNOWN_DOC` audits README only and prints a one-line warn
-for `UNKNOWN_DOC`). Empty subset (no flag, or `--docs ""`) is a full audit.
+(`--docs README,UNKNOWN_DOC` audits README only and prints a one-line warn for
+`UNKNOWN_DOC`). Empty subset (no flag, or `--docs ""`) is a full audit.
 
-## Step 0.5: Read config (F000037 strict-required)
+## Step 0.5: Resolve the doc-spec helper + read/self-heal the contract
 
-Before any audit runs, validate the per-repo config at `cj-document-release.json`
-via the helper script. The helper exits 1 + emits `[doc-sync-no-config] <reason>`
-when the file is missing / invalid JSON / schema_version-unsupported / required
-fields missing. The wrapper HALTs immediately on non-zero exit — no fallback to
-hardcoded defaults.
+Before any audit runs, resolve the `doc-spec.sh` helper, then read the
+`doc-spec.md` registry. The helper reads `doc-spec.md` via `git rev-parse
+--show-toplevel`, so a `_cj-shared`-resolved helper still parses THIS repo's
+registry — never the workbench's.
 
 ```bash
-# Resolve the config helper: (1) repo-local first (workbench self-dev or a repo
+# Resolve the doc-spec helper: (1) repo-local first (workbench self-dev or a repo
 # that vendors scripts/), then (2) the deployed _cj-shared home (a consumer repo
-# where the helper lives ONLY in the installed workbench). The helper reads
-# cj-document-release.json via `git rev-parse --show-toplevel`, so a _cj-shared-resolved
-# helper still parses THIS repo's config — never the workbench's.
-_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
-_CFG_HELPER=""
-# 2-tier shared-script resolution (F000049/S000088: .source tier dropped): repo-local → _cj-shared
-if [ -n "$_CR_REPO_ROOT" ] && [ -x "$_CR_REPO_ROOT/scripts/cj-document-release-config.sh" ]; then
-  _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
-elif [ -x "$_CR_SHARED/cj-document-release-config.sh" ]; then
-  _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
+# where the helper lives ONLY in the installed workbench). 2-tier resolution:
+# repo-local -> _cj-shared (no .source / manifest reach-back).
+_DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_DS_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+_DS_HELPER=""
+if [ -n "$_DS_REPO_ROOT" ] && [ -x "$_DS_REPO_ROOT/scripts/doc-spec.sh" ]; then
+  _DS_HELPER="$_DS_REPO_ROOT/scripts/doc-spec.sh"
+elif [ -x "$_DS_SHARED/doc-spec.sh" ]; then
+  _DS_HELPER="$_DS_SHARED/doc-spec.sh"
 fi
-if [ -z "$_CFG_HELPER" ]; then
-  echo "[doc-sync-no-config] cj-document-release-config.sh unreachable (repo-local scripts/ + deployed _cj-shared both absent)"
+if [ -z "$_DS_HELPER" ]; then
+  echo "[doc-sync-no-config] doc-spec.sh unreachable (repo-local scripts/ + deployed _cj-shared both absent)"
   echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
-  echo "next_action=restore scripts/cj-document-release-config.sh in this repo, or re-run 'skills-deploy install' to refresh the deployed _cj-shared home; re-run /CJ_document-release"
-  echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
-  echo "pr_url=N/A"
-  exit 1
-fi
-
-CONFIG_OUT=$(bash "$_CFG_HELPER" --validate 2>&1)
-CONFIG_RC=$?
-if [ "$CONFIG_RC" -ne 0 ]; then
-  # Helper already emitted [doc-sync-no-config] <reason>; pass it through
-  # verbatim so the orchestrator's halt-class detector matches.
-  echo "$CONFIG_OUT"
-  echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
-  echo "next_action=author or repair cj-document-release.json at repo root; copy the workbench's seed JSON as a starting point; re-run /CJ_document-release"
+  echo "next_action=restore scripts/doc-spec.sh in this repo, or re-run 'skills-deploy install' to refresh the deployed _cj-shared home; re-run /CJ_document-release"
   echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
   echo "pr_url=N/A"
   exit 1
 fi
 ```
 
-The helper supports four subcommands the rest of this skill consumes:
+### Self-bootstrap a missing doc-spec.md
 
-- `--parse` — pretty-print the JSON (debug/inspection).
-- `--expand-whitelist` — emit the expanded whitelist file list (globs resolved
-  against the working tree; sorted, unique). Step 2 + Step 6 use this.
-- `--resolve <token>` — emit the file list for one category. Step 4 uses this
-  when `--docs <token>` is set.
-- `--validate` — exit 0 if schema is OK; exit 1 + halt-emit otherwise.
+If `doc-spec.md` does not exist at the repo root, scaffold it from the portable
+Common seed (`doc-spec.sh --seed`) and commit it. This is the duty that replaces
+a separate repo-init step — a fresh repo adopts the contract with no manual step:
+
+Write the seed to a temp file, verify it is non-empty AND passes `--validate`,
+THEN move it into place. This guards against a `--seed` failure ever redirecting
+a halt string (or an empty stream) into `doc-spec.md` and corrupting it:
+
+```bash
+if [ ! -f "$_DS_REPO_ROOT/doc-spec.md" ]; then
+  _DS_TMPD=$(mktemp -d)
+  if bash "$_DS_HELPER" --seed > "$_DS_TMPD/doc-spec.md" 2>/dev/null \
+     && [ -s "$_DS_TMPD/doc-spec.md" ] \
+     && REPO_ROOT="$_DS_TMPD" bash "$_DS_HELPER" --validate >/dev/null 2>&1; then
+    mv "$_DS_TMPD/doc-spec.md" "$_DS_REPO_ROOT/doc-spec.md"
+    rm -rf "$_DS_TMPD"
+    git -C "$_DS_REPO_ROOT" add doc-spec.md
+    git -C "$_DS_REPO_ROOT" commit -m "docs: self-bootstrap doc-spec.md from the portable Common seed" >/dev/null 2>&1 || true
+    echo "CJ_document-release: scaffolded doc-spec.md from the portable Common seed."
+  else
+    rm -rf "$_DS_TMPD"
+    echo "[doc-sync-no-config] self-bootstrap failed: doc-spec.sh --seed did not emit a valid doc-spec.md"
+    echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
+    echo "next_action=check scripts/doc-spec.sh --seed + templates/doc-spec-common.md; re-run /CJ_document-release"
+    echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
+    echo "pr_url=N/A"
+    exit 1
+  fi
+fi
+```
+
+### Validate the registry (strict)
+
+Validate the registry via the helper. The helper exits 1 + emits
+`[doc-sync-no-config] <reason>` when the registry is missing / has no `yaml`
+block / schema_version-unsupported / an entry missing required fields / an
+audit_class outside the closed enum. The wrapper HALTs immediately on non-zero
+exit — no fallback:
+
+```bash
+CONFIG_OUT=$(bash "$_DS_HELPER" --validate 2>&1)
+CONFIG_RC=$?
+if [ "$CONFIG_RC" -ne 0 ]; then
+  echo "$CONFIG_OUT"
+  echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
+  echo "next_action=repair doc-spec.md's yaml registry at repo root; re-run /CJ_document-release"
+  echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
+  echo "pr_url=N/A"
+  exit 1
+fi
+```
+
+### Stub-scaffold missing declared docs
+
+For each declared doc that is missing from disk, write a stub (title + a section
+skeleton its `audit_class` implies + a `<!-- TODO: fill in -->` marker) and
+commit it. Idempotent: only missing docs are written, so a re-run is a NO-OP and
+never produces a second stub. Record each stubbed doc in the audit as `stub —
+needs content`:
+
+```bash
+_STUBBED=""
+while IFS= read -r _decl; do
+  [ -n "$_decl" ] || continue
+  if [ ! -f "$_DS_REPO_ROOT/$_decl" ]; then
+    mkdir -p "$_DS_REPO_ROOT/$(dirname "$_decl")"
+    {
+      echo "# $(basename "$_decl" .md)"
+      echo ""
+      echo "<!-- TODO: fill in -->"
+      echo ""
+      echo "This doc is declared in doc-spec.md but has not been written yet."
+    } > "$_DS_REPO_ROOT/$_decl"
+    git -C "$_DS_REPO_ROOT" add "$_decl"
+    _STUBBED="$_STUBBED $_decl"
+  fi
+done < <(bash "$_DS_HELPER" --list-declared)
+if [ -n "$_STUBBED" ]; then
+  git -C "$_DS_REPO_ROOT" commit -m "docs: stub-scaffold missing declared docs ($_STUBBED)" >/dev/null 2>&1 || true
+  echo "CJ_document-release: stub-scaffolded missing declared docs:$_STUBBED (audit: stub — needs content)"
+fi
+```
+
+The helper supports these subcommands the rest of this skill consumes:
+
+- `--validate` — exit 0 + print `OK schema_version=<n>` if the registry is valid;
+  exit 1 + halt-emit otherwise.
+- `--list-declared` — emit every declared `path` (sorted, unique).
+- `--list-human-docs` — emit only the `audit_class: human-doc` paths (used by the
+  no-work-item-ref audit check).
+- `--expand-whitelist` — emit the doc-only auto-commit whitelist (every declared
+  `path` + `doc-spec.md` + every `docs/**/*.md`). Step 2 + Step 6 use this.
+- `--seed` — emit the portable Common-section seed (used by the self-bootstrap).
 
 ## Step 1: Parse arguments
 
 Parse the optional `--docs <comma-list>` flag (case-insensitive; whitespace
-trimmed; resolved against the config's `categories` map at Step 4):
+trimmed; resolved against the registry's declared paths at Step 4):
 
 ```bash
 DOCS_RAW=""
@@ -216,24 +282,21 @@ if [ "$DOCS_SUBSET" = "all" ]; then
 fi
 ```
 
-The set of known `--docs` tokens is no longer hardcoded — it is whatever the
-repo's `cj-document-release.json` declares under `categories` (F000037
-strict-required). Step 4 resolves each requested token via
-`bash "$_CFG_HELPER" --resolve <token>`; tokens NOT
-declared in `categories` cause the helper to exit 1 with `[doc-sync-no-config]`,
-which the wrapper passes through verbatim. The workbench's bundled JSON seeds
-the F000036-compat set (`readme`, `changelog`, `claude`, `architecture`,
-`philosophy`, `workflows`) so day-1 behavior is unchanged; other repos
-adopting `/CJ_document-release` declare their own categories. Upstream
+The set of known `--docs` tokens is the basename (or path) of any doc the
+`doc-spec.md` registry declares. Step 4 resolves each requested token against the
+declared set; a token matching no declared doc is warn-and-skipped (the full
+audit still runs). The registry seeds with this repo's docs (README, CHANGELOG,
+CLAUDE.md, docs/philosophy.md, docs/workflow.md, docs/architecture.md, …); other
+repos adopting `/CJ_document-release` declare their own. Upstream
 `/document-release` still decides what to actually audit — the filter is
 best-effort communication of operator intent via the project-context block.
 
 ## Step 2: Branch + clean-tree gate
 
-Upstream `/document-release` refuses on the base branch (it hard-aborts on
-main with "You're on the base branch. Run from a feature branch."). Mirror
-that refusal here as a pre-flight check so the wrapper fails fast rather than
-spending a Skill call:
+Upstream `/document-release` refuses on the base branch (it hard-aborts on main
+with "You're on the base branch. Run from a feature branch."). Mirror that
+refusal here as a pre-flight check so the wrapper fails fast rather than spending
+a Skill call:
 
 ```bash
 _BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
@@ -246,23 +309,21 @@ case "$_BRANCH" in
 esac
 ```
 
-Clean-tree gate: `/document-release` itself writes doc files. The wrapper
-refuses if the working tree already has uncommitted NON-DOC changes (those
-must commit first; doc-only dirtiness is OK because the wrapper will
-auto-commit it later). The doc-only set is derived from the helper-expanded
-whitelist (F000037), not a hardcoded regex:
+Clean-tree gate: `/document-release` itself writes doc files. The wrapper refuses
+if the working tree already has uncommitted NON-DOC changes (those must commit
+first; doc-only dirtiness is OK because the wrapper will auto-commit it later).
+The doc-only set is the helper-derived whitelist, not a hardcoded regex:
 
 ```bash
-# Re-resolve the config helper (shell vars do NOT persist across bash blocks):
+# Re-resolve the doc-spec helper (shell vars do NOT persist across bash blocks):
 # repo-local first, else the deployed _cj-shared home.
-_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
-_CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
+_DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_DS_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+_DS_HELPER="$_DS_REPO_ROOT/scripts/doc-spec.sh"
+[ -x "$_DS_HELPER" ] || _DS_HELPER="$_DS_SHARED/doc-spec.sh"
 
-# Build doc-only file set from the config's whitelist_patterns (F000037).
-DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
+# Build doc-only file set from the registry-derived whitelist.
+DOC_WHITELIST_SET=$(bash "$_DS_HELPER" --expand-whitelist)
 
 # Inspect uncommitted files; refuse if any are NOT in the whitelist set.
 DIRTY_FILES=$(git status --porcelain 2>/dev/null | awk '{print $2}')
@@ -287,46 +348,36 @@ fi
 
 ## Step 3: Build the project-context block
 
-The block is a documentation-only signal to `/document-release` that this run
-is filtered (or unfiltered). Upstream may honor the filter or audit
-everything — both outcomes are fine; the wrapper auto-commits whatever
-upstream produces (gated by the whitelist).
+The block is a documentation-only signal to `/document-release` that this run is
+filtered (or unfiltered). Upstream may honor the filter or audit everything —
+both outcomes are fine; the wrapper auto-commits whatever upstream produces
+(gated by the whitelist).
 
-When `--docs <token>` is set, the wrapper resolves each token to a concrete
-file list via `bash "$_CFG_HELPER" --resolve <token>`.
-A token NOT declared in the JSON's `categories` map causes the helper to exit
-1 with `[doc-sync-no-config]` — the wrapper passes that through verbatim
-(F000037 strict-required posture; no warn-and-skip fallback for unknown
-tokens).
+When `--docs <token>` is set, resolve each token against the registry's declared
+docs (`doc-spec.sh --list-declared`): a token that matches a declared doc's
+basename (or full path) is kept; a token matching nothing is warn-and-skipped:
 
 ```bash
 AUDIT_FILES=""
 if [ -n "$DOCS_SUBSET" ]; then
-  # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
-  # repo-local first, else the deployed _cj-shared home.
-  _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-  _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
-  _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
-  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
-  # Resolve each comma-separated token via the helper.
+  _DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  _DS_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+  _DS_HELPER="$_DS_REPO_ROOT/scripts/doc-spec.sh"
+  [ -x "$_DS_HELPER" ] || _DS_HELPER="$_DS_SHARED/doc-spec.sh"
+  _DECLARED=$(bash "$_DS_HELPER" --list-declared)
   while IFS= read -r token; do
     [ -n "$token" ] || continue
-    RESOLVED=$(bash "$_CFG_HELPER" --resolve "$token" 2>&1)
-    RC=$?
-    if [ "$RC" -ne 0 ]; then
-      echo "$RESOLVED"
-      echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
-      echo "next_action=declare token '$token' in cj-document-release.json categories, or use a different --docs token"
-      echo "resume_cmd=/CJ_document-release --docs $DOCS_SUBSET"
-      echo "pr_url=N/A"
-      exit 1
+    # Match a declared doc by full path OR basename (case-insensitive token).
+    _hit=$(printf '%s\n' "$_DECLARED" | awk -v t="$token" 'BEGIN{IGNORECASE=1} {b=$0; sub(/.*\//,"",b); sub(/\.md$/,"",b); fp=$0; sub(/\.md$/,"",fp); if (tolower(b)==tolower(t) || tolower(fp)==tolower(t) || tolower($0)==tolower(t)) print $0}')
+    if [ -z "$_hit" ]; then
+      echo "CJ_document-release: warn — --docs token '$token' matches no declared doc; skipping it."
+      continue
     fi
-    AUDIT_FILES="$AUDIT_FILES$RESOLVED"$'\n'
+    AUDIT_FILES="$AUDIT_FILES$_hit"$'\n'
   done < <(printf '%s' "$DOCS_SUBSET" | tr ',' '\n')
   AUDIT_FILES=$(printf '%s' "$AUDIT_FILES" | sort -u | grep -v '^$' || true)
   CONTEXT_BLOCK="CJ_document-release: running with --docs filter = '$DOCS_SUBSET'.
-This invocation should audit only the following files (resolved via cj-document-release.json):
+This invocation should audit only the following files (resolved via doc-spec.md):
 $AUDIT_FILES
 The filter is best-effort communication of operator intent — upstream behavior
 is authoritative."
@@ -355,8 +406,6 @@ If upstream returned non-green (audit error, mid-write failure, hard-abort,
 crashed, exceeded budget): emit a halt marker and exit RESULT=red:
 
 ```bash
-# Pseudocode: the Skill-tool result is interpreted by the orchestrator/agent.
-# When upstream returns non-green:
 echo "CJ_document-release: upstream /document-release returned non-green; halting."
 echo "RESULT: red; HALT_MARKER=[doc-sync-red]"
 echo "next_action=inspect /document-release output; fix doc errors; re-run /CJ_document-release"
@@ -365,24 +414,23 @@ echo "pr_url=N/A"
 exit 1
 ```
 
-## Step 6: Auto-commit doc-only (whitelist gate; [doc-sync-non-doc-write])
+## Step 6: Auto-commit doc-only (derived whitelist gate; [doc-sync-non-doc-write])
 
-After a green `/document-release`, inspect the working tree. If any dirty
-file is OUTSIDE the doc-only whitelist, refuse to auto-commit and HALT — this
-is the upstream-misbehaved case (or an unexpected stealth-write surface).
-The whitelist set comes from `bash "$_CFG_HELPER"
---expand-whitelist` (F000037; reuses Step 2's expansion):
+After a green `/document-release`, inspect the working tree. If any dirty file is
+OUTSIDE the doc-only whitelist, refuse to auto-commit and HALT — this is the
+upstream-misbehaved case (or an unexpected stealth-write surface). The whitelist
+set comes from `bash "$_DS_HELPER" --expand-whitelist` (reuses Step 2's
+expansion):
 
 ```bash
-# Re-resolve the config helper (shell vars do NOT persist across bash blocks):
+# Re-resolve the doc-spec helper (shell vars do NOT persist across bash blocks):
 # repo-local first, else the deployed _cj-shared home.
-_CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
-_CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
+_DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_DS_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+_DS_HELPER="$_DS_REPO_ROOT/scripts/doc-spec.sh"
+[ -x "$_DS_HELPER" ] || _DS_HELPER="$_DS_SHARED/doc-spec.sh"
 
-DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
+DOC_WHITELIST_SET=$(bash "$_DS_HELPER" --expand-whitelist)
 DIRTY=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep -v '^$')
 
 DOC_DIRTY=""
@@ -432,67 +480,52 @@ control reaches here). It is **strictly advisory**: it emits one verdict per
 registered doc and NEVER halts, exits non-green, or blocks `/ship`. A
 `missing-requirement` verdict is a soft finding, not a halt.
 
-This is the **first real producer** for the workbench's PR-body audit
-subheadings — see CLAUDE.md `## Registered-doc requirements audit` (the
-convention this step implements) and `### Reporting`. The agent running the
-wrapper performs the judgment; the deliverable is a grep-able block written to
-BOTH the wrapper RESULT and a gitignored scratch file the orchestrator surfaces
-post-`/ship`.
+This is the **producer** for the workbench's PR-body audit subheadings — see
+`docs/architecture.md` `## The doc-spec.md contract + /CJ_document-release`. The
+agent running the wrapper performs the judgment; the deliverable is a grep-able
+block written to BOTH the wrapper RESULT and a gitignored scratch file the
+orchestrator surfaces post-`/ship`.
 
 **What "registered docs" means.** Two sets, both enumerated dynamically (no
 hardcoded counts):
 
-1. **The tracked-doc/ files** — every entry in the CLAUDE.md `### Tracked doc/
-   files manifest` block, each carrying a `requirement:` value (F000034 manifest
-   + the Job-2 `requirement:` extension).
-2. **The active routable skill MDs** — every skill enumerated by the same
-   selector the F000030 New-skills check uses; each skill's requirement is its
-   optional `doc_requirement` in `skills-catalog.json`, else the **shared
-   default skill-MD requirement** (see CLAUDE.md `## Registered-doc requirements
-   audit`).
+1. **The registry docs** — every entry in the `doc-spec.md` registry, each
+   carrying a `requirement:` value.
+2. **The routable skill MDs** — every skill enumerated by the
+   `!= "deprecated"` selector; each skill's requirement is its optional
+   `doc_requirement` in `skills-catalog.json`, else the **shared default
+   skill-MD requirement**.
 
-### 6.7.1 — Parse the tracked-doc/ requirements
+### 6.7.1 — Parse the registry requirements
 
-Parse the CLAUDE.md `### Tracked doc/ files manifest` YAML-ish block (the same
-block Check 15a reads). For each `- path:` entry, capture BOTH the `path:` value
-AND its `requirement:` child value. The `requirement:` value MAY WRAP across a
-continuation line (a soft-wrapped long sentence), so read the FULL value, not
-just the first whitespace-token — concatenate continuation lines until the next
-`- path:` / `audit_class:` / `owner:` / `requirement:` key or the closing fence:
+Parse the `doc-spec.md` registry (the same block the helper reads). For each
+declared doc, capture BOTH its `path:` value AND its `requirement:` child value.
+The `requirement:` value MAY wrap across a continuation line, so read the FULL
+value:
 
 ```bash
-_CLAUDE="$_REPO_ROOT/CLAUDE.md"
-# Extract the manifest block: from '### Tracked doc/ files manifest' to the next
-# closing ``` after its opening fence. Then walk entries, capturing path + the
-# (possibly multi-line) requirement value. Implemented as agent-side parsing of
-# the captured block — the orchestrator-model reads each `- path:` group and its
-# `requirement:` value (joining wrapped continuation lines into one string).
+_DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Extract the yaml registry block and walk path + requirement pairs.
 awk '
-  /^### Tracked doc\/ files manifest/ {inhdr=1}
-  inhdr && /^```yaml/ {infence=1; next}
-  inhdr && infence && /^```/ {infence=0; inhdr=0}
-  inhdr && infence {print}
-' "$_CLAUDE"
+  /^```yaml/ { if (!seen) { f=1; seen=1; next } }
+  /^```/     { if (f) { f=0 } }
+  f          { print }
+' "$_DS_REPO_ROOT/doc-spec.md"
 ```
 
 For each captured `(path, requirement)` pair: the registered doc is `path`, and
-its declared requirement is the full `requirement:` string. A manifest entry with
-NO `requirement:` child → verdict `missing-requirement` for that doc.
+its declared requirement is the full `requirement:` string. A `human-doc` entry
+ALSO gets the no-work-item-ref check below.
 
 ### 6.7.2 — Enumerate the skill MDs + their requirements
 
-Enumerate active routable skills with the New-skills selector, and read each
-skill's optional `doc_requirement` (absent ⇒ the shared default):
+Enumerate routable skills with the `!= "deprecated"` selector, and read each
+skill's optional `doc_requirement` (absent => the shared default):
 
 ```bash
-_CATALOG="$_REPO_ROOT/skills-catalog.json"
-# Routable skills (non-empty files array), active OR experimental — the
-# `!= "deprecated"` predicate (the same one Check 14/15b use), deliberately
-# BROADER than the F000030 New-skills check (active-only) so the audit covers
-# the whole CJ_ family, not just the 3 active skills; no hardcoded skill count.
+_CATALOG="$_DS_REPO_ROOT/skills-catalog.json"
 SKILL_NAMES=$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_CATALOG")
 
-# The shared default skill-MD requirement (used when a skill has no doc_requirement):
 SHARED_DEFAULT="The SKILL.md frontmatter \`description\` and the documented behavior/steps match the skill's current implementation; the skill's USAGE.md is current."
 
 for _name in $SKILL_NAMES; do
@@ -502,61 +535,56 @@ for _name in $SKILL_NAMES; do
 done
 ```
 
-### 6.7.3 — Judge each registered doc
+### 6.7.3 — Judge each registered doc (+ no-work-item-ref check for human-docs)
 
-Determine the diff base for this run (the merge-base of the branch against the
-default branch, matching how `/document-release` scopes its own audit):
+Determine the diff base (the merge-base of the branch against the default
+branch). For EACH registered doc, the agent reads the doc + its requirement + the
+run's `git diff <base>...HEAD` and assigns ONE verdict:
+
+- `up-to-date` — satisfies its requirement given what this run changed.
+- `stale: <one-line why>` — no longer satisfies its requirement.
+- `missing-requirement` — the registered doc has NO declared requirement. Soft;
+  never a halt.
+- `n/a` — registered but out of scope for this run's judgment.
+
+For every `audit_class: human-doc` registered doc, ALSO run the
+no-work-item-ref check: grep the doc for `[FSTD][0-9]{6}`; any hit forces the
+verdict `stale: contains work-item refs` (the advisory mirror of the hard
+`validate.sh` Check 19):
 
 ```bash
-_BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo "")
-# Per-doc judgment input: the doc's content + its requirement + `git diff <base>...HEAD`.
-[ -n "$_BASE" ] && git diff "$_BASE"...HEAD --stat || true
+_DS_HELPER="$_DS_REPO_ROOT/scripts/doc-spec.sh"
+[ -x "$_DS_HELPER" ] || _DS_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh"
+for _hd in $(bash "$_DS_HELPER" --list-human-docs); do
+  if grep -qE '[FSTD][0-9]{6}' "$_DS_REPO_ROOT/$_hd" 2>/dev/null; then
+    echo "  $_hd: stale — contains work-item refs"
+  fi
+done
 ```
-
-For EACH registered doc (the tracked-doc/ files from 6.7.1 AND the skill MDs from
-6.7.2), the agent reads the doc + its requirement + the run's `git diff
-<base>...HEAD` and assigns ONE verdict:
-
-- `up-to-date` — the doc satisfies its requirement given what this run changed.
-- `stale: <one-line why>` — the doc no longer satisfies its requirement (e.g.
-  a SKILL.md whose described steps no longer match its implementation, an
-  ARCHITECTURE roster missing a skill this run added).
-- `missing-requirement` — the registered doc has NO declared requirement (a
-  tracked-doc/ manifest entry with no `requirement:` child). Soft; never a halt.
-- `n/a` — the doc is registered but out of scope for this run's judgment.
 
 ### 6.7.4 — Emit the block (RESULT + scratch file)
 
 Compose the grep-able block and write it to BOTH the wrapper RESULT (stdout) AND
-the gitignored scratch file `"$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"`
-(the `.cj-goal-feature/` dir is already gitignored; the orchestrator's post-`/ship`
-surfacing step reads this file). Emit the positive line `Registered-doc
-requirements: all current` ONLY when EVERY verdict is `up-to-date`:
+the gitignored scratch file
+`"$_DS_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"`. Emit the positive
+line `Registered-doc requirements: all current` ONLY when EVERY verdict is
+`up-to-date`:
 
 ```bash
-_VERDICT_DIR="$_REPO_ROOT/.cj-goal-feature"
+_VERDICT_DIR="$_DS_REPO_ROOT/.cj-goal-feature"
 mkdir -p "$_VERDICT_DIR"
 _VERDICT_FILE="$_VERDICT_DIR/registered-doc-verdicts.md"
-
-# The agent composes $VERDICT_BODY as one verdict line per registered doc, e.g.:
-#   doc/WORKFLOWS.md: up-to-date
-#   skills/CJ_goal_defect/SKILL.md: stale — chain diagram omits Step 5.5
-# then appends the positive line ONLY if every verdict above is up-to-date.
 {
   echo "### Registered-doc requirements"
   printf '%s\n' "$VERDICT_BODY"
-  # positive line ONLY when all up-to-date:
   if [ "$ALL_UP_TO_DATE" = "true" ]; then
     echo "Registered-doc requirements: all current"
   fi
 } | tee "$_VERDICT_FILE"
 ```
 
-The block is ADVISORY: control falls straight through to Step 7. No exit, no
-halt marker, no RESULT=red is emitted by this step under any verdict — a fully
-`stale`/`missing-requirement` audit still proceeds to `/ship`. The verdicts
-inform the reviewer; they do not gate the pipeline (v1 advisory posture, per
-CLAUDE.md `## Registered-doc requirements audit`).
+The block is ADVISORY: control falls straight through to Step 7. No exit, no halt
+marker, no RESULT=red is emitted by this step under any verdict.
 
 ## Step 7: Success summary
 
@@ -567,14 +595,12 @@ CJ_document-release: <green|green-noop> / /document-release: green / commit: <sh
 ```
 
 The orchestrator's Step 5.5 reads:
-- `RESULT: green` → continue to `/ship`. Doc commit was made; `/ship` opens
-  one PR containing both code + doc updates.
-- `RESULT: green-noop` → continue to `/ship`. No doc commit needed; `/ship`
-  opens a code-only PR.
-- `RESULT: red` → HALT with the corresponding marker. The orchestrator
-  writes a journal entry and exits with the halt class.
+- `RESULT: green` → continue to `/ship`. Doc commit was made; `/ship` opens one
+  PR containing both code + doc updates.
+- `RESULT: green-noop` → continue to `/ship`. No doc commit needed.
+- `RESULT: red` → HALT with the corresponding marker.
 
-## Halt-marker shape (machine-readable, mirrors F000027 family contract)
+## Halt-marker shape (machine-readable)
 
 ```
 RESULT: red; HALT_MARKER=[doc-sync-red]
@@ -594,41 +620,34 @@ non_doc_files=<comma-separated list from git status>
 
 ## Cron / `--quiet` interaction
 
-Halt-on-red is a hard halt regardless of caller mode. `/CJ_goal_todo_fix
---quiet` (cron) suppresses Phase 3 summary AUQs + start-of-run banners; it
-does NOT suppress the `[doc-sync-red]` or `[doc-sync-non-doc-write]` halt
-contracts. The cron operator reads the halt journal at their convenience;
-silently swallowing doc-sync failures would defeat the purpose.
+Halt-on-red is a hard halt regardless of caller mode. `/CJ_goal_todo_fix --quiet`
+(cron) suppresses Phase 3 summary AUQs + start-of-run banners; it does NOT
+suppress the `[doc-sync-red]` or `[doc-sync-non-doc-write]` halt contracts.
 
 ## Error Handling
 
 | Error | Marker | Recovery |
 |-------|--------|----------|
 | Not a git repo | (no marker — usage halt) | Run inside a repo |
-| `cj-document-release.json` missing / invalid JSON / schema_version unsupported / required fields missing (F000037 strict-required) | `[doc-sync-no-config]` | Author or repair `cj-document-release.json` at repo root; copy the workbench's seed JSON as a starting point; re-run |
+| `doc-spec.md` missing / no yaml registry / schema_version unsupported / entry missing required fields / audit_class outside enum | `[doc-sync-no-config]` | Repair `doc-spec.md`'s yaml registry at repo root (or let the self-bootstrap recreate it from the Common seed); re-run |
+| `doc-spec.sh` helper unreachable | `[doc-sync-no-config]` | Restore `scripts/doc-spec.sh`, or re-run `skills-deploy install` to refresh the deployed `_cj-shared` home; re-run |
 | On main / base branch (refuses on the base branch) | `[doc-sync-red]` | Run from a feature branch |
 | Working tree has uncommitted non-doc changes (pre-run) | `[doc-sync-red]` | Commit or stash non-doc changes; re-run |
 | Upstream `/document-release` returned non-green | `[doc-sync-red]` | Inspect upstream output; fix doc errors; re-run |
 | Upstream wrote files outside the doc-only whitelist | `[doc-sync-non-doc-write]` | Inspect uncommitted non-doc files; revert if unexpected; re-run |
-| `--docs UNKNOWN_VALUE` (token not declared in `categories`) | `[doc-sync-no-config]` | Declare the token in `cj-document-release.json` under `categories`, or use a known token (whatever the repo's JSON declares) |
+| `--docs UNKNOWN_VALUE` (token matches no declared doc) | (no halt — warn-and-skip) | Use a token that matches a doc declared in `doc-spec.md` |
 
 ## Notes
 
-- **First workbench skill with the "thin wrapper around an upstream gstack
-  skill" shape.** `/CJ_document-release` calls `/document-release` via the
-  Skill tool, adding workbench-specific concerns (per-doc filtering, halt
-  taxonomy, auto-commit doc-only) without touching upstream. Future wrappers
-  (`/CJ_ship`? `/CJ_review`?) can use this as a template.
-- **Project-context block is documentation-only, not programmatic.** The
-  block tells `/document-release` "this run is filtered to <subset>; audit
-  ONLY those categories and skip the rest." If upstream honors the request,
-  filtering works; if upstream audits everything anyway, CJ_document-release
-  still auto-commits whatever the upstream skill produced (gated by the
-  whitelist). Best-effort filter, not enforced filter.
-- **Conservative doc-only whitelist is intentional.** Stealth code edits via
-  the doc-sync surface would be a serious integrity surface; the whitelist
-  closes that door without an operator-override. Extending the whitelist is
-  a follow-up if a real-world false-positive surfaces in dogfood.
-- **No upstream `/document-release` modification.** All workbench-specific
-  logic (filter, halt-on-red, auto-commit-doc-only) lives in this wrapper.
-  This mirrors the F000034 precedent (no upstream modification).
+- **Wrapper around an upstream gstack skill.** `/CJ_document-release` calls
+  `/document-release` via the Skill tool, adding workbench-specific concerns
+  (doc-spec.md self-heal, per-doc filtering, halt taxonomy, auto-commit doc-only)
+  without touching upstream.
+- **Project-context block is documentation-only, not programmatic.** Best-effort
+  filter, not enforced filter — the wrapper auto-commits whatever upstream
+  produces, gated by the derived whitelist.
+- **The doc-only whitelist is DERIVED from the registry, never hand-maintained.**
+  Deleting a doc from the registry removes it from the whitelist automatically;
+  there is no second list to keep in sync.
+- **No upstream `/document-release` modification.** All workbench-specific logic
+  lives in this wrapper.

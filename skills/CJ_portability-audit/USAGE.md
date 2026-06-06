@@ -23,9 +23,10 @@ last-updated: "2026-06-06T03:46:08Z"
 
 ## When NOT to use
 
-- You want to verify a TARGET repo HAS the per-repo prerequisites the CJ_ family
-  needs — that's the **consumer-side** `/CJ_repo-init` (this skill is the
-  **producer-side** counterpart: it audits the workbench's OWN skills).
+- You want to verify/scaffold a TARGET repo's doc prerequisites — that now lives
+  in `/CJ_document-release`'s self-bootstrap + stub-scaffold of `doc-spec.md` (this
+  skill is the **producer-side** portability lint: it audits the workbench's OWN
+  skills).
 - You want a `~/.claude/` install-health dashboard — that's `/CJ_system-health` /
   `skills-deploy doctor`.
 - You want to FIX a mismatch automatically — this skill never auto-fixes. It
@@ -52,7 +53,7 @@ is one of `portable` / `portable-with-notes` / `findings:<list>`.
 Surface 1 = this skill (rich report, engine resolved repo-local-first then via
 `.source`). Surface 2 = a `validate.sh` advisory check (prints findings, exits 0
 in v1; `PORTABILITY_STRICT=1` flips it to hard-fail once declarations are
-reconciled). The full correct-behavior contract lives in `doc/WORKFLOWS.md`
+reconciled). The full correct-behavior contract lives in `docs/workflow.md`
 (`### /CJ_portability-audit`).
 
 ## Common pitfalls
@@ -83,11 +84,12 @@ reconciled). The full correct-behavior contract lives in `doc/WORKFLOWS.md`
 
 ## Related skills
 
-- `/CJ_repo-init` — the **consumer-side** counterpart. It verifies a target repo
-  HAS the per-repo prerequisites (`cj-document-release.json`, `CJ-DOC-RELEASE.md`,
-  `TODOS.md`, `work-items/`) and scaffolds the missing ones. This skill is the
-  **producer-side** mirror: do the workbench's own skills reach for
-  un-scaffoldable repo-local things. Different lifecycles, related domain.
+- `/CJ_document-release` — the **consumer-side** counterpart for the doc surface.
+  It self-bootstraps a missing `doc-spec.md` from the portable Common seed and
+  stub-scaffolds any declared-but-missing doc on every run, so a target repo's
+  doc prerequisites are created lazily. This skill is the **producer-side**
+  mirror: do the workbench's own skills reach for un-scaffoldable repo-local
+  things. Different lifecycles, related domain.
 - `/CJ_system-health` — sibling read-only utility; audits `~/.claude/` install
   health (this skill audits the catalog's `portability` honesty, not the install).
 - `/CJ_document-release` — declared `workbench`; a within-tier example in the

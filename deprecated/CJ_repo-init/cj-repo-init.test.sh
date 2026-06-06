@@ -20,9 +20,13 @@
 
 set -uo pipefail
 
+# NOTE: /CJ_repo-init is DEPRECATED (retired by the doc-spec.md migration). This
+# test + the engine it exercises are relocated under deprecated/CJ_repo-init/ as
+# archival reference and are NOT run by scripts/test.sh. The engine is now a
+# sibling of this test, not under skills/.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-ENGINE="$REPO_ROOT/skills/CJ_repo-init/scripts/cj-repo-init.sh"
+REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
+ENGINE="$SCRIPT_DIR/scripts/cj-repo-init.sh"
 
 ERRORS=0
 ok()        { echo "  OK:   $1"; }
