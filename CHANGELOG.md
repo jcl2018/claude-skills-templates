@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.44] - 2026-06-05
+
+### Added
+
+- **F000049 S3 (S000087): develop-in-place enablement — `skills-deploy bundle-status` + the bundle `origin`-repoint (additive; the separate-clone rip-out scoped to S4).** S2 (v6.0.43) made `skills-deploy install --bundle` produce a git-checkout bundle with the flat `/CJ_*` symlinked into it. S3's stated goal — "develop-in-place + retire the separate-clone machinery" — is **subtractive and dangerous**: `.source` is referenced in ~28 files, the `cj-feat-*` worktree flow in ~15, and the machinery (`cj-goal-common.sh`, `cj-worktree-init/cleanup.sh`, `post-land-sync.sh`, the 3 orchestrators) is what every `cj_goal` run — including the one that built this — operates on. So this release delivers the **develop-in-place HALF** (the value) and **defers the rip-out** (the danger) to S4. The genuine develop-in-place blocker was the bundle's `origin`: `--bundle` clones from a LOCAL `.source` for speed/offline, leaving `origin` pointing at the local clone — you could not `git push`/PR to GitHub from the bundle. `do_bundle_install` now **repoints `origin` to the GitHub upstream** (`SKILLS_DEPLOY_BUNDLE_UPSTREAM` env override → manifest `upstream_url`; no-op when no upstream is known), so you can `cd ~/.claude/skills/cj-workbench`, branch, edit, push, and open a PR — develop the workbench IN the install, no separate external clone needed. New read-only **`skills-deploy bundle-status`** subcommand reports the dev checkout's `install_mode` / path / branch / origin / dirty state (and reports `dev-clone` on a non-bundle install — no false install==clone claim). The default `skills-deploy install` and the entire separate-clone machinery (`.source`, the worktree flow, `post-land-sync`) are **untouched** — additive and reversible, the same posture as S1/S2. New `scripts/test.sh` S000087 block (3 hermetic assertions, offline: the origin-repoint to a fake upstream, `bundle-status` on a bundle install, and `bundle-status` reporting `dev-clone` on a non-bundle manifest). `validate.sh` + `scripts/test.sh` green; shellcheck clean; the S000085 + S000086 fixtures intact. Deferred: retiring `.source` / the worktree flow / `post-land-sync` + flipping `--bundle` to the default — **S4**; Windows copy-mode parity — **S5**.
+
 ## [6.0.43] - 2026-06-05
 
 ### Added

@@ -197,13 +197,17 @@ do_bundle_install() {
   require_jq
   local bundle="${SKILLS_DEPLOY_BUNDLE_TARGET:-$HOME/.claude/skills/cj-workbench}"
 
+  # Manifest-derived defaults (read once): the dev clone (.source) + the GitHub
+  # upstream the develop-in-place bundle should TRACK as `origin` (S3/S000087).
+  local m msrc murl
+  m=$(manifest_read 2>/dev/null || echo '{}')
+  msrc=$(echo "$m" | jq -r '.source // empty' 2>/dev/null)
+  murl=$(echo "$m" | jq -r '.upstream_url // empty' 2>/dev/null)
+  local bundle_upstream="${SKILLS_DEPLOY_BUNDLE_UPSTREAM:-$murl}"
+
   # Resolve the clone source: explicit override > manifest .source (local git) > upstream_url.
   local src="${SKILLS_DEPLOY_BUNDLE_SOURCE:-}"
   if [ -z "$src" ]; then
-    local m msrc murl
-    m=$(manifest_read 2>/dev/null || echo '{}')
-    msrc=$(echo "$m" | jq -r '.source // empty' 2>/dev/null)
-    murl=$(echo "$m" | jq -r '.upstream_url // empty' 2>/dev/null)
     if [ -n "$msrc" ] && [ -d "$msrc/.git" ]; then
       src="$msrc"
     elif [ -n "$murl" ]; then
@@ -228,6 +232,20 @@ do_bundle_install() {
     fi
   fi
 
+  # Develop-in-place (S3/S000087): point the bundle's `origin` at the GitHub
+  # upstream so you can branch/push/PR FROM the bundle — even though it may have
+  # been cloned from a LOCAL .source (whose origin would be that local path).
+  if [ -n "$bundle_upstream" ]; then
+    local cur_origin
+    cur_origin=$(git -C "$bundle" remote get-url origin 2>/dev/null || echo "")
+    if [ "$cur_origin" != "$bundle_upstream" ]; then
+      if git -C "$bundle" remote set-url origin "$bundle_upstream" 2>/dev/null \
+         || git -C "$bundle" remote add origin "$bundle_upstream" 2>/dev/null; then
+        echo "  BUNDLE: origin → $bundle_upstream (develop-in-place: branch/push/PR from the bundle)"
+      fi
+    fi
+  fi
+
   # The bundle must be a workbench checkout (carry its own skills-deploy).
   if [ ! -x "$bundle/scripts/skills-deploy" ]; then
     echo "ERROR: $bundle is not a workbench checkout (no scripts/skills-deploy)" >&2
@@ -244,7 +262,7 @@ do_bundle_install() {
   fi
 
   # Stamp the manifest with the install==clone receipt.
-  local bcommit m
+  local bcommit
   bcommit=$(git -C "$bundle" rev-parse --short HEAD 2>/dev/null || echo unknown)
   m=$(manifest_read 2>/dev/null || echo '{}')
   echo "$m" | jq --arg bp "$bundle" --arg bc "$bcommit" \
@@ -253,7 +271,42 @@ do_bundle_install() {
   echo ""
   echo "Bundle install complete — install == clone at $bundle (commit $bcommit)"
   echo "  Flat /CJ_* skills now resolve INTO the bundle checkout."
+  echo "  Develop in place: cd \"$bundle\" to edit the workbench; 'skills-deploy bundle-status' shows its state."
   echo "  Legacy dev-clone install is untouched; run 'skills-deploy install' (no --bundle) to revert."
+}
+
+# F000049 / S3 (S000087): report the develop-in-place bundle's state (read-only).
+# When the install is in bundle mode, the bundle dir IS the dev checkout — this
+# surfaces its path, branch, origin, and dirty state so you can develop in place.
+do_bundle_status() {
+  require_jq
+  local m mode bundle
+  m=$(manifest_read 2>/dev/null || echo '{}')
+  mode=$(echo "$m" | jq -r '.install_mode // "dev-clone"')
+  bundle=$(echo "$m" | jq -r '.bundle_path // empty')
+  echo "install_mode: $mode"
+  if [ "$mode" != "bundle" ] || [ -z "$bundle" ]; then
+    echo "  Not in bundle mode. Run 'skills-deploy install --bundle' to set up an install==clone checkout."
+    return 0
+  fi
+  echo "bundle_path:  $bundle"
+  if [ -d "$bundle/.git" ]; then
+    local br head origin dirty
+    br=$(git -C "$bundle" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+    head=$(git -C "$bundle" rev-parse --short HEAD 2>/dev/null || echo "?")
+    origin=$(git -C "$bundle" remote get-url origin 2>/dev/null || echo "(none)")
+    if git -C "$bundle" diff --quiet 2>/dev/null && git -C "$bundle" diff --cached --quiet 2>/dev/null; then
+      dirty="clean"
+    else
+      dirty="DIRTY (uncommitted changes)"
+    fi
+    echo "  branch:     $br ($head)"
+    echo "  origin:     $origin"
+    echo "  tree:       $dirty"
+    echo "  develop-in-place: cd \"$bundle\" to edit the workbench; the flat /CJ_* skills resolve INTO this checkout."
+  else
+    echo "  WARNING: $bundle is not a git checkout (bundle drift?). Re-run 'skills-deploy install --bundle'."
+  fi
 }
 
 do_install() {
@@ -1293,8 +1346,9 @@ case "${1:-}" in
   remove)  shift; do_remove "$@" ;;
   relink)  do_relink ;;
   doctor)  do_doctor ;;
+  bundle-status) do_bundle_status ;;
   *)
-    echo "Usage: skills-deploy <install|remove|relink|doctor> [options]"
+    echo "Usage: skills-deploy <install|remove|relink|doctor|bundle-status> [options]"
     echo ""
     echo "Commands:"
     echo "  install [skill...] [--no-overwrite]"
@@ -1306,6 +1360,10 @@ case "${1:-}" in
     echo "  remove <skill...>                 Remove skills + templates (--all for all, --force to skip dep check)"
     echo "  relink                            Repair broken/missing symlinks + templates"
     echo "  doctor                            Check installation health (skills + templates)"
+    echo "  install --bundle                  Install == clone: ensure a managed git checkout"
+    echo "                                    (~/.claude/skills/cj-workbench) + symlink the flat /CJ_*"
+    echo "                                    INTO it; develop in place. Opt-in; legacy install untouched."
+    echo "  bundle-status                     Show the develop-in-place bundle's path/branch/origin/tree"
     exit 1
     ;;
 esac
