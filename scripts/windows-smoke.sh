@@ -130,6 +130,43 @@ SKILLS_DEPLOY_TARGET="$tmp_probe" SKILLS_DEPLOY_MANIFEST="$tmp_probe/.skills-tem
 probe_kind=$(jq -r '.skills["CJ_system-health"].install_kind // "?"' "$tmp_probe/.skills-templates.json" 2>/dev/null || echo "?")
 echo "  INFO: unforced install auto-selected install_kind=$probe_kind on this host"
 
+# ---------------------------------------------------------------------------
+# S4 (F000049/S000088) lock-in (S000089) — the in-place install==clone model
+# holds under copy-mode. A DEFAULT `skills-deploy install` stamps install_mode:
+# in-place (bundle_path == source), copy-deposits skills-update-check to
+# _cj-shared, and the copy-installed orchestrators carry the de-coupled
+# `_UC=`/`_cj-shared` update-check (no .source). This is F000049's "Windows
+# copy-mode parity" criterion — asserted here under FORCE_COPY (host-independent,
+# so green on macOS/Linux too) so a future change cannot silently revert it on
+# windows-latest (windows.yml) OR the ubuntu CI (scripts/test.sh:506).
+# ---------------------------------------------------------------------------
+echo "S4: in-place install==clone + .source de-coupling hold under copy-mode (S000088 lock-in / S000089)"
+s5_dir=$(mktemp -d); _CLEANUP_DIRS+=("$s5_dir")
+SKILLS_DEPLOY_FORCE_COPY=1 \
+  SKILLS_DEPLOY_TARGET="$s5_dir/skills" SKILLS_DEPLOY_MANIFEST="$s5_dir/m.json" \
+  SKILLS_DEPLOY_TEMPLATES_TARGET="$s5_dir/templates" SKILLS_DEPLOY_RULES_TARGET="$s5_dir/rules" \
+  SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$s5_dir/_cj-shared/scripts" \
+  "$DEPLOY" install >/dev/null 2>&1 || true
+s5_mode=$(jq -r '.install_mode // "none"' "$s5_dir/m.json" 2>/dev/null || echo none)
+s5_src=$(jq -r '.source // empty' "$s5_dir/m.json" 2>/dev/null || echo "")
+s5_bp=$(jq -r '.bundle_path // empty' "$s5_dir/m.json" 2>/dev/null || echo "")
+if [ "$s5_mode" = "in-place" ] && [ -n "$s5_src" ] && [ "$s5_bp" = "$s5_src" ]; then
+  ok "copy-mode default install declares install==clone-in-place (install_mode=in-place, bundle_path==source)"
+else
+  fail_test "copy-mode install did not stamp the in-place receipt (mode='$s5_mode', bundle_path='$s5_bp', source='$s5_src')"
+fi
+if [ -f "$s5_dir/_cj-shared/scripts/skills-update-check" ]; then
+  ok "skills-update-check copy-deposited to _cj-shared (update-check resolves on Windows)"
+else
+  fail_test "skills-update-check not deposited to _cj-shared under copy-mode"
+fi
+s5_sk="$s5_dir/skills/CJ_goal_feature/SKILL.md"
+if [ -f "$s5_sk" ] && grep -qF '_UC=' "$s5_sk" && grep -qF '_cj-shared' "$s5_sk"; then
+  ok "copy-installed orchestrator resolves update-check from _cj-shared (de-coupled, no .source)"
+else
+  fail_test "copy-installed orchestrator update-check did not de-couple to _cj-shared"
+fi
+
 echo ""
 if [ "$ERRORS" -eq 0 ]; then
   echo "=== windows-smoke: PASS (0 failures) ==="
