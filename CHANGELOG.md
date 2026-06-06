@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.47] - 2026-06-06
+
+### Changed
+
+- **Rewrite `doc/PHILOSOPHY.md` around the install==clone "first principle".** Collapsed the prior 11-section overview into a principle-first doc whose single thesis is the F000049 deployment model: there is one source of truth (the workbench git checkout), and `skills-deploy install` **references** it rather than copying it — `~/.claude/skills/*` are per-file symlinks INTO the checkout, `~/.claude/_cj-shared/scripts/*` are deposited copies, and the manifest stamps `install_mode: in-place` with `source == bundle_path`. No runtime `.source` reach-back; every other repo + the workbench itself resolve to that one install (consistent behavior; the workbench dogfoods its own live `scripts/` repo-local-first). Sections: the first principle, the install model, the reference model, why it is the first principle (one-install-not-N / develop-in-place / `git pull` is deploy / worktrees / post-land-sync), and the Windows copy-mode note (model holds, mechanism changes). A compact `## Decision tree` routing stub is retained so the New-skills check + the registered-doc requirement stay satisfied; `CLAUDE.md`'s tracked-doc `requirement:` for PHILOSOPHY is trimmed to match the reduced scope. Docs-only — no skill / script / test behavior change.
+
 ## [6.0.46] - 2026-06-06
 
 ### Added

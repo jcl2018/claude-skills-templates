@@ -515,7 +515,7 @@ Every `*.md` file under `doc/` MUST be registered in this manifest with an `audi
 - path: doc/PHILOSOPHY.md
   audit_class: skill-routing-drift
   owner: F000030 — workbench-level overview + decision tree
-  requirement: "`## Decision tree` lists every active routable skill (matches the New-skills check); the overview + design principles reflect the current CJ_ skill family and the two delivery surfaces."
+  requirement: "`## Decision tree` lists every active routable skill (matches the New-skills check); the doc states the install==clone + reference-model first principle (F000049) and routes the current CJ_ skill family."
 - path: doc/ARCHITECTURE.md
   audit_class: skill-routing-drift
   owner: F000030 — mechanism reference
