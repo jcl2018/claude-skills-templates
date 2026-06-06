@@ -43,8 +43,8 @@ self-development-flow rewrite.
 | [S000085](S000085_shared_scripts_self_containment/S000085_TRACKER.md) | Shared scripts travel with the install (runtime de-coupling foundation) | Closed (landed v6.0.42 / PR #232) |
 | [S000086](S000086_single_bundle_install/S000086_TRACKER.md) | Single-bundle layout + git-checkout install (`--bundle`; resolves O1) | Closed (landed v6.0.43 / PR #233) |
 | [S000087](S000087_develop_in_place/S000087_TRACKER.md) | Develop-in-place enablement (`--bundle` origin-repoint + `bundle-status`) | Closed (landed v6.0.44 / PR #234) |
-| [S000088](S000088_retire_separate_clone_legacy/S000088_TRACKER.md) | Retire the separate-clone legacy (declare install==clone-in-place + drop runtime `.source` + reframe sync) | In Progress (built; this PR) |
-| S5 (TBD) | Cleanup + parity (Windows copy-mode, CI, `skills-update-check` on the in-place checkout) | Open |
+| [S000088](S000088_retire_separate_clone_legacy/S000088_TRACKER.md) | Retire the separate-clone legacy (declare install==clone-in-place + drop runtime `.source` + reframe sync) | Closed (landed v6.0.45 / PR #235) |
+| [S000089](S000089_windows_parity_lockin/S000089_TRACKER.md) | Lock in Windows copy-mode parity for the in-place model (verification + epic closer) | In Progress (built; this PR) |
 
 ## Delivery Timeline
 
@@ -53,12 +53,13 @@ self-development-flow rewrite.
 | 1 | S1 (S000085) shared-scripts self-containment | — | Not Started | chjiang | Non-breaking foundation; `.source` fallback retained | — |
 | 2 | S2 single-bundle layout + git-checkout install | — | Not Started | chjiang | Resolves O1 (Claude Code skill discovery from a bundle) | #1 |
 | 3 | S3 develop-in-place + retire separate-clone machinery | — | Not Started | chjiang | Retires the worktree / `.source` / `post-land-sync` dev flow | #2 |
-| 4 | S4 (S000088) declare install==clone-in-place + drop runtime `.source` + reframe sync; docs | — | In Progress | chjiang | D1-B in-place (no relocation); `--bundle`=consumer bootstrap; sync REFRAMED not deleted (remote-merge needs a pull); worktrees kept | #3 |
-| 5 | S5 cleanup + parity (Windows copy-mode, CI, update-check) | — | Not Started | chjiang | windows-latest CI parity; update-check on the in-place checkout | #4 |
+| 4 | S4 (S000088) declare install==clone-in-place + drop runtime `.source` + reframe sync; docs | — | Landed (v6.0.45 / #235) | chjiang | D1-B in-place (no relocation); `--bundle`=consumer bootstrap; sync REFRAMED not deleted (remote-merge needs a pull); worktrees kept | #3 |
+| 5 | S5 (S000089) lock in Windows copy-mode parity for the in-place model + close the epic | — | In Progress (built; this PR) | chjiang | De-risking: S4's model ALREADY holds under copy-mode (platform-neutral); S5 = windows-smoke lock-in assertion + docs + close. Dir-symlink reinstall-free refinement DROPPED (POSIX-only asymmetry, non-criterion) | #4 |
 
 ### Delivery History
 
 - 2026-06-05: F000049 scaffolded — epic to convert the CJ_ workbench to the gstack model (install == clone). S1 (S000085) scaffolded as the non-breaking foundation; S2–S5 are roadmap entries pending their own scaffolds. (No code shipped this run — design + scaffold only, per operator choice.)
+- 2026-06-06: S1–S4 LANDED (v6.0.42/#232, v6.0.43/#233, v6.0.44/#234, v6.0.45/#235). S5 (S000089) BUILT (this PR) — the epic closer: a de-risking pass proved S4's install==clone-in-place + `.source` de-coupling ALREADY holds under Windows copy-mode (platform-neutral by construction), so S5 is a windows-smoke lock-in assertion + docs + the epic close, NOT new parity code. The dir-symlink reinstall-free refinement was DROPPED (POSIX-only asymmetry, non-criterion, drift-detection cost). **F000049 is functionally COMPLETE on this PR landing** — all 5 success criteria met (install==clone, no runtime `.source`, develop-in-place, consumer install via `--bundle`, Windows copy-mode parity locked in).
 
 ## Dependency Graph
 

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.46] - 2026-06-06
+
+### Added
+
+- **F000049 S5 (S000089): lock in Windows copy-mode parity for the in-place install==clone model — the epic closer.** F000049's last open success criterion was "Windows/Git-Bash copy-mode parity holds." The S5 design pass de-risked it empirically: a hermetic `SKILLS_DEPLOY_FORCE_COPY=1` **default** install proved S4's install==clone-in-place receipt (`install_mode: in-place`, `bundle_path == source`) AND the runtime `.source` de-coupling (the `_cj-shared` update-check + de-coupled orchestrators) **already hold under copy-mode** — S4's changes were platform-neutral by construction (a manifest jq stamp; the `_cj-shared` deposit is already `cp`; resolution is `_cj-shared`-based). So S5 is a **lock-in** story, not new parity code: a new assertion block in `scripts/windows-smoke.sh` checks that a copy-mode default install stamps the in-place receipt, copy-deposits `skills-update-check` to `_cj-shared`, and copy-installs the orchestrators with the de-coupled `_UC=`/`_cj-shared` update-check (no `.source`). It runs `FORCE_COPY` (host-independent), so it guards the parity on **both** lanes — `windows-latest` (`.github/workflows/windows.yml`) and ubuntu (`scripts/test.sh:506`). The POSIX-only **dir-level skill symlink** refinement (a `git pull` making a NEW skill file live without a reinstall) was deliberately **DROPPED**, not deferred: real symlinks are unavailable under copy-mode, so it would create a POSIX-reinstall-free / Windows-still-reinstalls **asymmetry** — the opposite of parity — and it is not an F000049 success criterion (it also reworks the doctor's per-file drift detection for a small convenience). `CLAUDE.md` "Running on Windows" documents the parity + the dropped-refinement rationale. `validate.sh` + `scripts/test.sh` + `windows-smoke.sh` green; shellcheck clean; portability audit `FINDINGS=0`. **F000049 is functionally COMPLETE on this landing** — all five criteria met: install==clone (in place), no runtime `.source` reach-back, develop-in-place, consumer install via `--bundle`, and Windows copy-mode parity locked in.
+
 ## [6.0.45] - 2026-06-05
 
 ### Changed

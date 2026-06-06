@@ -28,6 +28,21 @@ GNU-only `date -d`. The `windows-latest` Git Bash CI job
 with `bash scripts/windows-smoke.sh`. Full feature:
 `work-items/features/ops/F000044_windows_wsl2_git_bash_support/`.
 
+**Install == clone holds on Windows (F000049/S5 — S000089).** The in-place
+install==clone model (S4: a default `skills-deploy install` stamps `install_mode:
+in-place` + `bundle_path == source`; skills resolve shared scripts + the
+update-check from the deployed `_cj-shared` home, with no runtime `.source`
+reach-back) is platform-neutral by construction, so it holds unchanged under
+Git-Bash copy-mode. `scripts/windows-smoke.sh` asserts it (the in-place stamp +
+the `_cj-shared` update-check resolution under `FORCE_COPY`) on BOTH the
+`windows-latest` job and the ubuntu CI (`scripts/test.sh:506`). The POSIX-only
+"dir-level skill symlink" refinement (a `git pull` making a NEW skill file live
+without a reinstall) was deliberately NOT adopted: real symlinks are unavailable
+under copy-mode, so it would create a POSIX-reinstall-free /
+Windows-still-reinstalls **asymmetry** — the opposite of parity. On every
+platform a NEW skill file is picked up by the next `skills-deploy install` /
+`post-land-sync`.
+
 ## Skill routing
 
 Routing rules are deployed globally to `~/.claude/rules/skill-routing.md` by
