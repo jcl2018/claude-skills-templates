@@ -67,7 +67,7 @@ blocked_by: ""
 ## Todos
 
 - [x] S000085 (S1): shared-scripts self-containment (the runtime de-coupling foundation) — BUILT (deposit + 3-tier preambles + 4-skill re-tier to local-only + audit precision; `validate.sh` + `test.sh` green, audit `FINDINGS=0`)
-- [ ] S2: single-bundle layout + git-checkout install (resolve O1: Claude Code skill discovery from a bundle)
+- [x] S000086 (S2): single-bundle layout + git-checkout install — BUILT (`skills-deploy install --bundle`, additive/opt-in; O1 resolved via the gstack reference bundle; `validate.sh` + `test.sh` green, shellcheck clean)
 - [ ] S3: develop-in-place + retire the separate-clone machinery
 - [ ] S4: drop `.source` + manifest `source`; finalize tier shift; docs
 - [ ] S5: cleanup + parity (Windows copy-mode, CI, `skills-update-check` on the in-place checkout)
@@ -75,7 +75,8 @@ blocked_by: ""
 ## Log
 
 - 2026-06-05: Created. Epic to convert the CJ_ workbench deployment to the gstack model (install == clone), per an /office-hours design (operator chose the full-gstack target over the hybrid). Decomposed into S1–S5; S1 (S000085) scaffolded as the non-breaking foundation.
-- 2026-06-05: S1 (S000085) BUILT (operator resumed the build on this branch after the design+scaffold checkpoint). Shared scripts travel via a `_cj-shared/scripts/` deposit; the 4 orchestrator-family skills re-tier `workbench → local-only`. Reconciled the design's "12 skills" estimate to the 4 that actually re-tier. `validate.sh` + `scripts/test.sh` green. S2–S5 remain.
+- 2026-06-05: S1 (S000085) BUILT (operator resumed the build on this branch after the design+scaffold checkpoint). Shared scripts travel via a `_cj-shared/scripts/` deposit; the 4 orchestrator-family skills re-tier `workbench → local-only`. Reconciled the design's "12 skills" estimate to the 4 that actually re-tier. `validate.sh` + `scripts/test.sh` green. (Landed v6.0.42 / PR #232.)
+- 2026-06-05: S2 (S000086) BUILT on a fresh worktree off the landed S1. O1 resolved empirically (gstack's flat-symlink-into-a-git-checkout bundle; CJ_ already ~90% there). Added `skills-deploy install --bundle` — additive, opt-in, legacy install untouched: ensure a managed checkout + delegate the install INTO it + stamp the manifest with the install==clone receipt. `validate.sh` + `scripts/test.sh` green; shellcheck clean. S3–S5 remain.
 
 ## PRs
 
@@ -86,6 +87,7 @@ blocked_by: ""
 - `.gstack/gstack-style-deployment-design-20260605.md` — the /office-hours design doc (target architecture + S1–S5 decomposition + open questions)
 - `work-items/features/ops/F000049_*` — this feature + the S000085 story
 - S1 implementation (landed): `scripts/skills-deploy` (shared-scripts deposit), the 4 orchestrator-family skills' resolution preambles (3-tier), `skills-catalog.json` (4 re-tiers), `scripts/cj-portability-audit.sh` (deployed-home recognition + comment-line precision), `scripts/test.sh` + `tests/cj-document-release.test.sh` (S000085 test + guard updates)
+- S2 implementation: `scripts/skills-deploy` (`do_bundle_install` + `--bundle` flag), `scripts/test.sh` (S000086 bundle test), `.gstack/gstack-s2-bundle-install-design-20260605.md`, `work-items/features/ops/F000049_*/S000086_*`
 
 ## Insights
 

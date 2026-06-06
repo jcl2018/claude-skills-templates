@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # skills-deploy — install, remove, relink, and diagnose skills from this repo.
 # Usage: skills-deploy <install|remove|relink|doctor> [options]
+#   install [--bundle]   F000049/S2 install == clone: ensure a managed git checkout
+#                        at ~/.claude/skills/cj-workbench (override SKILLS_DEPLOY_BUNDLE_TARGET)
+#                        and symlink the flat /CJ_* skills INTO it. Opt-in; the default
+#                        dev-clone install is untouched.
 
 set -euo pipefail
 
@@ -180,9 +184,81 @@ validate_template_name() {
 
 # --- install ---
 
+# F000049 / S2 (S000086): bundle install (install == clone). Ensure a managed git
+# checkout of the workbench at the bundle path, then delegate to its OWN
+# skills-deploy install — that child's REPO_ROOT resolves to the bundle, so the
+# flat /CJ_* skill dirs + _cj-shared scripts + templates symlink INTO the bundle
+# (gstack's install==clone layout). Env overrides:
+#   SKILLS_DEPLOY_BUNDLE_TARGET  bundle path (default ~/.claude/skills/cj-workbench)
+#   SKILLS_DEPLOY_BUNDLE_SOURCE  clone source override (tests / offline)
+# Clone source falls back to the manifest .source (a local git checkout), then
+# upstream_url. Forwarded args ($@) reach the delegated install verbatim.
+do_bundle_install() {
+  require_jq
+  local bundle="${SKILLS_DEPLOY_BUNDLE_TARGET:-$HOME/.claude/skills/cj-workbench}"
+
+  # Resolve the clone source: explicit override > manifest .source (local git) > upstream_url.
+  local src="${SKILLS_DEPLOY_BUNDLE_SOURCE:-}"
+  if [ -z "$src" ]; then
+    local m msrc murl
+    m=$(manifest_read 2>/dev/null || echo '{}')
+    msrc=$(echo "$m" | jq -r '.source // empty' 2>/dev/null)
+    murl=$(echo "$m" | jq -r '.upstream_url // empty' 2>/dev/null)
+    if [ -n "$msrc" ] && [ -d "$msrc/.git" ]; then
+      src="$msrc"
+    elif [ -n "$murl" ]; then
+      src="$murl"
+    fi
+  fi
+
+  # Ensure the bundle checkout: clone if absent, else best-effort fast-forward.
+  if [ -d "$bundle/.git" ]; then
+    echo "  BUNDLE: updating existing checkout at $bundle"
+    git -C "$bundle" pull --ff-only >/dev/null 2>&1 || echo "  BUNDLE: pull skipped (offline / diverged) — using current checkout"
+  else
+    if [ -z "$src" ]; then
+      echo "ERROR: cannot bootstrap the bundle — no clone source. Set SKILLS_DEPLOY_BUNDLE_SOURCE, or install once normally so the manifest records .source/upstream_url." >&2
+      return 1
+    fi
+    echo "  BUNDLE: cloning $src into $bundle"
+    mkdir -p "$(dirname "$bundle")"
+    if ! git clone --quiet "$src" "$bundle" 2>/dev/null; then
+      echo "ERROR: git clone failed ($src into $bundle)" >&2
+      return 1
+    fi
+  fi
+
+  # The bundle must be a workbench checkout (carry its own skills-deploy).
+  if [ ! -x "$bundle/scripts/skills-deploy" ]; then
+    echo "ERROR: $bundle is not a workbench checkout (no scripts/skills-deploy)" >&2
+    return 1
+  fi
+
+  # Delegate: the bundle's own skills-deploy install resolves REPO_ROOT to the
+  # bundle, so the flat /CJ_* dirs symlink INTO the bundle. Env target overrides
+  # propagate to the child process.
+  echo "  BUNDLE: installing the CJ_ family FROM the bundle checkout"
+  if ! bash "$bundle/scripts/skills-deploy" install "$@"; then
+    echo "ERROR: bundle-delegated install failed" >&2
+    return 1
+  fi
+
+  # Stamp the manifest with the install==clone receipt.
+  local bcommit m
+  bcommit=$(git -C "$bundle" rev-parse --short HEAD 2>/dev/null || echo unknown)
+  m=$(manifest_read 2>/dev/null || echo '{}')
+  echo "$m" | jq --arg bp "$bundle" --arg bc "$bcommit" \
+    '. + {install_mode: "bundle", bundle_path: $bp, bundle_commit: $bc}' | manifest_write
+
+  echo ""
+  echo "Bundle install complete — install == clone at $bundle (commit $bcommit)"
+  echo "  Flat /CJ_* skills now resolve INTO the bundle checkout."
+  echo "  Legacy dev-clone install is untouched; run 'skills-deploy install' (no --bundle) to revert."
+}
+
 do_install() {
   require_jq
-  local skills=() overwrite=true from_upgrade=""
+  local skills=() overwrite=true from_upgrade="" bundle_mode=false
   local args=()
   local prev=""
   for arg in "$@"; do
@@ -194,6 +270,7 @@ do_install() {
     case "$arg" in
       --overwrite) overwrite=true ;;
       --no-overwrite) overwrite=false ;;
+      --bundle) bundle_mode=true ;;
       --from-upgrade) prev="--from-upgrade" ;;
       *) args+=("$arg") ;;
     esac
@@ -209,6 +286,18 @@ do_install() {
     fi
   fi
   set -- "${args[@]+"${args[@]}"}"
+
+  # F000049 / S2 (S000086): --bundle mode (install == clone). Short-circuits the
+  # normal dev-clone install: ensure a managed git checkout of the workbench at
+  # the bundle path, then delegate to THAT checkout's own skills-deploy so the
+  # flat /CJ_* skill dirs symlink INTO the bundle (gstack's install==clone layout).
+  # Additive + opt-in — the default `install` (dev-clone symlinks) is untouched.
+  if [ "$bundle_mode" = true ]; then
+    local _fwd=()
+    [ "$overwrite" = false ] && _fwd+=(--no-overwrite)
+    do_bundle_install "${_fwd[@]+"${_fwd[@]}"}" "$@"
+    return $?
+  fi
 
   if [ $# -gt 0 ]; then
     skills=("$@")

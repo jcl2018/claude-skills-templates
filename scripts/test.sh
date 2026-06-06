@@ -2235,6 +2235,66 @@ fi
 
 rm -rf "$_S85_TMP"
 
+# ---------- F000049 / S2 (S000086): single-bundle layout + install == clone ----------
+# Verifies `skills-deploy install --bundle` ensures a managed git checkout and
+# symlinks the flat /CJ_* skills INTO it (install == clone), AND that the default
+# install (no --bundle) is untouched (still symlinks to the dev clone, no bundle marker).
+echo ""
+echo "Integration test (F000049 / S000086): bundle install == clone..."
+_S86_TMP=$(mktemp -d -t test-sh-s86-XXXXXX)
+
+# (1) --bundle: clone the repo as a managed bundle, delegate the install INTO it.
+SKILLS_DEPLOY_BUNDLE_TARGET="$_S86_TMP/cj-workbench" \
+SKILLS_DEPLOY_BUNDLE_SOURCE="$REPO_ROOT" \
+SKILLS_DEPLOY_TARGET="$_S86_TMP/skills" \
+SKILLS_DEPLOY_TEMPLATES_TARGET="$_S86_TMP/templates" \
+SKILLS_DEPLOY_RULES_TARGET="$_S86_TMP/rules" \
+SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S86_TMP/_cj-shared/scripts" \
+SKILLS_DEPLOY_MANIFEST="$_S86_TMP/manifest.json" \
+  bash "$REPO_ROOT/scripts/skills-deploy" install --bundle >/dev/null 2>&1 || true
+
+if [ -d "$_S86_TMP/cj-workbench/.git" ]; then
+  ok "S000086: --bundle ensures a managed git checkout (install == clone)"
+else
+  fail_test "S000086: --bundle did not create a git checkout at the bundle path"
+fi
+
+_S86_LINK=$(readlink "$_S86_TMP/skills/CJ_goal_feature/SKILL.md" 2>/dev/null || echo "")
+if [ "$_S86_LINK" = "$_S86_TMP/cj-workbench/skills/CJ_goal_feature/SKILL.md" ]; then
+  ok "S000086: flat /CJ_* skills symlink INTO the bundle checkout"
+else
+  fail_test "S000086: flat skill symlink does not point into the bundle (got '$_S86_LINK')"
+fi
+
+if [ "$(jq -r '.install_mode // empty' "$_S86_TMP/manifest.json" 2>/dev/null)" = "bundle" ] \
+   && jq -e '.bundle_path | test("cj-workbench")' "$_S86_TMP/manifest.json" >/dev/null 2>&1 \
+   && jq -e '.source | test("cj-workbench")' "$_S86_TMP/manifest.json" >/dev/null 2>&1; then
+  ok "S000086: manifest records the install==clone receipt (install_mode=bundle, bundle_path, source=bundle)"
+else
+  fail_test "S000086: manifest not stamped with the install==clone receipt"
+fi
+
+# (2) Additive guarantee: a DEFAULT install (no --bundle) still symlinks to a
+# dev-clone source and writes NO bundle marker — the legacy path is untouched.
+_S86_TMP2=$(mktemp -d -t test-sh-s86b-XXXXXX)
+SKILLS_DEPLOY_TARGET="$_S86_TMP2/skills" \
+SKILLS_DEPLOY_TEMPLATES_TARGET="$_S86_TMP2/templates" \
+SKILLS_DEPLOY_RULES_TARGET="$_S86_TMP2/rules" \
+SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S86_TMP2/_cj-shared/scripts" \
+SKILLS_DEPLOY_MANIFEST="$_S86_TMP2/manifest.json" \
+  bash "$REPO_ROOT/scripts/skills-deploy" install >/dev/null 2>&1 || true
+_S86_LINK2=$(readlink "$_S86_TMP2/skills/CJ_goal_feature/SKILL.md" 2>/dev/null || echo "")
+_S86_MODE2=$(jq -r '.install_mode // "none"' "$_S86_TMP2/manifest.json" 2>/dev/null)
+if printf '%s' "$_S86_LINK2" | grep -q '/skills/CJ_goal_feature/SKILL.md' \
+   && ! printf '%s' "$_S86_LINK2" | grep -q 'cj-workbench' \
+   && [ "$_S86_MODE2" != "bundle" ]; then
+  ok "S000086: default install (no --bundle) untouched — symlinks to the dev clone, no bundle marker"
+else
+  fail_test "S000086: default install changed (link='$_S86_LINK2', install_mode='$_S86_MODE2')"
+fi
+
+rm -rf "$_S86_TMP" "$_S86_TMP2"
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
