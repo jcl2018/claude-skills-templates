@@ -250,6 +250,12 @@ BEGIN {
   # *.sh source files are runnable throughout (CJ_PA_RUNNABLE=1); *.md only
   # inside a bash/sh fence.
   runnable = (ENVIRON["CJ_PA_RUNNABLE"] == "1") || (infence == 1)
+  # A shell comment line (first non-blank char #) executes nothing — its tokens
+  # are DOCUMENTED, never EXECUTED. Without this, a prose comment containing a
+  # paren or a $VAR/scripts path (e.g. `# (CLAUDE.md), so ...` or `# see
+  # scripts/foo.sh`) trips is_exec's statement-start cue and is mis-read as an
+  # executed read (the D000032 quoted-literal FP class, applied to comment lines).
+  if (line ~ /^[ \t]*#/) runnable = 0
 
   # ---- root scripts/<base>.sh refs (each occurrence on the line) ----
   tmp = line
@@ -343,6 +349,24 @@ audit_skill() {
   local sdir f0; f0=$(jq -r --arg n "$name" '.[] | select(.name==$n) | (.files // []) | .[0] // ""' "$CATALOG" 2>/dev/null)
   sdir="$REPO_ROOT/$(dirname "$f0")"
 
+  # F000049/S000085: a skill that wires a deployed `_cj-shared/scripts/`
+  # resolution tier resolves its shared root scripts from the user's ~/.claude
+  # deployed home (local-only tier), not the source clone (workbench). Detect
+  # that tier so a root-script reach downgrades workbench->local-only for such a
+  # skill. Precise: only skills that actually wire the deployed tier are
+  # downgraded — a skill reaching $_REPO_ROOT/scripts or $_S/scripts with NO
+  # `_cj-shared` fallback stays workbench (no false-negative).
+  local has_deployed_tier=0 _sf
+  while IFS= read -r _sf; do
+    [ -n "$_sf" ] || continue
+    # shellcheck disable=SC2016  # literal $_SHARED / $_CR_SHARED are grep-regex tokens, not shell expansions
+    if grep -qE '_cj-shared|\$_SHARED/|\$_CR_SHARED/|\$\{_SHARED|\$\{_CR_SHARED' "$_sf" 2>/dev/null; then
+      has_deployed_tier=1; break
+    fi
+  done <<EOF
+$(_collect_skill_files "$name")
+EOF
+
   # Unknown tier is itself a finding.
   if [ "$declared_rank" = "99" ]; then
     FINDINGS+=("$name declared '$tier' but '$tier' is not a known portability tier (expected standalone|local-only|workbench)")
@@ -425,7 +449,14 @@ audit_skill() {
       # The minimum tier this dep requires.
       local need_tier need_rank
       case "$kind" in
-        root-script|config|claude-md|slug)
+        root-script)
+          # A shared root script now travels with the install (deposited to the
+          # `_cj-shared/scripts/` home by skills-deploy). A skill that wires the
+          # deployed tier resolves it from ~/.claude (local-only); without that
+          # tier it still needs the source clone (workbench).
+          if [ "$has_deployed_tier" = "1" ]; then need_tier="local-only"; need_rank=1
+          else need_tier="workbench"; need_rank=2; fi ;;
+        config|claude-md|slug)
           need_tier="workbench"; need_rank=2 ;;
         workitems)
           need_tier="standalone"; need_rank=0 ;;   # repo-init prereq

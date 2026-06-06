@@ -21,6 +21,7 @@ skill_md_abs() {
   local f0
   f0=$(skill_md_path "$1")
   if [ -n "$f0" ]; then
+    # shellcheck disable=SC2153  # REPO_ROOT is assigned in lib.sh (sourced; SC1091 already disabled repo-wide)
     echo "$REPO_ROOT/$f0"
   fi
 }
@@ -1218,7 +1219,8 @@ fi
 echo ""
 echo "Regression test (F000025): /CJ_goal_todo_fix SKILL.md wires cj-worktree-init.sh..."
 
-if grep -qE 'cj-worktree-init\.sh.*--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then
+if grep -qE 'cj-worktree-init\.sh' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md" \
+   && grep -qE -- '--caller todo' "$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"; then
   ok "skills/CJ_goal_todo_fix/SKILL.md sources cj-worktree-init.sh (--caller todo)"
 else
   fail_test "skills/CJ_goal_todo_fix/SKILL.md missing cj-worktree-init.sh wiring (F000025 regression guard)"
@@ -2164,6 +2166,74 @@ else
   ok "S000083h: PORTABILITY_STRICT=1 flips the engine exit code to non-zero on an unresolved finding (hard-fail path)"
 fi
 rm -rf "$_PA_TMP2"
+
+# ---------- F000049 / S000085: shared-scripts self-containment ----------
+# Verifies (1) skills-deploy deposits the shared scripts to a _cj-shared home,
+# (2) the 3-tier preamble resolves a shared script from that deployed home with
+# NO source clone present (the consumer-repo simulation — the D000030/D000032
+# pattern), and (3) the 4 orchestrator-family skills are re-tiered local-only and
+# the audit engine confirms it with zero findings (--no-adjudication, honest view).
+echo ""
+echo "Integration test (F000049 / S000085): shared-scripts self-containment..."
+_S85_TMP=$(mktemp -d -t test-sh-s85-XXXXXX)
+
+# (1) Deposit: a fully hermetic install (all targets redirected) must land the
+# shared scripts/*.sh set (+ skills-update-check) in _cj-shared/scripts/.
+SKILLS_DEPLOY_TARGET="$_S85_TMP/skills" \
+SKILLS_DEPLOY_TEMPLATES_TARGET="$_S85_TMP/templates" \
+SKILLS_DEPLOY_RULES_TARGET="$_S85_TMP/rules" \
+SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S85_TMP/_cj-shared/scripts" \
+SKILLS_DEPLOY_MANIFEST="$_S85_TMP/manifest.json" \
+  bash "$REPO_ROOT/scripts/skills-deploy" install >/dev/null 2>&1 || true
+if [ -x "$_S85_TMP/_cj-shared/scripts/cj-goal-common.sh" ] \
+   && [ -x "$_S85_TMP/_cj-shared/scripts/cj-document-release-config.sh" ] \
+   && [ -x "$_S85_TMP/_cj-shared/scripts/skills-update-check" ]; then
+  ok "S000085: skills-deploy deposits the shared scripts to _cj-shared/scripts/"
+else
+  fail_test "S000085: shared scripts not deposited to _cj-shared/scripts/"
+fi
+if [ "$(jq -r '.shared_scripts["cj-goal-common.sh"].source_checksum // empty' "$_S85_TMP/manifest.json" 2>/dev/null | wc -c | tr -d ' ')" -gt 1 ]; then
+  ok "S000085: manifest tracks deposited shared scripts with SHA256 checksums"
+else
+  fail_test "S000085: manifest.shared_scripts not populated with checksums"
+fi
+
+# (2) Consumer-repo simulation: the 3-tier resolution idiom resolves
+# cj-goal-common.sh from the deployed _cj-shared home with NO repo-local scripts
+# AND NO .source (source clone) present — proving the runtime de-coupling.
+_S85_DEP="$_S85_TMP/_cj-shared/scripts"
+_S85_RESOLVED=$(
+  _REPO_ROOT=""                      # not in the workbench source repo
+  _S=""                              # no .source / no source clone reachable
+  _SHARED="$_S85_DEP"
+  _COMMON=""
+  if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh";
+  elif [ -x "$_SHARED/cj-goal-common.sh" ]; then _COMMON="$_SHARED/cj-goal-common.sh";
+  elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then _COMMON="$_S/scripts/cj-goal-common.sh"; fi
+  printf '%s' "$_COMMON"
+)
+if [ "$_S85_RESOLVED" = "$_S85_DEP/cj-goal-common.sh" ]; then
+  ok "S000085: 3-tier preamble resolves cj-goal-common.sh from _cj-shared with no source clone"
+else
+  fail_test "S000085: no-source-clone resolution failed (got '$_S85_RESOLVED')"
+fi
+
+# (3) Catalog re-tier + audit confirmation (real catalog + real engine).
+_S85_TIERS=$(jq -r '.[] | select(.name=="CJ_goal_feature" or .name=="CJ_goal_defect" or .name=="CJ_goal_todo_fix" or .name=="CJ_document-release") | .portability' "$CATALOG" 2>/dev/null | sort -u)
+if [ "$_S85_TIERS" = "local-only" ]; then
+  ok "S000085: the 4 orchestrator-family skills are re-tiered local-only in the catalog"
+else
+  fail_test "S000085: orchestrator-family skills not all local-only (got: $_S85_TIERS)"
+fi
+_S85_AUDIT=$(bash "$REPO_ROOT/scripts/cj-portability-audit.sh" --no-adjudication 2>&1)
+if printf '%s\n' "$_S85_AUDIT" | grep -qE '^FINDINGS=0$' \
+   && printf '%s\n' "$_S85_AUDIT" | grep -qE 'CJ_goal_feature[ ]*\|[ ]*local-only'; then
+  ok "S000085: audit reports the re-tiered family local-only with zero findings (--no-adjudication)"
+else
+  fail_test "S000085: audit did not confirm the local-only re-tier with zero findings"
+fi
+
+rm -rf "$_S85_TMP"
 
 # Summary
 echo ""

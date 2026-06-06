@@ -45,10 +45,15 @@ worktree phase still runs); `--dry-run` forwards as a preview.
 ```bash
 # Pre-build skills-sync (F000045) — runs BEFORE the Default-worktree block.
 _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _COMMON=""
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# 3-tier shared-script resolution (F000049/S000085): repo-local (workbench
+# self-dev) → deployed _cj-shared home → manifest .source (legacy fallback).
 if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
   _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+elif [ -x "$_SHARED/cj-goal-common.sh" ]; then
+  _COMMON="$_SHARED/cj-goal-common.sh"
 elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
   _COMMON="$_S/scripts/cj-goal-common.sh"
 fi
@@ -114,11 +119,15 @@ done
 
 if [ "$_HAS_POSITIONAL" = "1" ]; then  # only when a topic is present
   _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+  _SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
   _COMMON=""
   _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-  # Repo-local first (workbench self-development), then deployed manifest .source.
+  # 3-tier shared-script resolution (F000049/S000085): repo-local (workbench
+  # self-dev) → deployed _cj-shared home → manifest .source (legacy fallback).
   if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
     _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+  elif [ -x "$_SHARED/cj-goal-common.sh" ]; then
+    _COMMON="$_SHARED/cj-goal-common.sh"
   elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
     _COMMON="$_S/scripts/cj-goal-common.sh"
   fi

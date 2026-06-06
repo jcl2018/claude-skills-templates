@@ -35,10 +35,15 @@ BOTH drain and single-TODO modes (skills-freshness is mode-independent).
 ```bash
 # Pre-build skills-sync (F000045) — runs BEFORE the Default-worktree block.
 _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _COMMON=""
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# 3-tier shared-script resolution (F000049/S000085): repo-local (workbench
+# self-dev) → deployed _cj-shared home → manifest .source (legacy fallback).
 if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
   _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+elif [ -x "$_SHARED/cj-goal-common.sh" ]; then
+  _COMMON="$_SHARED/cj-goal-common.sh"
 elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
   _COMMON="$_S/scripts/cj-goal-common.sh"
 fi
@@ -227,8 +232,15 @@ done
 
 if [ "$_HAS_POSITIONAL" = "1" ]; then  # single-TODO mode only
   _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-  if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-init.sh" ]; then
-    _WT_JSON=$("$_S/scripts/cj-worktree-init.sh" --caller todo "$@" 2>/dev/null)
+  _SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+  _RR=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  # 3-tier shared-script resolution (F000049/S000085): repo-local → _cj-shared → .source
+  _WT_INIT=""
+  if [ -n "$_RR" ] && [ -x "$_RR/scripts/cj-worktree-init.sh" ]; then _WT_INIT="$_RR/scripts/cj-worktree-init.sh";
+  elif [ -x "$_SHARED/cj-worktree-init.sh" ]; then _WT_INIT="$_SHARED/cj-worktree-init.sh";
+  elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-init.sh" ]; then _WT_INIT="$_S/scripts/cj-worktree-init.sh"; fi
+  if [ -n "$_WT_INIT" ]; then
+    _WT_JSON=$("$_WT_INIT" --caller todo "$@" 2>/dev/null)
     if [ -n "$_WT_JSON" ]; then
       _WT_STATE=$(echo "$_WT_JSON" | jq -r '.state // "failed"' 2>/dev/null)
       _WT_PATH=$(echo "$_WT_JSON" | jq -r '.path // empty' 2>/dev/null)
@@ -286,11 +298,16 @@ single-TODO worktree preamble uses), then:
 # Agent-layer terminal — AFTER /land-and-deploy + TODOS.md DONE-mark, NOT inside
 # todo_fix.sh (which only emits a handoff + exits 0 before land happens).
 _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
+_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+_RR=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _CLEAN=""
-if [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-cleanup.sh" ]; then
+# 3-tier shared-script resolution (F000049/S000085): repo-local → _cj-shared → .source
+if [ -n "$_RR" ] && [ -x "$_RR/scripts/cj-worktree-cleanup.sh" ]; then
+  _CLEAN="$_RR/scripts/cj-worktree-cleanup.sh"
+elif [ -x "$_SHARED/cj-worktree-cleanup.sh" ]; then
+  _CLEAN="$_SHARED/cj-worktree-cleanup.sh"
+elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-worktree-cleanup.sh" ]; then
   _CLEAN="$_S/scripts/cj-worktree-cleanup.sh"
-elif [ -x "$(git rev-parse --show-toplevel 2>/dev/null)/scripts/cj-worktree-cleanup.sh" ]; then
-  _CLEAN="$(git rev-parse --show-toplevel)/scripts/cj-worktree-cleanup.sh"
 fi
 [ -n "$_CLEAN" ] && bash "$_CLEAN" --caller todo 2>/dev/null || true
 ```

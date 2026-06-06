@@ -132,9 +132,13 @@ hardcoded defaults.
 # cj-document-release.json via `git rev-parse --show-toplevel`, so a .source-resolved
 # helper still parses THIS repo's config — never the workbench's.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER=""
+# 3-tier shared-script resolution (F000049/S000085): repo-local → _cj-shared → .source
 if [ -n "$_CR_REPO_ROOT" ] && [ -x "$_CR_REPO_ROOT/scripts/cj-document-release-config.sh" ]; then
   _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+elif [ -x "$_CR_SHARED/cj-document-release-config.sh" ]; then
+  _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
 else
   _CR_SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
   [ -n "$_CR_SRC" ] && [ -x "$_CR_SRC/scripts/cj-document-release-config.sh" ] && _CFG_HELPER="$_CR_SRC/scripts/cj-document-release-config.sh"
@@ -255,7 +259,9 @@ whitelist (F000037), not a hardcoded regex:
 # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
 # repo-local first, else the manifest .source path.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
 [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
 
 # Build doc-only file set from the config's whitelist_patterns (F000037).
@@ -302,7 +308,9 @@ if [ -n "$DOCS_SUBSET" ]; then
   # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
   # repo-local first, else the manifest .source path.
   _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
   _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
   [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
   # Resolve each comma-separated token via the helper.
   while IFS= read -r token; do
@@ -372,7 +380,9 @@ The whitelist set comes from `bash "$_CFG_HELPER"
 # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
 # repo-local first, else the manifest .source path.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
 [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
 
 DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)

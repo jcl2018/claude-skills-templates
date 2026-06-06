@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-05T06:03:23Z"
+last-updated: "2026-06-06T00:47:41Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -67,11 +67,13 @@ working tree, e.g. `doc/**/*.md`), and (b) the `categories` map that
 resolves `--docs <token>` flags into concrete file lists (e.g.
 `"readme": ["README.md"]`). Schema is versioned (`schema_version: 1`); the
 helper at `scripts/cj-document-release-config.sh` parses + validates +
-expands. The wrapper resolves that helper repo-local-first, then via the
-manifest `.source` path (`~/.claude/.skills-templates.json`) — the same
-reach-back `post-land-sync.sh` / `skills-update-check` use — so doc-sync works
-when a `cj_goal_*` run executes from ANY consumer repo, not just the workbench.
-A `.source`-resolved helper still parses THAT repo's own
+expands. The wrapper resolves that helper **3-tier** (F000049/S000085):
+repo-local first, then the deployed `_cj-shared/scripts/` home that travels
+with the install, then the manifest `.source` path
+(`~/.claude/.skills-templates.json`) as a legacy fallback — so doc-sync works
+when a `cj_goal_*` run executes from ANY consumer repo, even with no source
+clone present (`CJ_document-release` is `local-only`, not `workbench`).
+A deployed- or `.source`-resolved helper still parses THAT repo's own
 `cj-document-release.json` because the helper reads its config from the cwd's
 git toplevel (`git rev-parse --show-toplevel`), not from its own location.
 Strict-required posture (no fallback): the wrapper HALTs with
