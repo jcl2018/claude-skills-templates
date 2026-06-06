@@ -189,6 +189,13 @@ The validator parses the registry and asserts the contract:
 - **no work-item IDs in human docs** — for every `audit_class: human-doc` entry,
   the validator greps `[FSTD][0-9]{6}` and ERRORs on any hit. This is the hard
   lint that keeps the human docs human-readable.
+- **front-table-required docs open with a table** (Check 20) — for every entry
+  flagged `front_table: required` (enumerated via `doc-spec.sh
+  --list-front-table-docs`; today `docs/philosophy.md` + `docs/workflow.md`), the
+  validator asserts a Markdown table appears BEFORE the doc's first `## ` heading.
+  Registry-driven, so flagging a third doc later is a one-line registry edit —
+  `docs/architecture.md` is a human-doc but is deliberately NOT flagged, so it is
+  exempt, which demonstrates the registry-driven scoping.
 - **workflow completeness** — `docs/workflow.md` carries a section for every
   `CJ_goal_*` orchestrator, each with an ASCII chart and a 4-bullet Touches block.
 
@@ -201,6 +208,9 @@ consume. Subcommands:
   exit 1 + emit `[doc-sync-no-config] <reason>` otherwise.
 - `--list-declared` — emit every declared `path` (sorted, unique).
 - `--list-human-docs` — emit only the `audit_class: human-doc` paths.
+- `--list-front-table-docs` — emit only the paths whose `front_table` is
+  `required` (a separate awk pass; the workbench-local field the validator's
+  front-table check consumes).
 - `--expand-whitelist` — emit the doc-only auto-commit whitelist (every declared
   `path` + `doc-spec.md` + every `docs/**/*.md` on disk; sorted, unique).
 - `--seed` — emit the portable Common-section seed (used by the self-bootstrap to

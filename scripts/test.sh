@@ -309,6 +309,45 @@ else
   fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
 fi
 
+# Step 3d (F000052 / TEST-SPEC S4): Check 20 front-table-required negative test.
+# THE PARALLEL test.sh EDIT the new validate.sh check needs (the F000032/34/35
+# blind spot — every prior new validate.sh check forgot its zzz-test-scaffold /
+# plant-and-restore assertion; defused here in lockstep with the Check 20 add).
+# docs/philosophy.md is flagged `front_table: required` in the doc-spec.md
+# registry. Temporarily STRIP its leading summary table (every `^|` row before the
+# first `^## ` heading), assert validate.sh exits non-zero AND emits the literal
+# Check 20 `  ERROR:` prefix for docs/philosophy.md, then RESTORE the file exactly
+# from a backup and assert validate.sh exits 0 again. Backup-and-restore so the
+# checkout is never left dirty. Proves Check 20 actually FIRES, not just defaults
+# green.
+_C20_FTDOC="$REPO_ROOT/docs/philosophy.md"
+if [ -f "$_C20_FTDOC" ]; then
+  cp "$_C20_FTDOC" "/tmp/c20-ftdoc-backup-$$"
+  # Strip leading table rows (lines starting with `|`) that appear BEFORE the
+  # first `^## ` heading. awk -> temp -> mv (in-place edit, portable).
+  awk 'BEGIN{past=0} /^## /{past=1} { if (!past && $0 ~ /^\|/) next; print }' \
+    "/tmp/c20-ftdoc-backup-$$" > "/tmp/c20-ftdoc-stripped-$$" \
+    && mv "/tmp/c20-ftdoc-stripped-$$" "$_C20_FTDOC"
+  if _C20_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+    fail_test "Check 20: validate.sh should have exited non-zero with docs/philosophy.md's leading table stripped, but exited 0"
+  else
+    if echo "$_C20_OUT" | grep -qF "  ERROR: front-table-required doc docs/philosophy.md does not open with a summary table"; then
+      ok "Check 20: stripping docs/philosophy.md's leading table triggers front-table ERROR + non-zero exit"
+    else
+      fail_test "Check 20: validate.sh exited non-zero but missing the Check-20 ERROR for docs/philosophy.md; output: $_C20_OUT"
+    fi
+  fi
+  cp "/tmp/c20-ftdoc-backup-$$" "$_C20_FTDOC"
+  rm -f "/tmp/c20-ftdoc-backup-$$" "/tmp/c20-ftdoc-stripped-$$"
+  if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+    ok "Check 20: validate.sh exits 0 again after the leading table is restored"
+  else
+    fail_test "Check 20: validate.sh should have exited 0 after docs/philosophy.md's table was restored, but exited non-zero"
+  fi
+else
+  fail_test "Check 20: docs/philosophy.md (a front_table-required doc) not found for the negative test"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then

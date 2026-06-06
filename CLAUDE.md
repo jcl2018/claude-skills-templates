@@ -402,7 +402,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
-| `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
+| `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--list-front-table-docs` (the `front_table: required` paths consumed by Check 20), `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19/20 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
 
 ## Update-check mechanism (F000009)
 
@@ -499,9 +499,14 @@ There is no second list: the registry is the source, the prose explains it.
   --validate`).
 - **Check 17** — every root `*.md` on disk is a declared registry path.
 - **Check 19** — no work-item IDs in any `human-doc`.
+- **Check 20** — every `front_table: required` doc (today `docs/philosophy.md`,
+  `docs/workflow.md`) opens with a summary table BEFORE its first `## ` heading
+  (registry-driven via `doc-spec.sh --list-front-table-docs`).
 
 Add a doc by adding a registry entry to `doc-spec.md` (and creating the file). A
 new root `*.md` must be a `section: custom` registry entry, or Check 17 flags it.
+Flag a doc to require a leading summary table by adding `front_table: required`
+to its registry entry — Check 20 then enforces it.
 
 ## /CJ_document-release doc audit conventions
 

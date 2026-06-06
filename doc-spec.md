@@ -103,6 +103,21 @@ Repo notes:
 - The doc-only auto-commit whitelist used by `/CJ_document-release` is derived
   from the registry below — there is no separate hand-maintained whitelist file.
 
+### `front_table` (workbench-local registry field)
+
+A registry entry MAY carry `front_table: required` — a **workbench-local**
+extension (it lives only in this Custom section + the machine registry below, NOT
+in the portable Common seed). A flagged doc must **open with a summary table**:
+the first Markdown table (a `|`-row immediately followed by a `|---|`-style
+delimiter row) must appear **before the doc's first `## ` heading**, giving a
+reader an at-a-glance index. The gate asserts a leading table only — it does not
+prescribe the table's columns. Today `docs/philosophy.md` (a row per principle)
+and `docs/workflow.md` (a row per major workflow/entry point) are flagged.
+`scripts/doc-spec.sh --list-front-table-docs` enumerates the flagged paths;
+`scripts/validate.sh` Check 20 consumes that list and hard-fails any flagged doc
+missing its leading table. Flagging a third doc later is a one-line registry edit
+— no validator change.
+
 <!-- DOC-SPEC-CUSTOM:END -->
 
 ## Machine registry
@@ -117,13 +132,15 @@ docs:
   - path: docs/philosophy.md
     section: common
     audit_class: human-doc
+    front_table: required
     purpose: "Major design logic, one '## Principle N' section each."
-    requirement: "Arranged by principle; states the repo's first principle(s); human-readable; no work-item IDs."
+    requirement: "Arranged by principle; states the repo's first principle(s); human-readable; no work-item IDs; opens with a summary table at the top listing every principle."
   - path: docs/workflow.md
     section: common
     audit_class: human-doc
+    front_table: required
     purpose: "The major workflows from a human's perspective; names the major entry points."
-    requirement: "Lists every major workflow/entry point a human would invoke; ASCII flowcharts preferred; no work-item IDs."
+    requirement: "Lists every major workflow/entry point a human would invoke; ASCII flowcharts preferred; no work-item IDs; opens with a summary table at the top listing every major workflow/entry point."
   - path: docs/architecture.md
     section: common
     audit_class: human-doc

@@ -13,6 +13,7 @@
 #   4. helper --validate exits 0 + prints OK schema_version=1
 #   5. helper --list-declared returns the human docs (docs/philosophy.md etc.)
 #   6. helper --list-human-docs returns ONLY human-doc paths (no operational)
+#   6b. helper --list-front-table-docs emits ONLY front_table: required paths
 #   7. helper --expand-whitelist includes doc-spec.md + every declared path
 #   8. helper --seed emits the portable Common section
 #   9. strict gate: a bad schema_version HALTs with [doc-sync-no-config]
@@ -99,6 +100,25 @@ if [ -x "$HELPER" ]; then
   fi
 else
   fail_test "helper --list-human-docs skipped (not executable)"
+fi
+
+# 6b. --list-front-table-docs emits ONLY the front_table: required paths (F000052).
+# Synthetic temp registry: one entry WITH front_table: required (docs/philosophy.md)
+# and one WITHOUT (docs/architecture.md). Asserts the flagged path is emitted and
+# the unflagged one is not — proving the new subcommand filters on the field.
+if [ -x "$HELPER" ]; then
+  _T=$(mktemp -d)
+  printf '```yaml\nschema_version: 1\ndocs:\n  - path: docs/philosophy.md\n    section: common\n    audit_class: human-doc\n    front_table: required\n  - path: docs/architecture.md\n    section: common\n    audit_class: human-doc\n```\n' > "$_T/doc-spec.md"
+  _FT=$(REPO_ROOT="$_T" bash "$HELPER" --list-front-table-docs 2>/dev/null)
+  rm -rf "$_T"
+  if printf '%s\n' "$_FT" | grep -qx 'docs/philosophy.md' \
+     && ! printf '%s\n' "$_FT" | grep -qx 'docs/architecture.md'; then
+    ok "helper --list-front-table-docs emits only front_table: required paths"
+  else
+    fail_test "helper --list-front-table-docs wrong set (expected only docs/philosophy.md, got: $_FT)"
+  fi
+else
+  fail_test "helper --list-front-table-docs skipped (not executable)"
 fi
 
 # 7. --expand-whitelist includes doc-spec.md + every declared path

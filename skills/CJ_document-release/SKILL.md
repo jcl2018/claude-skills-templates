@@ -234,6 +234,8 @@ The helper supports these subcommands the rest of this skill consumes:
 - `--list-declared` — emit every declared `path` (sorted, unique).
 - `--list-human-docs` — emit only the `audit_class: human-doc` paths (used by the
   no-work-item-ref audit check).
+- `--list-front-table-docs` — emit only the paths flagged `front_table: required`
+  (consumed by `validate.sh` Check 20; not used directly by this skill).
 - `--expand-whitelist` — emit the doc-only auto-commit whitelist (every declared
   `path` + `doc-spec.md` + every `docs/**/*.md`). Step 2 + Step 6 use this.
 - `--seed` — emit the portable Common-section seed (used by the self-bootstrap).

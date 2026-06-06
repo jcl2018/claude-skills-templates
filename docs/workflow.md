@@ -46,6 +46,15 @@ a `### <name>` section with an ASCII chart AND a **Touches** block carrying all
 four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 `^- \*\*Docs`). No silent omission.
 
+| Entry point | What it does |
+|-------------|--------------|
+| `/CJ_goal_feature "<topic>"` | One-line feature topic → reviewable PR (design → scaffold → implement → QA → doc-sync → ship; stops at the PR). |
+| `/CJ_goal_defect "<bug>"` | Bug description → shipped fix (root-cause → RCA → implement → QA → doc-sync → ship → land). |
+| `/CJ_goal_todo_fix [<id> \| "<frag>"]` | Drain shippable `TODOS.md` rows into PRs (single-TODO or `--max-drain N` batch). |
+| Machinery | The deterministic shared helpers the orchestrators call — worktree init/cleanup, pre-build skills-sync, version-queue preflight (see the `## Machinery` section). |
+| Utilities & phase-step skills | The single-step building blocks the chains dispatch / the operator runs directly — scaffold, implement, QA, doc-release, the validator, `/CJ_suggest`, `/CJ_system-health`. |
+| Utility audits | Standalone read-only audits — `/CJ_portability-audit`, `/CJ_improve-queue`. |
+
 ## Orchestrators
 
 The three `cj_goal` orchestrators chain multiple skills end-to-end. Each has a
