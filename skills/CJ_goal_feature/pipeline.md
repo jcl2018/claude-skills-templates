@@ -206,16 +206,14 @@ read-only verdict mode `cj-goal-common.sh` does not wrap):
 
 ```bash
 # Re-resolve cj-worktree-init.sh: (1) repo-local first (workbench self-dev),
-# then (2) the deployed manifest .source path.
+# then (2) the deployed _cj-shared home (install==clone; F000049/S000088).
+_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _HELPER=""
 if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-worktree-init.sh" ]; then
   _HELPER="$_REPO_ROOT/scripts/cj-worktree-init.sh"
-else
-  _SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
-  if [ -n "$_SRC" ] && [ -x "$_SRC/scripts/cj-worktree-init.sh" ]; then
-    _HELPER="$_SRC/scripts/cj-worktree-init.sh"
-  fi
+elif [ -x "$_SHARED/cj-worktree-init.sh" ]; then
+  _HELPER="$_SHARED/cj-worktree-init.sh"
 fi
 
 RESUME_DIR="$_REPO_ROOT/.cj-goal-feature"
@@ -227,8 +225,8 @@ if [ -z "$_HELPER" ]; then
   # exactly the D000024 class the gate exists to close.
   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   cat >> "$RESUME_DIR/.resume.log" <<EOF
-- $TS [feature-not-isolated] worktree helper unreachable (repo-local + manifest .source both absent); cannot verify clean+isolated before the source-writing build. HALT (no silent in-place write).
-  next_action=Restore scripts/cj-worktree-init.sh (repo-local) or fix \$HOME/.claude/.skills-templates.json .source; then re-run.
+- $TS [feature-not-isolated] worktree helper unreachable (repo-local + deployed _cj-shared both absent); cannot verify clean+isolated before the source-writing build. HALT (no silent in-place write).
+  next_action=Restore scripts/cj-worktree-init.sh (repo-local) or re-run 'skills-deploy install' to refresh the deployed _cj-shared home; then re-run.
   resume_cmd=/CJ_goal_feature "$TOPIC"
   pr_url=N/A
   raw_output_path=N/A

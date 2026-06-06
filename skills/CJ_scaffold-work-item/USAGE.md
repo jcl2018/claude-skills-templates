@@ -3,7 +3,7 @@ skill-name: "CJ_scaffold-work-item"
 version: 1.0.1
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-04T23:45:00Z"
+last-updated: "2026-06-06T03:46:08Z"
 ---
 
 # Skill Usage: CJ_scaffold-work-item

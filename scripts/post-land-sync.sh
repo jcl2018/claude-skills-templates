@@ -11,6 +11,12 @@
 # worktree-invoked install skips foreign-owned skills), and report the
 # collection_version before→after.
 #
+# F000049 / S4 (S000088) — install == clone: under the in-place install model the
+# manifest `.source` IS the dev checkout (install_mode: in-place), so this helper's
+# pull+install operates on that same checkout. It is REFRAMED, not retired, by S4: a
+# `gh pr merge` is a REMOTE merge, so a post-merge `git pull` of the checkout is still
+# required — deleting it would break that refresh.
+#
 # Guards (each → clear message + non-zero exit, NO pull/install):
 #   - `.source` missing/empty in the manifest
 #   - `.source` is not a git repository

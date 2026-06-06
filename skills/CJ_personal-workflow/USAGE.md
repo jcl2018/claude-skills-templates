@@ -3,7 +3,7 @@ skill-name: "CJ_personal-workflow"
 version: 4.0.0
 status: active
 created: "2026-06-01"
-last-updated: "2026-06-01"
+last-updated: "2026-06-06T03:46:08Z"
 ---
 
 # Skill Usage: CJ_personal-workflow

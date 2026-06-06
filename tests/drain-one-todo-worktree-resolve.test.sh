@@ -45,13 +45,13 @@ WT_HELPER="$REPO_ROOT/scripts/cj-worktree-init.sh"
 # ---------- Case 1: static — manifest .source resolution present ----------
 
 echo ""
-echo "Case 1: drain-one-todo.sh resolves cj-worktree-init.sh via .skills-templates.json .source..."
-if grep -q '\.skills-templates\.json' "$DRAIN" \
-   && grep -qE 'jq -r .*\.source.*\.skills-templates\.json' "$DRAIN" \
-   && grep -q 'scripts/cj-worktree-init\.sh' "$DRAIN"; then
-  ok "Case 1: drain-one-todo.sh reads .skills-templates.json .source to resolve cj-worktree-init.sh"
+echo "Case 1: drain-one-todo.sh resolves cj-worktree-init.sh via the deployed _cj-shared home..."
+if grep -qE 'CJ_SHARED_SCRIPTS|_cj-shared' "$DRAIN" \
+   && grep -q 'cj-worktree-init\.sh' "$DRAIN" \
+   && ! grep -qE 'jq -r .*\.source.*\.skills-templates\.json' "$DRAIN"; then
+  ok "Case 1: drain-one-todo.sh resolves cj-worktree-init.sh via the _cj-shared deployed home (F000049/S4: .source tier dropped)"
 else
-  fail_test "Case 1: drain-one-todo.sh does not resolve cj-worktree-init.sh via .skills-templates.json .source (regression: BASH_SOURCE-only resolution breaks from deployed ~/.claude/)"
+  fail_test "Case 1: drain-one-todo.sh does not resolve cj-worktree-init.sh via _cj-shared (or still reaches manifest .source); regression: BASH_SOURCE-only resolution breaks from deployed ~/.claude/"
 fi
 
 # ---------- Case 2: behavioral — deployed layout, manifest .source set ----------
@@ -120,7 +120,15 @@ cp "$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/todo_fix.sh" \
    "$HOMEDIR/.claude/skills/CJ_goal_todo_fix/scripts/todo_fix.sh"
 chmod +x "$HOMEDIR/.claude/skills/CJ_goal_todo_fix/scripts/todo_fix.sh"
 
+# F000049/S4: drain-one-todo.sh now resolves cj-worktree-init.sh from the deployed
+# _cj-shared home (the .source tier was dropped). Deposit the helper there — this
+# is the load-bearing setup for the deployed-layout resolution this case checks.
+mkdir -p "$HOMEDIR/.claude/_cj-shared/scripts"
+cp "$WT_HELPER" "$HOMEDIR/.claude/_cj-shared/scripts/cj-worktree-init.sh"
+chmod +x "$HOMEDIR/.claude/_cj-shared/scripts/cj-worktree-init.sh"
+
 # Manifest: .source points at the workbench checkout (what skills-deploy writes).
+# Retained for fidelity; drain no longer reads it for the helper (S4 → _cj-shared).
 cat > "$HOMEDIR/.claude/.skills-templates.json" <<MANIFEST_EOF
 {"source": "$WB", "skills": {"CJ_goal_todo_fix": {"path": "skills/CJ_goal_todo_fix/SKILL.md"}}}
 MANIFEST_EOF
@@ -156,9 +164,9 @@ if [ "$WT_CREATED" = "1" ]; then
 fi
 
 if [ "$WT_CREATED" = "1" ]; then
-  ok "Case 2: deployed drain resolved cj-worktree-init.sh via manifest .source (real per-iteration worktree created under \$WB/.claude/worktrees/cj-todo-*)"
+  ok "Case 2: deployed drain resolved cj-worktree-init.sh via the _cj-shared deployed home (real per-iteration worktree created under \$WB/.claude/worktrees/cj-todo-*)"
 else
-  fail_test "Case 2: deployed drain did NOT create a per-iteration worktree — cj-worktree-init.sh unreachable from ~/.claude/ via manifest .source (the defect). Output: $OUT"
+  fail_test "Case 2: deployed drain did NOT create a per-iteration worktree — cj-worktree-init.sh unreachable from ~/.claude/_cj-shared/ (the defect). Output: $OUT"
 fi
 
 # ---------- Summary ----------

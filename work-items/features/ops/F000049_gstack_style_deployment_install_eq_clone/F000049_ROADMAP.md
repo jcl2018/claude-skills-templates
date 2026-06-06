@@ -42,9 +42,9 @@ self-development-flow rewrite.
 |-----------|-------|--------|
 | [S000085](S000085_shared_scripts_self_containment/S000085_TRACKER.md) | Shared scripts travel with the install (runtime de-coupling foundation) | Closed (landed v6.0.42 / PR #232) |
 | [S000086](S000086_single_bundle_install/S000086_TRACKER.md) | Single-bundle layout + git-checkout install (`--bundle`; resolves O1) | Closed (landed v6.0.43 / PR #233) |
-| [S000087](S000087_develop_in_place/S000087_TRACKER.md) | Develop-in-place enablement (`--bundle` origin-repoint + `bundle-status`) | In Progress (built; this PR) |
-| S4 (TBD) | Drop `.source` + retire the worktree/post-land-sync machinery + flip `--bundle` to default; finalize the tier shift; docs | Open |
-| S5 (TBD) | Cleanup + parity (Windows copy-mode, CI, `skills-update-check`) | Open |
+| [S000087](S000087_develop_in_place/S000087_TRACKER.md) | Develop-in-place enablement (`--bundle` origin-repoint + `bundle-status`) | Closed (landed v6.0.44 / PR #234) |
+| [S000088](S000088_retire_separate_clone_legacy/S000088_TRACKER.md) | Retire the separate-clone legacy (declare install==clone-in-place + drop runtime `.source` + reframe sync) | In Progress (built; this PR) |
+| S5 (TBD) | Cleanup + parity (Windows copy-mode, CI, `skills-update-check` on the in-place checkout) | Open |
 
 ## Delivery Timeline
 
@@ -53,7 +53,7 @@ self-development-flow rewrite.
 | 1 | S1 (S000085) shared-scripts self-containment | — | Not Started | chjiang | Non-breaking foundation; `.source` fallback retained | — |
 | 2 | S2 single-bundle layout + git-checkout install | — | Not Started | chjiang | Resolves O1 (Claude Code skill discovery from a bundle) | #1 |
 | 3 | S3 develop-in-place + retire separate-clone machinery | — | Not Started | chjiang | Retires the worktree / `.source` / `post-land-sync` dev flow | #2 |
-| 4 | S4 drop `.source` + manifest `source`; finalize tier shift; docs | — | Not Started | chjiang | Removes the legacy fallback; PHILOSOPHY/ARCHITECTURE/WORKFLOWS | #3 |
+| 4 | S4 (S000088) declare install==clone-in-place + drop runtime `.source` + reframe sync; docs | — | In Progress | chjiang | D1-B in-place (no relocation); `--bundle`=consumer bootstrap; sync REFRAMED not deleted (remote-merge needs a pull); worktrees kept | #3 |
 | 5 | S5 cleanup + parity (Windows copy-mode, CI, update-check) | — | Not Started | chjiang | windows-latest CI parity; update-check on the in-place checkout | #4 |
 
 ### Delivery History

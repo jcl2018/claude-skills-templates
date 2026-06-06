@@ -141,6 +141,22 @@ then `git -C "$_SRC" pull --ff-only` and runs `skills-deploy install` **from
 `.source`** (not from a worktree — a worktree-invoked install skips
 foreign-owned skills). It prints `collection_version` before→after.
 
+*Install == clone, in place (F000049/S4 — S000088).* The default `skills-deploy
+install` declares the install **install == clone**: it stamps `install_mode:
+in-place` + `bundle_path` = the checkout you ran it from (which already equals
+manifest `source`), so the install IS the dev checkout — there is no separate
+clone. S4 also dropped every runtime `.source` reach-back from the skill
+preambles (they resolve shared scripts repo-local → `_cj-shared`; the
+update-check nudge resolves from `_cj-shared`). `post-land-sync.sh` and the
+`cj-goal-common.sh --phase sync` step are **reframed, not retired**: because
+`gh pr merge` is a REMOTE merge, the in-place checkout still needs a post-merge
+`git pull` + `skills-deploy install` to refresh per-file symlinks for any NEW
+files — this helper IS that pull+install, now operating on the one in-place
+checkout (`source` == `bundle_path`). The `cj-feat-*` worktree flow is KEPT (it
+is the parallel-build isolation primitive, created INSIDE the checkout).
+`--bundle` remains the managed-checkout / fresh-consumer bootstrap (relocate to
+`~/.claude/skills/cj-workbench`); the in-place default is the developer path.
+
 *Why this step is needed.* `gh pr merge` is a **remote** merge. The local
 post-merge auto-sync hook (`setup-hooks.sh` → `skills-deploy install`) only fires
 on a local `git pull`/`merge`, so a remote merge bypasses it entirely — the
@@ -363,14 +379,21 @@ Manual override: `rm ~/.claude/.skills-templates-update.json` forces a re-check
 on the next skill invocation. `skills-deploy doctor` surfaces last-check time,
 local/remote versions, snooze/skip state.
 
-The script lives in the user's clone at `$source/scripts/skills-update-check` —
-no symlink, no copy, no `~/.claude/bin/`. `git pull` propagates updates
-automatically. The preamble snippet in each instrumented SKILL.md does:
+The script travels with the install: `skills-deploy install` deposits it into the
+shared `_cj-shared/scripts/` home (F000049/S1), and a `git pull` of the in-place
+checkout propagates updates automatically. **F000049/S4 (S000088)** repointed the
+preamble snippet OFF the manifest `.source` read onto that deployed home — so no
+skill performs a runtime `.source` reach-back. The snippet in each instrumented
+SKILL.md now does:
 
 ```bash
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+_UC="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/skills-update-check"
+[ -x "$_UC" ] && "$_UC" 2>/dev/null || true
 ```
+
+(`skills-update-check` itself still reads the manifest `source` to find the
+checkout whose `origin/main` to compare against — under install==clone that
+`source` IS the in-place checkout, not a separate clone.)
 
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).

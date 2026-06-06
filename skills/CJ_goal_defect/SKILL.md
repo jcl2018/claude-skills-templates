@@ -19,8 +19,8 @@ allowed-tools:
 Check for collection updates (silent if none, banner if newer):
 
 ```bash
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+_UC="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/skills-update-check"
+[ -x "$_UC" ] && "$_UC" 2>/dev/null || true
 ```
 
 Verify this is a git repository:
@@ -44,18 +44,15 @@ worktree phase still runs); `--dry-run` forwards as a preview.
 
 ```bash
 # Pre-build skills-sync (F000045) — runs BEFORE the Default-worktree block.
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
 _SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _COMMON=""
 _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-# 3-tier shared-script resolution (F000049/S000085): repo-local (workbench
-# self-dev) → deployed _cj-shared home → manifest .source (legacy fallback).
+# 2-tier shared-script resolution (F000049/S000088: .source tier dropped):
+# repo-local (workbench self-dev) → deployed _cj-shared home (install==clone).
 if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
   _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
 elif [ -x "$_SHARED/cj-goal-common.sh" ]; then
   _COMMON="$_SHARED/cj-goal-common.sh"
-elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
-  _COMMON="$_S/scripts/cj-goal-common.sh"
 fi
 if [ -n "$_COMMON" ]; then
   _SYNC_FLAGS=()
@@ -71,7 +68,7 @@ if [ -n "$_COMMON" ]; then
   _SYNC_VB=$(printf '%s\n' "$_SYNC_OUT" | sed -n 's/^VERSION_BEFORE=//p')
   _SYNC_VA=$(printf '%s\n' "$_SYNC_OUT" | sed -n 's/^VERSION_AFTER=//p')
   if [ "$_SYNC_RESULT" = "ok" ]; then
-    echo "[sync] skills synced from .source (collection_version ${_SYNC_VB:-?} → ${_SYNC_VA:-?})"
+    echo "[sync] skills synced from the in-place checkout (collection_version ${_SYNC_VB:-?} → ${_SYNC_VA:-?})"
   else
     echo "[sync] skipped (--no-sync / guard refusal / offline) — proceeding on current install"
   fi
@@ -107,18 +104,15 @@ for _ARG in "$@"; do
 done
 
 if [ "$_HAS_POSITIONAL" = "1" ]; then  # only when a bug description is present
-  _S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
   _SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
   _COMMON=""
   _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-  # 3-tier shared-script resolution (F000049/S000085): repo-local (workbench
-  # self-dev) → deployed _cj-shared home → manifest .source (legacy fallback).
+  # 2-tier shared-script resolution (F000049/S000088: .source tier dropped):
+  # repo-local (workbench self-dev) → deployed _cj-shared home (install==clone).
   if [ -n "$_REPO_ROOT" ] && [ -x "$_REPO_ROOT/scripts/cj-goal-common.sh" ]; then
     _COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
   elif [ -x "$_SHARED/cj-goal-common.sh" ]; then
     _COMMON="$_SHARED/cj-goal-common.sh"
-  elif [ -n "$_S" ] && [ -x "$_S/scripts/cj-goal-common.sh" ]; then
-    _COMMON="$_S/scripts/cj-goal-common.sh"
   fi
 
   if [ -n "$_COMMON" ]; then
