@@ -41,9 +41,9 @@ self-development-flow rewrite.
 | User-Story | Title | Status |
 |-----------|-------|--------|
 | [S000085](S000085_shared_scripts_self_containment/S000085_TRACKER.md) | Shared scripts travel with the install (runtime de-coupling foundation) | Closed (landed v6.0.42 / PR #232) |
-| [S000086](S000086_single_bundle_install/S000086_TRACKER.md) | Single-bundle layout + git-checkout install (`--bundle`; resolves O1) | In Progress (built; this PR) |
-| S3 (TBD) | Develop-in-place + retire the separate-clone machinery | Open |
-| S4 (TBD) | Drop `.source` + manifest `source`; finalize the tier shift; docs | Open |
+| [S000086](S000086_single_bundle_install/S000086_TRACKER.md) | Single-bundle layout + git-checkout install (`--bundle`; resolves O1) | Closed (landed v6.0.43 / PR #233) |
+| [S000087](S000087_develop_in_place/S000087_TRACKER.md) | Develop-in-place enablement (`--bundle` origin-repoint + `bundle-status`) | In Progress (built; this PR) |
+| S4 (TBD) | Drop `.source` + retire the worktree/post-land-sync machinery + flip `--bundle` to default; finalize the tier shift; docs | Open |
 | S5 (TBD) | Cleanup + parity (Windows copy-mode, CI, `skills-update-check`) | Open |
 
 ## Delivery Timeline

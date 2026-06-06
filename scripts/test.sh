@@ -2295,6 +2295,55 @@ fi
 
 rm -rf "$_S86_TMP" "$_S86_TMP2"
 
+# ---------- F000049 / S3 (S000087): develop-in-place enablement ----------
+# Verifies the bundle is set up so you can develop + ship FROM it: --bundle
+# repoints the bundle's `origin` to the GitHub upstream (even when cloned from a
+# local .source), and `skills-deploy bundle-status` reports the dev checkout's state.
+echo ""
+echo "Integration test (F000049 / S000087): develop-in-place (origin repoint + bundle-status)..."
+_S87_TMP=$(mktemp -d -t test-sh-s87-XXXXXX)
+_S87_UPSTREAM="https://github.com/jcl2018/claude-skills-templates.git"
+
+SKILLS_DEPLOY_BUNDLE_TARGET="$_S87_TMP/cj-workbench" \
+SKILLS_DEPLOY_BUNDLE_SOURCE="$REPO_ROOT" \
+SKILLS_DEPLOY_BUNDLE_UPSTREAM="$_S87_UPSTREAM" \
+SKILLS_DEPLOY_TARGET="$_S87_TMP/skills" \
+SKILLS_DEPLOY_TEMPLATES_TARGET="$_S87_TMP/templates" \
+SKILLS_DEPLOY_RULES_TARGET="$_S87_TMP/rules" \
+SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S87_TMP/_cj-shared/scripts" \
+SKILLS_DEPLOY_MANIFEST="$_S87_TMP/manifest.json" \
+  bash "$REPO_ROOT/scripts/skills-deploy" install --bundle >/dev/null 2>&1 || true
+
+# (1) origin repointed to the GitHub upstream (so branch/push/PR works FROM the bundle).
+if [ "$(git -C "$_S87_TMP/cj-workbench" remote get-url origin 2>/dev/null)" = "$_S87_UPSTREAM" ]; then
+  ok "S000087: --bundle repoints the bundle's origin to the GitHub upstream (develop-in-place: push/PR from the bundle)"
+else
+  fail_test "S000087: bundle origin not repointed to the upstream (got '$(git -C "$_S87_TMP/cj-workbench" remote get-url origin 2>/dev/null)')"
+fi
+
+# (2) bundle-status reports the install==clone checkout state.
+_S87_STATUS=$(SKILLS_DEPLOY_MANIFEST="$_S87_TMP/manifest.json" bash "$REPO_ROOT/scripts/skills-deploy" bundle-status 2>&1)
+if printf '%s\n' "$_S87_STATUS" | grep -qE '^install_mode: bundle' \
+   && printf '%s\n' "$_S87_STATUS" | grep -qF "$_S87_TMP/cj-workbench" \
+   && printf '%s\n' "$_S87_STATUS" | grep -qF "$_S87_UPSTREAM"; then
+  ok "S000087: bundle-status reports install_mode=bundle + the bundle path + origin"
+else
+  fail_test "S000087: bundle-status did not report the expected develop-in-place state"
+fi
+
+# (3) bundle-status on a NON-bundle install reports dev-clone (no false bundle claim).
+_S87_TMP2=$(mktemp -d -t test-sh-s87b-XXXXXX)
+echo '{}' > "$_S87_TMP2/manifest.json"
+_S87_STATUS2=$(SKILLS_DEPLOY_MANIFEST="$_S87_TMP2/manifest.json" bash "$REPO_ROOT/scripts/skills-deploy" bundle-status 2>&1)
+if printf '%s\n' "$_S87_STATUS2" | grep -qE 'install_mode: dev-clone' \
+   && printf '%s\n' "$_S87_STATUS2" | grep -qF 'Not in bundle mode'; then
+  ok "S000087: bundle-status on a non-bundle install reports dev-clone (no false install==clone claim)"
+else
+  fail_test "S000087: bundle-status mis-reported a non-bundle install"
+fi
+
+rm -rf "$_S87_TMP" "$_S87_TMP2"
+
 # Summary
 echo ""
 echo "=== Test Summary ==="
