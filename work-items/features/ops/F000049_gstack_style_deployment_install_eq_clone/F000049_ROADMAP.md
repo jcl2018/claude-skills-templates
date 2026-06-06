@@ -40,8 +40,8 @@ self-development-flow rewrite.
 
 | User-Story | Title | Status |
 |-----------|-------|--------|
-| [S000085](S000085_shared_scripts_self_containment/S000085_TRACKER.md) | Shared scripts travel with the install (runtime de-coupling foundation) | Open |
-| S2 (TBD) | Single-bundle layout + git-checkout install (resolve O1: skill discovery) | Open |
+| [S000085](S000085_shared_scripts_self_containment/S000085_TRACKER.md) | Shared scripts travel with the install (runtime de-coupling foundation) | Closed (landed v6.0.42 / PR #232) |
+| [S000086](S000086_single_bundle_install/S000086_TRACKER.md) | Single-bundle layout + git-checkout install (`--bundle`; resolves O1) | In Progress (built; this PR) |
 | S3 (TBD) | Develop-in-place + retire the separate-clone machinery | Open |
 | S4 (TBD) | Drop `.source` + manifest `source`; finalize the tier shift; docs | Open |
 | S5 (TBD) | Cleanup + parity (Windows copy-mode, CI, `skills-update-check`) | Open |
