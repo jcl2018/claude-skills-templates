@@ -15,8 +15,8 @@ allowed-tools:
 Check for collection updates (silent if none, banner if a newer version is available):
 
 ```bash
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+_UC="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/skills-update-check"
+[ -x "$_UC" ] && "$_UC" 2>/dev/null || true
 ```
 
 Log skill usage so the usage trends section can track this skill too:

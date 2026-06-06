@@ -8,8 +8,8 @@ set -euo pipefail
 # ---- Preamble -----------------------------------------------------------------
 
 # Collection update check (silent if no update; banner if newer version available).
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || true)
-[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+_UC="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/skills-update-check"
+[ -x "$_UC" ] && "$_UC" 2>/dev/null || true
 
 # Repo-root detection. Fail loud if not in a git repo.
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {

@@ -247,7 +247,7 @@ Dispatched by the orchestrators as depth-≤2 leaf subagents.
 #### CJ_document-release
 
 **Status:** experimental
-**Category:** workbench (executes root config + `.source` reach-back; folds doc-sync into the workbench's own PR — matches `skills-catalog.json`)
+**Category:** local-only (executes its config helper via repo-local → the deployed `_cj-shared` home; F000049/S4 dropped its runtime `.source` reach-back; folds doc-sync into the workbench's own PR — matches `skills-catalog.json`'s `local-only`)
 **Source:** `skills/CJ_document-release/SKILL.md` · `skills/CJ_document-release/USAGE.md`
 **Invoke when:** inline at **Step 5.5** of all three `cj_goal` orchestrators (between QA pass and `/ship`) to fold doc updates into the same code PR; also operator-callable for a point-in-time doc audit. Wraps upstream `/document-release`; adds a `--docs <subset>` filter, a halt-on-red contract (`[doc-sync-red]`), and a doc-only auto-commit gated by the per-repo `cj-document-release.json` whitelist. (Mechanism detail: ARCHITECTURE.md `## F000036 inline doc-sync wrapper` + `## F000037 strict-required cj-document-release.json`.)
 **Touches:**

@@ -2336,13 +2336,89 @@ _S87_TMP2=$(mktemp -d -t test-sh-s87b-XXXXXX)
 echo '{}' > "$_S87_TMP2/manifest.json"
 _S87_STATUS2=$(SKILLS_DEPLOY_MANIFEST="$_S87_TMP2/manifest.json" bash "$REPO_ROOT/scripts/skills-deploy" bundle-status 2>&1)
 if printf '%s\n' "$_S87_STATUS2" | grep -qE 'install_mode: dev-clone' \
-   && printf '%s\n' "$_S87_STATUS2" | grep -qF 'Not in bundle mode'; then
+   && printf '%s\n' "$_S87_STATUS2" | grep -qF 'Legacy dev-clone install'; then
   ok "S000087: bundle-status on a non-bundle install reports dev-clone (no false install==clone claim)"
 else
   fail_test "S000087: bundle-status mis-reported a non-bundle install"
 fi
 
 rm -rf "$_S87_TMP" "$_S87_TMP2"
+
+# ---------- F000049 / S4 (S000088): retire the separate-clone legacy ----------
+# Verifies the in-place install==clone declaration + the runtime .source de-coupling:
+# (1) the DEFAULT install (no --bundle) stamps install_mode=in-place + bundle_path==source;
+# (2) bundle-status recognizes in-place; (3) NO skill's update-check snippet reaches
+# $_S/.source; (4) the 4 orchestrators carry no skills-templates.json + .source
+# co-occurrence; (5) each orchestrator audits FINDINGS=0 with no .source reach-back note.
+echo ""
+echo "Integration test (F000049 / S000088): in-place install==clone + .source de-coupling..."
+_S88_TMP=$(mktemp -d -t test-sh-s88-XXXXXX)
+SKILLS_DEPLOY_TARGET="$_S88_TMP/skills" \
+SKILLS_DEPLOY_TEMPLATES_TARGET="$_S88_TMP/templates" \
+SKILLS_DEPLOY_RULES_TARGET="$_S88_TMP/rules" \
+SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$_S88_TMP/_cj-shared/scripts" \
+SKILLS_DEPLOY_MANIFEST="$_S88_TMP/manifest.json" \
+  bash "$REPO_ROOT/scripts/skills-deploy" install >/dev/null 2>&1 || true
+
+# (1) AC-1: default install declares install==clone-in-place.
+_S88_MODE=$(jq -r '.install_mode // "none"' "$_S88_TMP/manifest.json" 2>/dev/null)
+_S88_SRC=$(jq -r '.source // empty' "$_S88_TMP/manifest.json" 2>/dev/null)
+_S88_BP=$(jq -r '.bundle_path // empty' "$_S88_TMP/manifest.json" 2>/dev/null)
+if [ "$_S88_MODE" = "in-place" ] && [ -n "$_S88_SRC" ] && [ "$_S88_BP" = "$_S88_SRC" ]; then
+  ok "S000088: default install declares install==clone-in-place (install_mode=in-place, bundle_path==source)"
+else
+  fail_test "S000088: default install did not stamp the in-place receipt (mode='$_S88_MODE', bundle_path='$_S88_BP', source='$_S88_SRC')"
+fi
+
+# (2) AC-4: bundle-status recognizes the in-place mode (not a false dev-clone/bundle).
+_S88_STATUS=$(SKILLS_DEPLOY_MANIFEST="$_S88_TMP/manifest.json" bash "$REPO_ROOT/scripts/skills-deploy" bundle-status 2>&1)
+if printf '%s\n' "$_S88_STATUS" | grep -qE '^install_mode: in-place'; then
+  ok "S000088: bundle-status recognizes install_mode=in-place"
+else
+  fail_test "S000088: bundle-status did not report in-place (got: $(printf '%s' "$_S88_STATUS" | head -1))"
+fi
+rm -rf "$_S88_TMP"
+
+# (3) AC-3: the PASSIVE per-invocation update-check nudge no longer reads $_S/.source —
+# its signature is the `[ -x "$_S/..." ]` guard, which Transformation A repointed to
+# _cj-shared. The ACTIVE Update Nudge Handling upgrade flow (--should-prompt / --snooze /
+# --skip / --prompted) legitimately reads manifest `source` == the in-place checkout to
+# `git pull` + `skills-deploy install` it, so it is OUT of the "passive reach-back" AC
+# scope — the same posture as post-land-sync and skills-update-check's own manifest read.
+# shellcheck disable=SC2016  # the single-quoted $_S is a literal grep needle, not a shell expansion
+# `{ grep || true; }` so a zero-match (the SUCCESS case) does not trip set -e + pipefail.
+_S88_UC=$( { grep -rlF '[ -x "$_S/scripts/skills-update-check" ]' "$REPO_ROOT/skills/" 2>/dev/null || true; } | wc -l | tr -d ' ')
+if [ "$_S88_UC" = "0" ]; then
+  ok "S000088: the passive update-check nudge no longer reaches \$_S/.source (repointed to _cj-shared)"
+else
+  fail_test "S000088: $_S88_UC skill(s) still have the passive .source update-check nudge"
+fi
+
+# (4) AC-2: the 4 orchestrators carry no skills-templates.json + .source co-occurrence.
+_S88_REACH=0
+for _sk in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
+  if grep -rnE 'skills-templates\.json' "$REPO_ROOT/skills/$_sk/" 2>/dev/null | grep -q '\.source'; then
+    _S88_REACH=1
+  fi
+done
+if [ "$_S88_REACH" = "0" ]; then
+  ok "S000088: no orchestrator file reads manifest .source at runtime (preamble + pipeline + scripts de-coupled)"
+else
+  fail_test "S000088: an orchestrator still has a skills-templates.json + .source co-occurrence"
+fi
+
+# (5) AC-4: each orchestrator audits FINDINGS=0 with no .source reach-back note.
+_S88_AUDIT_CLEAN=1
+for _sk in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
+  _S88_O=$(bash "$REPO_ROOT/scripts/cj-portability-audit.sh" --skill "$_sk" 2>&1)
+  printf '%s\n' "$_S88_O" | grep -qE '^FINDINGS=0$' || _S88_AUDIT_CLEAN=0
+  printf '%s\n' "$_S88_O" | grep -qiF 'reads manifest .source' && _S88_AUDIT_CLEAN=0
+done
+if [ "$_S88_AUDIT_CLEAN" = "1" ]; then
+  ok "S000088: each orchestrator audits FINDINGS=0 with no '.source' reach-back note"
+else
+  fail_test "S000088: an orchestrator still has a .source note or non-zero findings"
+fi
 
 # Summary
 echo ""

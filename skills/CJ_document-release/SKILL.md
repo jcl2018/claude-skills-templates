@@ -15,8 +15,8 @@ allowed-tools:
 Check for collection updates (silent if none, banner if newer):
 
 ```bash
-_S=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)
-[ -n "$_S" ] && [ -x "$_S/scripts/skills-update-check" ] && "$_S/scripts/skills-update-check" 2>/dev/null || true
+_UC="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/skills-update-check"
+[ -x "$_UC" ] && "$_UC" 2>/dev/null || true
 ```
 
 Verify this is a git repository:
@@ -127,26 +127,23 @@ hardcoded defaults.
 
 ```bash
 # Resolve the config helper: (1) repo-local first (workbench self-dev or a repo
-# that vendors scripts/), then (2) the deployed manifest .source path (a consumer
-# repo where the helper lives ONLY in the installed workbench). The helper reads
-# cj-document-release.json via `git rev-parse --show-toplevel`, so a .source-resolved
+# that vendors scripts/), then (2) the deployed _cj-shared home (a consumer repo
+# where the helper lives ONLY in the installed workbench). The helper reads
+# cj-document-release.json via `git rev-parse --show-toplevel`, so a _cj-shared-resolved
 # helper still parses THIS repo's config — never the workbench's.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER=""
-# 3-tier shared-script resolution (F000049/S000085): repo-local → _cj-shared → .source
+# 2-tier shared-script resolution (F000049/S000088: .source tier dropped): repo-local → _cj-shared
 if [ -n "$_CR_REPO_ROOT" ] && [ -x "$_CR_REPO_ROOT/scripts/cj-document-release-config.sh" ]; then
   _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
 elif [ -x "$_CR_SHARED/cj-document-release-config.sh" ]; then
   _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-else
-  _CR_SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
-  [ -n "$_CR_SRC" ] && [ -x "$_CR_SRC/scripts/cj-document-release-config.sh" ] && _CFG_HELPER="$_CR_SRC/scripts/cj-document-release-config.sh"
 fi
 if [ -z "$_CFG_HELPER" ]; then
-  echo "[doc-sync-no-config] cj-document-release-config.sh unreachable (repo-local scripts/ + manifest .source both absent)"
+  echo "[doc-sync-no-config] cj-document-release-config.sh unreachable (repo-local scripts/ + deployed _cj-shared both absent)"
   echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
-  echo "next_action=restore scripts/cj-document-release-config.sh in this repo, or fix \$HOME/.claude/.skills-templates.json .source to point at an installed workbench clone; re-run /CJ_document-release"
+  echo "next_action=restore scripts/cj-document-release-config.sh in this repo, or re-run 'skills-deploy install' to refresh the deployed _cj-shared home; re-run /CJ_document-release"
   echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
   echo "pr_url=N/A"
   exit 1
@@ -257,12 +254,12 @@ whitelist (F000037), not a hardcoded regex:
 
 ```bash
 # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
-# repo-local first, else the manifest .source path.
+# repo-local first, else the deployed _cj-shared home.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
 [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
 
 # Build doc-only file set from the config's whitelist_patterns (F000037).
 DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
@@ -306,12 +303,12 @@ tokens).
 AUDIT_FILES=""
 if [ -n "$DOCS_SUBSET" ]; then
   # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
-  # repo-local first, else the manifest .source path.
+  # repo-local first, else the deployed _cj-shared home.
   _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
   _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
   _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
   [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
+  [ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
   # Resolve each comma-separated token via the helper.
   while IFS= read -r token; do
     [ -n "$token" ] || continue
@@ -378,12 +375,12 @@ The whitelist set comes from `bash "$_CFG_HELPER"
 
 ```bash
 # Re-resolve the config helper (shell vars do NOT persist across bash blocks):
-# repo-local first, else the manifest .source path.
+# repo-local first, else the deployed _cj-shared home.
 _CR_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _CR_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
 _CFG_HELPER="$_CR_REPO_ROOT/scripts/cj-document-release-config.sh"
 [ -x "$_CFG_HELPER" ] || _CFG_HELPER="$_CR_SHARED/cj-document-release-config.sh"
-[ -x "$_CFG_HELPER" ] || _CFG_HELPER="$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null)/scripts/cj-document-release-config.sh"
+[ -x "$_CFG_HELPER" ] || _CFG_HELPER="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-document-release-config.sh"
 
 DOC_WHITELIST_SET=$(bash "$_CFG_HELPER" --expand-whitelist)
 DIRTY=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep -v '^$')

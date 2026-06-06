@@ -177,14 +177,14 @@ if [ -z "$HEADING" ]; then
 fi
 
 # Resolve cj-worktree-cleanup.sh (the post-run janitor, T000036) via the same
-# manifest .source convention the per-iteration worktree-init resolution uses.
+# deployed _cj-shared convention the per-iteration worktree-init resolution uses.
 # Drain mode wires cleanup DIRECTLY (todo does not route through cj-goal-common.sh).
 # Best-effort: unreachable helper is a silent no-op.
 resolve_cleanup_helper() {
-  local src fallback
-  src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || true)
-  if [ -n "$src" ] && [ -x "$src/scripts/cj-worktree-cleanup.sh" ]; then
-    printf '%s' "$src/scripts/cj-worktree-cleanup.sh"; return 0
+  local shared fallback
+  shared="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+  if [ -x "$shared/cj-worktree-cleanup.sh" ]; then
+    printf '%s' "$shared/cj-worktree-cleanup.sh"; return 0
   fi
   fallback="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-cleanup.sh"
   [ -x "$fallback" ] && { printf '%s' "$fallback"; return 0; }
@@ -231,10 +231,10 @@ case "$SUBCMD" in
     # echo so cron output stays empty.
     #
     # D-fix (drain-one-todo worktree-init path resolution): the helper MUST be
-    # resolved via the workbench-source path recorded in
-    # ~/.claude/.skills-templates.json (.source) — exactly the convention
-    # todo_fix.sh preamble (line ~11), the single-TODO SKILL.md preamble, and
-    # the F000009 update-check preamble already use. The original
+    # resolved via the deployed _cj-shared home (F000049/S000088) — exactly the
+    # convention todo_fix.sh preamble, the single-TODO SKILL.md preamble, and
+    # the F000009 update-check preamble already use (the .source tier was
+    # dropped in S4). The original
     # BASH_SOURCE-relative `../../..` resolution only held for the in-repo
     # checkout: skills-deploy symlinks per-skill files into
     # ~/.claude/skills/CJ_goal_todo_fix/scripts/ but NEVER deploys repo-root
@@ -242,13 +242,13 @@ case "$SUBCMD" in
     # `../../..` resolves to ~/.claude and the helper was looked for at the
     # nonexistent ~/.claude/scripts/cj-worktree-init.sh — drain then silently
     # ran every TODO on the current branch (the exact collision S000054 fixes).
-    # Manifest .source is primary; BASH_SOURCE-relative is the in-repo /
-    # no-manifest fallback (consumer repos without workbench source still
-    # degrade gracefully — helper simply unreachable, today's behavior).
+    # The deployed _cj-shared home is primary; BASH_SOURCE-relative is the
+    # in-repo / no-deploy fallback (consumer repos without the deployed home
+    # still degrade gracefully — helper simply unreachable, today's behavior).
     _WT_HELPER=""
-    _WT_SRC=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || true)
-    if [ -n "$_WT_SRC" ] && [ -x "$_WT_SRC/scripts/cj-worktree-init.sh" ]; then
-      _WT_HELPER="$_WT_SRC/scripts/cj-worktree-init.sh"
+    _WT_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+    if [ -x "$_WT_SHARED/cj-worktree-init.sh" ]; then
+      _WT_HELPER="$_WT_SHARED/cj-worktree-init.sh"
     else
       _WT_FALLBACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/scripts/cj-worktree-init.sh"
       [ -x "$_WT_FALLBACK" ] && _WT_HELPER="$_WT_FALLBACK"
@@ -259,9 +259,9 @@ case "$SUBCMD" in
     # Gate #2's one-PR-per-TODO contract. D000021 fixed only the path
     # resolution and its RCA Insights explicitly flagged this remaining
     # "silent failure mode" as scoped out. If the helper is genuinely
-    # unreachable here ($_WT_HELPER empty: manifest .source missing/empty/
-    # non-executable AND the BASH_SOURCE-relative in-repo fallback also not
-    # executable), the OLD code silently fell through to the todo_fix.sh
+    # unreachable here ($_WT_HELPER empty: the deployed _cj-shared home missing/
+    # empty/non-executable AND the BASH_SOURCE-relative in-repo fallback also
+    # not executable), the OLD code silently fell through to the todo_fix.sh
     # delegation below and scaffolded the drained TODO into the CURRENT —
     # possibly dirty, possibly unrelated — branch, destroying the per-TODO
     # worktree isolation (operator hit exactly this: a scaffold dispatched
@@ -278,7 +278,7 @@ case "$SUBCMD" in
     # unaffected.
     if [ ! -x "$_WT_HELPER" ]; then
       lock_release "$HEADING" "$SESSION_ID" >/dev/null 2>&1 || true
-      echo "[drain] ERROR: cj-worktree-init.sh unavailable — refusing to scaffold '$HEADING' in-place on the current branch (per-TODO worktree isolation is required in drain mode). Deploy the workbench (skills-deploy install) so ~/.claude/.skills-templates.json .source resolves the helper, or run single-TODO mode." >&2
+      echo "[drain] ERROR: cj-worktree-init.sh unavailable — refusing to scaffold '$HEADING' in-place on the current branch (per-TODO worktree isolation is required in drain mode). Deploy the workbench (skills-deploy install) so the deployed _cj-shared home resolves the helper, or run single-TODO mode." >&2
       echo "RESULT: STATUS=halted; STAGE=preflight; HEADING=$HEADING; REASON=worktree-helper-unavailable"
       exit 2
     fi

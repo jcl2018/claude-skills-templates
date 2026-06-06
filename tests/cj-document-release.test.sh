@@ -31,11 +31,11 @@
 #  ... 17-24: F000037 cj-document-release.json + helper assertions ...
 #  25. SKILL.md has NO bare `bash scripts/cj-document-release-config.sh`
 #      invocation (cross-repo portability anti-regression)
-#  26. SKILL.md uses resolved `bash "$_CFG_HELPER"` >=4× + references the
-#      manifest `.source` reach-back (.skills-templates.json)
+#  26. SKILL.md uses resolved `bash "$_CFG_HELPER"` >=4× + resolves the helper
+#      via the _cj-shared deployed home (F000049/S4: .source reach-back dropped)
 #  27. The REAL helper, run from a temp git repo with no scripts/ dir, parses
 #      THAT repo's cj-document-release.json (cwd-toplevel resolution — the
-#      load-bearing property the .source-reach-back fix depends on)
+#      load-bearing property the _cj-shared resolution depends on)
 
 set -uo pipefail
 
@@ -281,7 +281,7 @@ fi
 # The wrapper used to invoke the helper via a bare relative `scripts/...` path,
 # which resolves against cwd and fails in any consumer repo (rc=127 →
 # spurious [doc-sync-no-config] HALT). The fix resolves the helper repo-local
-# first, then via the manifest .source reach-back, and re-resolves per bash
+# first, then via the deployed _cj-shared home (S4: .source tier dropped), and re-resolves per bash
 # block. These three assertions lock that in.
 
 # 25. Static anti-regression: NO bare `bash scripts/cj-document-release-config.sh`
@@ -295,15 +295,17 @@ fi
 
 # 26. Static wiring: the resolved form `bash "$_CFG_HELPER"` appears >= 4 times
 # (4 executable call sites: --validate, 2× --expand-whitelist, --resolve), AND
-# SKILL.md references the .source reach-back (.skills-templates.json) in a
-# helper-resolution context.
+# SKILL.md resolves the helper via the _cj-shared deployed home (F000049/S4
+# dropped the .source reach-back — the runtime resolution is now repo-local →
+# _cj-shared, no `.skills-templates.json` read).
 _RESOLVED_COUNT=$(grep -cF 'bash "$_CFG_HELPER"' "$SKILL_MD" 2>/dev/null || true)
 if [ "${_RESOLVED_COUNT:-0}" -ge 4 ] \
-   && grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null \
+   && grep -qF '_cj-shared' "$SKILL_MD" 2>/dev/null \
+   && ! grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null \
    && grep -qF '_CFG_HELPER' "$SKILL_MD" 2>/dev/null; then
-  ok "SKILL.md uses 'bash \"\$_CFG_HELPER\"' >=4× and references the .source reach-back (got $_RESOLVED_COUNT)"
+  ok "SKILL.md uses 'bash \"\$_CFG_HELPER\"' >=4× + resolves via _cj-shared, no .source reach-back (S4) (got $_RESOLVED_COUNT)"
 else
-  fail_test "SKILL.md resolved-helper wiring incomplete (bash \"\$_CFG_HELPER\" count=$_RESOLVED_COUNT, .source reach-back present=$(grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null && echo yes || echo no))"
+  fail_test "SKILL.md resolved-helper wiring incomplete (bash \"\$_CFG_HELPER\" count=$_RESOLVED_COUNT, _cj-shared present=$(grep -qF '_cj-shared' "$SKILL_MD" 2>/dev/null && echo yes || echo no), .source still present=$(grep -qF '.skills-templates.json' "$SKILL_MD" 2>/dev/null && echo yes || echo no))"
 fi
 
 # 27. Functional portability of the REAL helper: a .source-resolved (or any

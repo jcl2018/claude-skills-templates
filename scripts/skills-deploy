@@ -272,7 +272,8 @@ do_bundle_install() {
   echo "Bundle install complete — install == clone at $bundle (commit $bcommit)"
   echo "  Flat /CJ_* skills now resolve INTO the bundle checkout."
   echo "  Develop in place: cd \"$bundle\" to edit the workbench; 'skills-deploy bundle-status' shows its state."
-  echo "  Legacy dev-clone install is untouched; run 'skills-deploy install' (no --bundle) to revert."
+  echo "  The default 'skills-deploy install' (no --bundle) is ALSO install==clone (F000049/S4) — in place at the"
+  echo "  checkout you ran it from; --bundle is the managed-checkout/fresh-consumer bootstrap."
 }
 
 # F000049 / S3 (S000087): report the develop-in-place bundle's state (read-only).
@@ -285,8 +286,12 @@ do_bundle_status() {
   mode=$(echo "$m" | jq -r '.install_mode // "dev-clone"')
   bundle=$(echo "$m" | jq -r '.bundle_path // empty')
   echo "install_mode: $mode"
-  if [ "$mode" != "bundle" ] || [ -z "$bundle" ]; then
-    echo "  Not in bundle mode. Run 'skills-deploy install --bundle' to set up an install==clone checkout."
+  # F000049/S4 (S000088): BOTH `in-place` (the default install == clone, declared
+  # by do_install) and `bundle` (the managed checkout from --bundle) are install ==
+  # clone — `bundle_path` is the dev checkout in both. Only a legacy `dev-clone`
+  # install (pre-S4, or no bundle_path recorded) is not install==clone.
+  if [ "$mode" = "dev-clone" ] || [ -z "$bundle" ]; then
+    echo "  Legacy dev-clone install. Re-run 'skills-deploy install' to declare install==clone-in-place (or '--bundle' for a managed checkout)."
     return 0
   fi
   echo "bundle_path:  $bundle"
@@ -725,13 +730,20 @@ do_install() {
   local upstream_url
   upstream_url=$(git -C "$main_toplevel" remote get-url origin 2>/dev/null || true)
 
-  # Write manifest
+  # Write manifest.
+  # F000049 / S4 (S000088): the default install declares install == clone IN PLACE.
+  # `source` already equals `main_toplevel` (the checkout this install ran from), so
+  # the install IS the clone — stamp `install_mode: "in-place"` + `bundle_path: $s`
+  # to make that a first-class receipt (D1-B; no relocation). The `--bundle` path
+  # (do_bundle_install) runs THIS delegated install first, then OVERWRITES with
+  # `install_mode: "bundle"` — so a --bundle install still ends as `bundle`, while a
+  # plain `install` ends as `in-place`. Either way `bundle_path` = the dev checkout.
   echo "$manifest" | jq --arg s "$main_toplevel" --arg r "jcl2018/claude-skills-templates" \
     --arg c "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
     --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg cv "$col_ver" \
     --arg u "$upstream_url" \
-    '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv, upstream_url: $u}' | manifest_write
+    '. + {source: $s, repo: $r, commit: $c, installed_at: $t, collection_version: $cv, upstream_url: $u, install_mode: "in-place", bundle_path: $s}' | manifest_write
 
   # Write JUST_UPGRADED marker if invoked from the update-check upgrade flow.
   # Format: single line "<from_version> <to_version>" — consumed once by
