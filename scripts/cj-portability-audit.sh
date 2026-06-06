@@ -18,9 +18,9 @@
 #
 # STRICT TIER LADDER (the bar is "works in a repo that has never seen this
 # workbench"). Each tier's ALLOWED dependency set:
-#   standalone  — own bundled scripts (skills/<name>/scripts/) + repo-init
-#                 prereqs (cj-document-release.json, CJ-DOC-RELEASE.md,
-#                 TODOS.md, work-items/). NOTHING else.
+#   standalone  — own bundled scripts (skills/<name>/scripts/) + the doc-spec
+#                 contract files (doc-spec.md, docs/**, TODOS.md,
+#                 work-items/). NOTHING else.
 #   local-only  — standalone's set PLUS the user's ~/.claude deployed state.
 #   workbench   — everything PLUS root scripts/*.sh, the `.source` reach-back,
 #                 CLAUDE.md reads, root config (skills-catalog.json, VERSION, …).
@@ -129,12 +129,13 @@ fi
 jq empty "$CATALOG" >/dev/null 2>&1 || { echo "$PROG: error: $CATALOG is not valid JSON." >&2; exit 1; }
 
 # ----- root config-file literals (only these + the slug are literals) -----
-# Deliberately EXCLUDES the repo-init prerequisites (cj-document-release.json,
-# CJ-DOC-RELEASE.md, TODOS.md, work-items/) — those ARE scaffolded in a target
-# repo by the repo-init utility, so a skill reaching them is within EVERY tier's
-# allowed set (not a workbench-coupling signal). Only artifacts that exist SOLELY
-# in the workbench clone are listed here. (No skill NAME is hardcoded anywhere in
-# this engine — the audited set is derived from the catalog at runtime.)
+# Deliberately EXCLUDES the doc-spec contract files (doc-spec.md, docs/**,
+# TODOS.md, work-items/) — those are part of EVERY adopting repo's doc surface
+# (doc-spec.md self-bootstraps; the docs are stub-scaffolded), so a skill reaching
+# them is within EVERY tier's allowed set (not a workbench-coupling signal). Only
+# artifacts that exist SOLELY in the workbench clone are listed here. (No skill
+# NAME is hardcoded anywhere in this engine — the audited set is derived from the
+# catalog at runtime.)
 ROOT_CONFIG_FILES="skills-catalog.json template-registry.json VERSION"
 GITHUB_SLUG="jcl2018/claude-skills-templates"
 

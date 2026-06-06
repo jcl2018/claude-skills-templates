@@ -219,22 +219,26 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   fi
 done
 
-# Error check 9b: Catalog status field is one of {active, experimental}
+# Error check 9b: Catalog status field is one of {active, experimental, deprecated}
 # Closed enum so typos (e.g. "actiev") fail the build instead of silently
-# behaving like a missing status. Status is required on every entry.
+# behaving like a missing status. Status is required on every entry. `deprecated`
+# is the lifecycle-retired status (the F000031 relocation pattern): the skill
+# source is relocated under deprecated/ and the entry stays catalog-claimed (so
+# Check 4 is satisfied) while every `!= deprecated` selector — Check 13/14/15b,
+# the portability audit, the registered-doc audit — correctly excludes it.
 echo ""
 echo "Checking catalog status values..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
   status_val=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .status // ""' "$CATALOG")
   case "$status_val" in
-    active|experimental)
+    active|experimental|deprecated)
       pass "$name has valid status: $status_val"
       ;;
     "")
-      fail "$name has no 'status' field (must be one of: active, experimental)"
+      fail "$name has no 'status' field (must be one of: active, experimental, deprecated)"
       ;;
     *)
-      fail "$name has invalid status: '$status_val' (must be one of: active, experimental)"
+      fail "$name has invalid status: '$status_val' (must be one of: active, experimental, deprecated)"
       ;;
   esac
 done
@@ -593,52 +597,50 @@ while IFS= read -r SKILL_NAME; do
   fi
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
-# Check 15: doc/ manifest + WORKFLOWS.md completeness
-# F000034 + T000037: every doc/*.md must be registered in the CLAUDE.md manifest
-# (15a); the WORKFLOWS.md doc must carry a section for every WORKFLOW skill — the
-# CJ_goal_* orchestrators (15b) — with at least one of (a) a fenced ASCII workflow
-# chart, or (b) an explicit tag line matching one of `(single-step utility)` /
-# `(validator)` / `(phase-step in /CJ_goal_feature chain)`. The 15b predicate is
-# re-scoped to `startswith("CJ_goal_")` (T000037): only the workflow orchestrators
-# are enforced here; the component skills they dispatch live in the
-# doc/ARCHITECTURE.md `## Component skills (non-workflow roster)` (documentation,
-# not Check-enforced) and are guaranteed visible by the PHILOSOPHY.md decision-tree
-# New-skills check. No silent omission of a workflow.
+# Check 15: doc-spec.md registry (declared <=> on-disk) + workflow.md completeness
+# The doc contract lives in the root doc-spec.md registry (a fenced ```yaml block
+# parsed by scripts/doc-spec.sh). Check 15a asserts declared <=> on-disk: every
+# declared doc exists AND every docs/*.md on disk is declared (no orphans). Check
+# 15b asserts docs/workflow.md carries a section for every CJ_goal_* orchestrator
+# (the component skills it dispatches live in the same doc's `## Utilities &
+# phase-step skills` section, guaranteed visible by the docs/philosophy.md
+# decision-tree New-skills check). No silent omission of a workflow.
 echo ""
-echo "=== Check 15: doc/ manifest + WORKFLOWS.md completeness ==="
+echo "=== Check 15: doc-spec.md registry (declared <=> on-disk) + workflow.md completeness ==="
 
-# 15a: enumerate manifest entries (parse the YAML block under
-# `### Tracked doc/ files manifest` in CLAUDE.md).
-# Flag-based, NOT awk's `/start/,/end/` range — same collapse-on-overlap reason
-# as Check 15b's section parser (both start and end patterns match `^### `).
-MANIFEST_PATHS=$(awk '
-  /^### Tracked doc\/ files manifest$/ {flag=1; next}
-  /^### / {flag=0}
-  flag && /^- path:/ {print $3}
-' CLAUDE.md)
-DOC_FILES_ON_DISK=$(find doc -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+# 15a: parse the doc-spec.md registry via the helper (--list-declared) and check
+# declared <=> on-disk. The helper enforces schema validity itself (Check 16);
+# here we only need the declared path list. If the helper is missing/unparseable
+# the declared set is empty and 15a-orphan flags every docs/*.md loudly.
+DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
+DECLARED_PATHS=""
+if [ -x "$DOC_SPEC_HELPER" ]; then
+  DECLARED_PATHS=$(bash "$DOC_SPEC_HELPER" --list-declared 2>/dev/null || true)
+fi
 
-# 15a-orphan: doc/ files on disk that aren't in the manifest
-for f in $DOC_FILES_ON_DISK; do
-  if ! echo "$MANIFEST_PATHS" | grep -qFx "$f"; then
-    echo "  ERROR: $f is in doc/ but not registered in CLAUDE.md tracked-doc/ manifest"
+# 15a-orphan: docs/*.md on disk that aren't declared in the registry.
+DOCS_FILES_ON_DISK=$(find docs -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+for f in $DOCS_FILES_ON_DISK; do
+  if ! printf '%s\n' "$DECLARED_PATHS" | grep -qFx "$f"; then
+    echo "  ERROR: $f is in docs/ but not declared in the doc-spec.md registry"
     ERRORS=$((ERRORS+1))
   fi
 done
 
-# 15a-missing: manifest entries pointing to missing files
-for p in $MANIFEST_PATHS; do
-  if [ ! -f "$p" ]; then
-    echo "  ERROR: $p is in CLAUDE.md manifest but missing from disk"
+# 15a-missing: declared docs that are missing from disk.
+for p in $DECLARED_PATHS; do
+  if [ ! -f "$REPO_ROOT/$p" ]; then
+    echo "  ERROR: $p is declared in doc-spec.md but missing from disk"
     ERRORS=$((ERRORS+1))
   fi
 done
+[ -n "$DECLARED_PATHS" ] && echo "  PASS: doc-spec.md registry declared <=> on-disk ($(printf '%s\n' "$DECLARED_PATHS" | grep -c .) docs declared)"
 
-# 15b: WORKFLOWS.md per-workflow completeness (only if the doc exists).
-# Re-scoped (T000037): enforce a section ONLY for the CJ_goal_* workflow
-# orchestrators (today: CJ_goal_feature, CJ_goal_defect, CJ_goal_todo_fix), not
-# for every routable skill. Component skills live in doc/ARCHITECTURE.md's roster.
-CATALOG_FILE="doc/WORKFLOWS.md"
+# 15b: workflow.md per-workflow completeness (only if the doc exists).
+# Enforce a section ONLY for the CJ_goal_* workflow orchestrators (today:
+# CJ_goal_feature, CJ_goal_defect, CJ_goal_todo_fix). Component skills live in
+# docs/workflow.md's `## Utilities & phase-step skills` section.
+CATALOG_FILE="docs/workflow.md"
 if [ -f "$CATALOG_FILE" ]; then
   # Tag regex: matches the tag anywhere in the line (markdown often wraps it in
   # backticks for inline-code styling: `(validator)`, `(single-step utility)`,
@@ -682,7 +684,7 @@ if [ -f "$CATALOG_FILE" ]; then
     # sentence and pass a section with NO Touches bullet, defeating the check. The
     # anchored bullet line is the deterministic structural guarantee; completeness
     # WITHIN each bullet stays agent-judged (CJ_document-release Step 6.7 audit +
-    # the doc/WORKFLOWS.md `requirement:` in the CLAUDE.md tracked-doc manifest).
+    # the docs/workflow.md `requirement:` in the doc-spec.md registry).
     if ! echo "$SECTION" | grep -qE '^- \*\*Skills'; then
       echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Skills dispatched' bullet (expected a line matching '^- **Skills')"
       ERRORS=$((ERRORS+1))
@@ -702,95 +704,69 @@ if [ -f "$CATALOG_FILE" ]; then
   done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
 fi
 
-# Check 16: cj-document-release.json schema enforcement (F000037)
-# Skip silently when the file is missing (non-adopting repos). When present,
-# enforce schema_version=1, whitelist_patterns non-empty array, categories
-# non-empty object with array values per entry, and cross-check via the
-# helper's --validate subcommand.
+# Check 16: doc-spec.md registry schema enforcement
+# Skip silently when doc-spec.md is missing (non-adopting repos). When present,
+# enforce the registry schema via scripts/doc-spec.sh --validate: a fenced ```yaml
+# block, schema_version supported, every docs[] entry has path/section/audit_class,
+# and every audit_class is in the closed enum {human-doc, operational}. The helper
+# emits `[doc-sync-no-config] <reason>` + exits 1 on any violation; this check
+# surfaces that as an ERROR.
 echo ""
-echo "=== Check 16: cj-document-release.json schema ==="
-CONFIG_JSON="cj-document-release.json"
-if [ -f "$CONFIG_JSON" ]; then
-  # JSON validity (block other checks if this fails to avoid cascade noise).
-  if ! jq empty "$CONFIG_JSON" 2>/dev/null; then
-    echo "  ERROR: $CONFIG_JSON is not valid JSON"
+echo "=== Check 16: doc-spec.md registry schema ==="
+DOC_SPEC_FILE="doc-spec.md"
+DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
+if [ -f "$DOC_SPEC_FILE" ]; then
+  if [ ! -x "$DOC_SPEC_HELPER" ]; then
+    echo "  ERROR: doc-spec.md present but scripts/doc-spec.sh helper missing/not executable"
     ERRORS=$((ERRORS+1))
   else
-    # schema_version must be exactly 1 (v1 reader)
-    SV=$(jq -r '.schema_version // empty' "$CONFIG_JSON")
-    if [ -z "$SV" ] || [ "$SV" != "1" ]; then
-      echo "  ERROR: $CONFIG_JSON schema_version missing or unsupported (expected 1, got '$SV')"
+    if HELPER_OUT=$(bash "$DOC_SPEC_HELPER" --validate 2>&1); then
+      echo "  PASS: $DOC_SPEC_FILE registry ($HELPER_OUT)"
+    else
+      echo "  ERROR: $DOC_SPEC_FILE registry invalid: $HELPER_OUT"
       ERRORS=$((ERRORS+1))
     fi
-    # whitelist_patterns must be a non-empty array
-    if ! jq -e '.whitelist_patterns | type == "array" and length > 0' "$CONFIG_JSON" >/dev/null 2>&1; then
-      echo "  ERROR: $CONFIG_JSON whitelist_patterns must be a non-empty array"
-      ERRORS=$((ERRORS+1))
-    fi
-    # categories must be a non-empty object
-    if ! jq -e '.categories | type == "object" and (length > 0)' "$CONFIG_JSON" >/dev/null 2>&1; then
-      echo "  ERROR: $CONFIG_JSON categories must be a non-empty object"
-      ERRORS=$((ERRORS+1))
-    fi
-    # Each category value must be a non-empty array of strings
-    if ! jq -e '[.categories | to_entries[] | .value | type == "array" and length > 0] | all' "$CONFIG_JSON" >/dev/null 2>&1; then
-      echo "  ERROR: $CONFIG_JSON each category value must be a non-empty array of glob patterns"
-      ERRORS=$((ERRORS+1))
-    fi
-    # Final cross-check: helper --validate must exit 0.
-    if [ -x "scripts/cj-document-release-config.sh" ]; then
-      if ! HELPER_OUT=$(bash scripts/cj-document-release-config.sh --validate 2>&1); then
-        echo "  ERROR: cj-document-release-config.sh --validate failed: $HELPER_OUT"
-        ERRORS=$((ERRORS+1))
-      fi
-    fi
-    echo "  PASS: $CONFIG_JSON schema_version=$SV"
   fi
 else
-  echo "  SKIP: $CONFIG_JSON not present (non-adopting repo; check is conditional)"
+  echo "  SKIP: $DOC_SPEC_FILE not present (non-adopting repo; check is conditional)"
 fi
 
 echo ""
-echo "=== Check 17: root-doc placement allowlist ==="
-# Parse the allowlist from CLAUDE.md. Flag-based parser, same shape as Check 15,
-# BUT disarm on ANY heading (^#...), not just ^### — the allowlist is the last
-# ### subsection under its ## section, so disarming only on ### would over-capture
-# `- path:` lines from a following ## section.
-# CONSTRAINT: the YAML block must contain NO `#`-leading lines (comments). A
-# mid-block `#` line trips the `/^#/` disarm and silently drops every entry below
-# it. The `### Tracked root docs allowlist` heading text is also load-bearing —
-# it is matched literally, so renaming it parses to an empty allowlist and every
-# root *.md cascades to an orphan ERROR. The CLAUDE.md block carries the same
-# warning.
-ALLOWED_ROOT_MD=$(awk '
-  /^### Tracked root docs allowlist$/ {flag=1; next}
-  /^#/ {flag=0}
-  flag && /^- path:/ {print $3}
-' CLAUDE.md)
+echo "=== Check 17: root-doc placement allowlist (doc-spec.md registry) ==="
+# The root-docs allowlist now lives in the doc-spec.md registry: every root *.md
+# on disk MUST be a declared registry path (a non-docs/ declared entry). Parse the
+# declared set via the helper (--list-declared), filter to the root-level entries
+# (no `/`), and check both directions. If doc-spec.md/helper is absent the
+# declared set is empty and every root *.md flags loudly as an orphan.
+DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
+ALL_DECLARED=""
+if [ -x "$DOC_SPEC_HELPER" ]; then
+  ALL_DECLARED=$(bash "$DOC_SPEC_HELPER" --list-declared 2>/dev/null || true)
+fi
+# Root-level declared docs = declared paths with no slash.
+ALLOWED_ROOT_MD=$(printf '%s\n' "$ALL_DECLARED" | grep -vE '/' || true)
 ROOT_MD_ON_DISK=$(find . -maxdepth 1 -type f -name '*.md' 2>/dev/null | sed 's#^\./##' | sort)
 
-# 17-orphan: root *.md on disk that isn't allowlisted. Use the inline
-# echo+ERRORS form (prefix `  ERROR:`) to match Checks 15/16 exactly — NOT the
-# older fail() helper (prefix `  FAIL:`), which the newer checks abandoned.
+# 17-orphan: root *.md on disk that isn't declared in doc-spec.md.
 for f in $ROOT_MD_ON_DISK; do
-  if ! echo "$ALLOWED_ROOT_MD" | grep -qFx "$f"; then
-    echo "  ERROR: root doc $f is not in the CLAUDE.md 'Tracked root docs allowlist'; move it to doc/ (and register in the tracked-doc/ manifest) or add it to the root allowlist with a reason"
+  if ! printf '%s\n' "$ALLOWED_ROOT_MD" | grep -qFx "$f"; then
+    echo "  ERROR: root doc $f is not declared in the doc-spec.md registry; move it to docs/ (and declare it) or add a registry entry (section: custom) with a purpose"
     ERRORS=$((ERRORS+1))
   fi
 done
-# 17-missing: allowlist entry that points to a missing file.
+# 17-missing: declared root entry that points to a missing file.
 for p in $ALLOWED_ROOT_MD; do
-  if [ ! -f "$p" ]; then
-    echo "  ERROR: $p is in the CLAUDE.md root-docs allowlist but missing from disk"
+  if [ ! -f "$REPO_ROOT/$p" ]; then
+    echo "  ERROR: $p is a declared root doc in doc-spec.md but missing from disk"
     ERRORS=$((ERRORS+1))
   fi
 done
 # Empty allowlist is not separately guarded: it surfaces as an orphan ERROR for
-# every root *.md (acceptable — the heading + entries are required and present;
-# a renamed heading or empty block fails loudly via orphan errors, never silently
-# passes). Count once into a var; `|| true` keeps it safe under set -euo pipefail.
-N_ALLOW=$(echo "$ALLOWED_ROOT_MD" | grep -c . || true)
-[ "$N_ALLOW" -gt 0 ] && echo "  PASS: root *.md allowlist parsed ($N_ALLOW entries)"
+# every root *.md (acceptable — the registry is required and present; an absent
+# doc-spec.md fails loudly via orphan errors, never silently passes). Count once
+# into a var; `|| true` keeps it safe under set -euo pipefail.
+N_ALLOW=$(printf '%s\n' "$ALLOWED_ROOT_MD" | grep -c . || true)
+[ "$N_ALLOW" -gt 0 ] && echo "  PASS: root *.md allowlist parsed from doc-spec.md ($N_ALLOW entries)"
 
 # Check 18: portability audit (F000047 / S000083) — ADVISORY.
 # Runs the shared static-lint engine (scripts/cj-portability-audit.sh) over the
@@ -829,6 +805,37 @@ PA_TABLE
   else
     echo "  PASS: portability audit clean ($PA_FINDINGS findings after adjudication)"
   fi
+fi
+
+# Check 19: no work-item refs in human docs (hard lint)
+# For every doc-spec.md registry entry with audit_class: human-doc, grep for a
+# work-item ID of the shape [FSTD] followed by exactly six digits. Any hit is an
+# ERROR — human docs must stay human-readable (no internal-tracker noise). The
+# doc-spec migration scrubs these first, so this lands green. Skips silently when
+# doc-spec.md / the helper is absent (non-adopting repo). Uses --list-human-docs
+# (the registry-derived human-doc set) so adding a human doc to the registry
+# automatically extends the lint with no second list to maintain.
+echo ""
+echo "=== Check 19: no work-item refs in human docs ==="
+DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
+if [ -f "doc-spec.md" ] && [ -x "$DOC_SPEC_HELPER" ]; then
+  HUMAN_DOCS=$(bash "$DOC_SPEC_HELPER" --list-human-docs 2>/dev/null || true)
+  C19_HITS=0
+  for d in $HUMAN_DOCS; do
+    [ -f "$REPO_ROOT/$d" ] || continue
+    # grep -E for [FSTD] + 6 digits; capture matching lines for the message.
+    if MATCHES=$(grep -nE '[FSTD][0-9]{6}' "$REPO_ROOT/$d" 2>/dev/null); then
+      C19_HITS=$((C19_HITS+1))
+      echo "  ERROR: human-doc $d contains work-item ref(s) (audit_class: human-doc must carry none):"
+      printf '%s\n' "$MATCHES" | head -5 | while IFS= read -r _ml; do echo "    $_ml"; done
+      ERRORS=$((ERRORS+1))
+    fi
+  done
+  if [ "$C19_HITS" -eq 0 ]; then
+    echo "  PASS: no work-item refs in any human-doc ($(printf '%s\n' "$HUMAN_DOCS" | grep -c .) human-docs scanned)"
+  fi
+else
+  echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
 fi
 
 # Summary

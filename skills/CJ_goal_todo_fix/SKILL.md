@@ -328,7 +328,7 @@ Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 | `halted_at_impl` | /CJ_implement-from-spec leaf subagent returned non-green | STOP |
 | `halted_at_qa` | /CJ_qa-work-item leaf subagent returned non-green | STOP |
 | `halted_at_doc_sync` | Step 5.5 doc-sync: /CJ_document-release returned non-green ([doc-sync-red] — upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) | STOP |
-| `halted_at_doc_sync_no_config` | Step 5.5 doc-sync: cj-document-release.json missing/invalid/schema_version-unsupported ([doc-sync-no-config] — F000037 strict-required) | STOP |
+| `halted_at_doc_sync_no_config` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum ([doc-sync-no-config]; a simply-absent doc-spec.md self-bootstraps, not halts) | STOP |
 | `halted_at_doc_sync_non_doc_write` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist ([doc-sync-non-doc-write] — upstream-misbehaved) | STOP |
 | `halted_at_ship` | /ship Gate #2 declined or pre-landing review red | STOP |
 | `halted_at_deploy` | /land-and-deploy red (CI / merge / canary / regression) | STOP |
