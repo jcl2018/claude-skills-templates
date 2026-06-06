@@ -15,6 +15,14 @@ TEMPLATES_SRC="$REPO_ROOT/templates"
 TEMPLATES_TARGET="${SKILLS_DEPLOY_TEMPLATES_TARGET:-$HOME/.claude/templates}"
 RULES_SRC="$REPO_ROOT/rules"
 RULES_TARGET="${SKILLS_DEPLOY_RULES_TARGET:-$HOME/.claude/rules}"
+# Shared scripts deposit (F000049 / S000085): the shared `scripts/*.sh` helpers
+# (+ skills-update-check) travel with the install so the orchestrator-family
+# skills resolve them bundle-first instead of reaching a separate source clone
+# via `.source`. Deposited to a single `_cj-shared/scripts/` home; the scripts
+# already resolve their OWN siblings dirname-relative (BASH_SOURCE), so a
+# whole-set deposit keeps every transitive sibling co-located.
+SHARED_SCRIPTS_SRC="$REPO_ROOT/scripts"
+SHARED_SCRIPTS_TARGET="${SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET:-$HOME/.claude/_cj-shared/scripts}"
 
 # --- helpers ---
 
@@ -497,6 +505,49 @@ do_install() {
     done
   fi
 
+  # Deploy shared scripts to _cj-shared/scripts/ (F000049 / S000085).
+  # The shared scripts/*.sh helpers (+ skills-update-check) travel with the
+  # install so the orchestrator-family skills (CJ_goal_feature / CJ_goal_defect /
+  # CJ_goal_todo_fix / CJ_document-release) resolve them from this deployed home
+  # (bundle-first, .source legacy fallback) instead of a separate source clone.
+  # Copy-mode + SHA256 drift tracking, like templates. Deposited as a SET so the
+  # scripts' dirname-relative sibling resolution (BASH_SOURCE) keeps every
+  # transitive helper co-located in one dir.
+  local shared_installed=0 shared_skipped=0
+  if [ -d "$SHARED_SCRIPTS_SRC" ]; then
+    mkdir -p "$SHARED_SCRIPTS_TARGET"
+    for sh_src in "$SHARED_SCRIPTS_SRC"/*.sh "$SHARED_SCRIPTS_SRC/skills-update-check"; do
+      [ -f "$sh_src" ] || continue
+      local sh_base sh_dst sh_src_sum
+      sh_base=$(basename "$sh_src")
+      sh_dst="$SHARED_SCRIPTS_TARGET/$sh_base"
+      sh_src_sum=$(file_checksum "$sh_src")
+      [ -n "$sh_src_sum" ] || sh_src_sum="unknown"
+      if [ -f "$sh_dst" ]; then
+        local sh_dst_sum
+        sh_dst_sum=$(file_checksum "$sh_dst")
+        if [ "$sh_src_sum" = "$sh_dst_sum" ]; then
+          :  # same content — fall through to refresh the manifest record
+        elif [ "$overwrite" = true ]; then
+          cp "$sh_src" "$sh_dst" || { echo "  WARN: failed to copy shared script $sh_base (skipping)"; shared_skipped=$((shared_skipped + 1)); continue; }
+          chmod +x "$sh_dst" 2>/dev/null || true
+          echo "  SHARED: updated $sh_base (checksum differs)"
+          shared_installed=$((shared_installed + 1))
+        else
+          echo "  WARN: $sh_base — shared script exists with different content (--no-overwrite, keeping deployed copy)"
+          sh_src_sum="$sh_dst_sum"
+          shared_skipped=$((shared_skipped + 1))
+        fi
+      else
+        cp "$sh_src" "$sh_dst" || { echo "  WARN: failed to copy shared script $sh_base (skipping)"; shared_skipped=$((shared_skipped + 1)); continue; }
+        chmod +x "$sh_dst" 2>/dev/null || true
+        shared_installed=$((shared_installed + 1))
+      fi
+      manifest=$(echo "$manifest" | jq --arg k "$sh_base" --arg sum "$sh_src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.shared_scripts[$k] = {source_checksum: $sum, installed_at: $ts}')
+    done
+  fi
+
   # Resolve the manifest `source` to the MAIN repo toplevel (T000025).
   # `$REPO_ROOT` (line 7) is `dirname(script)/..`, which under `.claude/worktrees/<name>/`
   # points at the ephemeral worktree. Once the worktree is removed, `skills-deploy doctor`
@@ -553,6 +604,9 @@ do_install() {
   echo "Templates — Installed: $tpl_installed  Skipped: $tpl_skipped"
   if [ "$rules_installed" -gt 0 ]; then
     echo "Rules — Installed: $rules_installed"
+  fi
+  if [ "$shared_installed" -gt 0 ] || [ "$shared_skipped" -gt 0 ]; then
+    echo "Shared scripts — Installed: $shared_installed  Skipped: $shared_skipped"
   fi
 }
 

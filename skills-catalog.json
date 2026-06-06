@@ -181,7 +181,7 @@
         "shasum"
       ]
     },
-    "portability": "workbench",
+    "portability": "local-only",
     "files": [
       "skills/CJ_goal_todo_fix/SKILL.md",
       "skills/CJ_goal_todo_fix/pipeline.md",
@@ -241,7 +241,7 @@
         "find"
       ]
     },
-    "portability": "workbench",
+    "portability": "local-only",
     "files": [
       "skills/CJ_goal_defect/SKILL.md",
       "skills/CJ_goal_defect/pipeline.md"
@@ -270,7 +270,7 @@
         "gh"
       ]
     },
-    "portability": "workbench",
+    "portability": "local-only",
     "files": [
       "skills/CJ_goal_feature/SKILL.md",
       "skills/CJ_goal_feature/pipeline.md"
@@ -293,7 +293,7 @@
         "Skill"
       ]
     },
-    "portability": "workbench",
+    "portability": "local-only",
     "files": [
       "skills/CJ_document-release/SKILL.md"
     ],

@@ -118,8 +118,8 @@ fi
 # 8. Catalog entry exists + correct status/portability
 CATALOG_STATUS=$(jq -r '.[] | select(.name=="CJ_document-release") | .status' "$CATALOG" 2>/dev/null)
 CATALOG_PORTABILITY=$(jq -r '.[] | select(.name=="CJ_document-release") | .portability' "$CATALOG" 2>/dev/null)
-if [ "$CATALOG_STATUS" = "experimental" ] && [ "$CATALOG_PORTABILITY" = "workbench" ]; then
-  ok "skills-catalog.json: CJ_document-release entry has status=experimental + portability=workbench"
+if [ "$CATALOG_STATUS" = "experimental" ] && [ "$CATALOG_PORTABILITY" = "local-only" ]; then
+  ok "skills-catalog.json: CJ_document-release entry has status=experimental + portability=local-only (F000049/S000085 re-tier)"
 else
   fail_test "skills-catalog.json: CJ_document-release entry wrong (status=$CATALOG_STATUS portability=$CATALOG_PORTABILITY)"
 fi
