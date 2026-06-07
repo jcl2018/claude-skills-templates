@@ -186,3 +186,13 @@ Introduce a **topic** = a named group of related principles. Two topics, each a
 - 2026-06-07 [impl] Modified 2 files: docs/philosophy.md (full reorganization) + docs/architecture.md (1 anchor-link fix). 0 files created, 0 removed. Tracker updated (Files, Todos, Log, Journal). Phase 2 implementer-owned gates transitioned.
 - 2026-06-07 [impl-auto] Auto-mode run; --auto honored (2 files touched, docs-only, no sensitive surface — catalog/manifest/validator/template/git-hook all untouched).
 - 2026-06-07 [impl-pass] T000044: implementation complete. Phase 2 implementer-owned gates transitioned. `bash scripts/validate.sh` exits 0 (0 errors / 0 warnings); test-plan rows 2-8 verified by grep; row 1 verified by validate.sh green.
+- 2026-06-07 [qa-smoke] 1 (validate.sh stays green): green — `bash scripts/validate.sh` exit 0; Validation Summary 0 errors / 0 warnings; Checks 15/15a/15b/16/17/19/20 + portability + New-skills all PASS.
+- 2026-06-07 [qa-smoke] 2 (front table precedes first ##): green — first markdown table at line 9, first `## ` heading at line 21; the redesigned Topic/Principle/In-one-line table precedes the first `##` (Check 20 PASS corroborates).
+- 2026-06-07 [qa-smoke] 3 (no work-item IDs): green — `grep -nE '[FSTD][0-9]{6}' docs/philosophy.md` returns zero matches (Check 19 PASS corroborates).
+- 2026-06-07 [qa-smoke] 4 (two topic headings): green — `^## Topic: Deployment` (line 21) and `^## Topic: Harness-engineering best practices` (line 150) both present.
+- 2026-06-07 [qa-smoke] 5 (all former principles survive as ###): green — exactly 3 Deployment `###` (One source of truth / Two delivery surfaces / The doc contract is one file) + 5 harness `###` (numbered 1-5) principle headings present; no content deleted.
+- 2026-06-07 [qa-smoke] 6 (decision-tree anchor preserved): green — `## Decision tree: which CJ_ skill do I call?` present at line 222 and is the LAST `##` heading (slug `#decision-tree-which-cj_-skill-do-i-call` intact).
+- 2026-06-07 [qa-smoke] 7 (every routable skill named in Decision tree): green — all 3 active-routable skills (CJ_system-health, CJ_personal-workflow, CJ_goal_todo_fix) appear in the Decision-tree section; matches the New-skills selector.
+- 2026-06-07 [qa-smoke] 8 (architecture.md anchor link fixed): green — `docs/architecture.md:342` points at `philosophy.md#two-delivery-surfaces-one-contract`; no dangling `#principle-2-…` link; the `#decision-tree-…` link on line 356 untouched.
+- 2026-06-07 [qa-smoke-summary] green: 8/8 non-manual rows green (0 manual rows pending)
+- 2026-06-07 [qa-pass] T000044 (task): green smoke from test-plan rows (8 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
