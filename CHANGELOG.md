@@ -3,6 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.52] - 2026-06-06
+
+### Added
+
+- **Five harness-engineering principles in `docs/philosophy.md` (F000053).** A new "runtime standard" section maps the `cj_goal` framework against five agent-harness principles — curate context · externalize state · stateless handoff · verify the path · permissions first-class — grounded in real workbench mechanisms. A second, orthogonal lens alongside the existing build/delivery principles.
+- **F000053 "cj_goal harness-principle hardening" saga, scaffolded.** A feature + three child user-stories closing the framework's three real gaps, sequenced correctness-first: **S000093** trajectory QA (P4, this release), **S000094** permission policy (P5), **S000095** within-phase receipts (P1).
+- **Execution receipts for `/CJ_qa-work-item` (S000093 / P4).** QA emits a `receipts.qa` execution receipt (work-copilot's schema + a `commit` field) into the work-item tracker frontmatter, and **fails closed** — a missing/incomplete receipt reads RED, and every acceptance criterion needs a passing row to read GREEN (catches the "edited but never executed" case). The `tracker-user-story.md` template documents the schema as a commented `# receipts:` reference (no-ripple home).
+
+### Changed
+
+- **`/CJ_qa-work-item` re-validates on a same-SHA resume instead of trusting a stale green (S000093 / GAP A).** Dropped the date-only `[qa-pass]` NO-OP short-circuit — a same-day earlier-commit marker could skip re-verification even after behavior changed. QA now re-runs smoke + checks the SHA-anchored receipt, re-running the ~5-min E2E subagent only when the receipt is missing/incomplete/stale-SHA. Re-execution writes stay idempotent via the Step 6.5 run-start marker.
+- **`/CJ_goal_feature` always re-dispatches QA on resume.** The orchestrator no longer phase-skips QA when `LAST_PHASE ∈ {qa, ship}` on a still-valid SHA — closing the second half of GAP A, where a resume with changed untracked/generated state could reach `/ship` without re-verifying. Cheap because `qa.md` re-validates against the receipt.
+
 ## [6.0.51] - 2026-06-06
 
 ### Fixed
