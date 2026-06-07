@@ -339,7 +339,7 @@ own prompt surface.
 validation + ambient conventions), different runtime. The `CJ_` orchestrators do
 NOT port — they are Claude-only. What ports is the structure a contributor
 scaffolds against and the `/validate` pass that checks it. See
-[philosophy.md -> Two delivery surfaces](philosophy.md#principle-2-two-delivery-surfaces-one-contract)
+[philosophy.md -> Two delivery surfaces](philosophy.md#two-delivery-surfaces-one-contract)
 for the why.
 
 ## Component skills (non-workflow roster)
