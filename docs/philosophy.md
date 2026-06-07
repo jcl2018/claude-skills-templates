@@ -188,11 +188,14 @@ speaks; the harness decides how it acts.
 
 The first three are the framework's strongest habits — externalized state and
 stateless handoff are designed in from the ground up, and they are the two
-hardest to retrofit later. Verification and context curation are strong *between*
-phases and still maturing *within* a long phase; a single explicit, declared
-permission policy (rather than today's rules spread across frontmatter,
-leaf-skill code, and an external denylist) is the principle with the most
-headroom. The decision tree below is how you *use* the framework; these five are
+hardest to retrofit later. Verification and context curation, once strong only
+*between* phases, now reach *within* a long phase too: QA re-executes the
+work-item's tests on a same-SHA resume instead of trusting a stale pass, and the
+interactive design phase distills a compact receipt the rest of the build
+continues from rather than carrying its full transcript. Permission is now a
+single declared allow/ask/deny policy the live enforcement points reference, no
+longer rules spread across frontmatter, leaf-skill code, and an external
+denylist. The decision tree below is how you *use* the framework; these five are
 the standard it holds itself to.
 
 ## Decision tree: which CJ_ skill do I call?
