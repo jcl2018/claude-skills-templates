@@ -450,7 +450,10 @@ subagent (it does NOT spawn further subagents — depth ≤ 2). The orchestrator
 dispatches them in sequence, recording a phase boundary after each green return.
 
 A phase is **skipped** only when the validated `LAST_PHASE` (Step 1.5) is at or
-past that phase. Otherwise it runs.
+past that phase. Otherwise it runs. **Exception (F000053 / S000093): the `qa`
+phase (Step 3.3) is NEVER skipped on resume — it always re-dispatches** so a
+same-SHA resume re-verifies; `qa.md`'s receipt-based re-validation keeps that
+cheap (see Step 3.3).
 
 ### Step 3.1: scaffold (skip if validated LAST_PHASE ∈ {scaffold, impl, qa, ship})
 
@@ -499,7 +502,17 @@ operator re-runs after resolving). On crash / non-green: **HALT** with
 
 On green: record the impl boundary.
 
-### Step 3.3: qa (skip if validated LAST_PHASE ∈ {qa, ship})
+### Step 3.3: qa (ALWAYS re-dispatched on resume — F000053 / S000093)
+
+**Resume policy (GAP A path 2).** Do NOT phase-skip QA when the validated
+`LAST_PHASE ∈ {qa, ship}`. A same-SHA resume must re-verify, so always
+re-dispatch `/CJ_qa-work-item` here. This is cheap and bounded: `qa.md` Step 3
+re-validates against the SHA-anchored `receipts.qa` execution receipt — it
+re-runs the smoke rows and reuses the receipt's E2E verdict, re-running the
+~5-min E2E subagent ONLY when the receipt is missing, incomplete, or does not
+vouch for HEAD. (Previously this step was skipped on `LAST_PHASE ∈ {qa, ship}`,
+so a resume where untracked / generated / fixture state changed could reach
+`/ship` without re-verifying — the hole S000093 closes.)
 
 Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`:
 

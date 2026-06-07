@@ -49,6 +49,37 @@ fi
 echo ""
 echo "=== Additional smoke tests ==="
 
+# === F000053/S000093: trajectory-QA regression guards ===
+# Static guards that the "QA can't lie about correctness" fix stays in place.
+# These are the PARALLEL test.sh assertions for the S000093 smoke rows (S1-S4) —
+# the zzz-test-scaffold parallel-edit blind spot this repo keeps re-hitting (see
+# the notes further down). qa.md is prose, so the guard is structural: assert the
+# new landmarks are present and the closed hole (the date-only NO-OP) stays closed.
+_S93_QA="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
+_S93_PIPE="$REPO_ROOT/skills/CJ_goal_feature/pipeline.md"
+_S93_TMPL="$REPO_ROOT/templates/CJ_personal-workflow/tracker-user-story.md"
+# S2 (AC-1): the date-only NO-OP short-circuit is GONE; the receipt-vouches gate is in.
+if grep -qF "already QA'd green; nothing to do" "$_S93_QA"; then
+  fail_test "S000093: qa.md Step 3 date-only NO-OP exit line reappeared (the GAP-A hole reopened)"
+fi
+grep -q 'Resume Re-validation Gate' "$_S93_QA" || fail_test "S000093: qa.md Step 3 'Resume Re-validation Gate' heading missing"
+grep -q 'RECEIPT_VOUCHES_HEAD' "$_S93_QA" || fail_test "S000093: qa.md RECEIPT_VOUCHES_HEAD gate missing"
+# S1 (AC-2): receipts.qa emission documented in qa.md + the tracker template.
+grep -q 'ac_ids_uncovered' "$_S93_QA" || fail_test "S000093: qa.md receipts.qa schema (ac_ids_uncovered) missing"
+grep -q 'ready_for_ship' "$_S93_QA" || fail_test "S000093: qa.md receipts.qa schema (ready_for_ship) missing"
+grep -q '# receipts:' "$_S93_TMPL" || fail_test "S000093: tracker-user-story.md commented '# receipts:' reference missing"
+# S3 (AC-3/AC-4): fail-closed verdict (no receipt => RED).
+grep -q 'fail-closed verdict' "$_S93_QA" || fail_test "S000093: qa.md fail-closed verdict missing"
+grep -q 'no execution receipt' "$_S93_QA" || fail_test "S000093: qa.md fail-closed 'no execution receipt => RED' (AC4) missing"
+# S4 (AC-5): write-idempotency anchor (the Step 6.5 run-start marker).
+grep -q 'write-idempotency anchor' "$_S93_QA" || fail_test "S000093: qa.md Step 6.5 write-idempotency anchor missing"
+# pipeline.md: QA is ALWAYS re-dispatched on resume (GAP A path-2 closed).
+if grep -qF 'qa (skip if validated LAST_PHASE' "$_S93_PIPE"; then
+  fail_test "S000093: pipeline.md Step 3.3 still phase-skips QA on resume (GAP-A path-2 hole reopened)"
+fi
+grep -q 'ALWAYS re-dispatched on resume' "$_S93_PIPE" || fail_test "S000093: pipeline.md Step 3.3 always-re-dispatch policy missing"
+ok "F000053/S000093 trajectory-QA regression guards"
+
 # Test: No duplicate skill names in catalog
 echo ""
 echo "Checking for duplicate skill names..."

@@ -1,26 +1,15 @@
 ---
-name: "{STORY_NAME}"
+name: "Within-phase receipts — continue from receipts, not transcript"
 type: user-story
-id: "{STORY_ID}"
+id: "S000095"
 status: active
-created: "{YYYY-MM-DD}"
-updated: "{YYYY-MM-DD}"
-parent: "{PARENT_ID}"
-repo: "{REPO_PATH}"
-branch: "{BRANCH_NAME}"
+created: "2026-06-06"
+updated: "2026-06-06"
+parent: "F000053"
+repo: "/Users/chjiang/Documents/projects/claude-skills-templates/.claude/worktrees/tender-elion-267bd0"
+branch: "claude/tender-elion-267bd0"
 blocked_by: ""
 # pr: ""  # optional; populate with PR URL (e.g. https://github.com/org/repo/pull/123) for explicit PR-state lookups. The `## PRs` section below is the canonical home for PR links; this frontmatter field is a machine-readable shortcut consumed by /CJ_goal_run Branch(f)/(g) gh pr view dedup. Either convention is accepted.
-# receipts:               # optional; WRITTEN AT RUNTIME by /CJ_qa-work-item Step 9 (F000053/S000093), not at scaffold.
-#   qa:                   # The SHA-anchored execution receipt qa.md Step 3's resume re-validation gate checks.
-#     phase: 3            # Schema = work-copilot receipts.qa (work-copilot/prompts/qa.prompt.md) + a `commit` field.
-#     commit: "<sha>"     # The commit this receipt vouches for (stale-SHA detection).
-#     completed_at: "<ISO-8601 UTC>"
-#     test_rows_run: 0
-#     ac_ids_covered: []
-#     ac_ids_uncovered: []
-#     diff_audit: { changed_files_without_tests: [] }
-#     ready_for_ship: false
-#     next_legal: []
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -34,7 +23,7 @@ blocked_by: ""
 ### Phase 1: Track
 
 1. Read parent tracker to understand scope
-2. Create working branch: `git checkout -b feat/{slug}` (or use parent's branch if shipping in same PR)
+2. Create working branch: `git checkout -b feat/within_phase_receipts` (or use parent's branch if shipping in same PR)
 3. Scaffold work item directory and TRACKER.md
 4. Distill `DESIGN.md` from the /office-hours output (own session or parent's) — from `templates/doc-DESIGN.md`
 5. Scaffold `SPEC.md` (requirements, acceptance criteria, architecture, tradeoffs) — from `templates/doc-SPEC.md`
@@ -88,19 +77,26 @@ blocked_by: ""
 
 <!-- What "done" looks like for this story. -->
 
-- [ ] {criterion}
+- [ ] AC1: after the office-hours inline phase, a compact phase receipt is written to `.cj-goal-feature/` via the existing atomic mktemp+mv path.
+- [ ] AC2: the post-office-hours steps READ `$RECEIPT_PATH`, and the design-summary digest is sourced from the receipt file rather than regenerated from conversation context.
+- [ ] AC3: scoped to the known long inline phases (office-hours); no generic compaction framework is introduced.
+- [ ] AC4: the receipt reuses Story S000093's receipt schema (shared format, set by whichever ships first).
 
 ## Todos
 
 <!-- Actionable items for this story. -->
 
-- [ ] {todo}
+- [ ] Write a compact phase receipt to `.cj-goal-feature/` at the office-hours boundary in `skills/CJ_goal_feature/pipeline.md`, via the existing atomic mktemp+mv path.
+- [ ] Repoint the post-office-hours steps (design-summary digest) to READ `$RECEIPT_PATH` rather than regenerate from context.
+- [ ] Generalize the resume state file (`.cj-goal-feature/${branch}.state`) into a per-phase receipt chain, preserving the atomic-write + ancestor-SHA validate-before-skip contract.
+- [ ] Reuse S000093's receipt schema (one schema, not two); if S000093 ships first, consume that schema.
+- [ ] Keep scope to office-hours only — no generic "compact everything" framework.
 
 ## Log
 
 <!-- Chronological entries with dates and commit SHAs. -->
 
-- {YYYY-MM-DD}: Created. {brief story description}
+- 2026-06-06: Created. Within-phase receipts — write a compact phase receipt at the office-hours inline boundary and have the orchestrator continue from `$RECEIPT_PATH` rather than the raw transcript (GAP C / P1, sequenced last in F000053).
 
 ## PRs
 
@@ -110,9 +106,17 @@ blocked_by: ""
 
 <!-- Affected file paths. -->
 
+- `skills/CJ_goal_feature/pipeline.md` (office-hours boundary writes a receipt; design-summary digest reads it)
+- The resume state-file schema (`.cj-goal-feature/${branch}.state`)
+- `scripts/cj-goal-common.sh` (possibly)
+
 ## Insights
 
 <!-- Non-obvious findings worth remembering. -->
+
+- The design-summary digest at the office-hours boundary is already a proto-receipt — generalize it rather than inventing a new surface.
+- This story overlaps most with Claude Code's built-in auto-compaction, so it is sequenced last: lowest marginal value, highest over-build risk. The guardrail is "scoped to known long inline phases only," not a generic framework.
+- The receipt schema is SHARED with S000093 (Trajectory QA); whichever ships first sets it. If S000093 lands first, this story consumes that schema with no second schema introduced.
 
 ## Journal
 

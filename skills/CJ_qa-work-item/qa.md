@@ -139,26 +139,46 @@ Error: work-item dir has structural issues; refusing to QA.
 
 Stop. The user must resolve drift before QA can proceed.
 
-## Step 3: Idempotency Check (Premise 1.1)
+## Step 3: Resume Re-validation Gate (Premise 1.1)
 
-If both QA-owned gates (`Acceptance criteria verified met` AND
-`Smoke tests pass`) are already CHECKED, AND the most recent journal entry
-matching `[qa-pass]` is dated today (or matches the current `git rev-parse HEAD`):
+This gate decides, on a re-invocation, whether QA may trust a prior green or must
+re-verify. It applies to **user-stories** (the only type with QA-owned Phase-2
+gates); defect/task have no qa-owned gates, so the gate condition below is never
+met and they always re-run (their existing unconditional behavior).
 
+Read the work-item tracker's frontmatter `receipts.qa` block (written by Step 9
+of a prior run; absent on a first run) and extract `commit` (the SHA the receipt
+vouches for), `ready_for_ship`, and `ac_ids_uncovered`. Then:
+
+```bash
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 ```
-INFO: {WORK_ITEM_ID} already QA'd green; nothing to do.
-```
 
-Exit 0 (NO-OP).
+`RECEIPT_VOUCHES_HEAD` is TRUE only when the `receipts.qa` block is present AND
+`ready_for_ship: true` AND `ac_ids_uncovered: []` AND `commit` == `HEAD_SHA`. A
+receipt that is missing, not ready, has uncovered ACs, or whose `commit` differs
+from HEAD does NOT vouch.
 
-If the gates are checked but no `[qa-pass]` journal entry exists, treat as
-**stale state** — the gates may have been hand-checked. Re-run QA. (Cheaper
-to re-verify than to assume the user knows what they're doing if the audit
-trail is missing.)
+**There is no date-keyed short-circuit.** A `[qa-pass]` merely *dated today* from
+an earlier commit must NOT skip re-verification — that date-only branch was the
+GAP-A hole this story (S000093) closes.
 
-If only one of the two gates is checked: treat as **partial state from a
-prior interrupted run** — re-run QA. The smoke or subagent output will
-re-establish ground truth.
+- **Both QA-owned gates CHECKED** (a re-QA / orchestrator resume): do NOT NO-OP.
+  Re-validate — continue to Step 5 (re-run the smoke rows) and read the receipt.
+  Set `E2E_REVALIDATE = NOT RECEIPT_VOUCHES_HEAD`: the expensive E2E subagent
+  (Step 7) re-runs ONLY when the receipt does not vouch for HEAD (missing /
+  incomplete / not-ready / stale-SHA). When the receipt vouches, smoke still
+  re-runs (cheap) but the E2E re-run is skipped and the receipt's E2E verdict is
+  reused. This is AC1's cost-curation: re-verify every resume without re-paying
+  the ~5-min E2E budget when a HEAD-matching receipt already vouches.
+- **Gates checked but the receipt is missing / incomplete:** treat as stale
+  state — re-validate with `E2E_REVALIDATE = true` (full re-run). A prior green
+  without a HEAD-matching receipt is not trustworthy.
+- **One or zero gates checked** (fresh or partially-interrupted run): normal full
+  run; `E2E_REVALIDATE = true`.
+
+The WRITES at Step 9 are deduped by the Step 6.5 run-start marker (AC5 — a repeated
+resume on the same commit adds no duplicate gate transition and no journal thrash).
 
 ## Step 4: Read Test Rows (per type)
 
@@ -440,15 +460,26 @@ Append the marker entry verbatim:
 Store `QA_RUN_ID` for use in Step 8 (the aggregator finds the LATEST marker
 line and only considers `[qa-e2e]` entries appearing after it).
 
-**Idempotency note:** the marker is written every run (even when Step 3's
-NO-OP path is reached, control never gets here — Step 3 exits before Step
-6.5). On re-runs that go through to E2E, each run gets its own marker; Step
-8 always scopes to the latest one.
+**Idempotency note:** the marker is written every run. Step 3 no longer has an
+early-exit NO-OP path (S000093 — it re-validates instead), so on a re-QA control
+always reaches here. The marker is also the **write-idempotency anchor** (AC5):
+Step 9 transitions the Phase-2 gates and appends the `[qa-pass]` entry once per
+marker, so a re-validation that reuses the same `QA_RUN_COMMIT` does not
+duplicate the gate transition or thrash the journal. On re-runs that go through
+to E2E, each run gets its own marker; Step 8 always scopes to the latest one.
 
 ## Step 7: Spawn QA Engineer Subagent (E2E — user-story only)
 
 For type = defect or type = task: skip to Step 9 (the type dispatch in Step 4
 already set `E2E_ROWS = []`; this guard re-confirms for clarity).
+
+**Resume E2E-revalidation guard (AC1, S000093):** if `E2E_REVALIDATE = false`
+(Step 3 found a complete `receipts.qa` that vouches for HEAD), SKIP the E2E
+subagent re-run AND Step 7.5 — reuse the receipt's E2E verdict as `E2E_VERDICT`
+(a receipt with `ready_for_ship: true` and no uncovered ACs means the prior E2E
+passed for this exact SHA). Continue to Step 9. This avoids re-paying the ~5-min
+E2E budget when the receipt already vouches for HEAD; the smoke rows re-run at
+Step 5 provide the cheap re-validation.
 
 If `E2E_ROWS_SUBAGENT` is empty (only parent-inline rows, or all rows
 deferred): skip to Step 7.5.
@@ -715,10 +746,62 @@ No default — the user must adjudicate. Process the choice accordingly.
 
 ## Step 9: Transition Phase 2 Gates / Record [qa-pass] (per type, if green)
 
-Only if `SMOKE_VERDICT = green` AND `E2E_VERDICT = green` (or `E2E_ROWS`
-empty AND smoke green; the partition split into `E2E_ROWS_SUBAGENT` /
-`E2E_ROWS_PARENT` doesn't change the verdict semantics here — the aggregate
-covers both):
+### Step 9.0: Execution receipt + fail-closed verdict (user-story — S000093)
+
+For user-stories, BEFORE transitioning any gate: compute the **fail-closed
+verdict** and write the **execution receipt** (the durable, SHA-anchored record
+Step 3 re-validates against). Defect/task skip this step (no receipt, no qa-owned
+gates — unchanged behavior).
+
+**Fail-closed verdict.** The run reads GREEN only if ALL hold: `SMOKE_VERDICT =
+green`, AND `E2E_VERDICT = green` (or there are genuinely no E2E rows after
+filtering — the existing vacuous-green paths below), AND every acceptance
+criterion has at least one passing row (`ac_ids_uncovered` is empty). Otherwise
+the run reads **RED**. A work-item with **no execution receipt** (artifacts
+present but never run — AC4) is RED, never green-by-absence: green requires a
+receipt this run produces (AC3). Never infer green from a missing or incomplete
+receipt.
+
+**Write the receipt.** Write (overwrite-per-phase, not append) a `receipts.qa`
+block into the work-item **tracker's YAML frontmatter** (the no-ripple home; the
+`tracker-user-story.md` template documents the schema as a commented `# receipts:`
+reference). Adopt work-copilot's locked `receipts.qa` schema
+(`work-copilot/prompts/qa.prompt.md` §"Receipt schema") PLUS a `commit` field for
+the SHA-anchoring Step 3 needs:
+
+```yaml
+receipts:
+  qa:
+    phase: 3
+    commit: "<git rev-parse HEAD>"          # S000093: the SHA this receipt vouches for
+    completed_at: "<ISO-8601 UTC>"
+    test_rows_run: <int>                     # smoke + E2E rows actually executed this run
+    ac_ids_covered: [<AC ids with a passing row>]
+    ac_ids_uncovered: [<AC ids with no passing row>]
+    diff_audit:
+      changed_files_without_tests: [<paths>]
+    journal_entries: [<the [qa-*] lines written this run>]
+    ready_for_ship: <true|false>             # true iff GREEN per the fail-closed verdict
+    next_legal: [<phase names>]
+```
+
+When `E2E_REVALIDATE = false` (Step 7 reused the receipt's E2E verdict), refresh
+`completed_at` + `commit` but keep the reused E2E rows reflected in
+`test_rows_run` / `ac_ids_covered`.
+
+**Idempotent writes (AC5).** Key the gate transition + the `[qa-pass]` append to
+the Step 6.5 run-start marker (`QA_RUN_ID` / `QA_RUN_COMMIT`): do them once per
+marker. If a `[qa-pass]` for the current `QA_RUN_COMMIT` already exists below the
+latest marker, refresh the receipt's `completed_at` but do NOT re-transition the
+gates or append a duplicate `[qa-pass]`.
+
+Transition the per-type gates below ONLY when green:
+
+- **user-story:** the Step 9.0 fail-closed verdict is GREEN (`SMOKE_VERDICT =
+  green` AND `E2E_VERDICT = green` (or no E2E rows after filtering) AND
+  `ac_ids_uncovered` empty AND a receipt was written this run).
+- **defect / task:** `SMOKE_VERDICT = green` from the test-plan rows (no receipt,
+  no qa-owned gates — unchanged behavior).
 
 ### Step 9.user-story
 
@@ -849,16 +932,20 @@ underlying issue.
 
 ## Idempotency Contract (Premise 1.1)
 
-This skill is idempotent. Three behaviors:
+This skill is idempotent in its WRITES, and re-verifies rather than trusting a
+stale green (S000093). Behaviors:
 
-1. **Already QA'd green** (Step 3): both QA-owned gates checked AND a
-   `[qa-pass]` journal entry exists today/at-current-commit. NO-OP, exit
-   clean.
-2. **Stale gate state** (Step 3): gates checked but no `[qa-pass]` audit
-   trail. Re-run smoke + E2E to re-establish ground truth.
+1. **Gates already checked** (Step 3 — a re-QA / resume): re-validate; do NOT
+   NO-OP on a date-keyed `[qa-pass]`. Re-run the smoke rows and read the
+   `receipts.qa` execution receipt; re-run the expensive E2E subagent ONLY when
+   the receipt does not vouch for HEAD (missing / incomplete / stale-SHA). The
+   Step 6.5 run-start marker makes the WRITES idempotent — a repeated resume on
+   the same `QA_RUN_COMMIT` adds no duplicate gate transition and no journal
+   thrash (AC5).
+2. **Stale gate state** (Step 3): gates checked but no receipt / no `[qa-pass]`
+   audit trail. Re-run smoke + E2E to re-establish ground truth.
 3. **Partial-run recovery** (Step 3): one gate checked, other unchecked.
-   Re-run from Step 4; gate transitions in Step 9 will reset to consistent
-   state.
+   Re-run from Step 4; gate transitions in Step 9 reset to consistent state.
 
 No automatic rollback on smoke or E2E failure. Tracker journal records what
 was tried and the verdict; gates stay in their pre-run state if QA didn't
