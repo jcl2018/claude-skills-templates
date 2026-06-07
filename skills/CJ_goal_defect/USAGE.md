@@ -3,7 +3,7 @@ skill-name: "CJ_goal_defect"
 version: 0.1.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-06T21:00:49Z"
+last-updated: "2026-06-06T23:55:55Z"
 ---
 
 # Skill Usage: CJ_goal_defect
@@ -42,9 +42,12 @@ Then a 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad →
 write RCA+test-plan and promote draft to a canonical
 `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted ONLY after
 the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent →
-`/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (Gate #2 always human) →
-`/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of the retired
-`/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no subagent-spawns-subagent).
+`/CJ_document-release` (Step 5.5 doc-sync) → a pre-ship portability gate
+(Step 5.7, `cj-goal-common.sh --phase portability-audit`, run STRICT; HALTs on a
+dishonest skill portability declaration before the PR) → `/ship` (Gate #2 always
+human) → `/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of the
+retired `/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no
+subagent-spawns-subagent).
 
 ## Common pitfalls
 
@@ -57,6 +60,10 @@ the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent →
   top-level
 - Skipping the bug-description and just running the skill — needs a description
   arg to seed the `.inbox/<slug>/DRAFT.md`
+- A touched skill that declares a portability tier it does not honor — the
+  Step 5.7 portability gate HALTs (`halted_at_portability`) before the PR; relabel
+  the skill's `portability` (or add the dep to `portability_requires`) in
+  skills-catalog.json and re-run
 - Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
   only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
 

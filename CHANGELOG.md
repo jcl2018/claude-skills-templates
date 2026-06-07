@@ -3,6 +3,37 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.49] - 2026-06-06
+
+### Added
+
+- **Portability enforcement in the cj_goal pipeline (F000051).** The
+  `/CJ_portability-audit` static lint is now ENFORCED across all three cj_goal
+  orchestrators (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) via a
+  new shared `scripts/cj-goal-common.sh --phase portability-audit` — the 6th
+  cross-cutting phase, joining `worktree`/`sync`/`pr-check`/`cleanup`/`telemetry`.
+  Each orchestrator runs it as a final pre-`/ship` gate (right after the Step 5.5
+  doc-sync): a run that leaves a skill **dishonestly declared** HALTs with
+  `[portability-red]` (`halted_at_portability`) before shipping, and on green the
+  verdict is spliced into the PR body (`### Portability`) via the existing
+  registered-doc-verdicts seam (feature Step 4.6 / defect Step 9.5 / todo Step
+  5.6). The engine resolves with the file's sibling→manifest-`.source` idiom;
+  `--dry-run` and engine-absent are fail-soft (`PHASE_RESULT=skipped`, no halt).
+  New `tests/cj-goal-common-portability.test.sh` (clean / findings / skipped /
+  dry-run, hermetic) with parallel `scripts/test.sh` wiring; the todo orchestrator
+  calls the phase with `--mode feature`; `scripts/drain-one-todo.sh` is untouched.
+
+### Changed
+
+- **The portability audit is now a hard gate on the orchestrated path (it was
+  advisory-only before).** It already ran on every commit via the pre-commit hook
+  (`validate.sh` Check 18, advisory exit 0); F000051 adds the cj_goal-scoped
+  halt-on-red gate on top. Because the catalog is currently clean (`FINDINGS=0`),
+  strict halt-on-any-finding doubles as a **regression ratchet** for free (any
+  finding is by definition new) with no baseline-diff machinery. Global
+  `validate.sh` Check 18 deliberately stays advisory (`PORTABILITY_STRICT=1` still
+  flips it) — only the cj_goal orchestrators gate.
+
 ## [6.0.48] - 2026-06-06
 
 ### Added

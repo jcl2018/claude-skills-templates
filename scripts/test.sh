@@ -378,6 +378,33 @@ else
 fi
 rm -rf "$_SYNC_TMP"
 
+# Step 6b (F000051 / S000091): exercise the new `--phase portability-audit` gate
+# end-to-end inside the integration cycle — the parallel-edit to the integration
+# fixture for the new shared phase (the implement-subagent blind spot prior
+# new-phase work hit). Runs the REAL repo engine against the live (clean) catalog
+# (read-only; the audit mutates nothing) + asserts the --dry-run schema.
+echo ""
+echo "Integration test (F000051 / S000091): --phase portability-audit end-to-end (real engine, clean catalog)..."
+# Clean catalog: PHASE_RESULT=ok, FINDINGS=0, a clean VERDICT_LINE, exit 0.
+_PORT_OK=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode feature 2>&1) && _PORT_OK_RC=0 || _PORT_OK_RC=$?
+if [ "$_PORT_OK_RC" -eq 0 ] \
+   && printf '%s\n' "$_PORT_OK" | grep -qE '^PHASE=portability-audit$' \
+   && printf '%s\n' "$_PORT_OK" | grep -qE '^PHASE_RESULT=ok$' \
+   && printf '%s\n' "$_PORT_OK" | grep -qE '^FINDINGS=0$' \
+   && printf '%s\n' "$_PORT_OK" | grep -qE '^VERDICT_LINE=Portability: all [0-9]+ skills honestly declared'; then
+  ok "Integration: --phase portability-audit on clean catalog → ok/exit0/FINDINGS=0 + clean VERDICT_LINE"
+else
+  fail_test "Integration: --phase portability-audit clean run wrong (rc=$_PORT_OK_RC); output: $_PORT_OK"
+fi
+# --dry-run: PHASE_RESULT=ok, empty FINDINGS=, runs the engine NOT at all.
+_PORT_DRY=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode feature --dry-run 2>&1)
+if printf '%s\n' "$_PORT_DRY" | grep -qE '^PHASE_RESULT=ok$' \
+   && printf '%s\n' "$_PORT_DRY" | grep -qE '^FINDINGS=$'; then
+  ok "Integration: --phase portability-audit --dry-run → ok + empty FINDINGS= (engine not run)"
+else
+  fail_test "Integration: --phase portability-audit --dry-run wrong; output: $_PORT_DRY"
+fi
+
 # Template content smoke tests (S000002 TEST-SPEC)
 echo ""
 echo "Checking tracker template content..."
@@ -1442,6 +1469,22 @@ if bash "$REPO_ROOT/tests/cj-goal-common-sync.test.sh" >/dev/null 2>&1; then
 else
   _cgcs_rc=$?
   fail_test "tests/cj-goal-common-sync.test.sh failed (rc=$_cgcs_rc) — run \`bash tests/cj-goal-common-sync.test.sh\` directly to see"
+fi
+
+# Regression test (F000051 / S000091): scripts/cj-goal-common.sh
+# `--phase portability-audit` (the pre-ship portability gate) — clean catalog →
+# ok/exit 0; --dry-run → ok/exit 0 running nothing; dishonest-declaration fixture
+# → findings/non-zero; engine-absent → skipped/exit 0 (fail-soft). Hermetic — the
+# fixture + engine-absent cases run a COPY of cj-goal-common.sh against a
+# controlled sibling engine + a HOME-overridden temp manifest; never mutates the
+# real ~/.claude and the engine audit is read-only.
+echo ""
+echo "Running tests/cj-goal-common-portability.test.sh (F000051 --phase portability-audit gate)..."
+if bash "$REPO_ROOT/tests/cj-goal-common-portability.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-common-portability.test.sh: clean→ok / dry-run→ok-runs-nothing / findings-fixture→findings-nonzero / engine-absent→skipped; fail-soft"
+else
+  _cgcp_rc=$?
+  fail_test "tests/cj-goal-common-portability.test.sh failed (rc=$_cgcp_rc) — run \`bash tests/cj-goal-common-portability.test.sh\` directly to see"
 fi
 
 # Regression test (F000048 / S000084): scripts/cj-id-claim.sh — the atomic

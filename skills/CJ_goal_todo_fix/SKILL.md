@@ -83,8 +83,10 @@ Per-TODO chain (both modes share this):
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
    → /CJ_implement-from-spec → /CJ_qa-work-item (leaf Agent subagents, halt-on-red between)
-   → /CJ_document-release (Step 5.5 doc-sync) → /ship Gate #2
-   → Step 5.6: surface registered-doc verdicts → PR body (post-/ship gh pr edit "$PR_URL"; best-effort)
+   → /CJ_document-release (Step 5.5 doc-sync)
+   → portability gate (Step 5.7 — cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship)
+   → /ship Gate #2
+   → Step 5.6: surface registered-doc + portability verdicts → PR body (post-/ship gh pr edit "$PR_URL"; best-effort)
    → /land-and-deploy → TODOS.md DONE-mark
    → worktree cleanup (best-effort; cj-worktree-cleanup.sh --caller todo) → telemetry line
 ```
@@ -153,7 +155,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item (leaf subagents, halt-on-red) → /CJ_document-release → /ship → /land-and-deploy
+      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item (leaf subagents, halt-on-red) → /CJ_document-release → portability gate (Step 5.7; halt-on-red) → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."
@@ -182,9 +184,9 @@ idempotent_skip, halted_at_preflight, halted_at_sensitive_surface_auto_declined}
 The sensitive-surface auto-default joins `halted_at_preflight` in the continue
 set because under bash there is no AUQ tool — the gate fires regardless of
 whether a human is present, so `/loop` should defer the row (skip-list) and
-keep iterating. Substantive halts (`halted_at_impl`, `halted_at_qa`, `halted_at_ship`,
-`halted_at_deploy`, `halted_at_sensitive_surface_user_declined` (reserved for
-future interactive AUQ; not emitted in v1.1), `halted_at_resolve`,
+keep iterating. Substantive halts (`halted_at_impl`, `halted_at_qa`, `halted_at_portability`,
+`halted_at_ship`, `halted_at_deploy`, `halted_at_sensitive_surface_user_declined`
+(reserved for future interactive AUQ; not emitted in v1.1), `halted_at_resolve`,
 `halted_at_scaffold`, `halted_at_todos_md`) stop the loop. Per-session
 skip-list at `/tmp/cj-goal-skip-${RUN_ID}.txt` prevents re-hitting
 already-skipped TODOs within a `/loop` session.
@@ -206,6 +208,85 @@ own Phase 3 summary AUQ when set. **Critical: `--quiet` does NOT suppress
 /ship Gate #2** — drained PRs queue for human review at the operator's
 cadence (per F000021 autonomy ceiling). Cron pattern documented in the
 workbench `CLAUDE.md` Schedule-friendly drain section.
+
+## Step 5.7: Portability gate (per drained TODO — halt-on-red before /ship; F000051)
+
+Between the Step 5.5 doc-sync dispatch and `/ship`, the orchestrator runs a
+shared portability gate for EACH drained TODO (single-TODO AND drain mode — the
+gate is orchestrator-layer; `scripts/drain-one-todo.sh` is NOT modified). It
+calls `cj-goal-common.sh --phase portability-audit --mode feature` (the same
+`--mode feature` value todo already passes for `--phase sync` — the audit is
+verb-independent and there is no `todo` mode). The phase runs the
+`cj-portability-audit.sh` engine under `PORTABILITY_STRICT=1` and classifies the
+result into `ok` / `findings` / `skipped`. The gate is a **pure read** (records
+no state; re-running on a resume is safe).
+
+```bash
+# Per-TODO portability gate — orchestrator runs this after /CJ_document-release
+# (Step 5.5) and before /ship, for the current TODO's tracker ($TRACKER).
+_SHARED="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}"
+_RR=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_COMMON=""
+# 2-tier shared-script resolution (F000049/S000088: .source tier dropped): repo-local → _cj-shared
+if [ -n "$_RR" ] && [ -x "$_RR/scripts/cj-goal-common.sh" ]; then _COMMON="$_RR/scripts/cj-goal-common.sh";
+elif [ -x "$_SHARED/cj-goal-common.sh" ]; then _COMMON="$_SHARED/cj-goal-common.sh"; fi
+
+_PORT_RESULT="skipped"; _PORT_VERDICT=""
+if [ -n "$_COMMON" ]; then
+  _PORT_OUT=$(bash "$_COMMON" --phase portability-audit --mode feature 2>/dev/null) && _PORT_RC=0 || _PORT_RC=$?
+  _PORT_RESULT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^PHASE_RESULT=//p' | head -1)
+  _PORT_VERDICT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^VERDICT_LINE=//p' | head -1)
+  [ -z "$_PORT_RESULT" ] && _PORT_RESULT="skipped"
+else
+  [ "${QUIET:-0}" != "1" ] && echo "[portability] cj-goal-common.sh unreachable — skipping the portability gate (best-effort)"
+fi
+```
+
+- On `PHASE_RESULT=ok`: write `VERDICT_LINE` to `.cj-goal-feature/portability-verdict.md`
+  (the LITERAL path — only `.cj-goal-feature/` is gitignored, NOT verb-renamed)
+  and continue to `/ship`:
+
+```bash
+if [ "$_PORT_RESULT" = "ok" ]; then
+  mkdir -p "$_RR/.cj-goal-feature" 2>/dev/null || true
+  printf '### Portability\n\n%s\n' "$_PORT_VERDICT" > "$_RR/.cj-goal-feature/portability-verdict.md"
+  [ "${QUIET:-0}" != "1" ] && echo "[portability] $_PORT_VERDICT — continuing to /ship"
+fi
+```
+
+- On `PHASE_RESULT=skipped` (engine absent / helper unreachable): echo a note
+  (gated by `--quiet`) and continue to `/ship` — no halt, no scratch write.
+
+- On `PHASE_RESULT=findings`: **HALT** the per-TODO chain with `[portability-red]`
+  (end_state `halted_at_portability`). A touched skill declares a portability
+  tier it does not honor; no PR is created (the gate halts BEFORE `/ship`). Write
+  a tracker journal entry + telemetry line; under `/loop` this is a **substantive
+  halt that STOPS the loop** (a dishonest declaration is real work, not a benign
+  skip):
+
+```bash
+if [ "$_PORT_RESULT" = "findings" ]; then
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$TRACKER" <<EOF
+
+- $TS [portability-red] cj-goal-common.sh --phase portability-audit returned PHASE_RESULT=findings; halt class halted_at_portability. $_PORT_VERDICT
+  next_action=A touched skill declares a portability tier it does not honor. Relabel its 'portability' in skills-catalog.json to the tier its deps need, OR add the accepted dep to its 'portability_requires'. Then re-run.
+  resume_cmd=/CJ_goal_todo_fix "$TODO_HEADING"
+  pr_url=N/A
+  raw_output_path=N/A
+EOF
+  [ "${QUIET:-0}" != "1" ] && echo "Why it stopped: the portability audit found a skill that declares a portability tier it does not honor; the gate blocks the PR until it is reconciled."
+  jq -nc --arg ts "$TS" --arg heading "$TODO_HEADING" --arg end_state "halted_at_portability" \
+    '{ts:$ts,todo_heading:$heading,end_state:$end_state,pr_url:"N/A",parent_skill:"CJ_goal_todo_fix"}' \
+    >> "$HOME/.gstack/analytics/CJ_goal_todo_fix.jsonl" 2>/dev/null || true
+  # Single-TODO: stop here. Drain mode: this is a halt-on-red → STOP the drain (drained_partial).
+  exit 1
+fi
+```
+
+Only on `ok` or `skipped` does the chain proceed to `/ship`. The green
+`### Portability` verdict is surfaced into the PR body by the Step 5.6 step
+(below) alongside the registered-doc verdicts.
 
 ## Default-worktree (single-TODO mode only — drain mode handled in drain-one-todo.sh)
 
@@ -278,9 +359,14 @@ or invoke `bash skills/CJ_goal_todo_fix/scripts/todo_fix.sh` directly while test
 
 After the orchestrator consumes the `CJ_GOAL_HANDOFF` block and drives the chain
 to completion — `/CJ_implement-from-spec` → `/CJ_qa-work-item` → `/CJ_document-release`
-→ `/ship` → **(pipeline.md Step 5.6: surface registered-doc verdicts into the PR
+→ **portability gate (Step 5.7; halt-on-red BEFORE `/ship`)** → `/ship` →
+**(Step 5.6: surface registered-doc + portability verdicts into the PR
 body via `gh pr edit "$PR_URL"`, best-effort, NEVER halts — runs right after
-`/ship` opens the PR and before `/land-and-deploy` merges it)** → `/land-and-deploy`
+`/ship` opens the PR and before `/land-and-deploy` merges it; reads both
+`.cj-goal-feature/registered-doc-verdicts.md` and `.cj-goal-feature/portability-verdict.md`,
+splicing `### Registered-doc requirements` + `### Portability` under the PR body's
+`## Documentation` section — the same splice the feature/defect pipeline.md Step
+4.6/9.5 use)** → `/land-and-deploy`
 → the `TODOS.md` DONE-mark — it runs the post-run
 worktree janitor (T000036). This is the teardown mirror of the single-TODO
 worktree-create preamble above. **todo does NOT route through `cj-goal-common.sh`**
@@ -330,6 +416,7 @@ Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 | `halted_at_doc_sync` | Step 5.5 doc-sync: /CJ_document-release returned non-green ([doc-sync-red] — upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) | STOP |
 | `halted_at_doc_sync_no_config` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum ([doc-sync-no-config]; a simply-absent doc-spec.md self-bootstraps, not halts) | STOP |
 | `halted_at_doc_sync_non_doc_write` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist ([doc-sync-non-doc-write] — upstream-misbehaved) | STOP |
+| `halted_at_portability` | Step 5.7 portability gate: `cj-goal-common.sh --phase portability-audit` returned `PHASE_RESULT=findings` ([portability-red] — a touched skill declares a portability tier it does not honor; halt BEFORE /ship, no PR). `skipped`/engine-absent never halts. | STOP |
 | `halted_at_ship` | /ship Gate #2 declined or pre-landing review red | STOP |
 | `halted_at_deploy` | /land-and-deploy red (CI / merge / canary / regression) | STOP |
 | `halted_at_todos_md` | Post-ship hash collision; PR merged but TODOS.md write failed; manual reconcile | STOP |

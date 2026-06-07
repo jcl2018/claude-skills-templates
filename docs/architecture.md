@@ -11,8 +11,8 @@ the parallel **GitHub Copilot** delivery surface (`work-copilot/`).
 `scripts/cj-goal-common.sh` is the deterministic helper consumed by the
 intent-named front doors (`/CJ_goal_feature`, `/CJ_goal_defect`,
 `/CJ_goal_todo_fix`). It absorbs the phases that don't need per-skill prose:
-worktree management, PR-check polling, telemetry writes, and post-run worktree
-cleanup.
+worktree management, PR-check polling, telemetry writes, post-run worktree
+cleanup, and the pre-ship portability gate.
 
 **Phases it owns:**
 
@@ -49,6 +49,21 @@ cleanup.
   to `main` and pulls it. Strictly best-effort — it never halts the run.
   Delegates to the teardown-mirror helper `scripts/cj-worktree-cleanup.sh`;
   `/CJ_goal_todo_fix` calls that helper directly rather than through this phase.
+- **portability-audit** — the pre-ship portability gate. After the
+  Step 5.5 doc-sync handler and immediately before `/ship`, each orchestrator
+  runs `--phase portability-audit`, which resolves the engine via
+  `resolve_portability_engine()` (sibling-in-scriptdir -> manifest `.source`,
+  the `resolve_worktree_helper` idiom), runs `scripts/cj-portability-audit.sh`
+  under `PORTABILITY_STRICT=1`, and classifies the result into
+  `ok` / `findings` / `skipped`. Unlike `sync` / `pr-check` it is NOT fully
+  fail-soft: a real finding (`PHASE_RESULT=findings`) HALTS the run with
+  `[portability-red]` / `halted_at_portability` BEFORE any PR is created; an
+  engine-absent result (`PHASE_RESULT=skipped` — a broken install, not a
+  finding) prints a visible note and continues. On `ok` the clean
+  `VERDICT_LINE` is spliced into the PR body's `## Documentation` section
+  alongside the registered-doc verdicts. The catalog baseline is clean, so the
+  gate is green today and a free regression ratchet. This is cj_goal-scoped
+  enforcement; `validate.sh` Check 18 stays advisory globally.
 
 **Modes it dispatches on:**
 
