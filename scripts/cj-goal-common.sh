@@ -11,11 +11,11 @@
 #
 # The trio (the agreed floor per S000057_SPEC Open Question — deliberately
 # MINIMAL, do not over-build) — plus the F000045 `sync` phase:
-#   1. worktree   — delegate to cj-worktree-init.sh (--caller feature|defect)
+#   1. worktree   — delegate to cj-worktree-init.sh (--caller feature|defect|task)
 #   2. telemetry  — append one JSON line audit-receipt to
 #                   ~/.gstack/analytics/cj-goal-<mode>.jsonl
 #   3. pr-check   — deterministic PR-existence check (gh pr list); read-only
-#   4. cleanup    — delegate to cj-worktree-cleanup.sh (--caller feature|defect);
+#   4. cleanup    — delegate to cj-worktree-cleanup.sh (--caller feature|defect|task);
 #                   the post-run worktree janitor (T000036). Best-effort: emits
 #                   PHASE_RESULT=ok|skipped, NEVER failed (cleanup must not give a
 #                   caller any reason to halt).
@@ -38,7 +38,7 @@
 #                                                 ('ship' is an alias for pr-check —
 #                                                 the PR-creation seam where the
 #                                                 verb skills run the PR check)
-#   --mode  {feature|defect}                      required; verb context
+#   --mode  {feature|defect|task}                 required; verb context
 #   --dry-run                                     emit output only; no fs / git mutation
 #   --no-worktree                                 (worktree phase) forward opt-out to helper
 #   --no-sync                                     (sync phase) skip the install → PHASE_RESULT=skipped
@@ -101,9 +101,9 @@ done
 # ---- validate --mode (shared by all phases) ---------------------------------
 
 case "$MODE" in
-  feature|defect) ;;
+  feature|defect|task) ;;
   *)
-    echo "[common-usage-mode] --mode required (one of: feature, defect)" >&2
+    echo "[common-usage-mode] --mode required (one of: feature, defect, task)" >&2
     exit 1
     ;;
 esac
@@ -217,7 +217,8 @@ resolve_portability_engine() {
 # =============================================================================
 #
 # Stdout fields: WT_STATE, WT_PATH, WT_BRANCH (verbatim from the helper JSON).
-# --mode maps directly to the helper's --caller (feature→cj-feat, defect→cj-def).
+# --mode maps directly to the helper's --caller (feature→cj-feat, defect→cj-def,
+# task→cj-task).
 
 if [ "$PHASE" = "worktree" ]; then
   echo "PHASE=worktree"
@@ -263,10 +264,11 @@ fi
 # =============================================================================
 #
 # T000036: the teardown mirror of the worktree phase. Shells to
-# cj-worktree-cleanup.sh passing --caller "$MODE" (feature|defect — both
+# cj-worktree-cleanup.sh passing --caller "$MODE" (feature|defect|task — all
 # already-valid modes; there is NO --mode todo, and we deliberately do NOT
 # introduce one: todo wires the cleanup helper directly, same as its create
-# step). --dry-run forwards.
+# step. task IS a mode — like feature/defect, it routes through this shared
+# phase and gets a cj-task-* prefix). --dry-run forwards.
 #
 # Stdout: PHASE=cleanup, then the helper's full structured report verbatim,
 # then PHASE_RESULT. CRITICAL: cleanup is best-effort and must NEVER hand a

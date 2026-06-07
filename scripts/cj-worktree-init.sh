@@ -9,7 +9,7 @@
 #    "note":"<one-line note>"}
 #
 # Args:
-#   --caller {run|investigate|todo|feature|defect}
+#   --caller {run|investigate|todo|feature|defect|task}
 #                                     required; maps to branch prefix
 #   --no-worktree                     opt-out; run on current branch
 #   --quiet                           gates [worktree] echo (caller-side); suppresses interactive halt on dirty
@@ -20,7 +20,7 @@
 #                                     the filesystem. See the ladder block below.
 #
 # Caller→prefix:  run→cj-run  investigate→cj-inv  todo→cj-todo
-#                 feature→cj-feat  defect→cj-def
+#                 feature→cj-feat  defect→cj-def  task→cj-task
 #
 # Exit codes:
 #   0 — state ∈ {created, detected, skipped, opted_out}; caller continues
@@ -64,8 +64,8 @@ done
 
 # Validate --caller
 case "$CALLER" in
-  run|investigate|todo|feature|defect) ;;
-  *) printf '{"state":"failed","path":"","branch":"","note":"--caller required (one of: run, investigate, todo, feature, defect)"}\n'; exit 1 ;;
+  run|investigate|todo|feature|defect|task) ;;
+  *) printf '{"state":"failed","path":"","branch":"","note":"--caller required (one of: run, investigate, todo, feature, defect, task)"}\n'; exit 1 ;;
 esac
 
 # Explicit caller→prefix map (per design Decision Audit Trail #12)
@@ -75,6 +75,7 @@ case "$CALLER" in
   todo)        PREFIX="cj-todo" ;;
   feature)     PREFIX="cj-feat" ;;
   defect)      PREFIX="cj-def" ;;
+  task)        PREFIX="cj-task" ;;
 esac
 
 # ---- Helper: sanitize note for JSON-safe single-line output ------------------

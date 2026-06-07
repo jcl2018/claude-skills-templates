@@ -19,3 +19,6 @@
 
 # /cj_goal_feature resume-state scratch (never committed)
 .cj-goal-feature/
+
+# /cj_goal_task resume-state scratch (never committed)
+.cj-goal-task/

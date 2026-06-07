@@ -211,6 +211,21 @@ else
 fi
 
 # ============================================================================
+# Case 3b (F000054): cj-task-* branch is in the janitor's scope (MERGED removed)
+# ============================================================================
+echo ""
+echo "Case 3b: cj-task-* MERGED removed (F000054 — proves the cj-task scoping)..."
+mk_sandbox "$RULE_MERGED"; register_sbx
+WT3B=$(add_wt cj-task-20260101-000003-3b3 cj-task-merged)
+OUT=$(run_cleanup "$SBX_ROOT" --caller task)
+if echo "$OUT" | grep -q 'REMOVED_PATH=.*cj-task-merged' && [ ! -d "$WT3B" ] \
+   && echo "$OUT" | grep -q '^REMOVED=1'; then
+  ok "Case 3b: MERGED cj-task-* worktree REMOVED (cj-task-* is in scope)"
+else
+  fail_test "Case 3b: expected cj-task-* MERGED removed; dir_exists=$([ -d "$WT3B" ] && echo yes || echo no) out=$OUT"
+fi
+
+# ============================================================================
 # Case 4: PR_STATE=OPEN skipped
 # ============================================================================
 echo ""
@@ -474,18 +489,20 @@ else
 fi
 
 echo ""
-echo "Wiring: terminal cleanup present at all four seams (static grep)..."
+echo "Wiring: terminal cleanup present at all five seams (static grep)..."
 _FEAT="$REPO_ROOT/skills/CJ_goal_feature/pipeline.md"
+_TASK="$REPO_ROOT/skills/CJ_goal_task/pipeline.md"
 _DEF="$REPO_ROOT/skills/CJ_goal_defect/pipeline.md"
 _TODO_SKILL="$REPO_ROOT/skills/CJ_goal_todo_fix/SKILL.md"
 _DRAIN="$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"
 _seams_ok=1
 grep -qF -- '--phase cleanup --mode feature' "$_FEAT" || { _seams_ok=0; echo "    (feature pipeline.md seam missing)"; }
+grep -qF -- '--phase cleanup --mode task'    "$_TASK" || { _seams_ok=0; echo "    (task pipeline.md seam missing)"; }
 grep -qF -- '--phase cleanup --mode defect'  "$_DEF"  || { _seams_ok=0; echo "    (defect pipeline.md seam missing)"; }
 grep -qF -- 'cj-worktree-cleanup.sh --caller todo' "$_TODO_SKILL" || { _seams_ok=0; echo "    (todo SKILL.md single-mode seam missing)"; }
 { grep -qF 'cj-worktree-cleanup.sh' "$_DRAIN" && grep -qF -- '--caller todo' "$_DRAIN"; } || { _seams_ok=0; echo "    (drain-one-todo.sh seam missing)"; }
 if [ "$_seams_ok" = "1" ]; then
-  ok "all four terminal cleanup seams wired (feature/defect via cj-goal-common; todo single+drain direct)"
+  ok "all five terminal cleanup seams wired (feature/task/defect via cj-goal-common; todo single+drain direct)"
 else
   fail_test "one or more terminal cleanup seams missing (see notes above)"
 fi

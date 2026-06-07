@@ -207,6 +207,7 @@ for *using* it. Every `CJ_` front door converges on the same downstream chain
 | Your input | Front door |
 |---|---|
 | One-line feature topic -> reviewable PR | `/CJ_goal_feature "<topic>"` |
+| Small ad-hoc task (no design, no bug) -> reviewable PR | `/CJ_goal_task "<small task>"` |
 | Bug description -> shipped fix | `/CJ_goal_defect "<bug>"` |
 | Drain shippable `TODOS.md` rows | `/CJ_goal_todo_fix [<id> \| "<frag>"]` |
 | "What should I work on?" | `/CJ_suggest` |

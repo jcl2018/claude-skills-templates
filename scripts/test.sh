@@ -537,6 +537,28 @@ else
   fail_test "Integration: --phase portability-audit --dry-run wrong; output: $_PORT_DRY"
 fi
 
+# F000054: cj-goal-common.sh must accept --mode task (the new `task` verb). Smoke
+# it through a mode-agnostic phase (portability-audit --dry-run) so the enum edit
+# is guarded directly; an invalid mode would exit 1 with [common-usage-mode].
+echo ""
+echo "Integration test (F000054): cj-goal-common.sh accepts --mode task..."
+_TASK_MODE=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode task --dry-run 2>&1) && _TASK_MODE_RC=0 || _TASK_MODE_RC=$?
+if [ "$_TASK_MODE_RC" -eq 0 ] \
+   && printf '%s\n' "$_TASK_MODE" | grep -qE '^MODE=task$' \
+   && printf '%s\n' "$_TASK_MODE" | grep -qE '^PHASE_RESULT=ok$'; then
+  ok "Integration: --mode task accepted (MODE=task, PHASE_RESULT=ok)"
+else
+  fail_test "Integration: --mode task not accepted (rc=$_TASK_MODE_RC); output: $_TASK_MODE"
+fi
+# And the worktree phase maps --mode task → --caller task → cj-task-* prefix.
+_TASK_WT=$(cd "$(mktemp -d)" && git init -q && git config user.email t@t && git config user.name t && git checkout -q -b main && echo s>s && git add s && git commit -qm s && bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase worktree --mode task --dry-run 2>&1)
+if printf '%s\n' "$_TASK_WT" | grep -qE '^WT_BRANCH=cj-task-' \
+   && printf '%s\n' "$_TASK_WT" | grep -qE '^PHASE_RESULT=ok$'; then
+  ok "Integration: --phase worktree --mode task → cj-task-* branch prefix"
+else
+  fail_test "Integration: --mode task worktree phase wrong; output: $_TASK_WT"
+fi
+
 # Template content smoke tests (S000002 TEST-SPEC)
 echo ""
 echo "Checking tracker template content..."
@@ -1454,6 +1476,16 @@ else
   fail_test "tests/cj-worktree-cleanup.test.sh failed (rc=$_cwct_rc) — run \`bash tests/cj-worktree-cleanup.test.sh\` directly to see"
 fi
 
+# F000054: /CJ_goal_task topic-driven scaffold + the HARD complexity gate.
+echo ""
+echo "Running tests/cj-task-scaffold.test.sh (F000054 complexity gate + topic scaffold)..."
+if bash "$REPO_ROOT/tests/cj-task-scaffold.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-task-scaffold.test.sh: gate refusals + dry-run + live scaffold + idempotency all pass"
+else
+  _cts_rc=$?
+  fail_test "tests/cj-task-scaffold.test.sh failed (rc=$_cts_rc) — run \`bash tests/cj-task-scaffold.test.sh\` directly to see"
+fi
+
 # Regression test (F000011 fix, Approach A): the post-merge git hook installed by
 # setup-hooks.sh must redeploy skills (Section 1) but NOT auto-edit work-item
 # trackers. The former Phase-3 lifecycle-gate block dirtied main on every
@@ -2142,7 +2174,7 @@ set +e
 if [ ! -f "$_T40_WF" ]; then
   fail_test "docs/workflow.md not found at $_T40_WF"
 else
-  for _t40_skill in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix; do
+  for _t40_skill in CJ_goal_feature CJ_goal_task CJ_goal_defect CJ_goal_todo_fix; do
     # Extract the section body (between `### <name>` and the next `^### `), same
     # flag-based awk shape validate.sh Check 15b uses.
     _t40_section=$(awk -v skill="$_t40_skill" '
@@ -2424,7 +2456,7 @@ else
 fi
 
 # (3) Catalog re-tier + audit confirmation (real catalog + real engine).
-_S85_TIERS=$(jq -r '.[] | select(.name=="CJ_goal_feature" or .name=="CJ_goal_defect" or .name=="CJ_goal_todo_fix" or .name=="CJ_document-release") | .portability' "$CATALOG" 2>/dev/null | sort -u)
+_S85_TIERS=$(jq -r '.[] | select(.name=="CJ_goal_feature" or .name=="CJ_goal_task" or .name=="CJ_goal_defect" or .name=="CJ_goal_todo_fix" or .name=="CJ_document-release") | .portability' "$CATALOG" 2>/dev/null | sort -u)
 if [ "$_S85_TIERS" = "local-only" ]; then
   ok "S000085: the 4 orchestrator-family skills are re-tiered local-only in the catalog"
 else
@@ -2601,7 +2633,7 @@ fi
 
 # (4) AC-2: the 4 orchestrators carry no skills-templates.json + .source co-occurrence.
 _S88_REACH=0
-for _sk in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
+for _sk in CJ_goal_feature CJ_goal_task CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
   if grep -rnE 'skills-templates\.json' "$REPO_ROOT/skills/$_sk/" 2>/dev/null | grep -q '\.source'; then
     _S88_REACH=1
   fi
@@ -2614,7 +2646,7 @@ fi
 
 # (5) AC-4: each orchestrator audits FINDINGS=0 with no .source reach-back note.
 _S88_AUDIT_CLEAN=1
-for _sk in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
+for _sk in CJ_goal_feature CJ_goal_task CJ_goal_defect CJ_goal_todo_fix CJ_document-release; do
   _S88_O=$(bash "$REPO_ROOT/scripts/cj-portability-audit.sh" --skill "$_sk" 2>&1)
   printf '%s\n' "$_S88_O" | grep -qE '^FINDINGS=0$' || _S88_AUDIT_CLEAN=0
   printf '%s\n' "$_S88_O" | grep -qiF 'reads manifest .source' && _S88_AUDIT_CLEAN=0

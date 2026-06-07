@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # cj-worktree-cleanup.sh — teardown mirror of cj-worktree-init.sh (T000036).
 #
-# The post-run JANITOR for the three CJ_goal_* orchestrators. Every run already
+# The post-run JANITOR for the CJ_goal_* orchestrators. Every run already
 # OPENS a worktree at the top (cj-worktree-init.sh); this sweeps the LANDED
-# cj-(feat|def|todo)-* worktrees at the bottom, prunes orphaned-dir metadata, and
+# cj-(feat|def|todo|task)-* worktrees at the bottom, prunes orphaned-dir metadata, and
 # refreshes the root checkout back to main. Self-healing: each run sweeps ALL
 # landed cj-* worktrees (not just its own), so a hand-merged worktree gets swept
 # by the NEXT cj_goal run of any kind — the backlog drains itself over normal use.
 #
 # Interface:
-#   cj-worktree-cleanup.sh [--dry-run] [--caller feature|defect|todo]
+#   cj-worktree-cleanup.sh [--dry-run] [--caller feature|defect|todo|task]
 #
 # Args:
 #   --dry-run                 list WOULD-REMOVE / WOULD-SKIP; mutate NOTHING.
-#   --caller {feature|defect|todo}
+#   --caller {feature|defect|todo|task}
 #                             informational only (telemetry / log attribution).
 #                             Unlike cj-worktree-init.sh this is NOT required and
 #                             NOT validated — cleanup is best-effort and the caller
@@ -148,7 +148,7 @@ pr_state_for_branch() {
 #   locked [<reason>]            (present only when locked)
 #   ...
 # We parse path/branch/locked per record, keep only branches matching
-# ^cj-(feat|def|todo)-, then apply: local-state rails (current / locked / dirty)
+# ^cj-(feat|def|todo|task)-, then apply: local-state rails (current / locked / dirty)
 # → PR-state gate. REMOVE only when the gate proves landed.
 
 REMOVED=0
@@ -170,7 +170,7 @@ process_record() {
   # sessions, manual chore/fix/feat branches, the root's main) is out of scope and
   # never even reported.
   case "$branch" in
-    cj-feat-*|cj-def-*|cj-todo-*) ;;
+    cj-feat-*|cj-def-*|cj-todo-*|cj-task-*) ;;
     *) return 0 ;;
   esac
 
@@ -293,7 +293,7 @@ fi
 # The opposite leftover from prune's case: a dir present on disk under
 # <root>/.claude/worktrees/ but NOT in `git worktree list` (a partial/failed
 # removal, or a re-created dir). prune does not touch these. Sweep them, scoped
-# to the janitor's own `cj-(feat|def|todo)-*` footprint only — never the current
+# to the janitor's own `cj-(feat|def|todo|task)-*` footprint only — never the current
 # dir, never a still-registered worktree (those go through the PR-state sweep
 # above), and never a non-cj dir (Conductor `claude/*` etc. stay out of scope,
 # matching the cj-* blast radius the janitor was designed for). rm is bounded to
@@ -315,7 +315,7 @@ if [ -n "$_ROOT" ] && [ -d "$_WT_BASE" ]; then
     # bias is intentional: a basename clash false-SKIPS (never false-rm's) — the
     # safe direction for a destructive op.
     _REG_NAMES=$(printf '%s\n' "$_REGSET" | while IFS= read -r _p; do [ -n "$_p" ] && basename "$_p"; done)
-    for _od in "$_WT_BASE"/cj-feat-* "$_WT_BASE"/cj-def-* "$_WT_BASE"/cj-todo-*; do
+    for _od in "$_WT_BASE"/cj-feat-* "$_WT_BASE"/cj-def-* "$_WT_BASE"/cj-todo-* "$_WT_BASE"/cj-task-*; do
       [ -d "$_od" ] || continue                                            # glob no-match guard
       printf '%s\n' "$_REG_NAMES" | grep -qFx "$(basename "$_od")" && continue  # skip registered (incl. current)
       if [ "$DRY_RUN" = "1" ]; then
