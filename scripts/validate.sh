@@ -838,6 +838,53 @@ else
   echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
 fi
 
+# Check 20: front-table-required docs open with a summary table (hard lint)
+# For every doc-spec.md registry entry flagged `front_table: required` (enumerated
+# via doc-spec.sh --list-front-table-docs — registry-driven, no hardcoded
+# filenames), assert the doc OPENS with a Markdown table: a `^\|` row IMMEDIATELY
+# followed by a delimiter row (`^\|[ :|+-]*-[ :|+-]*\|$`) appearing BEFORE the
+# doc's first `^## ` heading. Stopping at the first `^## ` is essential — both
+# flagged docs already contain tables LATER (in a decision tree / a utility
+# section), so a whole-file grep would yield a false PASS. awk-only, bash-3.2-safe.
+# On a miss emit `  ERROR:` inline (the Check 15-19 style; NOT the fail() helper,
+# which prints `FAIL:` — the negative test greps a literal `  ERROR:` prefix).
+# Skips silently when doc-spec.md / the helper is absent (non-adopting repo).
+echo ""
+echo "=== Check 20: front-table-required docs open with a summary table ==="
+DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
+if [ -f "doc-spec.md" ] && [ -x "$DOC_SPEC_HELPER" ]; then
+  FRONT_TABLE_DOCS=$(bash "$DOC_SPEC_HELPER" --list-front-table-docs 2>/dev/null || true)
+  C20_CHECKED=0
+  for d in $FRONT_TABLE_DOCS; do
+    C20_CHECKED=$((C20_CHECKED+1))
+    if [ ! -f "$REPO_ROOT/$d" ]; then
+      # Missing-on-disk is already an ERROR in Check 15a; don't double-count. Skip.
+      continue
+    fi
+    # awk: walk from the top; stop at the first `^## `. A table is found when the
+    # current line is a delimiter row AND the immediately-preceding line was a
+    # `^|` row. NOTE: a bare `exit 0` would jump to END and the END's `exit`
+    # would clobber the code — so set found=1 + `exit` (no arg, preserves it) and
+    # let `END { exit !found }` yield 0-on-hit / 1-on-miss.
+    if awk '
+      /^## / { exit }
+      /^\|[ :|+-]*-[ :|+-]*\|$/ {
+        if (prev ~ /^\|/) { found = 1; exit }
+      }
+      { prev = $0 }
+      END { exit !found }
+    ' "$REPO_ROOT/$d" >/dev/null 2>&1; then
+      echo "  PASS: $d opens with a summary table (before its first '## ' heading)"
+    else
+      echo "  ERROR: front-table-required doc $d does not open with a summary table before its first '## ' heading (front_table: required in doc-spec.md — add a leading Markdown table, e.g. a '|'-row followed by a '|---|' delimiter row)"
+      ERRORS=$((ERRORS+1))
+    fi
+  done
+  [ "$C20_CHECKED" -eq 0 ] && echo "  SKIP: no front_table: required docs declared in the doc-spec.md registry"
+else
+  echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

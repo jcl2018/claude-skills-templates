@@ -20,6 +20,11 @@
 #                       valid; exit 1 + halt-emit otherwise.
 #   --list-declared     echo every declared `path` (sorted, unique).
 #   --list-human-docs   echo only the `audit_class: human-doc` paths.
+#   --list-front-table-docs
+#                       echo only the paths whose `front_table` is `required`
+#                       (the workbench-local registry field consumed by
+#                       validate.sh Check 20). Separate awk pass; the shared
+#                       3-column TSV is unchanged.
 #   --expand-whitelist  echo the doc-only auto-commit whitelist: every declared
 #                       `path` + doc-spec.md + every docs/**/*.md on disk
 #                       (sorted, unique).
@@ -85,6 +90,29 @@ _parse_registry() {
 
 _schema_version() {
   _extract_yaml | awk '/^schema_version:/ { print $2; exit }'
+}
+
+# List the registry paths whose `front_table` is `required`. A SEPARATE awk pass
+# over the extracted yaml (mirrors how --list-human-docs filters) so the shared
+# _parse_registry 3-column TSV — read with a 3-var `read` in _run_registry_gates
+# — stays unchanged; a 4th TSV column would mis-bind onto audit_class and break
+# the closed-enum gate. Flag-based per-entry shape: capture path at `- path:`,
+# capture front_table within the entry, emit the path at the NEXT `- path:`
+# (flush) or END when front_table == required.
+_list_front_table_docs() {
+  _extract_yaml | awk '
+    function flush() {
+      if (cur_path != "" && cur_ft == "required") { print cur_path }
+      cur_path=""; cur_ft=""
+    }
+    /^[[:space:]]*-[[:space:]]*path:/ {
+      flush()
+      cur_path=$3
+      next
+    }
+    /^[[:space:]]*front_table:/ { cur_ft=$2; next }
+    END { flush() }
+  ' | sort -u
 }
 
 # ---- Validation gates (run ONLY for registry-reading subcommands) ----
@@ -280,6 +308,10 @@ case "${1:-}" in
     _run_registry_gates
     printf '%s\n' "$_ROWS" | awk -F'\t' '$3=="human-doc" {print $1}' | sort -u
     ;;
+  --list-front-table-docs)
+    _run_registry_gates
+    _list_front_table_docs
+    ;;
   --expand-whitelist)
     _run_registry_gates
     {
@@ -305,13 +337,14 @@ Usage:
   doc-spec.sh --validate          # exit 0 if registry schema ok
   doc-spec.sh --list-declared     # every declared path
   doc-spec.sh --list-human-docs   # only audit_class: human-doc paths
+  doc-spec.sh --list-front-table-docs  # only paths with front_table: required
   doc-spec.sh --expand-whitelist  # doc-only auto-commit whitelist
   doc-spec.sh --seed              # complete minimal valid doc-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-declared|--list-human-docs|--expand-whitelist|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-declared|--list-human-docs|--list-front-table-docs|--expand-whitelist|--seed}" >&2
     exit 2
     ;;
   *)

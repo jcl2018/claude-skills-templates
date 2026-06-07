@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.50] - 2026-06-06
+
+### Added
+
+- **Front-table doc convention (F000052), registry-driven + CI-enforced.** `docs/philosophy.md` and `docs/workflow.md` now open with a summary table indexing every principle / entry point, so you can see a long doc's whole shape before scrolling. The convention is declared in the `doc-spec.md` registry via a new `front_table: required` flag and enforced by `validate.sh` **Check 20** (a hard gate). Flag any other doc to require a leading table by adding `front_table: required` to its registry entry — no validator edit needed.
+- **`scripts/doc-spec.sh --list-front-table-docs`** — emits the registry paths flagged `front_table: required`; consumed by Check 20. Implemented as a separate parse pass, leaving the shared registry TSV (and its enum gate) untouched.
+
+### Changed
+
+- **`docs/philosophy.md` / `docs/workflow.md`** each gained a leading summary table (principles; orchestrators + machinery + utilities) — and now satisfy their own new `requirement`.
+- Doc-contract surfaces updated for the new check: `CLAUDE.md` (check list + `doc-spec.sh` row), `docs/architecture.md`, and `CJ_document-release` SKILL.md/USAGE.md note Check 20 + `--list-front-table-docs`. The portable Common seed (`templates/doc-spec-common.md`, `doc-spec.sh --seed`) is deliberately unchanged — the convention is workbench-local.
+
 ## [6.0.49] - 2026-06-06
 
 ### Added

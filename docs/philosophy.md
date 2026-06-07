@@ -5,6 +5,13 @@ to call. This doc is arranged by principle; for the machinery under the hood see
 [architecture.md](architecture.md), and for the end-to-end workflows see
 [workflow.md](workflow.md).
 
+| # | Principle | In one line |
+|---|-----------|-------------|
+| 1 | One source of truth — this checkout | Install == clone; every repo references the single `~/.claude/` install, `git pull` is deploy. |
+| 2 | Two delivery surfaces, one contract | The same doc-first work contract ships to Claude Code skills and a self-contained GitHub Copilot bundle. |
+| 3 | The doc contract is one file, human + machine | `doc-spec.md` is both the human-readable doc map and the machine registry the CI validator + doc-release skill parse. |
+| — | Decision tree | Which `CJ_` skill to call for a given input — see the routing map at the bottom of this doc. |
+
 ## Principle 1: There is exactly one source of truth — this checkout
 
 This workbench has one first principle. Everything else in its deployment design
