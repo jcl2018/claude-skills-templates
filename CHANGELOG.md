@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.54] - 2026-06-07
+
+### Added
+
+- **Within-phase receipt at the `/CJ_goal_feature` office-hours boundary (F000053 S000095 / P1 — the saga's final story).** After `/office-hours` approves, the design digest is distilled ONCE into a compact phase receipt (`.cj-goal-feature/<branch>.office-hours.receipt`, written atomically via `mktemp`+`mv`), and the design-summary approval gate (Step 2.7) plus every resume source their digest **FROM that receipt** rather than the resident office-hours transcript — continue from receipts, not the transcript (P1 context curation). The receipt reuses S000093's locked `receipts.qa` envelope schema (`phase` / `commit` / `completed_at`) — one schema, not two — and a resume reuses it only when its `commit` vouches for HEAD (validate-before-skip); otherwise it re-distills. Scoped to the office-hours boundary; **no generic per-phase compaction hook** (the over-build guardrail). Closes the F000053 saga (P4 → P5 → P1).
+
+### Changed
+
+- **`/CJ_goal_feature` resume state file gains a single-line `office_hours_receipt=` pointer** — the resume-state surface stays one flat file (`${branch}.state`) while the multi-line digest lives in its own gitignored receipt; the SPEC's "generalize in place" Open Question resolved this way because the flat state parser can't hold a multi-line digest. `docs/workflow.md`'s feature chart + Touches reflect the receipt write + digest-from-receipt sourcing; `scripts/test.sh` gains F000053/S000095 regression guards (atomic write, shared-schema keys, office-hours-only scope).
+
 ## [6.0.53] - 2026-06-06
 
 ### Added

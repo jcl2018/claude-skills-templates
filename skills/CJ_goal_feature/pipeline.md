@@ -79,6 +79,7 @@ The state file is a small KEY=VALUE file (one field per line) carrying:
 last_completed_phase=<none|office-hours|scaffold|impl|qa|ship>
 phase_sha=<the HEAD SHA recorded at the last completed phase boundary>
 design_doc=<absolute path to the APPROVED design doc, recorded at the office-hours boundary>
+office_hours_receipt=<absolute path to the compact office-hours phase receipt, recorded at the office-hours boundary — F000053/S000095>
 work_item_dir=<absolute path to the scaffolded work-item dir, recorded at the scaffold boundary>
 pr_number=<the PR number, recorded at the ship boundary>
 topic=<the original topic string>
@@ -89,6 +90,19 @@ written via a `mktemp` + `mv` atomic-write helper at each phase boundary
 (Step 2.5 / 4.x / 5.x). `.cj-goal-feature/` is workbench-local scratch — add it
 to `.gitignore` if not already ignored; it is never committed.
 
+**Within-phase receipt chain (F000053 / S000095 — P1 context curation).** The
+`${branch}.state` file above is the resume-state surface; alongside it, the
+office-hours boundary writes ONE compact *phase receipt* into the same
+`.cj-goal-feature/` chain — `${branch}.office-hours.receipt` — carrying the
+distilled design digest. The state file's `office_hours_receipt=` key is a
+single-line pointer to it (so the resume-state surface stays one flat file — no
+second state surface — while the multi-line digest lives in its own receipt). The
+post-office-hours step (Step 2.7) sources its design-summary digest FROM that
+receipt rather than re-reading the full design doc or depending on the resident
+office-hours transcript. The receipt reuses S000093's locked receipt-envelope
+schema (`phase` / `commit` / `completed_at`) — one schema, not two. Scope is the
+office-hours boundary ONLY; there is no generic per-phase compaction hook.
+
 If `--dry-run`: print the planned chain and exit before any mutation —
 
 ```bash
@@ -96,6 +110,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: topic=\"$TOPIC\""
   echo "DRY RUN: would create a cj-feat-* worktree (cj-goal-common.sh --mode feature)"
   echo "DRY RUN: would run /office-hours INLINE; on Approve, record the APPROVED design doc path + HEAD SHA to $RESUME_STATE"
+  echo "DRY RUN: would write a compact office-hours phase receipt to .cj-goal-feature/<branch>.office-hours.receipt and source the Step 2.7 design-summary digest FROM it (F000053/S000095)"
   echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as SILENT leaf Agent subagents (no AUQ)"
   echo "DRY RUN: would run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red) to fold doc updates into the same PR"
   echo "DRY RUN: would run the portability-audit gate (halt-on-red) before /ship (cj-goal-common.sh --phase portability-audit)"
@@ -120,11 +135,12 @@ trust `last_completed_phase` blindly** — validate the recorded SHA and PR
 against the live tree first, and restart the affected phase on any mismatch.
 
 ```bash
-LAST_PHASE="none"; PHASE_SHA=""; DESIGN_DOC=""; WORK_ITEM_DIR=""; PR_NUMBER=""
+LAST_PHASE="none"; PHASE_SHA=""; DESIGN_DOC=""; OH_RECEIPT=""; WORK_ITEM_DIR=""; PR_NUMBER=""
 if [ -f "$RESUME_STATE" ]; then
   LAST_PHASE=$(sed -n 's/^last_completed_phase=//p' "$RESUME_STATE" | head -1)
   PHASE_SHA=$(sed -n 's/^phase_sha=//p' "$RESUME_STATE" | head -1)
   DESIGN_DOC=$(sed -n 's/^design_doc=//p' "$RESUME_STATE" | head -1)
+  OH_RECEIPT=$(sed -n 's/^office_hours_receipt=//p' "$RESUME_STATE" | head -1)
   WORK_ITEM_DIR=$(sed -n 's/^work_item_dir=//p' "$RESUME_STATE" | head -1)
   PR_NUMBER=$(sed -n 's/^pr_number=//p' "$RESUME_STATE" | head -1)
   [ -z "$LAST_PHASE" ] && LAST_PHASE="none"
@@ -339,16 +355,21 @@ exit 1
 ## Step 2.5: Record the office-hours boundary
 
 On a successful Approve (or a validated resume short-circuit), record the
-office-hours phase boundary atomically:
+office-hours phase boundary atomically. The `office_hours_receipt` path is
+deterministic (`${branch}.office-hours.receipt`, the F000053/S000095 phase
+receipt Step 2.6 populates); record the pointer here so a resume re-locates the
+receipt by the recorded path (mirroring how `design_doc` is recorded):
 
 ```bash
 mkdir -p "$RESUME_DIR"
 HEAD_SHA=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null)
+OH_RECEIPT="$RESUME_DIR/${_BRANCH}.office-hours.receipt"
 _TMP=$(mktemp "$RESUME_DIR/.state.XXXXXX")
 cat > "$_TMP" <<EOF
 last_completed_phase=office-hours
 phase_sha=$HEAD_SHA
 design_doc=$DESIGN_DOC
+office_hours_receipt=$OH_RECEIPT
 work_item_dir=$WORK_ITEM_DIR
 pr_number=$PR_NUMBER
 topic=$TOPIC
@@ -356,6 +377,68 @@ EOF
 mv "$_TMP" "$RESUME_STATE"
 echo "[resume] recorded office-hours boundary (doc=$DESIGN_DOC, sha=$HEAD_SHA)"
 ```
+
+## Step 2.6: Write the compact office-hours phase receipt (F000053 / S000095 — P1 within-phase receipt)
+
+The office-hours transcript is large and resident in the orchestrator window. To
+continue from a compact receipt rather than the transcript (P1 context
+curation), distill the APPROVED design doc into a short digest ONCE here and
+persist it to `$OH_RECEIPT` via the atomic `mktemp` + `mv` write. Step 2.7 and
+every resume then read the digest FROM this receipt — the full design doc and the
+resident office-hours transcript need not stay in context for the gate or the
+build. This is the ONLY within-phase receipt this pipeline writes: there is no
+generic per-phase compaction hook (AC3 — scoped to the office-hours boundary).
+
+**Skip-on-resume (receipt vouches for HEAD).** Reuse the existing receipt instead
+of re-distilling when it already vouches for the current HEAD — the same
+validate-before-skip contract S000093's `receipts.qa` uses (`commit` is the SHA
+the receipt vouches for):
+
+```bash
+OH_RECEIPT="${OH_RECEIPT:-$RESUME_DIR/${_BRANCH}.office-hours.receipt}"
+OH_RECEIPT_FRESH=0
+if [ -f "$OH_RECEIPT" ]; then
+  _OH_COMMIT=$(sed -n 's/^commit=//p' "$OH_RECEIPT" | head -1)
+  if [ -n "$_OH_COMMIT" ] && git -C "$_REPO_ROOT" merge-base --is-ancestor "$_OH_COMMIT" HEAD 2>/dev/null; then
+    OH_RECEIPT_FRESH=1
+    echo "[receipt] office-hours receipt vouches for HEAD (commit=$_OH_COMMIT); reusing it (no re-distill)."
+  fi
+fi
+```
+
+When `OH_RECEIPT_FRESH=0` (fresh run, missing receipt, or a stale `commit`):
+
+1. **Read the APPROVED design doc** at `$DESIGN_DOC` ONCE and distill the
+   decision-relevant headlines — the same six the gate needs: **Topic / title**,
+   **Goal / problem**, **Approach**, **Scope**, **Test plan**, **Open questions /
+   risks**. Keep it to ~10–15 lines: this is the compact digest, not a copy of the
+   doc.
+2. **Write the receipt atomically** — a flat `key=value` envelope reusing
+   S000093's locked receipt schema (`phase` / `commit` / `completed_at`), a
+   `--- digest ---` delimiter, then the distilled digest body. Substitute the
+   real distillation from step 1 for the angle-bracketed placeholder:
+
+```bash
+_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+_HEAD=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null)
+_TMP=$(mktemp "$RESUME_DIR/.ohreceipt.XXXXXX")
+cat > "$_TMP" <<EOF
+phase=office-hours
+commit=$_HEAD
+completed_at=$_TS
+design_doc=$DESIGN_DOC
+ready_for_ship=false
+--- digest ---
+<the ~10–15-line distilled digest from step 1 — Topic / title, Goal / problem,
+ Approach, Scope, Test plan, Open questions / risks>
+EOF
+mv "$_TMP" "$OH_RECEIPT"
+echo "[receipt] wrote compact office-hours phase receipt → $OH_RECEIPT (commit=$_HEAD)"
+```
+
+The envelope keys (`phase` / `commit` / `completed_at`) are S000093's shared
+receipt schema — one schema, not two (AC4). `.cj-goal-feature/` is gitignored, so
+the receipt is workbench-local scratch, never committed.
 
 ## Step 2.7: Design-summary approval gate (the post-office-hours checkpoint)
 
@@ -385,20 +468,30 @@ RUN_DESIGN_GATE=0
 
 When `RUN_DESIGN_GATE=1`:
 
-1. **Read the APPROVED design doc** at `$DESIGN_DOC` (recorded at Step 2.5).
-2. **Print a concise chat summary** — NOT a dump of the file, and NOT a bare
-   "doc is done". Distill it to the decision-relevant headlines the operator
-   needs to green-light an autonomous build:
-   - **Topic / title** — the one-line feature.
-   - **Goal / problem** — what it solves (1–2 sentences).
-   - **Approach** — the chosen design in 2–4 bullets.
-   - **Scope** — the components / files / skills it will touch.
-   - **Test plan** — how it will be verified (the headline cases).
-   - **Open questions / risks** — anything the doc flagged unresolved.
+1. **Source the digest from the office-hours phase receipt** at `$OH_RECEIPT`
+   (written at Step 2.6; recorded in the resume state as `office_hours_receipt=`).
+   Read the digest body — everything after the `--- digest ---` delimiter — NOT
+   the full `$DESIGN_DOC`, and NOT the resident office-hours transcript. This is
+   the P1 within-phase-receipt contract: the design-summary digest is SOURCED FROM
+   the receipt file (F000053/S000095, AC2), so the orchestrator continues from the
+   compact receipt rather than transcript-resident context.
 
-   Pull these from the design-doc body (office-hours docs carry these sections;
-   fall back to the nearest heading when a label differs). Keep it to ~10–15
-   lines so it reads at a glance.
+   ```bash
+   if [ -f "$OH_RECEIPT" ]; then
+     OH_DIGEST=$(sed -n '/^--- digest ---$/,$p' "$OH_RECEIPT" | sed '1d')
+     echo "[receipt] sourced design-summary digest from $OH_RECEIPT"
+   else
+     OH_DIGEST=""   # pre-S000095 fallback: re-distill from $DESIGN_DOC below
+     echo "[receipt] no office-hours receipt found; re-distilling from $DESIGN_DOC (pre-S000095 fallback)"
+   fi
+   ```
+2. **Print the digest as the chat summary** — NOT a dump of the full file, and
+   NOT a bare "doc is done". The receipt's digest already carries the
+   decision-relevant headlines (**Topic / title**, **Goal / problem**,
+   **Approach**, **Scope**, **Test plan**, **Open questions / risks**); print them
+   so the gate reads at a glance (~10–15 lines). ONLY on the pre-S000095 fallback
+   (`$OH_RECEIPT` absent) distill these inline from `$DESIGN_DOC`, falling back to
+   the nearest heading when a label differs.
 3. **Surface the approval AUQ** (AskUserQuestion). Recommend A:
 
 ```
@@ -912,6 +1005,16 @@ table.
 - **office-hours never re-runs on an unchanged APPROVED doc (P0 #5).** Resume
   re-locates the doc by the recorded path and re-confirms `Status: APPROVED`;
   recovery is a recorded-path lookup, not a blind newest-glob.
+- **Continue from the office-hours receipt, not the transcript (P1 — F000053 /
+  S000095).** At the office-hours boundary the design digest is distilled ONCE
+  into a compact phase receipt (`${branch}.office-hours.receipt` — S000093's
+  shared envelope schema, atomic `mktemp`+`mv`, pointed to by the state file's
+  `office_hours_receipt=` key). Step 2.7 and every resume source the
+  design-summary digest FROM that receipt — the full design doc and the resident
+  office-hours transcript need not stay in context. A resume reuses the receipt
+  when its `commit` vouches for HEAD (validate-before-skip); otherwise it
+  re-distills. Scope is the office-hours boundary only — no generic per-phase
+  compaction hook.
 - **One approval gate between the office-hours Approve and the PR (P0 #2,
   amended).** office-hours is the interactive design phase; Step 2.7 then shows a
   design summary + a single go/no-go gate before the build budget is spent. Past

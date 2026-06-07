@@ -87,10 +87,10 @@ isolation gate   (cj-worktree-init.sh --assert-isolated)
 /office-hours   [INLINE - interactive; emits APPROVED design doc]
    |   `- not APPROVED / abandoned -> HALT
    v
-capture doc path -> resume state file (last_completed_phase + HEAD SHA + PR#)
-   |
+capture doc path -> resume state file (last_completed_phase + HEAD SHA + PR# + office_hours_receipt pointer)
+   |   `- write compact office-hours receipt   [.cj-goal-feature/<branch>.office-hours.receipt; atomic mktemp+mv; reuses the QA receipt envelope]
    v
-design-summary approval gate   [INLINE AUQ - go/no-go]
+design-summary approval gate   [INLINE AUQ - go/no-go; digest SOURCED FROM the receipt, not the resident transcript]
    |   `- Abort -> HALT
    v  Approve & build ->  SILENT depth-<=2 leaf Agent subagents
 /CJ_scaffold-work-item -> /CJ_implement-from-spec -> /CJ_qa-work-item
@@ -132,7 +132,7 @@ mid-chain without redoing finished phases.
 **Touches:**
 
 - **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> design-summary approval gate -> scaffold/implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode feature`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
 
