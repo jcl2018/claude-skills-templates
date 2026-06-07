@@ -24,9 +24,17 @@
 #                   Fail-soft like pr-check (guard refusal / offline → skipped,
 #                   NEVER failed). `--no-sync` short-circuits to skipped before
 #                   any call; `--dry-run` forwards to post-land-sync.sh --dry-run.
+#   6. portability-audit — pre-ship portability gate (F000051 / S000091): run the
+#                   cj-portability-audit.sh engine STRICT and classify the result
+#                   into ok / findings / skipped. The 3 cj_goal orchestrators call
+#                   it after Step 5.5 doc-sync / before /ship and HALT on findings
+#                   ([portability-red]). Engine-absent → skipped (fail-soft, like
+#                   validate.sh Check 18's "SKIP: engine absent"); findings →
+#                   non-zero exit so the caller can halt. --dry-run runs nothing.
 #
 # Args:
-#   --phase {worktree|telemetry|pr-check|ship|cleanup|sync}   required; selects the op
+#   --phase {worktree|telemetry|pr-check|ship|cleanup|sync|portability-audit}
+#                                                 required; selects the op
 #                                                 ('ship' is an alias for pr-check —
 #                                                 the PR-creation seam where the
 #                                                 verb skills run the PR check)
@@ -109,9 +117,9 @@ case "$PHASE" in
 esac
 
 case "$PHASE" in
-  worktree|telemetry|pr-check|cleanup|sync) ;;
+  worktree|telemetry|pr-check|cleanup|sync|portability-audit) ;;
   *)
-    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup, sync)" >&2
+    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup, sync, portability-audit)" >&2
     exit 1
     ;;
 esac
@@ -180,6 +188,26 @@ resolve_post_land_sync() {
   src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
   if [ -n "$src" ] && [ -x "$src/scripts/post-land-sync.sh" ]; then
     printf '%s' "$src/scripts/post-land-sync.sh"; return 0
+  fi
+  return 1
+}
+
+# ---- helper: resolve cj-portability-audit.sh (same 2-level probe) ------------
+#
+# Mirrors resolve_worktree_helper EXACTLY (F000051/S000091): (1) sibling in this
+# script's dir (workbench self-dev / install==clone), then (2) <manifest
+# .source>/scripts/cj-portability-audit.sh (deployed ~/.claude context). The
+# engine resolves its OWN catalog via `git rev-parse`, so a sibling call from a
+# worktree Just Works — deliberately NO `_cj-shared` / `CJ_SHARED_SCRIPTS` idiom
+# here (this script carries zero such references).
+resolve_portability_engine() {
+  local self_dir cand src
+  self_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  cand="$self_dir/cj-portability-audit.sh"
+  if [ -x "$cand" ]; then printf '%s' "$cand"; return 0; fi
+  src=$(jq -r '.source // empty' "$HOME/.claude/.skills-templates.json" 2>/dev/null || echo "")
+  if [ -n "$src" ] && [ -x "$src/scripts/cj-portability-audit.sh" ]; then
+    printf '%s' "$src/scripts/cj-portability-audit.sh"; return 0
   fi
   return 1
 }
@@ -499,6 +527,84 @@ if [ "$PHASE" = "sync" ]; then
   echo "VERSION_AFTER=$VERSION_AFTER"
   echo "PHASE_RESULT=ok"
   exit 0
+fi
+
+# =============================================================================
+# Phase: portability-audit — pre-ship portability gate (F000051 / S000091)
+# =============================================================================
+#
+# Runs the cj-portability-audit.sh engine under PORTABILITY_STRICT=1 and
+# classifies the result so the 3 cj_goal orchestrators share ONE gate + halt
+# contract. The catalog baseline is clean (FINDINGS=0), so a strict
+# halt-on-any-finding gate is green today AND a free regression ratchet: any
+# finding is by definition new.
+#
+# --mode is telemetry-only here (the audit is verb-independent); the todo
+# orchestrator passes --mode feature, the same value it already uses for
+# --phase sync. Fail-SOFT on engine-absent (skipped, exit 0 — a broken install
+# must not wedge the pipeline, mirroring validate.sh Check 18's "SKIP: engine
+# absent"); ONLY a real finding halts (findings, non-zero exit).
+#
+# Stdout fields: FINDINGS (skills-with-findings), SKILLS_AUDITED (total audited),
+#   VERDICT_LINE (one-line summary), PHASE_RESULT (ok|findings|skipped).
+
+if [ "$PHASE" = "portability-audit" ]; then
+  echo "PHASE=portability-audit"
+  echo "MODE=$MODE"
+
+  # --dry-run: emit the schema, run nothing (mirror the pr-check dry-run branch).
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "FINDINGS="
+    echo "SKILLS_AUDITED="
+    echo "VERDICT_LINE=portability-audit gate (halt-on-red) would run before /ship"
+    echo "PHASE_RESULT=ok"
+    exit 0
+  fi
+
+  ENGINE=$(resolve_portability_engine || echo "")
+  if [ -z "$ENGINE" ]; then
+    # Fail-soft: a broken/partial install must not wedge the pipeline. Only a
+    # real finding halts; an absent engine is a skip (NEVER findings).
+    echo "FINDINGS="
+    echo "SKILLS_AUDITED="
+    echo "VERDICT_LINE=portability engine absent (cj-portability-audit.sh not found) — gate skipped"
+    echo "PHASE_RESULT=skipped"
+    echo "[common-portability-skip] cj-portability-audit.sh not found (sibling dir nor manifest .source); skipping gate" >&2
+    exit 0
+  fi
+
+  # Run the engine STRICT, capturing the non-zero exit with the file's
+  # established idiom (NOT a bare $(...), which would swallow the exit or — under
+  # the orchestrator's shell — abort). Mirrors the sync phase exit-capture.
+  PA_OUT=$(PORTABILITY_STRICT=1 bash "$ENGINE" 2>&1) && PA_RC=0 || PA_RC=$?
+
+  # FINDINGS = count of SKILLS-WITH-findings (the engine increments once per
+  # skill whose verdict is `findings:*`); SKILLS_AUDITED = total audited. Parse
+  # BOTH. The gate decision is FINDINGS > 0 ⇒ red (equivalently PA_RC != 0).
+  FINDINGS=$(printf '%s\n' "$PA_OUT" | sed -n 's/^FINDINGS=//p' | head -1)
+  SKILLS_AUDITED=$(printf '%s\n' "$PA_OUT" | sed -n 's/^SKILLS_AUDITED=//p' | head -1)
+  [ -z "$FINDINGS" ] && FINDINGS=0
+  [ -z "$SKILLS_AUDITED" ] && SKILLS_AUDITED=0
+
+  echo "FINDINGS=$FINDINGS"
+  echo "SKILLS_AUDITED=$SKILLS_AUDITED"
+
+  if [ "$PA_RC" -eq 0 ] && [ "$FINDINGS" -eq 0 ] 2>/dev/null; then
+    echo "VERDICT_LINE=Portability: all $SKILLS_AUDITED skills honestly declared (0 findings)"
+    echo "PHASE_RESULT=ok"
+    exit 0
+  fi
+
+  # Findings (or a non-zero engine exit): compose a red VERDICT_LINE carrying the
+  # first finding line for at-a-glance triage, then exit non-zero so the caller
+  # halts ([portability-red]).
+  FIRST_FINDING=$(printf '%s\n' "$PA_OUT" | sed -n 's/.*\(findings:.*\)/\1/p' | head -1)
+  [ -z "$FIRST_FINDING" ] && FIRST_FINDING="see raw audit output"
+  FIRST_FINDING=$(sanitize "$FIRST_FINDING")
+  echo "VERDICT_LINE=Portability: $FINDINGS skill(s) with findings — $FIRST_FINDING"
+  echo "PHASE_RESULT=findings"
+  echo "[common-portability-findings] $FINDINGS skill(s) declare a portability tier they do not honor (engine exit $PA_RC)" >&2
+  exit 2
 fi
 
 # Unreachable — phase validation above exits non-zero on any unknown phase.

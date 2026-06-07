@@ -3,7 +3,7 @@ skill-name: "CJ_goal_feature"
 version: 0.1.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-06T21:00:49Z"
+last-updated: "2026-06-06T23:55:55Z"
 ---
 
 # Skill Usage: CJ_goal_feature
@@ -41,11 +41,14 @@ before `git worktree add` so the build branches off current trunk (Fork 1, in
 
 Then: one interactive phase (`/office-hours` inline, emits APPROVED design doc),
 silent leaf subagents (scaffold → implement → QA), `/CJ_document-release`
-(Step 5.5 doc-sync) inline, then `/ship` inline (with diff-review AUQ
-suppressed) → STOPS at the open PR. The PR is the architecture gate (human
-review). Worktree-on-main creates `cj-feat-*` worktree automatically. Halt
-taxonomy: `green_pr_opened`, `halted_at_*`, `already_shipped` with
-`next_action=` / `resume_cmd=` / `pr_url=` journal entries.
+(Step 5.5 doc-sync) inline, a pre-ship portability gate (Step 5.7,
+`cj-goal-common.sh --phase portability-audit`, run STRICT) that HALTs on a
+dishonest skill portability declaration BEFORE any PR is opened, then `/ship`
+inline (with diff-review AUQ suppressed) → STOPS at the open PR. The PR is the
+architecture gate (human review). Worktree-on-main creates `cj-feat-*` worktree
+automatically. Halt taxonomy: `green_pr_opened`, `halted_at_*` (including
+`halted_at_portability`), `already_shipped` with `next_action=` / `resume_cmd=`
+/ `pr_url=` journal entries.
 
 ## Common pitfalls
 
@@ -57,6 +60,10 @@ taxonomy: `green_pr_opened`, `halted_at_*`, `already_shipped` with
   skipping; if the recorded SHA isn't ancestor-of current HEAD, the affected
   phase restarts
 - Running it on a non-macOS host — workbench-only
+- A touched skill that declares a portability tier it does not honor — the
+  Step 5.7 portability gate HALTs (`halted_at_portability`) before the PR; relabel
+  the skill's `portability` (or add the dep to `portability_requires`) in
+  skills-catalog.json and re-run
 - Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
   only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
 - Expecting the pre-build sync or ff to halt on failure — both are fail-soft by

@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_feature
-description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive design phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then shows a design-summary approval gate in chat (a concise digest of the APPROVED doc + a single go/no-go before the autonomous build budget is spent — Abort HALTs as halted_at_design_gate and preserves the doc for resume), then SILENTLY (zero AUQ past the gate) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as depth-≤2 leaf Agent subagents, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob; the design-summary gate re-fires on resume while still parked at the office-hours boundary and is skipped once the build has progressed. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/design_gate/scaffold/impl/qa/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
+description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive design phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then shows a design-summary approval gate in chat (a concise digest of the APPROVED doc + a single go/no-go before the autonomous build budget is spent — Abort HALTs as halted_at_design_gate and preserves the doc for resume), then SILENTLY (zero AUQ past the gate) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as depth-≤2 leaf Agent subagents, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob; the design-summary gate re-fires on resume while still parked at the office-hours boundary and is skipped once the build has progressed. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/design_gate/scaffold/impl/qa/doc_sync/portability/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. A pre-ship portability gate (cj-goal-common.sh --phase portability-audit) halts on a dishonest skill portability declaration before the PR is opened. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
 version: 0.2.0
 allowed-tools:
   - Bash
@@ -206,10 +206,13 @@ design-summary approval gate   [INLINE AUQ — digest of the APPROVED doc + go/n
 /CJ_document-release   [INLINE Step 5.5 — doc-sync folds doc edits into the PR; halt-on-red]
    │
    ▼
+portability gate   [INLINE Step 5.7 — cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship]
+   │   ↳ findings → HALT (halted_at_portability; no PR; relabel skill portability + re-run)
+   ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens a PR]
    │
    ▼
-Step 4.6 — registered-doc verdicts → PR body   [post-/ship gh pr edit; best-effort; T000038]
+Step 4.6 — registered-doc + portability verdicts → PR body   [post-/ship gh pr edit; best-effort; T000038/F000051]
    │
    ▼
 STOP at PR   (human reviews + merges on GitHub; /land-and-deploy is a SEPARATE human step)
@@ -331,6 +334,7 @@ telemetry.
 | scaffold subagent crash / red | `[scaffold-red]` | Inspect subagent output; fix; re-run (resumes from scaffold) |
 | implement subagent crash / red | `[impl-red]` | Inspect subagent output; fix; re-run (resumes from implement) |
 | /CJ_qa-work-item red | `[qa-red]` (re-use the existing CJ_qa-work-item marker) | Inspect QA output; fix; re-run |
+| Portability gate findings | `[portability-red]` (Step 5.7; halt before /ship) | Relabel the skill's `portability` (or add to `portability_requires`) in skills-catalog.json so it honestly matches its deps; re-run |
 | /ship declined / pre-landing review red | `[ship-declined]` | Address feedback; re-run when ready (the PR is the review — the merge stays manual) |
 
 ## Halt-on-Red Taxonomy (P1 #6)
@@ -358,6 +362,7 @@ exists) with the family contract fields:
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green (upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) |
 | `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum (a simply-absent doc-spec.md self-bootstraps, not halts) |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist (upstream-misbehaved) |
+| `halted_at_portability` | `[portability-red]` | Step 5.7 portability gate: `cj-goal-common.sh --phase portability-audit` returned `PHASE_RESULT=findings` — a touched skill declares a portability tier it does not honor. Halt is BEFORE `/ship`, so no PR is created; the verdict + first finding live in the halt journal. (`skipped`/engine-absent never halts.) |
 | `halted_at_ship` | `[ship-declined]` | /ship declined (the merge stays manual — the PR review is the gate) or pre-landing review red |
 | `already_shipped` | (no journal — idempotency exit; summary printed) | Resume found a MERGED/CLOSED PR for this work; nothing to do |
 
