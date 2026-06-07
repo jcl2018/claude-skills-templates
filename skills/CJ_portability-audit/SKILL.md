@@ -36,11 +36,16 @@ that a fresh target repo will not have. (The consumer-side duty it once paired w
 — verifying a target repo HAS the per-repo doc prerequisites — now lives in
 `/CJ_document-release`'s self-bootstrap + stub-scaffold of `doc-spec.md`.)
 
-It is **advisory-first**: the current workbench HAS real declared-vs-actual
-mismatches, so v1 surfaces findings WITHOUT hard-failing. The same static engine
-also runs as a `validate.sh` advisory check that prints findings and **exits 0**
-(a documented `PORTABILITY_STRICT=1` env flips it to hard-fail once declarations
-are reconciled).
+**Posture is split by surface.** The workbench catalog is currently CLEAN
+(`bash scripts/cj-portability-audit.sh` reports `FINDINGS=0`, even raw via
+`--no-adjudication`) — no declared-vs-actual mismatches today. The audit stays
+**advisory in `validate.sh` Check 18** (it prints findings and **exits 0**; a
+documented `PORTABILITY_STRICT=1` env flips that check to hard-fail), but it is a
+**HARD GATE on the `cj_goal` orchestrated path** as of F000051: each of the three
+`cj_goal` orchestrators runs `scripts/cj-goal-common.sh --phase portability-audit`
+(the engine under `PORTABILITY_STRICT=1`) before `/ship` and HALTs with
+`[portability-red]` on any finding. So a finding is advisory globally but blocking
+on the orchestrated build path.
 
 The full correct-behavior contract — the tier ladder, the EXECUTED-vs-documented
 rule, the carve-outs, and the expected-findings table — is written verbatim in
@@ -183,8 +188,9 @@ clean, idempotent read.
 
 Pass-through engine flags (advanced): `--skill <name>` (audit one skill),
 `--catalog <path>` (audit a custom catalog). `PORTABILITY_STRICT=1` env flips the
-exit code to non-zero when findings remain (the documented future hard-fail path;
-advisory by default).
+exit code to non-zero when findings remain (the hard-fail path the `cj_goal`
+orchestrators already use via `cj-goal-common.sh --phase portability-audit` —
+F000051; advisory by default in `validate.sh` Check 18).
 
 ## Error handling
 
