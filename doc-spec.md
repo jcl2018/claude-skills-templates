@@ -176,4 +176,9 @@ docs:
     audit_class: operational
     purpose: "Operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship."
     requirement: "Present; work-item references allowed (operational doc)."
+  - path: permission-policy.md
+    section: custom
+    audit_class: operational
+    purpose: "The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh)."
+    requirement: "Present; one fenced yaml policy registry parsing with schema_version 1; risky verbs enumerated as deny/ask."
 ```

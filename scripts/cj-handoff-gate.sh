@@ -61,32 +61,43 @@ DIFF_FROM_FILE=""
 NUMSTAT_FROM_FILE=""
 
 # Denylist globs (rename/symlink-safe via `git diff --no-renames --raw`).
-# Tested in scripts/test.sh tests 1, 3, 5.
-DENYLIST_GLOBS=(
-  # Reused sensitive surfaces (the workbench's load-bearing catalog / manifest /
-  # validator / git-hook surfaces — edits here cascade to every other skill)
-  'skills-catalog.json'
-  'personal-artifact-manifests.json'
-  'company-artifact-manifests.json'
-  'templates/personal-workflow/'
-  'templates/company-workflow/'
-  'scripts/validate.sh'
-  'scripts/test.sh'
-  'scripts/test-deploy.sh'
-  '.git/hooks/'
-  # Net-new test/assertion surfaces (CEO finding — block test-weakening diffs)
-  'tests/'
-  'fixtures/'
-  # Sibling skill SKILL.md files (workflow / pipeline skills are infrastructure)
-  'skills/CJ_personal-workflow/'
-  'skills/CJ_goal_run/SKILL.md'
-  'skills/CJ_goal_auto/SKILL.md'
-  'skills/CJ_implement-from-spec/'
-  'skills/CJ_qa-work-item/'
-  'skills/CJ_scaffold-work-item/'
-  # The gate helper itself
-  'scripts/cj-handoff-gate.sh'
-)
+# Tested in scripts/test.sh tests 1, 3, 5 + the F000053/S000094 derivation test.
+#
+# DERIVED from permission-policy.md's `ask` surface globs (the canonical
+# sensitive-file set) via scripts/permission-policy.sh — NOT a hand-maintained
+# array. permission-policy.md is the single source of truth for cj_goal
+# permissions; scripts/validate.sh Check 21 asserts this gate sources the policy
+# (re-hardcoding the list is the drift it flags). The gate is dormant (its
+# consumers /CJ_goal_auto + /CJ_goal_run are deleted), so the derivation is
+# forward-looking: correct if it is ever reactivated. The `ask` surface globs are
+# category prefixes (e.g. `skills/`, `templates/`), so they cover at least the
+# specific dirs the old hand-list named (matched by the prefix `case` below).
+DENYLIST_GLOBS=()
+_PP_HELPER="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/permission-policy.sh"
+if [ -x "$_PP_HELPER" ]; then
+  while IFS= read -r _g; do
+    [ -n "$_g" ] && DENYLIST_GLOBS+=("$_g")
+  done < <(bash "$_PP_HELPER" --surface-globs ask 2>/dev/null || true)
+fi
+# Fallback when the policy parser is absent (a minimal deployed install): keep the
+# gate functional on the load-bearing surfaces rather than denying nothing.
+if [ "${#DENYLIST_GLOBS[@]}" -eq 0 ]; then
+  DENYLIST_GLOBS=(
+    'skills-catalog.json'
+    'personal-artifact-manifests.json'
+    'company-artifact-manifests.json'
+    'scripts/validate.sh'
+    'scripts/test.sh'
+    'scripts/test-deploy.sh'
+    'templates/'
+    'skills/'
+    '.git/hooks/'
+    'tests/'
+    'fixtures/'
+  )
+fi
+# Always include the gate helper itself (self-protection — not a policy surface).
+DENYLIST_GLOBS+=('scripts/cj-handoff-gate.sh')
 
 # Test-script glob match (handled separately so it can include glob chars).
 # Matched via case-pattern against each diff entry path.

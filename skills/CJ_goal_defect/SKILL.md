@@ -390,3 +390,14 @@ Success end-states: `green`, `dry_run_preview`.
 - **Depth ≤ 2.** Orchestrator → leaf subagent (`/investigate`,
   `/CJ_qa-work-item`). No subagent-spawns-subagent path; `/ship` +
   `/land-and-deploy` run inline at the top level.
+## Permission policy
+
+This orchestrator's permissions are declared in one artifact: `permission-policy.md`
+(parsed by `scripts/permission-policy.sh`). The two live enforcement points are
+governed by it — the `allowed-tools` frontmatter above is the **allow** surface,
+and the sensitive-surface AskUserQuestion (catalog / manifest / validator / skill
+/ template / git-hook edits) is the **ask** surface. The riskiest operations
+(direct push to `main`, autonomous `gh pr merge`, `rm`, network egress) are
+**deny**; an unenumerated verb resolves to `deny` (fail closed). The dormant
+`cj-handoff-gate.sh` denylist derives from the policy's `ask` globs, and
+`scripts/validate.sh` Check 21 flags policy↔enforcement drift (advisory).
