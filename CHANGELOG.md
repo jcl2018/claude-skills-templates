@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.56] - 2026-06-07
+
+### Changed
+
+- **`docs/philosophy.md` reorganized under named topics (T000044).** Introduced a **topic** (principle-group) layer so the doc reads as two coherent groups instead of a flat principle list. The three build/delivery principles (one source of truth · two delivery surfaces · the doc contract) now sit under a **Deployment** topic, and the five runtime principles under a **Harness-engineering best practices** topic — each principle a `###` under its topic `##`. The leading summary table is reshaped to Topic / Principle / one-line columns (still ahead of the first `##`, so `validate.sh` Check 20 holds), the install-model sub-sections demote one heading level, and the intra-doc "Principles 1-3" cross-references are reworded to "the Deployment topic". The `## Decision tree: which CJ_ skill do I call?` heading is preserved byte-for-byte (its slug is an inbound anchor target from `workflow.md`/`architecture.md`) and kept last. Fixed the now-stale `philosophy.md#principle-2-…` anchor link in `docs/architecture.md` to point at `#two-delivery-surfaces-one-contract`. Docs-only; no behavior change; `validate.sh` green (Checks 15/15a/15b/16/17/19/20 + New-skills).
+
 ## [6.0.55] - 2026-06-07
 
 ### Added
