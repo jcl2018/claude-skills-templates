@@ -1,7 +1,8 @@
 # permission-policy.md — what the cj_goal orchestrators are allowed to do
 
 One declared **allow / ask / deny** contract for the `cj_goal` orchestrator
-family (`/CJ_goal_feature`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`). It answers
+family (`/CJ_goal_feature`, `/CJ_goal_task`, `/CJ_goal_defect`,
+`/CJ_goal_todo_fix`). It answers
 one question from a single artifact — *"what is this orchestrator allowed to
 do?"* — instead of three half-connected surfaces (the `allowed-tools`
 frontmatter, the sensitive-surface AskUserQuestion in leaf-skill code, and the

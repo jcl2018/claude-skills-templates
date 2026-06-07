@@ -908,7 +908,7 @@ else
     echo "  ADVISORY: scripts/cj-handoff-gate.sh no longer derives its denylist from the policy (re-hardcoded?)"
     PP_DRIFT=$((PP_DRIFT+1))
   fi
-  for _orch in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix; do
+  for _orch in CJ_goal_feature CJ_goal_task CJ_goal_defect CJ_goal_todo_fix; do
     _md="$REPO_ROOT/skills/$_orch/SKILL.md"
     if [ -f "$_md" ] && ! grep -q 'permission-policy.md' "$_md"; then
       echo "  ADVISORY: skills/$_orch/SKILL.md does not reference permission-policy.md (policy pointer dropped?)"
@@ -916,7 +916,7 @@ else
     fi
   done
   if [ "$PP_DRIFT" -eq 0 ]; then
-    echo "  PASS: permission policy + enforcement points in sync (parses; gate derives; 3 orchestrators reference it)"
+    echo "  PASS: permission policy + enforcement points in sync (parses; gate derives; 4 orchestrators reference it)"
   else
     echo "  ADVISORY: $PP_DRIFT permission-policy drift finding(s) (advisory in v1; a follow-up flips this strict once reconciled)"
   fi

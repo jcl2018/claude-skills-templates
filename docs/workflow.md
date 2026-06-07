@@ -41,7 +41,8 @@ operator + agent best-practice, see each skill's `USAGE.md`.
 
 Sections are hand-written and audited by `scripts/validate.sh` Check 15b — every
 `CJ_goal_*`-prefixed routable non-deprecated skill in `skills-catalog.json`
-(today exactly `CJ_goal_feature`, `CJ_goal_defect`, `CJ_goal_todo_fix`) must have
+(today exactly `CJ_goal_feature`, `CJ_goal_task`, `CJ_goal_defect`,
+`CJ_goal_todo_fix`) must have
 a `### <name>` section with an ASCII chart AND a **Touches** block carrying all
 four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 `^- \*\*Docs`). No silent omission.
@@ -49,6 +50,7 @@ four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 | Entry point | What it does |
 |-------------|--------------|
 | `/CJ_goal_feature "<topic>"` | One-line feature topic → reviewable PR (design → scaffold → implement → QA → doc-sync → ship; stops at the PR). |
+| `/CJ_goal_task "<small task>"` | Small ad-hoc task → reviewable PR (complexity gate → scaffold → implement → QA → doc-sync → ship; stops at the PR; no design, no investigation). |
 | `/CJ_goal_defect "<bug>"` | Bug description → shipped fix (root-cause → RCA → implement → QA → doc-sync → ship → land). |
 | `/CJ_goal_todo_fix [<id> \| "<frag>"]` | Drain shippable `TODOS.md` rows into PRs (single-TODO or `--max-drain N` batch). |
 | Machinery | The deterministic shared helpers the orchestrators call — worktree init/cleanup, pre-build skills-sync, version-queue preflight (see the `## Machinery` section). |
@@ -57,7 +59,7 @@ four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 
 ## Orchestrators
 
-The three `cj_goal` orchestrators chain multiple skills end-to-end. Each has a
+The four `cj_goal` orchestrators chain multiple skills end-to-end. Each has a
 mandatory ASCII workflow chart and a Touches block.
 
 ### CJ_goal_feature
@@ -134,6 +136,81 @@ mid-chain without redoing finished phases.
 - **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
 - **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode feature`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
+- **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
+
+### CJ_goal_task
+
+**Status:** experimental (the `task` verb; the lightweight sibling of
+`/CJ_goal_feature` for small ad-hoc work)
+**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh`
++ the worktree helpers + its own `cj-task-scaffold.sh`; matches `skills-catalog.json`)
+**Source:** `skills/CJ_goal_task/SKILL.md` · `skills/CJ_goal_task/USAGE.md`
+
+**Invoke when:** the operator has a small, mechanical, ad-hoc task (refine a doc,
+add a file, clean up files, a one-line fix) that does NOT need design or
+investigation and is NOT already a `TODOS.md` row. Common phrasings: "do this
+small task end-to-end", "small cleanup to a PR". Stops at the PR.
+
+**Workflow:**
+
+```
+"<small task>"
+   |  cj-goal-common.sh --phase sync --mode task   (pre-build skills-sync; fail-soft -> skipped)
+   v
+cj-goal-common.sh --phase worktree --mode task   (auto cj-task-* worktree)
+   |   `- cj-worktree-init.sh --caller task: base-freshness (ff local main to origin tip; fail-soft)
+   v
+isolation gate   (cj-worktree-init.sh --caller task --assert-isolated)
+   |   `- not clean+isolated -> HALT (halted_at_not_isolated)
+   v
+HARD complexity gate + scaffold   [INLINE - scripts/cj-task-scaffold.sh --topic "<task>"]
+   |   `- design-rework signal  -> HALT (halted_at_too_complex; suggest /CJ_goal_feature)
+   |   `- bug/investigation     -> HALT (halted_at_too_complex; suggest /CJ_goal_defect)
+   |   `- explicit-large-scope  -> HALT (halted_at_too_complex; suggest /CJ_goal_feature)
+   |   on PASS -> bash-scaffold a `type: task` work-item (T-ID) from the topic
+   v  record scaffold boundary -> resume state file (last_completed_phase + HEAD SHA + work-item dir)
+   v  SILENT depth-<=2 leaf Agent subagents (zero AUQ)
+/CJ_implement-from-spec -> /CJ_qa-work-item
+   |
+   v
+/CJ_document-release   [INLINE Step 5.5 - doc-sync folds doc edits into the PR; halt-on-red]
+   |
+   v
+portability gate   [INLINE Step 5.7 - cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship]
+   |   `- findings -> HALT (halted_at_portability; no PR)
+   v
+/ship   [INLINE - diff-review AUQ suppressed; opens PR; check-version-queue.sh preflight]
+   |
+   v
+registered-doc + portability verdicts -> PR body   [post-/ship gh pr edit; best-effort]
+   |
+   v
+STOP at PR   (human reviews + merges; /land-and-deploy is SEPARATE)
+   |
+   v
+cj-goal-common.sh --phase cleanup --mode task   (worktree janitor; sweeps OTHER landed cj-* worktrees; best-effort)
+   |
+   v
+telemetry -> ~/.gstack/analytics/CJ_goal_task.jsonl
+```
+
+**In words:** the `task` verb is `/CJ_goal_feature` with the design phase swapped
+for an automatic gate. After the same deterministic setup (`--phase sync` +
+`--phase worktree --mode task` + the `--assert-isolated` gate), there is NO
+interactive phase: `scripts/cj-task-scaffold.sh` runs a **hard complexity gate**
+that REFUSES topics needing design / investigation / large scope (routing each to
+the right verb) and otherwise bash-scaffolds a `type: task` work-item directly
+from the topic. The build is then fully silent — the implement -> QA leaf
+subagents, then `/CJ_document-release` folds doc edits into the same PR at Step
+5.5, the portability gate runs, and `/ship` opens the PR. It STOPs at the open PR
+(PR-stop only; the same `unsafe-by-construction` reasoning as `/CJ_goal_feature`),
+and the resume state file lets a re-invocation pick up mid-chain.
+
+**Touches:**
+
+- **Skills dispatched:** `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check. No `/office-hours`, no `/CJ_scaffold-work-item` (the scaffold is bash, not the skill).
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode task`), `skills/CJ_goal_task/scripts/cj-task-scaffold.sh` (the complexity gate + topic-driven `type: task` scaffold), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller task`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
 
 ### CJ_goal_defect

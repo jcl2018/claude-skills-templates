@@ -40,6 +40,7 @@
 #   (h2) --caller defect      → state=created, cj-def-*  branch  (NEW)
 #   (h3) --caller run         → state=created, cj-run-*  branch  (non-regression)
 #   (h4) --caller todo        → state=created, cj-todo-* branch  (non-regression)
+#   (h5) --caller task        → state=created, cj-task-* branch  (F000054 NEW verb)
 #   (h6) --caller bogus       → state=failed, exit 1            (validator still rejects unknown)
 #
 # Plus a static-grep regression assertion that CJ_goal_feature/pipeline.md
@@ -531,6 +532,8 @@ trap 'cleanup_sandboxes "$SBX1" "${SBX2:-}" "${SBX4:-}" "${SBX5:-}" "${SBXA:-}" 
   # EXISTING callers — must resolve unchanged (SPEC P1 #4 non-regression)
   assert_caller_prefix "Case (h3)" run         cj-run
   assert_caller_prefix "Case (h4)" todo        cj-todo
+  # F000054: the `task` verb caller → cj-task prefix.
+  assert_caller_prefix "Case (h5)" task        cj-task
 
   # Unknown caller still rejected: state=failed, exit 1.
   OUT_BOGUS=$(bash "$HELPER" --caller bogus --dry-run 2>&1) && RC_BOGUS=0 || RC_BOGUS=$?

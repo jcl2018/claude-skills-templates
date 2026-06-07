@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.55] - 2026-06-07
+
+### Added
+
+- **`/CJ_goal_task` — the `task` verb of the cj_goal family (T000043).** The lightweight sibling of `/CJ_goal_feature` for small, mechanical, ad-hoc work (refine a doc, add a file, clean up files, a one-line fix) that needs neither design nor investigation and is not already a `TODOS.md` row — closing the gap where `/CJ_goal_feature` always runs `/office-hours` (overkill for a chore) and `/CJ_goal_todo_fix` only drains existing rows. New skill `skills/CJ_goal_task/` (`SKILL.md` + `pipeline.md` + `USAGE.md` + `scripts/cj-task-scaffold.sh`). The design phase is replaced by an automatic **HARD complexity gate**: a topic naming a design-rework signal routes to `/CJ_goal_feature`, a bug/investigation signal routes to `/CJ_goal_defect`, and an explicit-large-scope signal routes to `/CJ_goal_feature` — each a HALT (`halted_at_too_complex`), never a silent build. On PASS it bash-scaffolds a `type: task` work-item (T-ID) directly from the topic (a topic-driven adaptation of `todo_fix.sh`'s scaffold path — no `/office-hours`, no design doc, no TODOS row), then dispatches `/CJ_implement-from-spec` → `/CJ_qa-work-item` as silent depth-≤2 leaf subagents, folds doc updates via `/CJ_document-release` (Step 5.5), runs the portability gate (Step 5.7), and opens a PR with `/ship` — **PR-stop only** (no automatic merge, no `/land-and-deploy`; the PR is the review). Zero AskUserQuestion on the happy path — the most autonomous verb up to the PR-stop. Built as a fresh flat orchestrator (NOT a `todo_fix` mode) to avoid the nested-subagent wall (the F000027 "reshape not wrapper" lesson). Resume state file + validate-before-skip + QA-always-re-runs, matching the family.
+
+### Changed
+
+- **The shared cj_goal plumbing gains a `task` lane.** `scripts/cj-goal-common.sh` accepts `--mode task` (additively — `feature|defect|task`; todo still has no mode by design); `scripts/cj-worktree-init.sh` adds `--caller task` → the `cj-task-*` worktree prefix; `scripts/cj-worktree-cleanup.sh` includes `cj-task-*` in its PR-state-gated sweep + orphan-dir scoping. Catalog (`skills-catalog.json`), routing (`rules/skill-routing.md`), docs (`docs/workflow.md` orchestrator section with chart + 4-bullet Touches, `docs/philosophy.md` decision tree, `README.md`, `CLAUDE.md` auto-worktree + janitor sections), and `permission-policy.md` all gain the fourth orchestrator. Tests: new `tests/cj-task-scaffold.test.sh` (complexity-gate refusals + dry-run + live scaffold + idempotency), extended `tests/cj-worktree-init.test.sh` (the `task`→`cj-task` caller case) + `tests/cj-worktree-cleanup.test.sh` (a `cj-task-*` removal case + the fifth cleanup seam), and `scripts/test.sh` gains the `--mode task` integration assertions + the new test runner; `scripts/validate.sh` Check 21 now covers all four orchestrators.
+
 ## [6.0.54] - 2026-06-07
 
 ### Added
