@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.53] - 2026-06-06
+
+### Added
+
+- **One declared allow/ask/deny permission policy for the cj_goal orchestrators (F000053 S000094 / P5).** `permission-policy.md` (new, root) is the single contract — prose + a fenced `yaml` registry of `{verb, kind, mode, scope}` rows: in-scope edits = **allow**; the sensitive file surfaces (catalog / manifests / validators / skill dirs / templates / git-hooks / tests) = **ask**; the riskiest operations (`git-push-to-main` / `gh-pr-merge` / `rm` / `network`) = **deny**; and **an unenumerated verb resolves to `deny`** (fail closed). Parsed by `scripts/permission-policy.sh` (`--validate` / `--resolve` / `--surface-globs` / `--deny-verbs`).
+- **`validate.sh` Check 21 (advisory).** Flags drift between the policy and its enforcement points — the policy not parsing, the handoff-gate re-hardcoding its denylist instead of deriving from the policy, or an orchestrator dropping its policy pointer. Advisory (exit 0, like portability Check 18); a follow-up flips it strict once reconciled.
+
+### Changed
+
+- **The three cj_goal orchestrators now reference `permission-policy.md`** (a `## Permission policy` section) — the live `allowed-tools` (allow) + sensitive-surface AskUserQuestion (ask) points are governed by the one policy.
+- **`cj-handoff-gate.sh`'s denylist now derives from the policy** (`permission-policy.sh --surface-globs ask`) instead of a hand-maintained array. The gate is dormant (its consumers `/CJ_goal_auto` + `/CJ_goal_run` are deleted), so this is forward-looking — correct if it is ever reactivated.
+
 ## [6.0.52] - 2026-06-06
 
 ### Added

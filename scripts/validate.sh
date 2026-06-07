@@ -885,6 +885,43 @@ else
   echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
 fi
 
+# Check 21: cj_goal permission-policy <-> enforcement-point drift (F000053/S000094) — ADVISORY.
+# permission-policy.md is the single declared allow/ask/deny contract; this check
+# flags drift between it and the enforcement points (advisory — exit 0, like
+# Check 18; a follow-up PR flips it strict once reconciled). Drift = the policy
+# does not parse, the handoff-gate re-hardcoded its denylist instead of deriving
+# from the policy, or a live orchestrator dropped its policy pointer. Skips
+# silently when the policy / parser is absent (non-adopting repo).
+echo ""
+echo "=== Check 21: cj_goal permission-policy drift (advisory) ==="
+PP_HELPER="$REPO_ROOT/scripts/permission-policy.sh"
+PP_FILE="$REPO_ROOT/permission-policy.md"
+if [ ! -f "$PP_FILE" ] || [ ! -x "$PP_HELPER" ]; then
+  echo "  SKIP: permission-policy.md / scripts/permission-policy.sh absent (non-adopting repo)"
+else
+  PP_DRIFT=0
+  if ! bash "$PP_HELPER" --validate >/dev/null 2>&1; then
+    echo "  ADVISORY: permission-policy.md does not parse ($(bash "$PP_HELPER" --validate 2>&1 | head -1))"
+    PP_DRIFT=$((PP_DRIFT+1))
+  fi
+  if [ -f "$REPO_ROOT/scripts/cj-handoff-gate.sh" ] && ! grep -q 'surface-globs' "$REPO_ROOT/scripts/cj-handoff-gate.sh"; then
+    echo "  ADVISORY: scripts/cj-handoff-gate.sh no longer derives its denylist from the policy (re-hardcoded?)"
+    PP_DRIFT=$((PP_DRIFT+1))
+  fi
+  for _orch in CJ_goal_feature CJ_goal_defect CJ_goal_todo_fix; do
+    _md="$REPO_ROOT/skills/$_orch/SKILL.md"
+    if [ -f "$_md" ] && ! grep -q 'permission-policy.md' "$_md"; then
+      echo "  ADVISORY: skills/$_orch/SKILL.md does not reference permission-policy.md (policy pointer dropped?)"
+      PP_DRIFT=$((PP_DRIFT+1))
+    fi
+  done
+  if [ "$PP_DRIFT" -eq 0 ]; then
+    echo "  PASS: permission policy + enforcement points in sync (parses; gate derives; 3 orchestrators reference it)"
+  else
+    echo "  ADVISORY: $PP_DRIFT permission-policy drift finding(s) (advisory in v1; a follow-up flips this strict once reconciled)"
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

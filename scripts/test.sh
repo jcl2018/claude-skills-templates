@@ -80,6 +80,42 @@ fi
 grep -q 'ALWAYS re-dispatched on resume' "$_S93_PIPE" || fail_test "S000093: pipeline.md Step 3.3 always-re-dispatch policy missing"
 ok "F000053/S000093 trajectory-QA regression guards"
 
+# === F000053/S000094: permission-policy regression guards ===
+# Exercise the permission-policy parser + the Check-21 derivation/drift wiring.
+# Parallel test.sh fixture for the new validate.sh Check 21 (repo convention: a
+# new validate.sh check ships with its test.sh assertions in the same PR).
+_S94_PP="$REPO_ROOT/scripts/permission-policy.sh"
+_S94_POLICY="$REPO_ROOT/permission-policy.md"
+if [ ! -x "$_S94_PP" ] || [ ! -f "$_S94_POLICY" ]; then
+  fail_test "S000094: permission-policy.sh / permission-policy.md missing"
+else
+  # S1: the policy parses.
+  bash "$_S94_PP" --validate >/dev/null 2>&1 || fail_test "S000094: permission-policy.sh --validate failed (policy does not parse)"
+  # S3 + fail-closed: an unlisted verb resolves to deny; known modes resolve correctly.
+  [ "$(bash "$_S94_PP" --resolve definitely-not-a-listed-verb 2>/dev/null)" = "deny" ] || fail_test "S000094: an unlisted verb did not resolve to 'deny' (fail-closed broken)"
+  [ "$(bash "$_S94_PP" --resolve edit-catalog 2>/dev/null)" = "ask" ] || fail_test "S000094: edit-catalog did not resolve to 'ask'"
+  [ "$(bash "$_S94_PP" --resolve git-push-to-main 2>/dev/null)" = "deny" ] || fail_test "S000094: git-push-to-main did not resolve to 'deny'"
+  [ "$(bash "$_S94_PP" --resolve edit-in-scope 2>/dev/null)" = "allow" ] || fail_test "S000094: edit-in-scope did not resolve to 'allow'"
+  # S2: the gate derives its denylist from the policy's ask surface globs.
+  { bash "$_S94_PP" --surface-globs ask 2>/dev/null | grep -q 'skills-catalog.json'; } || fail_test "S000094: --surface-globs ask missing skills-catalog.json"
+  grep -q 'surface-globs' "$REPO_ROOT/scripts/cj-handoff-gate.sh" || fail_test "S000094: cj-handoff-gate.sh does not derive its denylist from the policy"
+  # E2: risky verbs are all present as deny.
+  for _v in git-push-to-main gh-pr-merge rm network-egress; do
+    bash "$_S94_PP" --deny-verbs 2>/dev/null | grep -qx "$_v" || fail_test "S000094: risky verb '$_v' not declared deny in the policy"
+  done
+  # S4: Check 21 is wired into validate.sh and passes on the in-sync tree (advisory, exit 0).
+  _S94_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
+  printf '%s\n' "$_S94_V" | grep -q 'Check 21: cj_goal permission-policy drift' || fail_test "S000094: validate.sh missing Check 21"
+  printf '%s\n' "$_S94_V" | grep -q 'PASS: permission policy + enforcement points in sync' || fail_test "S000094: Check 21 did not PASS on the in-sync tree"
+  # Drift path (E1, isolated — no real-file mutation): a missing policy makes the
+  # parser fail closed with the no-config halt (the "policy does not parse" drift).
+  # if-then (not `A && B || C`) avoids SC2015, which CI's shellcheck flags as info.
+  if PERMISSION_POLICY_PATH=/nonexistent-permission-policy.md bash "$_S94_PP" --validate >/dev/null 2>&1; then
+    fail_test "S000094: parser did not fail on a missing policy (no-config drift undetected)"
+  fi
+  ok "F000053/S000094 permission-policy regression guards"
+fi
+
 # Test: No duplicate skill names in catalog
 echo ""
 echo "Checking for duplicate skill names..."
