@@ -3,6 +3,22 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.51] - 2026-06-06
+
+### Fixed
+
+- **Stale `/CJ_portability-audit` advisory rationale (D000033).** The
+  `CJ_portability-audit` SKILL.md `## Overview` claimed the audit is
+  "advisory-first" because the workbench "HAS real declared-vs-actual mismatches"
+  (with hard-fail framed as a future "once declarations are reconciled"). Both
+  claims went stale: the catalog is clean (`FINDINGS=0`, even raw) and F000051
+  (v6.0.49) made the audit a **hard gate on the `cj_goal` orchestrated path**
+  (`cj-goal-common.sh --phase portability-audit`, halt `[portability-red]` before
+  `/ship`) while `validate.sh` Check 18 stays advisory globally. Rewrote the
+  posture to "split by surface" in SKILL.md + USAGE.md, and reconciled the same
+  claim in `docs/workflow.md`'s `### /CJ_portability-audit` mirror ("two surfaces"
+  → three; "EXITS 0 in v1" → "advisory by design"). Docs-only; no behavior change.
+
 ## [6.0.50] - 2026-06-06
 
 ### Added

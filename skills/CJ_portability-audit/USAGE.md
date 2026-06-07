@@ -3,7 +3,7 @@ skill-name: "CJ_portability-audit"
 version: 0.1.0
 status: experimental
 created: "2026-06-04"
-last-updated: "2026-06-06T03:46:08Z"
+last-updated: "2026-06-07T03:06:10Z"
 ---
 
 # Skill Usage: CJ_portability-audit
@@ -51,10 +51,14 @@ carve-outs (bundled-own-script, scoped self-resolution-preamble,
 is one of `portable` / `portable-with-notes` / `findings:<list>`.
 
 Surface 1 = this skill (rich report, engine resolved repo-local-first then via
-`.source`). Surface 2 = a `validate.sh` advisory check (prints findings, exits 0
-in v1; `PORTABILITY_STRICT=1` flips it to hard-fail once declarations are
-reconciled). The full correct-behavior contract lives in `docs/workflow.md`
-(`### /CJ_portability-audit`).
+`.source`). Surface 2 = a `validate.sh` advisory check (prints findings, exits 0;
+`PORTABILITY_STRICT=1` flips it to hard-fail). Surface 3 = the `cj_goal`
+orchestrated path, where the engine runs under `PORTABILITY_STRICT=1` via
+`cj-goal-common.sh --phase portability-audit` and is a HARD GATE — the build HALTs
+with `[portability-red]` before `/ship` on any finding (F000051). The catalog is
+currently clean (`FINDINGS=0`), so a finding is advisory globally but blocking on
+the orchestrated build path. The full correct-behavior contract lives in
+`docs/workflow.md` (`### /CJ_portability-audit`).
 
 ## Common pitfalls
 
