@@ -116,6 +116,32 @@ else
   ok "F000053/S000094 permission-policy regression guards"
 fi
 
+# === F000053/S000095: within-phase-receipts regression guards ===
+# Static guards for the office-hours phase receipt (P1 context curation): the
+# receipt is written atomically at the office-hours boundary, reuses S000093's
+# shared envelope schema, Step 2.7 reads the digest FROM the receipt, and scope
+# stays office-hours-only (no generic per-phase compaction hook). pipeline.md is
+# prose, so the guard is structural — assert the landmarks are present.
+_S95_PIPE="$REPO_ROOT/skills/CJ_goal_feature/pipeline.md"
+# S1 (AC-1): a compact office-hours receipt is written via the atomic mktemp+mv path.
+grep -qF '.office-hours.receipt' "$_S95_PIPE" || fail_test "S000095: pipeline.md office-hours receipt path (.office-hours.receipt) missing"
+grep -q 'mktemp.*ohreceipt' "$_S95_PIPE" || fail_test "S000095: pipeline.md office-hours receipt atomic mktemp write missing"
+# S2 (AC-4): the receipt envelope reuses S000093's locked schema keys. Anchored
+# at line-start so they match only the receipt heredoc body (not prose / the
+# vouches sed / last_completed_phase=); no '$' in the pattern (CI shellcheck
+# flags SC2016 on a single-quoted '$').
+grep -q '^phase=office-hours' "$_S95_PIPE" || fail_test "S000095: pipeline.md receipt key 'phase=office-hours' (shared S000093 schema) missing"
+grep -q '^commit=' "$_S95_PIPE" || fail_test "S000095: pipeline.md receipt key 'commit' (shared S000093 schema) missing"
+grep -q '^completed_at=' "$_S95_PIPE" || fail_test "S000095: pipeline.md receipt key 'completed_at' (shared S000093 schema) missing"
+# AC-2: Step 2.7 sources the design-summary digest FROM the receipt + the state pointer exists.
+grep -qF 'sourced design-summary digest from' "$_S95_PIPE" || fail_test "S000095: pipeline.md Step 2.7 does not source the digest from the receipt (AC2)"
+grep -qF 'office_hours_receipt=' "$_S95_PIPE" || fail_test "S000095: pipeline.md state-file office_hours_receipt= pointer missing"
+# S3 (AC-3): scoped to office-hours only — no generic hook + exactly one receipt-write site.
+grep -qF 'no generic per-phase compaction hook' "$_S95_PIPE" || fail_test "S000095: pipeline.md AC3 scope guard (no generic per-phase compaction hook) missing"
+_S95_WRITES=$(grep -c 'mv .*OH_RECEIPT' "$_S95_PIPE" || true)
+[ "${_S95_WRITES:-0}" -eq 1 ] || fail_test "S000095: expected exactly 1 office-hours receipt write site, found ${_S95_WRITES:-0} (scope drift)"
+ok "F000053/S000095 within-phase-receipts regression guards"
+
 # Test: No duplicate skill names in catalog
 echo ""
 echo "Checking for duplicate skill names..."
