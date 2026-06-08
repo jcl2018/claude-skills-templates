@@ -568,7 +568,14 @@ vs its requirement, SKILL.md?" for one doc-pair). The producer is
    the New-skills check's active-only selector, so the audit covers the whole CJ_
    family; no hardcoded skill count). Each skill's `SKILL.md` is a registered doc;
    its requirement is the skill's optional `doc_requirement` field in
-   `skills-catalog.json`, else the shared default below.
+   `skills-catalog.json`, else the shared default below. This group is the one
+   workbench-specific half: it reads `skills-catalog.json`, which exists only in a
+   repo that ships a skill catalog. It is **guarded** (Step 6.7.2) — in a consumer
+   repo with no catalog the skill-MD enumeration skips cleanly (one note, no `jq`
+   stderr noise) while group 1 — the registry docs, including the human-doc
+   no-work-item-ref lint — still runs. This is the "general by default, custom per
+   repo" two-tier contract in practice: the portable half audits any repo, the
+   catalog half only kicks in where a catalog exists.
 
 **Shared default skill-MD requirement** (when a skill has no `doc_requirement`):
 
@@ -590,8 +597,13 @@ string (a skill that gains a step would self-stale a "Step N–Step M" requireme
 - `n/a` — registered but out of scope for this run's judgment.
 
 **Surfacing.** The Step 6.7 producer emits a `### Registered-doc requirements`
-block (one verdict line per registered doc) to its RESULT AND writes it to the
-gitignored scratch file `.cj-goal-feature/registered-doc-verdicts.md`. The
+block (one verdict line per registered doc) to its RESULT AND, in workbench mode
+(catalog present), writes it to the gitignored scratch file
+`.cj-goal-feature/registered-doc-verdicts.md`. When the skill runs standalone in a
+consumer repo with no catalog (`CATALOG_PRESENT=false`) the scratch write is
+skipped — that scratch only feeds the cj_goal orchestrator's PR-body surfacing,
+which doesn't exist standalone, and `.cj-goal-feature/` is not gitignored in a
+consumer repo, so writing it would leave a stray untracked artifact. The
 positive line `Registered-doc requirements: all current` is emitted ONLY when
 every verdict is `up-to-date`. The block lands in the PR body's `## Documentation`
 section via a post-`/ship` `gh pr edit` step in all three cj_goal orchestrators
