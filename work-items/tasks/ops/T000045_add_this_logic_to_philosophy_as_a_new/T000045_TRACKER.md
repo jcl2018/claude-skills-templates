@@ -142,3 +142,13 @@ Scope (from /CJ_goal_task topic): add this logic to philosophy as a new topic CI
      (decision, finding, blocker) and a Summary field. -->
 
 <!-- Source: /CJ_goal_task: add this logic to philosophy as a new topic CI/CD and test -->
+
+- 2026-06-07 [qa-smoke] 1 (new-topic-present): green — `## Topic: CI/CD` present exactly once (line 226)
+- 2026-06-07 [qa-smoke] 2 (four-layers-named): green — local-hook / ci / pipeline-gate / ratchet all named in the topic body
+- 2026-06-07 [qa-smoke] 3 (points-at-gate-spec): green — topic references `gate-spec.md` as the live map (lines 266-267) + front-table row
+- 2026-06-07 [qa-smoke] 4 (front-table-updated): green — CI/CD row present in the summary table (line 19, before the first `## ` at line 22); Check 20 green
+- 2026-06-07 [qa-smoke] 5 (decision-tree-still-last): green — last `## ` heading is `## Decision tree: which CJ_ skill do I call?` (line 269)
+- 2026-06-07 [qa-smoke] 6 (no-work-item-ids): green — zero `[FSTD][0-9]{6}` matches in docs/philosophy.md (Check 19 hard lint)
+- 2026-06-07 [qa-smoke] 7 (validate-green): green — `./scripts/validate.sh` exit 0, Errors: 0, Warnings: 0 (Checks 15/15a/15b/16/17/19/20 + New-skills all PASS)
+- 2026-06-07 [qa-smoke-summary] green: 7/7 non-manual rows green (0 manual rows pending)
+- 2026-06-07 [qa-pass] T000045 (task): green smoke from test-plan rows (7 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
