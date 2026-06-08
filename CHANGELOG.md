@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.60] - 2026-06-08
+
+### Added
+
+- **Generated general/custom doc views + a `philosophy.md` "Doc contract" topic (F000056/S000098).** The human-readable "what docs this repo carries, general vs custom" lists are now two **generated** files — `docs/doc-general.md` (the `section: common` docs) and `docs/doc-custom.md` (the `section: custom` docs) — rendered from the one `doc-spec.md` registry by the new `scripts/generate-doc-views.sh`, the same way `README.md` is generated from the skill catalog. There is **no second list to keep in sync**: the registry stays the single source of truth (and stays at root, as config, alongside `skills-catalog.json`/`VERSION`). A new `doc-spec.sh --render general|custom` does the rendering (a separate awk pass; quote-stripped + pipe-escaped cells), and a new `validate.sh` **Check 23** regenerates the views into a temp dir and diffs them against `docs/` so they can never drift (mirrored stdout-only into `scripts/test.sh`). `docs/philosophy.md` gains a dedicated `## Topic: Doc contract` (the "one file, human + machine" and "two tiers, one portable pass" principles moved there from Topic: Deployment; front-table relabeled), so the contract's *logic* lives in one obvious place. `doc-spec.md`'s Custom prose is slimmed to a pointer (its rationale notes kept); the portable Common seed is **byte-identical/untouched** (`tests/cj-document-release-config.test.sh` test #13 stays green) and consumer repos are unaffected. `docs/architecture.md` + `README.md` + `CLAUDE.md` updated to match.
+
 ## [6.0.59] - 2026-06-08
 
 ### Added
