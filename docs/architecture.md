@@ -225,6 +225,44 @@ It reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a copy resolved
 from the deployed `_cj-shared` home still parses THIS repo's registry — never the
 workbench's.
 
+### The portable CI hook (scoped honestly)
+
+Because `doc-spec.sh` resolves the cwd repo's registry and travels with the
+install (the deployed `_cj-shared/scripts/` home), a consumer repo — any repo, not
+just this workbench — can wire the registry schema check into its own CI as a
+portable gate:
+
+```yaml
+# In a consumer repo's CI workflow, after checkout + skills install:
+- name: Validate doc-spec registry
+  run: "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh --validate"
+```
+
+`doc-spec.sh --validate` exits 0 (`OK schema_version=<n>`) when the registry is
+well-formed and exits 1 (`[doc-sync-no-config] <reason>`) otherwise. That is the
+single mechanical guarantee that travels: a consumer repo's CI can prove its
+`doc-spec.md` registry is schema-valid with one portable command, and
+`/CJ_document-release` runs there cold (its workbench-only `skills-catalog.json`
+read is guarded — absent ⇒ a clean skip, no `jq` noise, no stray artifact).
+
+**What does NOT travel — the honest boundary.** The schema check is portable; the
+rest of the doc contract's enforcement is workbench-local and stays in this repo's
+`scripts/validate.sh`:
+
+- The **declared⇔on-disk loop** (Checks 15/15a — every declared doc exists AND no
+  undeclared `docs/*.md` orphans) lives in `validate.sh`, not in the portable
+  helper. A consumer repo gets schema validation, not the declared⇔on-disk
+  cross-check.
+- The **`front_table` discipline** (Check 20) and the **no-work-item-ID human-doc
+  lint** (Check 19) are likewise `validate.sh` checks, not portable-helper
+  subcommands.
+
+So the portable claim is precise: a consumer repo's CI carries the registry
+*schema* gate, while the full declared⇔on-disk + front-table + no-ID enforcement
+remains a workbench-local property of `validate.sh`. (A future
+`doc-spec.sh --check-on-disk` subcommand could carry the declared⇔on-disk loop too
+— deferred for now.)
+
 ### /CJ_document-release behavior (self-heal + audit)
 
 On every major `cj_goal` run (Step 5.5) or a manual invocation, the wrapper:
@@ -265,7 +303,10 @@ counts):
    New-skills check, so the audit covers the whole `CJ_` family). Each skill's
    `SKILL.md` is a registered doc; its requirement is the skill's optional
    `doc_requirement` field in `skills-catalog.json`, else the shared default
-   below.
+   below. This group reads `skills-catalog.json`, which is workbench-only, so it
+   is **guarded**: in a consumer repo with no catalog the skill-MD half skips
+   cleanly (one note, no `jq` noise) while group 1 — the registry docs, including
+   the human-doc no-work-item-ref lint — still runs.
 
 **Shared default skill-MD requirement** (when a skill has no `doc_requirement`):
 

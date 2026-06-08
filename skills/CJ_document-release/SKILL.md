@@ -402,15 +402,34 @@ Skill: document-release
 Capture the upstream verdict. The Skill tool returns once `/document-release`
 finishes; the wrapper reads the result as green or red.
 
+**Step 4→5 boundary — two failure modes, one marker.** A failure can surface
+HERE in two distinct ways, and BOTH route to the Step 5 `[doc-sync-red]` halt:
+
+1. **Resolution failure** — `Skill(document-release)` cannot be resolved at all
+   (the upstream gstack `/document-release` skill is not installed on this
+   machine). This is a Step-4 resolution failure, not a Step-5 audit verdict.
+2. **Non-green return** — the skill resolved and ran but returned non-green
+   (audit error, mid-write failure, hard-abort, crashed, exceeded budget).
+
+The wrapper does NOT add a programmatic skill-presence probe (a probe risks a new
+false-halt class). Instead, in EITHER case it falls through to Step 5, whose
+`[doc-sync-red]` message names **"gstack `/document-release` not installed"** as a
+possible cause alongside the doc-error cause — so the operator gets the actionable
+hint for the resolution-failure mode too, not only the non-green mode.
+
 ## Step 5: Halt-on-red ([doc-sync-red])
 
-If upstream returned non-green (audit error, mid-write failure, hard-abort,
-crashed, exceeded budget): emit a halt marker and exit RESULT=red:
+If the Step 4 invocation failed to RESOLVE (gstack `/document-release` not
+installed) OR upstream returned non-green (audit error, mid-write failure,
+hard-abort, crashed, exceeded budget): emit a halt marker and exit RESULT=red.
+The message names both possible causes so it covers the Step-4 resolution-failure
+mode and the Step-5 non-green mode:
 
 ```bash
-echo "CJ_document-release: upstream /document-release returned non-green; halting."
+echo "CJ_document-release: upstream /document-release did not return green (it either could not be resolved or returned non-green); halting."
+echo "Possible causes: gstack /document-release not installed; or a doc audit error in /document-release."
 echo "RESULT: red; HALT_MARKER=[doc-sync-red]"
-echo "next_action=inspect /document-release output; fix doc errors; re-run /CJ_document-release"
+echo "next_action=confirm gstack /document-release is installed, OR inspect its output and fix doc errors; then re-run /CJ_document-release"
 echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
 echo "pr_url=N/A"
 exit 1
@@ -522,19 +541,34 @@ ALSO gets the no-work-item-ref check below.
 ### 6.7.2 — Enumerate the skill MDs + their requirements
 
 Enumerate routable skills with the `!= "deprecated"` selector, and read each
-skill's optional `doc_requirement` (absent => the shared default):
+skill's optional `doc_requirement` (absent => the shared default).
+
+**Non-workbench guard.** This half of the audit reads `skills-catalog.json`,
+which exists only in the workbench (and any repo that ships its own skill
+catalog). In a consumer repo with no catalog, skip the skill-MD enumeration
+cleanly — one note, no `jq: Could not open file` stderr — and set
+`CATALOG_PRESENT=false` so 6.7.4 skips the cj_goal scratch-file write too. The
+registry-doc audit (6.7.1) and the human-doc no-work-item-ID lint (6.7.3) are
+catalog-independent and STILL run. The `$(…)`-capture idiom is preserved (and the
+`jq` reads are `|| true`-guarded), so no `set -e` abort is introduced:
 
 ```bash
 _CATALOG="$_DS_REPO_ROOT/skills-catalog.json"
-SKILL_NAMES=$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_CATALOG")
+if [ ! -f "$_CATALOG" ]; then
+  CATALOG_PRESENT=false
+  echo "CJ_document-release: no skills-catalog.json — non-workbench mode; skipping the skill-MD audit half (registry-doc audit still runs)."
+else
+  CATALOG_PRESENT=true
+  SKILL_NAMES=$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_CATALOG" 2>/dev/null || true)
 
-SHARED_DEFAULT="The SKILL.md frontmatter \`description\` and the documented behavior/steps match the skill's current implementation; the skill's USAGE.md is current."
+  SHARED_DEFAULT="The SKILL.md frontmatter \`description\` and the documented behavior/steps match the skill's current implementation; the skill's USAGE.md is current."
 
-for _name in $SKILL_NAMES; do
-  _req=$(jq -r --arg n "$_name" '.[] | select(.name==$n) | .doc_requirement // empty' "$_CATALOG")
-  [ -z "$_req" ] && _req="$SHARED_DEFAULT"
-  # registered doc = skills/$_name/SKILL.md ; requirement = $_req
-done
+  for _name in $SKILL_NAMES; do
+    _req=$(jq -r --arg n "$_name" '.[] | select(.name==$n) | .doc_requirement // empty' "$_CATALOG" 2>/dev/null || true)
+    [ -z "$_req" ] && _req="$SHARED_DEFAULT"
+    # registered doc = skills/$_name/SKILL.md ; requirement = $_req
+  done
+fi
 ```
 
 ### 6.7.3 — Judge each registered doc (+ no-work-item-ref check for human-docs)
@@ -566,23 +600,37 @@ done
 
 ### 6.7.4 — Emit the block (RESULT + scratch file)
 
-Compose the grep-able block and write it to BOTH the wrapper RESULT (stdout) AND
-the gitignored scratch file
-`"$_DS_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"`. Emit the positive
-line `Registered-doc requirements: all current` ONLY when EVERY verdict is
-`up-to-date`:
+Compose the grep-able block and always write it to the wrapper RESULT (stdout).
+In WORKBENCH mode (`CATALOG_PRESENT=true`), ALSO write it to the gitignored
+scratch file `"$_DS_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"` that
+the cj_goal orchestrator surfaces post-`/ship`. Emit the positive line
+`Registered-doc requirements: all current` ONLY when EVERY verdict is
+`up-to-date`.
+
+**Non-workbench scratch-write skip.** The `.cj-goal-feature/` scratch file ONLY
+feeds the cj_goal orchestrator's PR-body surfacing, which does not exist when the
+skill runs standalone — and in a consumer repo `.cj-goal-feature/` is NOT
+gitignored, so writing it would leave a stray untracked artifact. So when
+`CATALOG_PRESENT=false` (set in 6.7.2), emit the block to stdout only and skip the
+scratch write:
 
 ```bash
-_VERDICT_DIR="$_DS_REPO_ROOT/.cj-goal-feature"
-mkdir -p "$_VERDICT_DIR"
-_VERDICT_FILE="$_VERDICT_DIR/registered-doc-verdicts.md"
 {
   echo "### Registered-doc requirements"
   printf '%s\n' "$VERDICT_BODY"
   if [ "$ALL_UP_TO_DATE" = "true" ]; then
     echo "Registered-doc requirements: all current"
   fi
-} | tee "$_VERDICT_FILE"
+} > /tmp/cj-docrel-verdicts.$$ 2>/dev/null || true
+cat /tmp/cj-docrel-verdicts.$$ 2>/dev/null || true
+
+if [ "${CATALOG_PRESENT:-true}" = "true" ]; then
+  _VERDICT_DIR="$_DS_REPO_ROOT/.cj-goal-feature"
+  mkdir -p "$_VERDICT_DIR"
+  _VERDICT_FILE="$_VERDICT_DIR/registered-doc-verdicts.md"
+  cp /tmp/cj-docrel-verdicts.$$ "$_VERDICT_FILE" 2>/dev/null || true
+fi
+rm -f /tmp/cj-docrel-verdicts.$$ 2>/dev/null || true
 ```
 
 The block is ADVISORY: control falls straight through to Step 7. No exit, no halt
@@ -635,7 +683,7 @@ suppress the `[doc-sync-red]` or `[doc-sync-non-doc-write]` halt contracts.
 | `doc-spec.sh` helper unreachable | `[doc-sync-no-config]` | Restore `scripts/doc-spec.sh`, or re-run `skills-deploy install` to refresh the deployed `_cj-shared` home; re-run |
 | On main / base branch (refuses on the base branch) | `[doc-sync-red]` | Run from a feature branch |
 | Working tree has uncommitted non-doc changes (pre-run) | `[doc-sync-red]` | Commit or stash non-doc changes; re-run |
-| Upstream `/document-release` returned non-green | `[doc-sync-red]` | Inspect upstream output; fix doc errors; re-run |
+| Upstream `/document-release` did not return green — either it could not be resolved (gstack `/document-release` not installed) or it returned non-green (audit error) | `[doc-sync-red]` | Confirm gstack `/document-release` is installed; OR inspect its output and fix doc errors; re-run |
 | Upstream wrote files outside the doc-only whitelist | `[doc-sync-non-doc-write]` | Inspect uncommitted non-doc files; revert if unexpected; re-run |
 | `--docs UNKNOWN_VALUE` (token matches no declared doc) | (no halt — warn-and-skip) | Use a token that matches a doc declared in `doc-spec.md` |
 

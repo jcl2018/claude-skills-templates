@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-06T23:27:20Z"
+last-updated: "2026-06-08T18:30:00Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -21,6 +21,13 @@ last-updated: "2026-06-06T23:27:20Z"
 - After a code change that touched a file referenced in README/ARCHITECTURE
   and you want the doc sync to happen in the SAME PR as the code change
   (atomic doc + code).
+- Standalone in ANY repo (not just this workbench) for peace of mind that docs
+  are current. When the repo has no `skills-catalog.json`, the skill degrades
+  cleanly to its portable half: the registry-doc audit (6.7.1) + the human-doc
+  no-work-item-ID lint (6.7.3) still run; the skill-MD audit half (6.7.2) is
+  skipped with one clean note and the cj_goal `.cj-goal-feature/` scratch write
+  is skipped too (no stray artifact). The mechanical portable gate a consumer
+  repo can wire into CI is `doc-spec.sh --validate`.
 
 ## When NOT to use
 
@@ -82,6 +89,21 @@ unsupported `schema_version`, or has an entry with a missing field / an
 out-of-enum `audit_class`. A simply-absent `doc-spec.md` is self-bootstrapped
 from the portable Common seed instead of halting.
 
+### Runs cold in a non-workbench repo
+
+The skill is `local-only`, not workbench-bound: it runs in any repo. The one
+workbench-specific read — `skills-catalog.json` in Step 6.7.2 (the skill-MD audit
+half) — is GUARDED. When the catalog is absent the skill prints one clean note
+("no skills-catalog.json — non-workbench mode") and skips both the skill-MD
+enumeration AND the `.cj-goal-feature/` scratch write (that scratch only feeds the
+cj_goal PR-body surfacing, which doesn't exist standalone, and isn't gitignored in
+a consumer repo). The catalog-independent halves — 6.7.1 (registry-doc audit) and
+6.7.3 (the human-doc no-work-item-ID lint) — still run. No `set -e` abort, no `jq`
+stderr noise, no stray artifact. The honest CI boundary: `doc-spec.sh --validate`
+(registry schema) is the portable gate a consumer repo wires in; the
+declared⇔on-disk loop (`validate.sh` Checks 15/15a) + `front_table` discipline are
+workbench-local and do NOT travel.
+
 ## Common pitfalls
 
 - `[doc-sync-no-config]` halt means `doc-spec.md`'s `yaml` registry is broken —
@@ -103,6 +125,11 @@ from the portable Common seed instead of halting.
 - Cron / `--quiet` mode: halt-on-red contracts are NOT suppressed by
   `--quiet`; only summary banners + AUQs are. The cron operator reads the
   halt journal at their convenience.
+- `[doc-sync-red]` at the Step 4→5 boundary with no upstream output usually
+  means gstack `/document-release` is not installed (a Step-4 resolution
+  failure, distinct from a Step-5 non-green audit). The halt message names
+  "gstack `/document-release` not installed" as a possible cause for exactly
+  this reason — confirm it is installed before chasing a doc error.
 
 ## Related skills
 
