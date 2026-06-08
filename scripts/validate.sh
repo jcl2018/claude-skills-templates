@@ -922,6 +922,83 @@ else
   fi
 fi
 
+# Check 22: cj_goal gate-spec <-> pipeline marker drift (F000054/S000096) — ADVISORY.
+# gate-spec.md is the single declared verification map (the doc-spec -> permission-
+# policy -> gate-spec family's third member); this check flags drift between the
+# registry and the four live CJ_goal_* pipelines (advisory — exit 0, like Check 21
+# / Check 18; a follow-up PR flips it strict once it runs clean across a few real
+# builds). Two asserts: (1) the registry parses; (2) per-mode marker drift — for
+# every gate, for every mode key in its `markers` map, a literal "[marker]" must
+# appear in at least one of that mode's files (skills/CJ_goal_<mode-dir>/pipeline.md
+# OR SKILL.md); an {enforced_by: ...} value is skipped (the gate runs but emits no
+# bracket marker). A missing literal marker => advisory finding (the pipeline
+# drifted from the contract, or the registry is stale). Skips silently when the
+# registry / parser is absent (non-adopting repo).
+echo ""
+echo "=== Check 22: cj_goal gate-spec marker drift (advisory) ==="
+GS_HELPER="$REPO_ROOT/scripts/gate-spec.sh"
+GS_FILE="$REPO_ROOT/gate-spec.md"
+if [ ! -f "$GS_FILE" ] || [ ! -x "$GS_HELPER" ]; then
+  echo "  SKIP: gate-spec.md / scripts/gate-spec.sh absent (non-adopting repo)"
+else
+  GS_DRIFT=0
+  if ! bash "$GS_HELPER" --validate >/dev/null 2>&1; then
+    echo "  ADVISORY: gate-spec.md does not parse ($(bash "$GS_HELPER" --validate 2>&1 | head -1))"
+    GS_DRIFT=$((GS_DRIFT+1))
+  else
+    # Per-mode marker drift guard. Reuse the helper's own awk parse to extract
+    # one `<gate-id> <mode> <value>` triple per declared marker, then grep each
+    # literal in that mode's pipeline.md OR SKILL.md. mode-dir map: feature ->
+    # CJ_goal_feature, defect -> CJ_goal_defect, task -> CJ_goal_task, todo ->
+    # CJ_goal_todo_fix. An {enforced_by:...} value emits no triple (skipped).
+    GS_TRIPLES=$(awk '
+      /^```yaml/ { if (!seen) { f=1; seen=1; next } }
+      /^```/     { if (f) { f=0 } }
+      !f { next }
+      /^gates:/ { in_gates=1; next }
+      !in_gates { next }
+      /^[[:space:]]*-[[:space:]]*id:/ { cur_id=$3; in_markers=0; next }
+      /^[[:space:]]*layer:/ || /^[[:space:]]*order:/ || /^[[:space:]]*disposition:/ || /^[[:space:]]*backing:/ || /^[[:space:]]*checks:/ { in_markers=0; next }
+      /^[[:space:]]*markers:/ { in_markers=1; next }
+      in_markers && /^[[:space:]]*[a-z]+:[[:space:]]*/ {
+        mode=$1; sub(/:.*/, "", mode)
+        val=$0; sub(/^[[:space:]]*[a-z]+:[[:space:]]*/, "", val); sub(/[[:space:]]+#.*$/, "", val)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+        if (val ~ /^\{/) { next }   # {enforced_by: ...} — skip (no literal to grep)
+        gsub(/^"|"$/, "", val)
+        print cur_id "\t" mode "\t" val
+      }
+    ' "$GS_FILE")
+    while IFS="$(printf '\t')" read -r _gid _mode _marker; do
+      [ -n "$_marker" ] || continue
+      case "$_mode" in
+        feature) _dir="CJ_goal_feature" ;;
+        defect)  _dir="CJ_goal_defect" ;;
+        task)    _dir="CJ_goal_task" ;;
+        todo)    _dir="CJ_goal_todo_fix" ;;
+        *)       _dir="" ;;
+      esac
+      [ -n "$_dir" ] || continue
+      _pipe="$REPO_ROOT/skills/$_dir/pipeline.md"
+      _skill="$REPO_ROOT/skills/$_dir/SKILL.md"
+      _found=0
+      [ -f "$_pipe" ] && grep -qF "$_marker" "$_pipe" && _found=1
+      [ "$_found" -eq 0 ] && [ -f "$_skill" ] && grep -qF "$_marker" "$_skill" && _found=1
+      if [ "$_found" -eq 0 ]; then
+        echo "  ADVISORY: gate '$_gid' declares marker $_marker for mode '$_mode' but it is absent from skills/$_dir/{pipeline.md,SKILL.md}"
+        GS_DRIFT=$((GS_DRIFT+1))
+      fi
+    done <<EOF
+$GS_TRIPLES
+EOF
+  fi
+  if [ "$GS_DRIFT" -eq 0 ]; then
+    echo "  PASS: gate-spec registry + the four CJ_goal_* pipelines in sync (parses; every declared literal marker present in its mode's files)"
+  else
+    echo "  ADVISORY: $GS_DRIFT gate-spec marker drift finding(s) (advisory in v1; a follow-up flips this strict once it runs clean across a few real builds)"
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

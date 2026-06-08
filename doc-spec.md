@@ -88,6 +88,7 @@ are allowed to reference work items:
 | Doc | What it is for |
 |-----|----------------|
 | `doc-spec.md` | This file — the doc contract itself. |
+| `gate-spec.md` | The verification contract — what stops a broken cj_goal change from landing, and at which layer (parsed by `scripts/gate-spec.sh`). |
 | `CLAUDE.md` | Agent operating instructions, auto-loaded by Claude Code from the repo root. |
 | `CHANGELOG.md` | Release history (keep-a-changelog), written by `/ship` + `/document-release`. |
 | `CONTRIBUTING.md` | The contributor authoring guide (GitHub surfaces it from the root). |
@@ -156,6 +157,11 @@ docs:
     audit_class: operational
     purpose: "The doc contract itself (this file)."
     requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1."
+  - path: gate-spec.md
+    section: custom
+    audit_class: operational
+    purpose: "The cj_goal verification contract — what stops a broken change from landing, and at which layer (parsed by scripts/gate-spec.sh)."
+    requirement: "Present; one fenced yaml registry of layers[] + gates[] parsing with schema_version 1; every declared literal marker present in its mode's pipeline."
   - path: CLAUDE.md
     section: custom
     audit_class: operational

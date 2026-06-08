@@ -195,7 +195,9 @@ did), not just the final artifact, and keep the verifier independent of the
 doer. *In the workbench:* `/CJ_personal-workflow check` runs at every phase
 boundary, QA executes the work-item's test rows rather than merely checking a
 TEST-SPEC exists, and a pre-ship portability gate halts the run before a PR is
-ever opened.
+ever opened. The concrete map of this principle — every verification surface, at
+which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is one
+root file, `gate-spec.md`.
 
 ### 5. Tools & permissions are first-class
 

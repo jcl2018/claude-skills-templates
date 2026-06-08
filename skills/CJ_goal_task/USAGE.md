@@ -3,7 +3,7 @@ skill-name: "CJ_goal_task"
 version: 0.1.0
 status: experimental
 created: "2026-06-07"
-last-updated: "2026-06-07T00:00:00Z"
+last-updated: "2026-06-08T01:15:48Z"
 ---
 
 # Skill Usage: CJ_goal_task

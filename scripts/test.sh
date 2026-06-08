@@ -116,6 +116,54 @@ else
   ok "F000053/S000094 permission-policy regression guards"
 fi
 
+# === F000054/S000096: gate-spec regression guards ===
+# Exercise the gate-spec parser + the Check-22 drift wiring. Parallel test.sh
+# fixture for the new validate.sh Check 22 (repo convention: a new validate.sh
+# check ships with its test.sh assertions in the same PR). Mirrors the S000094
+# permission-policy block above.
+_S96_GS="$REPO_ROOT/scripts/gate-spec.sh"
+_S96_SPEC="$REPO_ROOT/gate-spec.md"
+if [ ! -x "$_S96_GS" ] || [ ! -f "$_S96_SPEC" ]; then
+  fail_test "S000096: gate-spec.sh / gate-spec.md missing"
+else
+  # S1: the registry parses (schema_version + every gate's required keys + closed enums).
+  bash "$_S96_GS" --validate >/dev/null 2>&1 || fail_test "S000096: gate-spec.sh --validate failed (registry does not parse)"
+  [ "$(bash "$_S96_GS" --validate 2>/dev/null)" = "OK schema_version=1" ] || fail_test "S000096: --validate did not print 'OK schema_version=1'"
+  # S2: the reader emits the right sets — the four layers + at least the known gates.
+  for _l in local-hook ci pipeline-gate ratchet; do
+    bash "$_S96_GS" --list-layers 2>/dev/null | grep -qx "$_l" || fail_test "S000096: --list-layers missing layer '$_l'"
+  done
+  for _g in isolation qa doc-sync portability ship; do
+    bash "$_S96_GS" --list-gates 2>/dev/null | grep -qx "$_g" || fail_test "S000096: --list-gates missing gate '$_g'"
+  done
+  # S4: the universal markers resolve in ALL four modes' files; the per-mode
+  # isolation markers resolve in their declared mode's file (either pipeline.md or SKILL.md).
+  for _dir in CJ_goal_feature CJ_goal_defect CJ_goal_task CJ_goal_todo_fix; do
+    for _m in '[portability-red]' '[doc-sync-red]'; do
+      { grep -qF "$_m" "$REPO_ROOT/skills/$_dir/pipeline.md" 2>/dev/null || grep -qF "$_m" "$REPO_ROOT/skills/$_dir/SKILL.md" 2>/dev/null; } \
+        || fail_test "S000096: universal marker $_m absent from skills/$_dir/{pipeline.md,SKILL.md}"
+    done
+  done
+  { grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/pipeline.md" 2>/dev/null || grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/SKILL.md" 2>/dev/null; } \
+    || fail_test "S000096: isolation marker [feature-not-isolated] absent from the feature mode's files"
+  { grep -qF '[investigate-not-isolated]' "$REPO_ROOT/skills/CJ_goal_defect/pipeline.md" 2>/dev/null || grep -qF '[investigate-not-isolated]' "$REPO_ROOT/skills/CJ_goal_defect/SKILL.md" 2>/dev/null; } \
+    || fail_test "S000096: isolation marker [investigate-not-isolated] absent from the defect mode's files"
+  { grep -qF '[task-not-isolated]' "$REPO_ROOT/skills/CJ_goal_task/pipeline.md" 2>/dev/null || grep -qF '[task-not-isolated]' "$REPO_ROOT/skills/CJ_goal_task/SKILL.md" 2>/dev/null; } \
+    || fail_test "S000096: isolation marker [task-not-isolated] absent from the task mode's files"
+  # S3: Check 22 is wired into validate.sh, advisory, and PASSes on the in-sync tree (exit 0).
+  _S96_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
+  printf '%s\n' "$_S96_V" | grep -q 'Check 22: cj_goal gate-spec marker drift' || fail_test "S000096: validate.sh missing Check 22"
+  printf '%s\n' "$_S96_V" | grep -q 'PASS: gate-spec registry + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 22 did not PASS on the in-sync tree"
+  # Advisory posture: validate.sh exits 0 with Check 22 present (no hard-fail from the gate-spec check).
+  "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1 || fail_test "S000096: validate.sh exits non-zero with Check 22 active (check is not advisory)"
+  # Drift path (isolated — no real-file mutation): a missing registry makes the
+  # parser fail closed with the no-config halt. if-then (not A && B || C) avoids SC2015.
+  if GATE_SPEC_PATH=/nonexistent-gate-spec.md bash "$_S96_GS" --validate >/dev/null 2>&1; then
+    fail_test "S000096: parser did not fail on a missing registry (no-config drift undetected)"
+  fi
+  ok "F000054/S000096 gate-spec regression guards"
+fi
+
 # === F000053/S000095: within-phase-receipts regression guards ===
 # Static guards for the office-hours phase receipt (P1 context curation): the
 # receipt is written atomically at the office-hours boundary, reuses S000093's
