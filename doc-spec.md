@@ -82,17 +82,13 @@ Each registry entry declares one `audit_class`:
 ## Custom: this repo's additional docs
 
 Beyond the four common human docs, this workbench carries a handful of
-**operational** docs at the repo root. They are agent- and ops-facing, so they
-are allowed to reference work items:
-
-| Doc | What it is for |
-|-----|----------------|
-| `doc-spec.md` | This file — the doc contract itself. |
-| `gate-spec.md` | The verification contract — what stops a broken cj_goal change from landing, and at which layer (parsed by `scripts/gate-spec.sh`). |
-| `CLAUDE.md` | Agent operating instructions, auto-loaded by Claude Code from the repo root. |
-| `CHANGELOG.md` | Release history (keep-a-changelog), written by `/ship` + `/document-release`. |
-| `CONTRIBUTING.md` | The contributor authoring guide (GitHub surfaces it from the root). |
-| `TODOS.md` | The operational backlog wired into `/CJ_suggest`, `/CJ_goal_todo_fix`, and `/ship`. |
+**operational** docs at the repo root (agent- and ops-facing, so they may
+reference work items) plus the two generated registry views. The full
+general/custom doc lists are **generated** from the machine registry below into
+[`docs/doc-general.md`](docs/doc-general.md) + [`docs/doc-custom.md`](docs/doc-custom.md)
+(do not hand-edit — regenerate with `scripts/generate-doc-views.sh`); the
+contract's *why* (the logic) lives in
+[`docs/philosophy.md`](docs/philosophy.md) `## Topic: Doc contract`.
 
 Repo notes:
 
@@ -187,4 +183,14 @@ docs:
     audit_class: operational
     purpose: "The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh)."
     requirement: "Present; one fenced yaml policy registry parsing with schema_version 1; risky verbs enumerated as deny/ask."
+  - path: docs/doc-general.md
+    section: custom
+    audit_class: human-doc
+    purpose: "Generated readable view of the section:common (general) registry docs."
+    requirement: "Generated from the doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
+  - path: docs/doc-custom.md
+    section: custom
+    audit_class: human-doc
+    purpose: "Generated readable view of the section:custom registry docs."
+    requirement: "Generated from the doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
 ```

@@ -115,6 +115,49 @@ _list_front_table_docs() {
   ' | sort -u
 }
 
+# Render the registry entries of one section (common | custom) as a Markdown
+# table: `| Doc | Purpose | Requirement |`. A SEPARATE awk pass over the
+# extracted yaml (mirrors _list_front_table_docs) so the shared _parse_registry
+# 3-column TSV stays unchanged — a 4th TSV column would mis-bind onto audit_class
+# and break the closed-enum gate. purpose/requirement are quoted, multi-word,
+# free-form values (unlike path/section/audit_class), so they are extracted by
+# stripping the `key: "…"` wrapper from the rest-of-line and pipe-escaping each
+# cell (Markdown-table safe). Values are single-line (no YAML folding). Flag-based
+# per-entry shape: capture path at `- path:`, capture section/purpose/requirement
+# within the entry, emit the row at the NEXT `- path:` (flush) or END when the
+# entry's section matches the requested one. Deterministic; no timestamps.
+_render_section() {
+  _want_section="$1"
+  {
+    echo "| Doc | Purpose | Requirement |"
+    echo "|-----|---------|-------------|"
+    _extract_yaml | awk -v want="$_want_section" '
+      function flush() {
+        if (cur_path != "" && cur_section == want) {
+          printf "| %s | %s | %s |\n", cur_path, cur_purpose, cur_req
+        }
+        cur_path=""; cur_section=""; cur_purpose=""; cur_req=""
+      }
+      function strip(line,   v) {
+        v=line
+        sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)   # drop `  key: "`
+        sub(/"[[:space:]]*$/, "", v)                          # drop trailing `"`
+        gsub(/\|/, "\\|", v)                                  # escape pipes
+        return v
+      }
+      /^[[:space:]]*-[[:space:]]*path:/ {
+        flush()
+        cur_path=$3
+        next
+      }
+      /^[[:space:]]*section:/     { cur_section=$2; next }
+      /^[[:space:]]*purpose:/     { cur_purpose=strip($0); next }
+      /^[[:space:]]*requirement:/ { cur_req=strip($0); next }
+      END { flush() }
+    '
+  }
+}
+
 # ---- Validation gates (run ONLY for registry-reading subcommands) ----
 # NOTE: --seed and --help must NOT inherit these gates. --seed exists precisely
 # to bootstrap a MISSING doc-spec.md; the original bug ran these gates before
@@ -312,6 +355,14 @@ case "${1:-}" in
     _run_registry_gates
     _list_front_table_docs
     ;;
+  --render)
+    _run_registry_gates
+    case "${2:-}" in
+      general) _render_section common ;;
+      custom)  _render_section custom ;;
+      *) echo "doc-spec.sh --render: expected 'general' or 'custom'" >&2; exit 2 ;;
+    esac
+    ;;
   --expand-whitelist)
     _run_registry_gates
     {
@@ -338,13 +389,15 @@ Usage:
   doc-spec.sh --list-declared     # every declared path
   doc-spec.sh --list-human-docs   # only audit_class: human-doc paths
   doc-spec.sh --list-front-table-docs  # only paths with front_table: required
+  doc-spec.sh --render general    # Markdown table of the section:common docs
+  doc-spec.sh --render custom     # Markdown table of the section:custom docs
   doc-spec.sh --expand-whitelist  # doc-only auto-commit whitelist
   doc-spec.sh --seed              # complete minimal valid doc-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-declared|--list-human-docs|--list-front-table-docs|--expand-whitelist|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-declared|--list-human-docs|--list-front-table-docs|--render general|custom|--expand-whitelist|--seed}" >&2
     exit 2
     ;;
   *)

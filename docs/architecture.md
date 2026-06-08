@@ -203,6 +203,12 @@ and asserts the contract:
   exempt, which demonstrates the registry-driven scoping.
 - **workflow completeness** — `docs/workflow.md` carries a section for every
   `CJ_goal_*` orchestrator, each with an ASCII chart and a 4-bullet Touches block.
+- **generated views in sync** (Check 23) — the readable general/custom doc lists
+  (`docs/doc-general.md` + `docs/doc-custom.md`) are *generated* from the registry,
+  not hand-maintained. The validator regenerates them into a temp dir via
+  `scripts/generate-doc-views.sh` and diffs; any drift is a hard error (run the
+  generator to fix). Skips cleanly when the generator/helper is absent
+  (non-adopting repo).
 
 ### The helper (`scripts/doc-spec.sh`)
 
@@ -216,6 +222,10 @@ consume. Subcommands:
 - `--list-front-table-docs` — emit only the paths whose `front_table` is
   `required` (a separate awk pass; the workbench-local field the validator's
   front-table check consumes).
+- `--render general|custom` — emit a Markdown table (Doc · Purpose · Requirement)
+  of the `section: common` (general) or `section: custom` registry docs. Consumed
+  by `scripts/generate-doc-views.sh` to produce the `docs/doc-general.md` +
+  `docs/doc-custom.md` views, and by Check 23's drift comparison.
 - `--expand-whitelist` — emit the doc-only auto-commit whitelist (every declared
   `path` + `doc-spec.md` + every `docs/**/*.md` on disk; sorted, unique).
 - `--seed` — emit the portable Common-section seed (used by the self-bootstrap to

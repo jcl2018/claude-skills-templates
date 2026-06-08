@@ -12,9 +12,7 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 ```
 .
 ├── doc-spec.md          # the doc contract: what docs this repo carries + what each is for
-├── gate-spec.md         # the verification contract: what stops a broken change + at which layer
-├── permission-policy.md # the permission contract: allow/ask/deny verbs for the cj_goal family
-├── docs/                # human docs (philosophy.md, workflow.md, architecture.md)
+├── docs/                # human docs (philosophy.md, workflow.md, architecture.md) + generated doc-spec views (doc-general.md, doc-custom.md)
 ├── skills/              # Claude Code skills (the CJ_ family + utilities)
 ├── templates/           # work-item + doc authoring templates
 ├── work-copilot/        # the GitHub Copilot delivery bundle (Python-CLI deployed)
@@ -28,7 +26,6 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 ```
 
 For the full doc map (and the machine registry the validator parses), see [`doc-spec.md`](doc-spec.md).
-For how the repo verifies a change — what stops a broken cj_goal change from landing, and at which layer — see [`gate-spec.md`](gate-spec.md).
 
 ## Skills
 

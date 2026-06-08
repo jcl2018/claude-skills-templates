@@ -999,6 +999,35 @@ EOF
   fi
 fi
 
+# Check 23: doc-spec generated views in sync with the registry (F000056/S000098) — HARD.
+# docs/doc-general.md + docs/doc-custom.md are GENERATED views of the doc-spec.md
+# registry (like README.md is generated from the skill catalog). This check
+# regenerates them into a temp dir via scripts/generate-doc-views.sh and diffs
+# against the on-disk docs/ copies; any drift is an ERROR (run the generator).
+# Using the generator (not bare --render) makes the diff header-safe — the
+# generator owns the header on both sides. Skips cleanly if the generator or the
+# doc-spec parser is absent (non-adopting / broken-install repo).
+echo ""
+echo "=== Check 23: doc-spec generated views in sync ==="
+DV_GEN="$REPO_ROOT/scripts/generate-doc-views.sh"
+DV_SPEC="$REPO_ROOT/scripts/doc-spec.sh"
+if [ ! -f "$DV_GEN" ] || [ ! -f "$DV_SPEC" ]; then
+  echo "  SKIP: scripts/generate-doc-views.sh / scripts/doc-spec.sh absent (non-adopting repo)"
+elif [ ! -f "$REPO_ROOT/docs/doc-general.md" ] || [ ! -f "$REPO_ROOT/docs/doc-custom.md" ]; then
+  echo "  SKIP: docs/doc-general.md / docs/doc-custom.md not present (views not adopted)"
+else
+  DV_TMP=$(mktemp -d)
+  if bash "$DV_GEN" --output-dir "$DV_TMP" >/dev/null 2>&1 \
+     && diff "$DV_TMP/doc-general.md" "$REPO_ROOT/docs/doc-general.md" >/dev/null 2>&1 \
+     && diff "$DV_TMP/doc-custom.md" "$REPO_ROOT/docs/doc-custom.md" >/dev/null 2>&1; then
+    echo "  PASS: docs/doc-general.md + docs/doc-custom.md match the registry"
+  else
+    echo "  ERROR: doc views drifted from the registry — run scripts/generate-doc-views.sh"
+    ERRORS=$((ERRORS+1))
+  fi
+  rm -rf "$DV_TMP"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="
