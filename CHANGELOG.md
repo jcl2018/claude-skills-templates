@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.58] - 2026-06-07
+
+### Changed
+
+- **`docs/philosophy.md` gains a `CI/CD` topic (T000045).** Lifts the four-layer verification model now formalized in `gate-spec.md` into the philosophy as a first-class named topic. The new `## Topic: CI/CD` names the four layers a change passes through and what each owns — **local-hook** (pre-commit `validate.sh`) · **ci** (GitHub Actions: `validate.sh` + `test.sh` + shellcheck + the Windows Git-Bash smoke job, gates the PR) · **pipeline-gate** (the in-orchestrator cj_goal halts: isolation / design-summary / QA / doc-sync / portability / ship) · **ratchet** (VERSION monotonicity, the portability `FINDINGS=0` baseline, USAGE.md freshness) — and states the **one-owning-layer-per-guarantee** discipline that makes "what stops a broken change, and at which layer?" answerable from one place. It complements (does not duplicate) the existing Harness principle "Verification is a continuous gate — judge the path" (that principle is the *why*; the CI/CD topic is the *concrete layered model*), with a bidirectional cross-reference, and points at `gate-spec.md` as the live machine-checked map. Docs-only; front summary table updated; the `## Decision tree` heading stays last; no work-item IDs (human-doc); `validate.sh` green.
+
 ## [6.0.57] - 2026-06-07
 
 ### Added

@@ -16,6 +16,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
 | **Harness-engineering best practices** | 4. Verification is a continuous gate — judge the path | A quality gate at every step, evaluating the trajectory, with the verifier kept independent of the doer. |
 | **Harness-engineering best practices** | 5. Tools & permissions are first-class | Spec tools like prompts; design permission before capability and give the riskiest verbs the strictest rules. |
+| **CI/CD** | Four verification layers, one owner each | local-hook / ci / pipeline-gate / ratchet — each guarantee is owned by exactly one layer; `gate-spec.md` is the map. |
 | — | Decision tree | Which `CJ_` skill to call for a given input — see the routing map at the bottom of this doc. |
 
 ## Topic: Deployment
@@ -197,7 +198,8 @@ boundary, QA executes the work-item's test rows rather than merely checking a
 TEST-SPEC exists, and a pre-ship portability gate halts the run before a PR is
 ever opened. The concrete map of this principle — every verification surface, at
 which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is one
-root file, `gate-spec.md`.
+root file, `gate-spec.md`; the **CI/CD topic** below is the layered model this
+principle resolves to.
 
 ### 5. Tools & permissions are first-class
 
@@ -220,6 +222,49 @@ single declared allow/ask/deny policy the live enforcement points reference, no
 longer rules spread across frontmatter, leaf-skill code, and an external
 denylist. The decision tree below is how you *use* the framework; these five are
 the standard it holds itself to.
+
+## Topic: CI/CD
+
+The Harness topic's fourth principle — "Verification is a continuous gate" — says
+*why* the workbench verifies at every step. This topic is the *concrete layered
+model* that principle resolves to: the specific layers a change passes through,
+and which layer owns which guarantee. (The Harness principle is the why; this is
+the what-and-where.)
+
+### Four verification layers, one owner each
+
+A change travels from an edit to a landed PR through **four independent
+verification layers**, each running at a different moment and owning a different
+kind of guarantee:
+
+- **local-hook** — runs at `git commit` (the pre-commit hook). It owns one thing:
+  the commit is structurally valid before it ever leaves your machine. It runs
+  `validate.sh` and hard-fails, blocking the commit.
+- **ci** — runs on every PR (GitHub Actions). It owns the whole tree being
+  structurally and behaviorally sound on a clean runner: `validate.sh` +
+  `test.sh` + shellcheck + the Windows Git-Bash smoke job. It hard-fails and
+  gates the PR.
+- **pipeline-gate** — runs *during* a cj_goal orchestrator run. It owns the claim
+  that this run did the right thing before it reached the PR: the inline halts for
+  isolation, design-summary approval, QA, doc-sync, portability, and ship. These
+  are the halts the word "gate" is reserved for.
+- **ratchet** — runs inside ci and the orchestrator. It owns monotonic
+  properties that must never regress: VERSION never goes backwards, the
+  portability baseline stays at `FINDINGS=0`, and USAGE.md stays fresh against its
+  SKILL.md.
+
+The discipline is **one owning layer per guarantee** — each guarantee is checked
+at exactly one layer, never re-checked at three layers with three vocabularies.
+That is what makes the question *"what stops a broken change, and at which
+layer?"* answerable from a single place: a structurally broken change is stopped
+by **ci**, a process-broken change (built in-place, never designed, never tested,
+undocumented, portability-dishonest, or self-merging) by a **pipeline-gate**, and
+a regression of a monotonic property by a **ratchet**.
+
+The concrete, machine-checked map of all four layers and every gate — the prose,
+the division-of-labor table, and a fenced `yaml` registry — is one root file,
+[`gate-spec.md`](../gate-spec.md) (landed in v6.0.57, enforced by `validate.sh`
+Check 22). This topic is the principle; `gate-spec.md` is the live map.
 
 ## Decision tree: which CJ_ skill do I call?
 
