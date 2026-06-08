@@ -25,7 +25,7 @@ DOC_SPEC_SH="$SCRIPT_DIR/doc-spec.sh"
 OUTPUT_DIR="$REPO_ROOT/docs"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
+    --output-dir) OUTPUT_DIR="${2:?--output-dir requires a value}"; shift 2 ;;
     --output-dir=*) OUTPUT_DIR="${1#--output-dir=}"; shift ;;
     -h|--help)
       echo "Usage: $0 [--output-dir <dir>]   # default: docs"
@@ -34,6 +34,15 @@ while [ $# -gt 0 ]; do
     *) echo "generate-doc-views.sh: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
+
+# Render BOTH sections first, into vars. If the registry is invalid, --render
+# exits non-zero (and emits a halt string to stdout); capturing into a var lets
+# us fail cleanly here instead of truncating a real doc-*.md with the halt text
+# (the silent-corruption class the doc-spec.sh --seed comment warns about).
+GENERAL_BODY="$(bash "$DOC_SPEC_SH" --render general)" || {
+  echo "generate-doc-views.sh: 'doc-spec.sh --render general' failed (invalid registry?) — not writing views." >&2; exit 1; }
+CUSTOM_BODY="$(bash "$DOC_SPEC_SH" --render custom)" || {
+  echo "generate-doc-views.sh: 'doc-spec.sh --render custom' failed (invalid registry?) — not writing views." >&2; exit 1; }
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -44,7 +53,7 @@ mkdir -p "$OUTPUT_DIR"
   echo ""
   echo "The general-tier docs (\`section: common\`) every adopting repo carries, generated from the \`doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
   echo ""
-  bash "$DOC_SPEC_SH" --render general
+  printf '%s\n' "$GENERAL_BODY"
 } > "$OUTPUT_DIR/doc-general.md"
 
 # doc-custom.md — the section:custom (this-repo) docs.
@@ -54,5 +63,5 @@ mkdir -p "$OUTPUT_DIR"
   echo ""
   echo "This repo's custom-tier docs (\`section: custom\`) beyond the general set, generated from the \`doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
   echo ""
-  bash "$DOC_SPEC_SH" --render custom
+  printf '%s\n' "$CUSTOM_BODY"
 } > "$OUTPUT_DIR/doc-custom.md"
