@@ -20,7 +20,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR/..")"
 DOC_SPEC_SH="$SCRIPT_DIR/doc-spec.sh"
 
-OUTPUT_DIR="docs"
+# Default to the repo-root docs/ dir so the no-arg invocation writes the right place
+# regardless of cwd (Check 23 passes an explicit --output-dir temp).
+OUTPUT_DIR="$REPO_ROOT/docs"
 while [ $# -gt 0 ]; do
   case "$1" in
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
