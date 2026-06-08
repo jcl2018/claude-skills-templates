@@ -9,6 +9,19 @@ parent: "F000056"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "claude/sleepy-cerf-e8f24b"
 blocked_by: ""
+receipts:
+  qa:
+    phase: 3
+    commit: "b6f672a91c1e31f84b61a8c42217860e49e1a26b"
+    completed_at: "2026-06-08T19:35:51Z"
+    test_rows_run: 10
+    ac_ids_covered: ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"]
+    ac_ids_uncovered: []
+    diff_audit:
+      changed_files_without_tests: []
+    journal_entries: ["qa-smoke S1-S5", "qa-smoke-summary green", "qa-e2e E1-E5", "qa-e2e-summary green", "qa-pass"]
+    ready_for_ship: true
+    next_legal: ["ship"]
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -46,8 +59,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -145,3 +158,17 @@ blocked_by: ""
 - 2026-06-08 [impl-finding] Check 23 written from scratch (no regenerate-and-diff idiom existed — README is only idempotency-tested in test.sh, not drift-checked in validate.sh). Generator-based (header-safe). test.sh mirror is temp-twice-compare (the EXIT trap restores README/catalog/VERSION/CHANGELOG but NOT docs/doc-*.md) — verified the block runs clean under `bash set -e` and never writes docs/.
 - 2026-06-08 [impl] Implemented all 8 deltas. Wrote 1 new script (generate-doc-views.sh) + 2 generated views (docs/doc-general.md, docs/doc-custom.md); modified doc-spec.sh, validate.sh, test.sh, generate-readme.sh, doc-spec.md, docs/philosophy.md, README.md, CLAUDE.md. Common seed byte-identical (test #13 green); registry validates schema_version=1.
 - 2026-06-08 [impl-pass] S000098: implementation complete. Phase 2 implementer-owned gates transitioned. validate.sh PASS 0/0 (incl. Check 23 PASS, Check 19 6 human-docs clean); generator idempotent; seed-diff empty; Check-23 drift caught + cleared on regen.
+- 2026-06-08 [qa-smoke] S1 (AC-1): green — `--render general` = 4 data rows (README.md, docs/philosophy.md, docs/workflow.md, docs/architecture.md; `grep -c '^|'`=6); `--render custom` = 9 data rows (7 root operational + docs/doc-general.md + docs/doc-custom.md; `grep -c '^|'`=11). Tables well-formed (header + `|---|`); purpose/requirement quote-stripped + pipe-safe; no work-item IDs.
+- 2026-06-08 [qa-smoke] S2 (AC-2): green — generator idempotent: regenerated into two temp dirs, `diff -r` empty; temp outputs byte-identical to committed docs/ views.
+- 2026-06-08 [qa-smoke] S3 (AC-6): green — Check 23 drift gate: injected a stray row into docs/doc-custom.md → validate.sh ERROR "doc views drifted from the registry — run scripts/generate-doc-views.sh" (RESULT FAIL, Errors 1); generator regen cleared the drift; view restored via git checkout (tree clean). Skip-if-generator-absent branch confirmed by code inspection (validate.sh:1014-1017).
+- 2026-06-08 [qa-smoke] S4 (AC-3): green — validate.sh RESULT PASS (Errors 0, Warnings 0): Check 15 declared⇔on-disk (13 docs incl. the 2 new views), Check 19 no work-item refs (6 human-docs), Check 20 front-table (philosophy.md + workflow.md). doc-spec.sh --validate = OK schema_version=1; grep for `[FSTD][0-9]{6}` in both views = none.
+- 2026-06-08 [qa-smoke] S5 (AC-7): green — scripts/test.sh RESULT PASS (Failures 0): Check 23 mirror PASS; the stdout-only generator mirror OK (runs without crash / writes both views / idempotent); generate-readme.sh idempotent; seed test #13 (`--seed` vs templates/doc-spec-common.md) diff empty. Tree clean after test.sh.
+- 2026-06-08 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending)
+- 2026-06-08 [qa-e2e-run-start] RUN_ID=20260608-123551-17317 commit=b6f672a
+- 2026-06-08 [qa-e2e] E1 (AC-1, AC-3): green — render row sets match exactly (count + identity): general = README.md, docs/philosophy.md, docs/workflow.md, docs/architecture.md (4); custom = doc-spec.md, gate-spec.md, CLAUDE.md, CHANGELOG.md, CONTRIBUTING.md, TODOS.md, permission-policy.md + docs/doc-general.md + docs/doc-custom.md (9). [parent-inline]
+- 2026-06-08 [qa-e2e] E2 (AC-5): green — docs/philosophy.md `## Topic: Doc contract` (line 261) is BEFORE `## Decision tree` (line 314, still the last H2); carries a registry→views lead-in + the 2 moved principles ("The doc contract is one file, human + machine"; "Two tiers, one portable pass"); front-summary-table rows 13-14 relabeled to **Doc contract**; Check 19/20 green. [parent-inline]
+- 2026-06-08 [qa-e2e] E3 (AC-4): green — doc-spec.md Custom prose: the hand-written root-operational-docs table replaced by a pointer to the generated views (doc-spec.md:86-91); "Repo notes" rationale (root-docs-stay-at-root, singular workflow.md, no-separate-whitelist) + the `front_table` field explanation preserved (doc-spec.md:93-116); the 2 custom registry entries present (section: custom, audit_class: human-doc, purpose + in-sync requirement); seed test #13 empty (Common section byte-identical). [parent-inline]
+- 2026-06-08 [qa-e2e] E4 (AC-6): green — drift caught + cleared end-to-end: hand-edited docs/doc-custom.md → validate.sh ERROR naming `scripts/generate-doc-views.sh`; regen via the generator made validate.sh green again; view restored (tree clean). [parent-inline]
+- 2026-06-08 [qa-e2e] E5 (AC-7): green — `scripts/generate-readme.sh` produced no README.md diff (already in sync); generate-readme.sh:23 docs/ blurb names doc-general.md + doc-custom.md (matches README:15); CLAUDE.md Scripts table has a `generate-doc-views.sh` row (CLAUDE.md:399) and the `doc-spec.sh` row notes `--render general|custom` + Check 23 (CLAUDE.md:407). [parent-inline]
+- 2026-06-08 [qa-e2e-summary] green (0s subagent; 5 rows parent-inline; 0 deferred): all 5 E2E criteria green (E1-E5). Run inline per depth-wall constraint (no Agent subagents).
+- 2026-06-08 [qa-pass] S000098 (user-story): green smoke + green E2E. Phase 2 gates transitioned.
