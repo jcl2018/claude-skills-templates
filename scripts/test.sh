@@ -307,6 +307,31 @@ else
   fail_test "generate-readme.sh crashed"
 fi
 
+# generate-doc-views.sh: runs + idempotent (temp-only — the EXIT trap does NOT
+# restore docs/doc-*.md, so this mirror of validate.sh Check 23 must NEVER write
+# into docs/; generate into two temp dirs and compare, like the README check above).
+if [ -f "$REPO_ROOT/scripts/generate-doc-views.sh" ]; then
+  _dv_t1=$(mktemp -d)
+  _dv_t2=$(mktemp -d)
+  if bash "$REPO_ROOT/scripts/generate-doc-views.sh" --output-dir "$_dv_t1" >/dev/null 2>&1 \
+     && bash "$REPO_ROOT/scripts/generate-doc-views.sh" --output-dir "$_dv_t2" >/dev/null 2>&1; then
+    ok "generate-doc-views.sh runs without crash"
+    if [ -f "$_dv_t1/doc-general.md" ] && [ -f "$_dv_t1/doc-custom.md" ]; then
+      ok "generate-doc-views.sh writes doc-general.md + doc-custom.md"
+    else
+      fail_test "generate-doc-views.sh did not write both view files"
+    fi
+    if diff -r "$_dv_t1" "$_dv_t2" >/dev/null 2>&1; then
+      ok "generate-doc-views.sh is idempotent"
+    else
+      fail_test "generate-doc-views.sh produces different output on repeated runs"
+    fi
+  else
+    fail_test "generate-doc-views.sh crashed"
+  fi
+  rm -rf "$_dv_t1" "$_dv_t2"
+fi
+
 # Integration test: catalog consistency after manual skill creation
 echo ""
 echo "Integration test: manual skill creation cycle..."
