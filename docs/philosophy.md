@@ -11,6 +11,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Deployment** | One source of truth — this checkout | Install == clone; every repo references the single `~/.claude/` install, `git pull` is deploy. |
 | **Deployment** | Two delivery surfaces, one contract | The same doc-first work contract ships to Claude Code skills and a self-contained GitHub Copilot bundle. |
 | **Deployment** | The doc contract is one file, human + machine | `doc-spec.md` is both the human-readable doc map and the machine registry the CI validator + doc-release skill parse. |
+| **Deployment** | Two tiers, one portable pass: general by default, custom per repo | A general doc set ships to every repo; each repo adds its custom docs; one portable skill keeps both current, gated by the machine registry. |
 | **Harness-engineering best practices** | 1. Context is a finite resource — curate it | The window is an attention budget; keep the smallest high-signal set live. |
 | **Harness-engineering best practices** | 2. Externalize state to durable storage | Write important state to the filesystem, not just the window — if a session dies, the work survives. |
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
@@ -147,6 +148,37 @@ What docs the repo carries — and what each one is for — lives in one root fi
 Human docs carry no internal work-item IDs; that rule is a hard CI lint, not a
 guideline. See [doc-spec.md](../doc-spec.md) for the contract itself and
 [architecture.md](architecture.md) for how it is enforced and self-healed.
+
+### Two tiers, one portable pass: general by default, custom per repo
+
+The doc contract sorts every registered doc into one of two tiers, and one
+portable skill keeps both current in *any* repo — not just this workbench.
+
+> **A general tier ships to every repo by default; a custom tier is whatever a
+> repo adds on top. One portable doc-release pass keeps both current anywhere,
+> and the machine registry is the CI gate that proves it.**
+
+- **General tier (`section: common`).** The doc set every repo gets by default,
+  seeded from the one canonical seed the doc-release skill self-bootstraps. It is
+  "general by default": a fresh repo with no doc contract is stubbed up to the
+  general set, not left empty.
+- **Custom tier (`section: custom`).** Whatever a particular repo adds beyond the
+  general set — its own root convention docs, its own architecture notes. The
+  general tier is shared; the custom tier is the repo's own.
+- **One portable pass.** `/CJ_document-release` is written to run in any repo, not
+  only this one: it reads the registry, self-heals a missing contract from the
+  seed, and audits the docs against their declared requirements. When a repo has
+  no skill catalog it degrades cleanly to the portable half rather than failing.
+- **The machine registry is the CI gate.** The same `doc-spec.md` a human reads is
+  the registry a CI hook validates — `doc-spec.sh --validate` is the portable
+  schema check a consumer repo can wire in. The registry is the contract; the
+  prose explains it.
+
+This is the sibling of *the doc contract is one file*: that principle says the map
+and the gate are one file; this one says that one file describes two tiers and a
+single portable skill maintains them anywhere. See
+[architecture.md](architecture.md) for the portable-CI-hook recipe and its honest
+boundary (the schema check travels; the declared⇔on-disk loop is workbench-local).
 
 ## Topic: Harness-engineering best practices
 

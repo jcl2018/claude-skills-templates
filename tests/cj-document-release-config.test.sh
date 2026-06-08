@@ -23,6 +23,9 @@
 #  12. self-bootstrap regression: --seed with NO doc-spec.md present exits 0 and
 #      emits a doc-spec.md that PASSES --validate (the gate-before-dispatch bug)
 #  13. no-drift: the embedded --seed heredoc == templates/doc-spec-common.md
+#  14. cold-repo guard: a synthetic temp repo with doc-spec.md but NO
+#      skills-catalog.json runs the Step 6.7.2 guard path with no `jq: Could not
+#      open file` error and leaves no stray .cj-goal-feature/ artifact (S000097)
 
 set -uo pipefail
 
@@ -250,6 +253,74 @@ if [ -x "$HELPER" ] && [ -f "$_SEED_ARTIFACT" ]; then
   rm -rf "$_T"
 else
   fail_test "no-drift test skipped (helper or templates/doc-spec-common.md missing)"
+fi
+
+# 14. cold-repo guard (S000097/AC-2): the Step 6.7.2 skill-MD audit half reads
+# skills-catalog.json, which is workbench-only. In a consumer repo with no
+# catalog the guard must skip cleanly — no `jq: Could not open file` stderr — and
+# the Step 6.7.4 scratch write must be skipped so no stray (un-gitignored)
+# .cj-goal-feature/ artifact is left behind. The guard lives as bash in
+# skills/CJ_document-release/SKILL.md Step 6.7.2/6.7.4; this row reproduces that
+# guard logic faithfully and asserts both properties in a synthetic temp repo
+# with a doc-spec.md but NO skills-catalog.json.
+_SKILL_MD="$REPO_ROOT/skills/CJ_document-release/SKILL.md"
+if command -v jq >/dev/null 2>&1; then
+  _T=$(mktemp -d)
+  git -C "$_T" init -q 2>/dev/null || true
+  # doc-spec.md present, skills-catalog.json deliberately ABSENT (cold repo).
+  cat > "$_T/doc-spec.md" <<'EOF'
+```yaml
+schema_version: 1
+docs:
+  - path: README.md
+    section: common
+    audit_class: human-doc
+```
+EOF
+  # Reproduce the Step 6.7.2 guard (catalog read) + the Step 6.7.4 scratch-skip,
+  # exactly as the SKILL.md prescribes. Run with `set -e` to PROVE no abort is
+  # introduced by the guarded path. Capture stderr to assert no jq error noise.
+  _ERR_FILE="$_T/stderr.log"
+  (
+    cd "$_T" || exit 9
+    set -e
+    _DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    _CATALOG="$_DS_REPO_ROOT/skills-catalog.json"
+    if [ ! -f "$_CATALOG" ]; then
+      CATALOG_PRESENT=false
+      echo "CJ_document-release: no skills-catalog.json — non-workbench mode; skipping the skill-MD audit half (registry-doc audit still runs)."
+    else
+      CATALOG_PRESENT=true
+      SKILL_NAMES=$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_CATALOG" 2>/dev/null || true)
+      for _name in $SKILL_NAMES; do :; done
+    fi
+    # Step 6.7.4 scratch-write skip when CATALOG_PRESENT=false.
+    if [ "${CATALOG_PRESENT:-true}" = "true" ]; then
+      mkdir -p "$_DS_REPO_ROOT/.cj-goal-feature"
+      echo "verdicts" > "$_DS_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
+    fi
+  ) >/dev/null 2>"$_ERR_FILE"
+  _GRC=$?
+  # Assertions: (a) guard exited 0 (no set -e abort); (b) no jq "Could not open
+  # file" stderr; (c) no stray .cj-goal-feature/ artifact in the cold repo.
+  if grep -q 'Could not open file' "$_ERR_FILE" 2>/dev/null; then _JQ_NOISE=1; else _JQ_NOISE=0; fi
+  if [ "$_GRC" -eq 0 ] \
+     && [ "$_JQ_NOISE" -eq 0 ] \
+     && [ ! -e "$_T/.cj-goal-feature" ]; then
+    ok "cold-repo guard: no skills-catalog.json -> clean skip, no jq noise, no stray .cj-goal-feature/ artifact"
+  else
+    fail_test "cold-repo guard failed (rc=$_GRC jq_noise=$_JQ_NOISE scratch_exists=$([ -e "$_T/.cj-goal-feature" ] && echo yes || echo no))"
+  fi
+  # Sanity: the SKILL.md actually carries the guard literal (catches a regression
+  # where the guard is removed from the prose the agent executes).
+  if grep -qF 'no skills-catalog.json — non-workbench mode' "$_SKILL_MD" 2>/dev/null; then
+    ok "SKILL.md Step 6.7.2 carries the non-workbench catalog guard note"
+  else
+    fail_test "SKILL.md Step 6.7.2 missing the non-workbench catalog guard note"
+  fi
+  rm -rf "$_T"
+else
+  fail_test "cold-repo guard test skipped (jq not available)"
 fi
 
 echo
