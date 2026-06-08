@@ -472,6 +472,22 @@ AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).
 
+## Verification contract (gate-spec.md)
+
+**What stops a broken cj_goal change from landing, and at which layer** lives in
+ONE root file, [`gate-spec.md`](gate-spec.md) — both the human-readable map
+(prose + a four-layer summary table + an ASCII diagram + a division-of-labor) and
+the machine source of truth (a fenced `yaml` registry of `layers[]` + `gates[]`,
+parsed by `scripts/gate-spec.sh`). It is the third member of the `doc-spec.md` →
+`permission-policy.md` → `gate-spec.md` family. The four layers: **local-hook**
+(pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
+inline orchestrator halts — isolation / design / QA / doc-sync / portability /
+ship), and **ratchet** (VERSION / portability-baseline / USAGE-freshness). "Gate"
+means a `pipeline-gate` row; `validate.sh`-as-a-whole is the **ci** layer (a set
+of *checks*), never "the gate." `validate.sh` Check 22 (advisory) cross-checks
+every declared literal marker against the four `CJ_goal_*` pipelines. Each
+pipeline's halt-taxonomy names `gate-spec.md` as the canonical gate sequence.
+
 ## Doc contract (doc-spec.md)
 
 What docs the repo carries — and what each one is for — lives in ONE root file,
@@ -484,8 +500,9 @@ There is no second list: the registry is the source, the prose explains it.
   root `README.md`. They must exist and carry **no work-item IDs**
   (`[FSTD]NNNNNN`) — a hard `validate.sh` lint (Check 19).
 - **Operational docs** (`audit_class: operational`) are the root `*.md` set the
-  repo pins for an external-tool reason: `doc-spec.md`, `CLAUDE.md`,
-  `CHANGELOG.md`, `CONTRIBUTING.md`, `TODOS.md`. These may reference work items.
+  repo pins for an external-tool reason: `doc-spec.md`, `gate-spec.md`,
+  `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `TODOS.md`. These may reference
+  work items.
 - **Config files** stay at root (`skills-catalog.json`, `template-registry.json`,
   `VERSION`) because tooling hardcodes `./` paths to them. Docs under `skills/`,
   `templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own

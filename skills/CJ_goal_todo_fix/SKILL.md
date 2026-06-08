@@ -400,6 +400,12 @@ per-iteration terminal instead.
 
 ## Halt classes / end states
 
+Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 22). The classes below are this mode's subset of
+that declared sequence — the registry is the source of truth for the ordering.
+(todo runs inside the drain worktree, so it has no isolation gate; its QA + ship
+gates are `enforced_by` a subagent / AUQ rather than a bracket marker.)
+
 Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 
 | Class | Meaning | Loop behavior |

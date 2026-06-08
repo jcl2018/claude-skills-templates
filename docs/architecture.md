@@ -175,9 +175,14 @@ docs:
 - **`section`** — `common` (portable, byte-identical across adopting repos, seeded
   from `templates/doc-spec-common.md`) or `custom` (repo-specific).
 
-### The CI gate (`scripts/validate.sh`)
+### The doc-spec checks in `scripts/validate.sh`
 
-The validator parses the registry and asserts the contract:
+These are the `validate.sh` checks that enforce the *doc* contract — one slice of
+the larger verification story, not "the gate" as a whole. ("Gate" is reserved for
+an inline orchestrator halt; see [`gate-spec.md`](../gate-spec.md) and the
+[gate-spec.md contract](#the-gate-specmd-contract) section below for the
+four-layer map of every verification surface.) The validator parses the registry
+and asserts the contract:
 
 - **declared <=> on-disk** — every declared doc exists, AND every `docs/*.md` on
   disk is declared (no orphans).
@@ -291,6 +296,95 @@ correct command (it resolves the in-place checkout, guards it, `git pull
 --ff-only`, runs `skills-deploy install`, and reports `collection_version`
 before->after). It is a manual operator step + the internal core the `--phase
 sync` pre-build fork reuses — not an orchestrator pipeline step.
+
+## The gate-spec.md contract
+
+The workbench declares **what stops a broken cj_goal change from landing, and at
+which layer** in one root file, [`gate-spec.md`](../gate-spec.md) — both the
+human-readable map (prose + a four-layer summary table + an ASCII diagram + a
+division-of-labor) and the machine source of truth (a fenced `yaml` registry of
+`layers[]` + `gates[]`). It is the third member of the `doc-spec.md` →
+`permission-policy.md` → `gate-spec.md` family: the same shape (a root registry
+doc + a `scripts/` reader + an advisory `validate.sh` check) applied to
+verification. This section is the mechanism reference; see the file itself for
+the contract.
+
+```
+                    gate-spec.md (root)
+                    +---------------------------+
+                    | four-layer map +          |
+                    | division-of-labor +       |
+                    | ```yaml machine registry``|
+                    |  schema_version: 1        |
+                    |  layers[]: local-hook|ci| |
+                    |    pipeline-gate|ratchet  |
+                    |  gates[]: per-mode        |
+                    |    `markers` map          |
+                    |    ({enforced_by} escape) |
+                    +-----+---------------+-----+
+                          | parses        | cross-checks
+            +-------------v---+     +------v--------------------+
+            | scripts/        |     | scripts/validate.sh       |
+            |   gate-spec.sh  |     |   Check 22 (advisory)     |
+            | --validate      |     |  1. gate-spec.sh          |
+            | --list-layers   |     |     --validate exits 0    |
+            | --list-gates    |     |  2. per-mode marker drift |
+            +-----------------+     |     guard (literal in its |
+                                    |     mode's pipeline/SKILL)|
+                                    +---------------------------+
+```
+
+**The four layers.** A cj_goal change is verified at four independent layers,
+each owning a different guarantee: **local-hook** (the pre-commit `validate.sh`,
+hard-fail at commit), **ci** (GitHub Actions, hard-fail on the PR),
+**pipeline-gate** (the inline orchestrator halts — isolation, design-summary, QA,
+doc-sync, portability, ship — during a run), and **ratchet** (monotonic guards:
+Check 8 VERSION-never-regresses, the portability `FINDINGS=0` baseline, Check 14
+USAGE.md freshness). The contract reserves the word **"gate"** for a single
+referent — a `pipeline-gate` row — so `validate.sh`-as-a-whole is the **ci**
+layer (a set of *checks*), never "the gate."
+
+**The per-mode `markers` map.** A gate's `markers` is a map keyed by
+`feature|defect|task|todo`. A mode absent from the map does not run that gate
+(only `doc-sync` + `portability` are universal; isolation has three different
+markers and is absent in todo; `design-gate`/`root-cause`/`complexity` are
+single-mode). A map value is either a literal `"[marker]"` (Check 22 greps for it
+in that mode's files) or `{ enforced_by: subagent | auq }` (the gate runs but
+emits no bracket marker — the escape hatch that keeps the baseline honestly
+clean, e.g. todo's QA + ship).
+
+### The helper (`scripts/gate-spec.sh`)
+
+A single bash file owns the parse/validate logic, mirroring `scripts/doc-spec.sh`.
+Subcommands:
+
+- `--validate` — exit 0 + print `OK schema_version=<n>` if the registry is valid
+  (fenced block present, `schema_version: 1`, every gate has
+  `id`/`layer`/`order`/`markers`/`disposition`/`backing`, every `layer` and
+  `disposition` in its closed enum, every `markers` value a `"[...]"` literal or
+  an `{enforced_by: subagent|auq}` escape); exit 1 + emit `[gate-spec-no-config]
+  <reason>` otherwise.
+- `--list-layers` — emit every declared layer id (sorted, unique).
+- `--list-gates` — emit every declared gate id (sorted, unique).
+
+It reads `gate-spec.md` via `git rev-parse --show-toplevel`, like `doc-spec.sh`.
+`--list-for <mode>` (an ordered per-mode view) and `--seed` (self-bootstrap
+parity) are deferred — no v1 consumer.
+
+### The advisory check (`validate.sh` Check 22)
+
+Structurally a clone of Check 21 (the permission-policy drift check). It asserts
+the contract against the live tree: (1) `gate-spec.sh --validate` exits 0; (2) a
+per-mode marker drift guard — for every gate, for every mode key in its `markers`
+map, a literal `"[marker]"` must appear in at least one of that mode's files
+(`skills/CJ_goal_<mode-dir>/pipeline.md` OR `SKILL.md`; mode-dir: feature →
+`CJ_goal_feature`, defect → `CJ_goal_defect`, task → `CJ_goal_task`, todo →
+`CJ_goal_todo_fix`), while an `{enforced_by: ...}` value is skipped. A missing
+literal marker is a finding (the pipeline drifted from the contract, or the
+registry is stale). It is **advisory** in v1 — a finding prints but `validate.sh`
+exits 0, exactly like Check 21 / Check 18 — because the registry is authored
+honestly (per-mode markers + the `enforced_by` escape), so the check is green on
+the clean baseline and the flip-to-strict is a one-line follow-up ratchet.
 
 ## The work-copilot Copilot bundle (parallel delivery surface)
 

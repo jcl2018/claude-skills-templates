@@ -12,6 +12,10 @@ Read [SKILL.md](SKILL.md) first for path resolution, error handling, the
 halt-taxonomy summary, the resume contract, and the idempotency contract. Then
 follow the steps below.
 
+Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 22). The gates this pipeline halts at are this
+mode's subset of that one declared sequence.
+
 ---
 
 ## Step 1: Parse arguments + resolve the resume state file
