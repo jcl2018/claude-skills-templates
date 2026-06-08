@@ -9,6 +9,27 @@ parent: "F000055"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "claude/sleepy-cerf-e8f24b"
 blocked_by: ""
+receipts:
+  qa:
+    phase: 3
+    commit: "edda0d80f11988bd3c00d05dee9620a8fbec6b5c"
+    completed_at: "2026-06-08T17:14:59Z"
+    test_rows_run: 8
+    ac_ids_covered: ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"]
+    ac_ids_uncovered: []
+    diff_audit:
+      changed_files_without_tests: []
+    journal_entries:
+      - "[qa-smoke] S1 (AC-1): green"
+      - "[qa-smoke] S2 (AC-2): green"
+      - "[qa-smoke] S3 (AC-5): green"
+      - "[qa-smoke] S4 (AC-4): green"
+      - "[qa-smoke] S5 (AC-1,2,3,4,5): green"
+      - "[qa-e2e] E1 (AC-2): green"
+      - "[qa-e2e] E2 (AC-3): green"
+      - "[qa-e2e] E3 (AC-1): green"
+    ready_for_ship: true
+    next_legal: ["ship"]
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -46,8 +67,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -135,3 +156,15 @@ blocked_by: ""
 - 2026-06-08 [impl-finding] `grep -c PATTERN file` prints `0` to stdout AND exits 1 on no-match, so an `|| echo 0` fallback double-appended ("0\n0") and broke the `[ -eq ]` integer test. Switched to `if grep -q ...; then _JQ_NOISE=1; else _JQ_NOISE=0; fi` (exit-code-driven, single value). Noted for the harness zsh/bash word-split + grep-exit gotchas.
 - 2026-06-08 [impl] Implemented all 5 deltas: philosophy.md principle + front-table row; SKILL.md Step 6.7.2 catalog guard + Step 6.7.4 scratch-skip + Step 4→5 gstack-absent message + Error-Handling row; USAGE.md cold-run behavior + last-updated bump; architecture.md portable-CI-hook recipe + cold-run guard note; tests cold-repo smoke row #14. skills-catalog.json verified unchanged (local-only). New test row green (16/16 OK); portability audit FINDINGS=0.
 - 2026-06-08 [impl-pass] S000097: implementation complete. Phase 2 implementer-owned gates transitioned.
+- 2026-06-08 [qa-smoke] S1 (AC-1): green — scripts/validate.sh RESULT: PASS (0 errors, 0 warnings); Check 19 PASS (no work-item refs in 4 human-docs), Check 20 PASS (philosophy.md opens with summary table); the new principle + front-table row are present.
+- 2026-06-08 [qa-smoke] S2 (AC-2): green — bash tests/cj-document-release-config.test.sh exit 0, 16/16 OK incl. the new cold-repo guard row (no jq noise, no stray .cj-goal-feature/) + the SKILL.md Step 6.7.2 guard-literal row.
+- 2026-06-08 [qa-smoke] S3 (AC-5): green — scripts/doc-spec.sh --validate run from a synthetic cold repo (seeded doc-spec.md, NO skills-catalog.json) prints "OK schema_version=1", exit 0. Portable mechanical guarantee holds cold.
+- 2026-06-08 [qa-smoke] S4 (AC-4): green — CJ_document-release catalog portability == local-only (not relabeled workbench); PORTABILITY_STRICT=1 cj-portability-audit.sh exit 0, FINDINGS=0 (CJ_document-release | local-only | portable); cj-goal-common.sh --phase portability-audit emits PHASE_RESULT=ok, 0 [portability-red] markers.
+- 2026-06-08 [qa-smoke] S5 (AC-1,2,3,4,5): green — scripts/test.sh RESULT: PASS, Failures: 0 (full suite incl. the new smoke row + USAGE Check-14 resolution); tree restored clean at HEAD.
+- 2026-06-08 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending)
+- 2026-06-08 [qa-e2e-run-start] RUN_ID=20260608-101311-2639 commit=edda0d8
+- 2026-06-08 [qa-e2e] E1 (AC-2): green — reproduced the SKILL.md Step 6.7.2 guard bash cold in a synthetic non-workbench repo (seeded doc-spec.md, no skills-catalog.json): exactly one clean skip note, CATALOG_PRESENT=false, exit 0 under set -e, EMPTY stderr (no "jq: Could not open file"); 6.7.4 scratch-skip left NO stray .cj-goal-feature/ artifact; 6.7.3 human-doc no-work-item-ref lint still ran cold (4 docs scanned, 0 stale). [parent-inline]
+- 2026-06-08 [qa-e2e] E2 (AC-3): green — SKILL.md Step 4→5 boundary block (lines 405-418) distinguishes resolution-failure (gstack /document-release not installed) from non-green return and routes BOTH to the Step 5 [doc-sync-red] halt; the Step 5 message (line 430) names "gstack /document-release not installed" as a possible cause; no programmatic skill-presence probe added; Error-Handling row (line 686) carries the same cause + recovery. Runtime gstack-absence not force-able in-env; verified on the executed prose surface. [parent-inline]
+- 2026-06-08 [qa-e2e] E3 (AC-1): green — docs/philosophy.md `### Two tiers, one portable pass` (line 152) reads as a sibling to `### The doc contract is one file` under `## Topic: Deployment` (explicit sibling framing line 177, not a duplicate); states the general/custom two-tier model + portable any-repo pass + wire-into-CI hook (doc-spec.sh --validate); matching front-table row (line 14); no work-item IDs (Check 19 PASS). [parent-inline]
+- 2026-06-08 [qa-e2e-summary] green (0s subagent; 3 rows parent-inline; 0 deferred): all 3 E2E rows green — cold-run guard (E1), gstack-absent [doc-sync-red] message (E2), new philosophy principle in context (E3). Run inline per depth-≤2 constraint (mechanical doc-and-skill checks; no Agent subagent dispatched).
+- 2026-06-08 [qa-pass] S000097 (user-story): green smoke + green E2E. Phase 2 gates transitioned. receipts.qa written (commit edda0d8, ac_ids_uncovered=[], ready_for_ship=true).
