@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.57] - 2026-06-07
+
+### Added
+
+- **`gate-spec.md` — one human-readable + machine-checked verification contract for all cj_goals (F000054 / S000096).** The workbench verifies a change at four layers (local pre-commit hook · GitHub Actions CI · in-orchestrator gates · regression ratchets) that grew up separately, with overlaps and an overloaded word "gate" — and no single file answered "what stops a broken cj_goal change from landing, and at which layer?" New root **`gate-spec.md`** answers it: a human verification map (a four-layer table + an ASCII diagram + a **division-of-labor table assigning each guarantee exactly one owning layer** + a plain-English answer) AND a fenced `yaml` registry that is the machine source of truth (`schema_version: 1`; `layers[]`; `gates[]` with a **per-mode `markers` map** — honest about the real irregularity, e.g. defect's isolation marker is `[investigate-not-isolated]`, todo has none, only `[portability-red]` + `[doc-sync-red]` are universal — plus an `{enforced_by: subagent|auq}` escape for gates with no literal marker). It is the third member of the `doc-spec.md → permission-policy.md → gate-spec.md` registry-contract family. New reader **`scripts/gate-spec.sh`** (`--validate` / `--list-gates` / `--list-layers`, mirroring `doc-spec.sh`) and new **`validate.sh` Check 22** (ADVISORY, structurally cloning Check 21): the registry parses AND every declared literal marker actually appears in its mode's pipeline — the drift guard that keeps the contract honest across all four orchestrators. The baseline is clean today, so flipping Check 22 strict later is a free ratchet (tracked in `TODOS.md`).
+
+### Changed
+
+- **Doc + pipeline wiring for the verification contract (F000054 / S000096).** `doc-spec.md` registers `gate-spec.md` (custom / operational); `docs/architecture.md` gains a "The gate-spec.md contract" section and disambiguates its previously mislabeled "CI gate" heading; `docs/philosophy.md` §4 ("Verification is a continuous gate") points at `gate-spec.md` as the concrete map; each of the four cj_goal pipelines (`CJ_goal_feature` / `CJ_goal_defect` / `CJ_goal_task` / `CJ_goal_todo_fix`) gains a one-line "canonical gate sequence: `gate-spec.md`" reference near its halt-taxonomy; `CLAUDE.md` and `README.md` gain pointers (and `README.md`'s repo-layout tree now lists all three sibling registries). `scripts/test.sh` gains an F000054/S000096 regression-guard block (parser + Check-22-advisory wiring + per-mode marker resolution + `zzz-test-scaffold` still green with Check 22 active).
+
 ## [6.0.56] - 2026-06-07
 
 ### Changed
