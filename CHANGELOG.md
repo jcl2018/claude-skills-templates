@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.59] - 2026-06-08
+
+### Added
+
+- **`docs/philosophy.md` gains the "Two tiers, one portable pass" principle (F000055/S000097).** A new sibling principle under `## Topic: Deployment` (alongside "The doc contract is one file, human + machine") names the two-tier doc-requirement model explicitly: a **general** tier every repo gets by default — the design logic a newcomer reads (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`, `README.md`), copied verbatim from one canonical seed — and a **custom** tier each repo declares for itself (e.g. an `agents.md` in a knowledge vault), tagged `section: common` / `section: custom` in the `doc-spec.md` registry. One portable skill, `/CJ_document-release`, is the pass that keeps both current in any repo; the machine-readable registry is the wire-into-CI hook (`doc-spec.sh --validate`). Adds the matching front-table row; no work-item IDs (human-doc, Check 19/20 green).
+
+### Changed
+
+- **`/CJ_document-release` runs cleanly in a non-workbench repo (F000055/S000097).** Step 6.7.2 now guards the `skills-catalog.json` read: when the catalog is absent (a consumer repo with no skill catalog), the skill-MD audit half is skipped with one clean note (no `jq: Could not open file` stderr) and the Step 6.7.4 `.cj-goal-feature/` scratch write is skipped too (no stray untracked artifact) — while the registry-doc audit (6.7.1) and the human-doc no-work-item-ID lint (6.7.3) stay live. The Step 4→5 boundary now names "gstack `/document-release` not installed" as a possible `[doc-sync-red]` cause (covering Skill-resolution failure as well as a non-green return), so a repo without gstack fails with a clear, actionable message. `skills-catalog.json` portability stays `local-only` (the guard removes a repo-local dependency, so it trends *more* portable, not less). `docs/architecture.md` documents the portable CI hook scoped honestly (`doc-spec.sh --validate` travels via `_cj-shared`; the declared⇔on-disk loop + `front_table` discipline are workbench-local). New cold-repo smoke row in `tests/cj-document-release-config.test.sh`. The Common/Custom model and the single canonical general seed (`doc-spec.sh --seed` byte-identical to `templates/doc-spec-common.md`, drift-tested) were already in place and are unchanged.
+
 ## [6.0.58] - 2026-06-07
 
 ### Changed
