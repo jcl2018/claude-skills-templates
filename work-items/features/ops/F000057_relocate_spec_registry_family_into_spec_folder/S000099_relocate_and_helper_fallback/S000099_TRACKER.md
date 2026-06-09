@@ -48,8 +48,8 @@ blocked_by: ""
 **Gates:**
 - [ ] Acceptance criteria verified met
 - [ ] Smoke tests pass
-- [ ] Todos section reflects remaining work (no stale items)
-- [ ] Files section updated with changed files
+- [x] Todos section reflects remaining work (no stale items)
+- [x] Files section updated with changed files
 
 ### Phase 3: Ship
 
@@ -136,6 +136,8 @@ blocked_by: ""
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+
+- 2026-06-09 [impl] Relocation complete. The implement subagent crashed mid-run (API socket error after the load-bearing edits) and was finished inline by the orchestrator (prose-sweep tail + README regen + full verification). Verified: `git mv` of the 3 files into `spec/` (root clear); all 3 helpers `--validate` green spec/-then-root; validate.sh Checks 16/19/20/21/22 print `PASS:` NOT `SKIP:` (the hard Check 19 gate stayed live) + `RESULT: PASS` 0/0; new `spec/*.md` orphan scan + test.sh S94/S96 guards spec-aware; CJ_document-release self-bootstrap guard + 6.7.1 parser resolve spec/-then-root (no duplicate-root-file bug); seed test #13 byte-identical; `PERMISSION_POLICY_PATH=/nonexistent --validate` still FAILS (env override outermost); a simulated root-only repo resolves via fallback (knowledge-base unaffected); shellcheck clean; no stale root-path ref to the 3 files remains. Committed lockstep (e231293).
 
 - [decision] Env override is OUTERMOST: `X="${ENV:-<spec-if-exists-else-root>}"`. Summary: test.sh:113 asserts `PERMISSION_POLICY_PATH=/nonexistent --validate` FAILS; nesting the override inside the spec/root fallback would wrongly pass that regression.
 - [finding] The original plan under-counted the break-set; 2 adversarial reviewers (4/10 + 5/10) found the silent-SKIP class (validate.sh), the hard-FAIL class (test.sh), and the CJ_document-release self-bootstrap duplicate-file bug. All are folded in as mandatory must-fixes A–G.
