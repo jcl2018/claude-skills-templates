@@ -1,7 +1,7 @@
 <!-- AUTO-GENERATED from scripts/generate-doc-views.sh — do not edit -->
 # Doc contract — general docs
 
-The general-tier docs (`section: common`) every adopting repo carries, generated from the `doc-spec.md` registry. Do not hand-edit; regenerate with `scripts/generate-doc-views.sh`.
+The general-tier docs (`section: common`) every adopting repo carries, generated from the `spec/doc-spec.md` registry. Do not hand-edit; regenerate with `scripts/generate-doc-views.sh`.
 
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|

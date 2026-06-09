@@ -41,7 +41,9 @@ _strip_cr() { tr -d '\r'; }
 
 # Resolve repo root (allows REPO_ROOT override for tests).
 REPO_ROOT_RESOLVED="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
-GATE_SPEC_PATH="${GATE_SPEC_PATH:-${REPO_ROOT_RESOLVED}/gate-spec.md}"
+# Resolution order: GATE_SPEC_PATH env override (outermost) -> spec/gate-spec.md
+# (this repo, post-relocation) -> root gate-spec.md (root-only consumers).
+GATE_SPEC_PATH="${GATE_SPEC_PATH:-$( [ -f "$REPO_ROOT_RESOLVED/spec/gate-spec.md" ] && echo "$REPO_ROOT_RESOLVED/spec/gate-spec.md" || echo "$REPO_ROOT_RESOLVED/gate-spec.md" )}"
 SUPPORTED_SCHEMA_VERSIONS="1"
 
 emit_halt() {
@@ -138,7 +140,7 @@ _parse_gates() {
 
 # ---- Validation gates (run ONLY for registry-reading subcommands) ----
 _run_registry_gates() {
-  [ -f "$GATE_SPEC_PATH" ] || emit_halt "gate-spec.md missing at repo root: $GATE_SPEC_PATH"
+  [ -f "$GATE_SPEC_PATH" ] || emit_halt "gate-spec.md missing (looked in spec/ then root): $GATE_SPEC_PATH"
 
   _YAML_BODY=$(_extract_yaml)
   [ -n "$_YAML_BODY" ] || emit_halt "gate-spec.md has no fenced \`\`\`yaml registry block"

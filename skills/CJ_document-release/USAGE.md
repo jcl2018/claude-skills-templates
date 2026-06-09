@@ -52,7 +52,7 @@ last-updated: "2026-06-08T18:30:00Z"
 
 A thin workbench wrapper around upstream gstack `/document-release` that
 adds workbench-specific concerns on top of the upstream doc-sync pass:
-(1) it reads + self-heals the root `doc-spec.md` contract — self-bootstraps a
+(1) it reads + self-heals the `spec/doc-spec.md` contract — self-bootstraps a
 missing `doc-spec.md` from the portable Common seed, and stub-scaffolds any
 declared-but-missing doc (idempotent); (2) `--docs <comma-list>` per-doc subset
 (best-effort filter via project-context block; documentation-only, not
@@ -70,7 +70,7 @@ where any doc updates are pre-committed.
 
 ### The doc-spec.md contract
 
-The wrapper reads the root `doc-spec.md` on every run. It is the single source of
+The wrapper reads the `spec/doc-spec.md` on every run. It is the single source of
 truth for what docs the repo carries — a portable Common section, a repo Custom
 section, and ONE fenced `yaml` registry. The registry declares each doc's `path`
 / `section` / `audit_class` / `purpose` / `requirement`; `audit_class` is a closed
@@ -109,7 +109,7 @@ workbench-local and do NOT travel.
 - `[doc-sync-no-config]` halt means `doc-spec.md`'s `yaml` registry is broken —
   no `yaml` block, an unsupported `schema_version`, an entry missing a required
   field, or an `audit_class` outside `{human-doc, operational}`. Repair the
-  registry block at the repo root. (A simply-absent `doc-spec.md` is NOT a halt —
+  registry block (spec/doc-spec.md, resolved spec/-then-root). (A simply-absent `doc-spec.md` is NOT a halt —
   the wrapper self-bootstraps it from the portable Common seed and continues.)
 - Invoking on main: refuses fast with `[doc-sync-red]`; switch to a feature
   branch and re-run.

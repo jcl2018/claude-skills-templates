@@ -47,7 +47,10 @@ _strip_cr() { tr -d '\r'; }
 
 # Resolve repo root (allows REPO_ROOT override for tests).
 REPO_ROOT_RESOLVED="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
-DOC_SPEC_PATH="${REPO_ROOT_RESOLVED}/doc-spec.md"
+# Resolution order: DOC_SPEC_PATH env override (outermost) -> spec/doc-spec.md
+# (this repo, post-relocation) -> root doc-spec.md (root-only consumers / fresh
+# adopters / the portable seed convention). POSIX/bash-3.2 idiom.
+DOC_SPEC_PATH="${DOC_SPEC_PATH:-$( [ -f "$REPO_ROOT_RESOLVED/spec/doc-spec.md" ] && echo "$REPO_ROOT_RESOLVED/spec/doc-spec.md" || echo "$REPO_ROOT_RESOLVED/doc-spec.md" )}"
 SEED_TEMPLATE="${REPO_ROOT_RESOLVED}/templates/doc-spec-common.md"
 SUPPORTED_SCHEMA_VERSIONS="1"
 
@@ -165,7 +168,7 @@ _render_section() {
 # `[doc-sync-no-config]` halt string that callers redirected into the new file —
 # corrupting it. Gates therefore run per-subcommand below, not at top level.
 _run_registry_gates() {
-  [ -f "$DOC_SPEC_PATH" ] || emit_halt "doc-spec.md missing at repo root: $DOC_SPEC_PATH"
+  [ -f "$DOC_SPEC_PATH" ] || emit_halt "doc-spec.md missing (resolved spec/-then-root): $DOC_SPEC_PATH"
 
   _YAML_BODY=$(_extract_yaml)
   [ -n "$_YAML_BODY" ] || emit_halt "doc-spec.md has no fenced \`\`\`yaml registry block"
@@ -368,8 +371,8 @@ case "${1:-}" in
     {
       # Every declared path.
       printf '%s\n' "$_ROWS" | awk -F'\t' '{print $1}'
-      # doc-spec.md itself.
-      echo "doc-spec.md"
+      # doc-spec.md itself (this repo: spec/doc-spec.md, post-relocation).
+      echo "spec/doc-spec.md"
       # Every docs/**/*.md on disk (relative to repo root).
       if [ -d "$REPO_ROOT_RESOLVED/docs" ]; then
         ( cd "$REPO_ROOT_RESOLVED" && find docs -type f -name '*.md' 2>/dev/null )

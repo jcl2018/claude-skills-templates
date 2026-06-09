@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.61] - 2026-06-09
+
+### Changed
+
+- **The spec-registry family moved into a `spec/` folder (F000057/S000099).** The three machine registries — `doc-spec.md`, `gate-spec.md`, `permission-policy.md` (each a `.md` with one fenced `yaml` block parsed by a sibling `scripts/*.sh`) — relocate from the repo root into `spec/`, so they read at a glance as machine config rather than hand-read docs (their human-facing surfaces stay in `docs/` + the philosophy `## Topic: Doc contract`). The move is **workbench-internal + back-compat**: each helper now resolves `spec/<name>.md` first, then root `<name>.md`, with any env override (`DOC_SPEC_PATH`/`GATE_SPEC_PATH`/`PERMISSION_POLICY_PATH`) outermost — so the **portable seed and self-bootstrap stay root-style** and any consumer repo with a root `doc-spec.md` (e.g. knowledge-base) keeps working unchanged (`tests/cj-document-release-config.test.sh` test #13 stays green). The registry self-declares the three as `spec/<name>.md`; `validate.sh` Checks 16/19/20/21/22 were made spec-aware (they gate on a literal path probe **before** the helper, so the move would otherwise have silently SKIPped them — including Check 19, the hard no-work-item-ID gate — now each probes `spec/`-then-root and prints `PASS`, not `SKIP`), a new `spec/*.md` orphan scan was added (mirrored into `test.sh`), `test.sh`'s S94/S96 guards + `tests/cj-document-release-config.test.sh` + `CJ_document-release`'s self-bootstrap guard + Step 6.7.1 parser + `--expand-whitelist` + the generated views' header + `generate-readme.sh`'s layout blurb all learned the new location, and a whole-tree prose sweep updated `CLAUDE.md` / `docs/{architecture,philosophy,workflow}.md` / the skill MDs. The portable contract (the seed) and the new-adopter convention are deliberately unchanged — making `spec/` the portable default is a tracked follow-up, not this PR.
+
 ## [6.0.60] - 2026-06-08
 
 ### Added

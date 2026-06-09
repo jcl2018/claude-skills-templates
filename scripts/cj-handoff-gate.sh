@@ -63,9 +63,9 @@ NUMSTAT_FROM_FILE=""
 # Denylist globs (rename/symlink-safe via `git diff --no-renames --raw`).
 # Tested in scripts/test.sh tests 1, 3, 5 + the F000053/S000094 derivation test.
 #
-# DERIVED from permission-policy.md's `ask` surface globs (the canonical
+# DERIVED from spec/permission-policy.md's `ask` surface globs (the canonical
 # sensitive-file set) via scripts/permission-policy.sh — NOT a hand-maintained
-# array. permission-policy.md is the single source of truth for cj_goal
+# array. spec/permission-policy.md is the single source of truth for cj_goal
 # permissions; scripts/validate.sh Check 21 asserts this gate sources the policy
 # (re-hardcoding the list is the drift it flags). The gate is dormant (its
 # consumers /CJ_goal_auto + /CJ_goal_run are deleted), so the derivation is

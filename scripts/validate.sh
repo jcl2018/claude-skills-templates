@@ -598,7 +598,7 @@ while IFS= read -r SKILL_NAME; do
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
 # Check 15: doc-spec.md registry (declared <=> on-disk) + workflow.md completeness
-# The doc contract lives in the root doc-spec.md registry (a fenced ```yaml block
+# The doc contract lives in the spec/doc-spec.md registry (a fenced ```yaml block
 # parsed by scripts/doc-spec.sh). Check 15a asserts declared <=> on-disk: every
 # declared doc exists AND every docs/*.md on disk is declared (no orphans). Check
 # 15b asserts docs/workflow.md carries a section for every CJ_goal_* orchestrator
@@ -623,6 +623,17 @@ DOCS_FILES_ON_DISK=$(find docs -maxdepth 1 -type f -name '*.md' 2>/dev/null | so
 for f in $DOCS_FILES_ON_DISK; do
   if ! printf '%s\n' "$DECLARED_PATHS" | grep -qFx "$f"; then
     echo "  ERROR: $f is in docs/ but not declared in the doc-spec.md registry"
+    ERRORS=$((ERRORS+1))
+  fi
+done
+
+# 15a-orphan (spec/): spec/*.md on disk that aren't declared in the registry.
+# The spec-registry family lives under spec/; hold it to the same declared <=>
+# on-disk discipline as docs/ so a stray spec/*.md must be declared (or removed).
+SPEC_FILES_ON_DISK=$(find spec -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+for f in $SPEC_FILES_ON_DISK; do
+  if ! printf '%s\n' "$DECLARED_PATHS" | grep -qFx "$f"; then
+    echo "  ERROR: $f is in spec/ but not declared in the doc-spec.md registry"
     ERRORS=$((ERRORS+1))
   fi
 done
@@ -713,7 +724,11 @@ fi
 # surfaces that as an ERROR.
 echo ""
 echo "=== Check 16: doc-spec.md registry schema ==="
-DOC_SPEC_FILE="doc-spec.md"
+# Resolve spec/-then-root (the family moved into spec/; root remains a fallback
+# for root-only consumers). Probe the same order the doc-spec.sh helper uses so
+# this check never silently SKIPs after the relocation.
+DOC_SPEC_FILE="$REPO_ROOT/spec/doc-spec.md"
+[ -f "$DOC_SPEC_FILE" ] || DOC_SPEC_FILE="$REPO_ROOT/doc-spec.md"
 DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
 if [ -f "$DOC_SPEC_FILE" ]; then
   if [ ! -x "$DOC_SPEC_HELPER" ]; then
@@ -818,7 +833,10 @@ fi
 echo ""
 echo "=== Check 19: no work-item refs in human docs ==="
 DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
-if [ -f "doc-spec.md" ] && [ -x "$DOC_SPEC_HELPER" ]; then
+# Resolve spec/-then-root so this HARD gate never silently SKIPs after the move.
+_C19_DOC_SPEC="$REPO_ROOT/spec/doc-spec.md"
+[ -f "$_C19_DOC_SPEC" ] || _C19_DOC_SPEC="$REPO_ROOT/doc-spec.md"
+if [ -f "$_C19_DOC_SPEC" ] && [ -x "$DOC_SPEC_HELPER" ]; then
   HUMAN_DOCS=$(bash "$DOC_SPEC_HELPER" --list-human-docs 2>/dev/null || true)
   C19_HITS=0
   for d in $HUMAN_DOCS; do
@@ -852,7 +870,10 @@ fi
 echo ""
 echo "=== Check 20: front-table-required docs open with a summary table ==="
 DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
-if [ -f "doc-spec.md" ] && [ -x "$DOC_SPEC_HELPER" ]; then
+# Resolve spec/-then-root so this check never silently SKIPs after the move.
+_C20_DOC_SPEC="$REPO_ROOT/spec/doc-spec.md"
+[ -f "$_C20_DOC_SPEC" ] || _C20_DOC_SPEC="$REPO_ROOT/doc-spec.md"
+if [ -f "$_C20_DOC_SPEC" ] && [ -x "$DOC_SPEC_HELPER" ]; then
   FRONT_TABLE_DOCS=$(bash "$DOC_SPEC_HELPER" --list-front-table-docs 2>/dev/null || true)
   C20_CHECKED=0
   for d in $FRONT_TABLE_DOCS; do
@@ -895,7 +916,9 @@ fi
 echo ""
 echo "=== Check 21: cj_goal permission-policy drift (advisory) ==="
 PP_HELPER="$REPO_ROOT/scripts/permission-policy.sh"
-PP_FILE="$REPO_ROOT/permission-policy.md"
+# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
+PP_FILE="$REPO_ROOT/spec/permission-policy.md"
+[ -f "$PP_FILE" ] || PP_FILE="$REPO_ROOT/permission-policy.md"
 if [ ! -f "$PP_FILE" ] || [ ! -x "$PP_HELPER" ]; then
   echo "  SKIP: permission-policy.md / scripts/permission-policy.sh absent (non-adopting repo)"
 else
@@ -937,7 +960,10 @@ fi
 echo ""
 echo "=== Check 22: cj_goal gate-spec marker drift (advisory) ==="
 GS_HELPER="$REPO_ROOT/scripts/gate-spec.sh"
-GS_FILE="$REPO_ROOT/gate-spec.md"
+# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
+# The resolved path is used BOTH in the guard below AND in the awk parse.
+GS_FILE="$REPO_ROOT/spec/gate-spec.md"
+[ -f "$GS_FILE" ] || GS_FILE="$REPO_ROOT/gate-spec.md"
 if [ ! -f "$GS_FILE" ] || [ ! -x "$GS_HELPER" ]; then
   echo "  SKIP: gate-spec.md / scripts/gate-spec.sh absent (non-adopting repo)"
 else

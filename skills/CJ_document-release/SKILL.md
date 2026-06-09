@@ -1,6 +1,6 @@
 ---
 name: CJ_document-release
-description: "Workbench wrapper around upstream /document-release. Reads the root doc-spec.md registry (self-bootstraps it from the portable Common seed if missing; stub-scaffolds any missing declared doc), adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a doc-only whitelist DERIVED from the doc-spec.md registry (non-whitelist writes HALT with [doc-sync-non-doc-write]). A missing/invalid registry HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
+description: "Workbench wrapper around upstream /document-release. Reads the spec/doc-spec.md registry (resolved spec/-then-root; self-bootstraps it from the portable Common seed if missing; stub-scaffolds any missing declared doc), adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a doc-only whitelist DERIVED from the doc-spec.md registry (non-whitelist writes HALT with [doc-sync-non-doc-write]). A missing/invalid registry HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the 3 cj_goal orchestrators (CJ_goal_feature / CJ_goal_defect / CJ_goal_todo_fix) at Step 5.5 — between QA pass and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -39,7 +39,7 @@ If `NOT_A_GIT_REPO`: print `Error: /CJ_document-release requires a git repositor
 `/document-release`. It adds four workbench-specific concerns the orchestrator
 family needs:
 
-1. **Reads + self-heals the `doc-spec.md` contract.** The root `doc-spec.md`
+1. **Reads + self-heals the `doc-spec.md` contract.** The `spec/doc-spec.md` (resolved spec/-then-root)
    declares the repo's docs (a fenced `yaml` registry parsed by
    `scripts/doc-spec.sh`). If `doc-spec.md` is **missing**, the wrapper
    self-bootstraps it from the portable Common seed and commits it. For each
@@ -144,16 +144,22 @@ fi
 
 ### Self-bootstrap a missing doc-spec.md
 
-If `doc-spec.md` does not exist at the repo root, scaffold it from the portable
-Common seed (`doc-spec.sh --seed`) and commit it. This is the duty that replaces
-a separate repo-init step — a fresh repo adopts the contract with no manual step:
+If `doc-spec.md` does not exist at EITHER `spec/doc-spec.md` (this repo's
+relocated home) OR the repo root, scaffold it from the portable Common seed
+(`doc-spec.sh --seed`) and commit it. This is the duty that replaces a separate
+repo-init step — a fresh repo adopts the contract with no manual step. The
+READ/guard probes spec/-then-root so a repo that already carries
+`spec/doc-spec.md` is NOT treated as missing (no spurious duplicate root file);
+the WRITE target for a genuinely-missing-everywhere file stays root-style
+(consumer convention — the seed is root-style by construction):
 
 Write the seed to a temp file, verify it is non-empty AND passes `--validate`,
 THEN move it into place. This guards against a `--seed` failure ever redirecting
 a halt string (or an empty stream) into `doc-spec.md` and corrupting it:
 
 ```bash
-if [ ! -f "$_DS_REPO_ROOT/doc-spec.md" ]; then
+# Guard: present if EITHER spec/doc-spec.md OR root doc-spec.md exists.
+if [ ! -f "$_DS_REPO_ROOT/spec/doc-spec.md" ] && [ ! -f "$_DS_REPO_ROOT/doc-spec.md" ]; then
   _DS_TMPD=$(mktemp -d)
   if bash "$_DS_HELPER" --seed > "$_DS_TMPD/doc-spec.md" 2>/dev/null \
      && [ -s "$_DS_TMPD/doc-spec.md" ] \
@@ -189,7 +195,7 @@ CONFIG_RC=$?
 if [ "$CONFIG_RC" -ne 0 ]; then
   echo "$CONFIG_OUT"
   echo "RESULT: red; HALT_MARKER=[doc-sync-no-config]"
-  echo "next_action=repair doc-spec.md's yaml registry at repo root; re-run /CJ_document-release"
+  echo "next_action=repair spec/doc-spec.md's yaml registry; re-run /CJ_document-release"
   echo "resume_cmd=/CJ_document-release${DOCS_SUBSET:+ --docs $DOCS_SUBSET}"
   echo "pr_url=N/A"
   exit 1
@@ -526,12 +532,15 @@ value:
 
 ```bash
 _DS_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Resolve spec/-then-root (the registry moved into spec/; root is the fallback).
+_DS_REG="$_DS_REPO_ROOT/spec/doc-spec.md"
+[ -f "$_DS_REG" ] || _DS_REG="$_DS_REPO_ROOT/doc-spec.md"
 # Extract the yaml registry block and walk path + requirement pairs.
 awk '
   /^```yaml/ { if (!seen) { f=1; seen=1; next } }
   /^```/     { if (f) { f=0 } }
   f          { print }
-' "$_DS_REPO_ROOT/doc-spec.md"
+' "$_DS_REG"
 ```
 
 For each captured `(path, requirement)` pair: the registered doc is `path`, and
@@ -679,7 +688,7 @@ suppress the `[doc-sync-red]` or `[doc-sync-non-doc-write]` halt contracts.
 | Error | Marker | Recovery |
 |-------|--------|----------|
 | Not a git repo | (no marker — usage halt) | Run inside a repo |
-| `doc-spec.md` missing / no yaml registry / schema_version unsupported / entry missing required fields / audit_class outside enum | `[doc-sync-no-config]` | Repair `doc-spec.md`'s yaml registry at repo root (or let the self-bootstrap recreate it from the Common seed); re-run |
+| `doc-spec.md` missing / no yaml registry / schema_version unsupported / entry missing required fields / audit_class outside enum | `[doc-sync-no-config]` | Repair `spec/doc-spec.md`'s yaml registry (or let the self-bootstrap recreate it from the Common seed); re-run |
 | `doc-spec.sh` helper unreachable | `[doc-sync-no-config]` | Restore `scripts/doc-spec.sh`, or re-run `skills-deploy install` to refresh the deployed `_cj-shared` home; re-run |
 | On main / base branch (refuses on the base branch) | `[doc-sync-red]` | Run from a feature branch |
 | Working tree has uncommitted non-doc changes (pre-run) | `[doc-sync-red]` | Commit or stash non-doc changes; re-run |

@@ -190,7 +190,7 @@ boundary, QA executes the work-item's test rows rather than merely checking a
 TEST-SPEC exists, and a pre-ship portability gate halts the run before a PR is
 ever opened. The concrete map of this principle — every verification surface, at
 which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is one
-root file, `gate-spec.md`; the **CI/CD topic** below is the layered model this
+the `spec/gate-spec.md` registry; the **CI/CD topic** below is the layered model this
 principle resolves to.
 
 ### 5. Tools & permissions are first-class
@@ -254,14 +254,14 @@ undocumented, portability-dishonest, or self-merging) by a **pipeline-gate**, an
 a regression of a monotonic property by a **ratchet**.
 
 The concrete, machine-checked map of all four layers and every gate — the prose,
-the division-of-labor table, and a fenced `yaml` registry — is one root file,
-[`gate-spec.md`](../gate-spec.md) (landed in v6.0.57, enforced by `validate.sh`
+the division-of-labor table, and a fenced `yaml` registry — is one file,
+[`spec/gate-spec.md`](../spec/gate-spec.md) (enforced by `validate.sh`
 Check 22). This topic is the principle; `gate-spec.md` is the live map.
 
 ## Topic: Doc contract
 
 These principles are about how the *docs themselves* are kept honest. The model
-is one chain: a single machine **registry** (the root `doc-spec.md`) is the
+is one chain: a single machine **registry** (`spec/doc-spec.md`) is the
 source of truth; readable **generated views** are derived from it (the same way
 `README.md` is generated from the skill catalog) so there is never a second list
 to hand-maintain; and the contract's **logic** lives here. `doc-spec.sh
@@ -271,14 +271,15 @@ registry.
 
 ### The doc contract is one file, human + machine
 
-What docs the repo carries — and what each one is for — lives in one root file,
-`doc-spec.md`. It is both the human-readable map and the machine source of truth
-(a fenced `yaml` registry the CI validator and the doc-release skill both parse).
-Human docs carry no internal work-item IDs; that rule is a hard CI lint, not a
-guideline. The readable general/custom doc lists are generated from that registry
-into `docs/doc-general.md` + `docs/doc-custom.md` — generated views, not a second
-list to keep in sync. See [doc-spec.md](../doc-spec.md) for the contract itself
-and [architecture.md](architecture.md) for how it is enforced and self-healed.
+What docs the repo carries — and what each one is for — lives in one file,
+`spec/doc-spec.md`. It is both the human-readable map and the machine source of
+truth (a fenced `yaml` registry the CI validator and the doc-release skill both
+parse). Human docs carry no internal work-item IDs; that rule is a hard CI lint,
+not a guideline. The readable general/custom doc lists are generated from that
+registry into `docs/doc-general.md` + `docs/doc-custom.md` — generated views, not
+a second list to keep in sync. See [spec/doc-spec.md](../spec/doc-spec.md) for the
+contract itself and [architecture.md](architecture.md) for how it is enforced and
+self-healed.
 
 ### Two tiers, one portable pass: general by default, custom per repo
 

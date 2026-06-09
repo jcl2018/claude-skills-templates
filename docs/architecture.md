@@ -122,12 +122,12 @@ point-in-time doc audits on a feature branch outside the `cj_goal` pipeline.
 
 The workbench declares **what docs it carries and what each is for** in one root
 file, `doc-spec.md` — both the human-readable map and the machine source of truth
-(a fenced `yaml` registry). See [`doc-spec.md`](../doc-spec.md) for the contract
-itself; this section is the mechanism reference for how it is parsed, enforced,
-and self-healed.
+(a fenced `yaml` registry). See [`spec/doc-spec.md`](../spec/doc-spec.md) for the
+contract itself; this section is the mechanism reference for how it is parsed,
+enforced, and self-healed.
 
 ```
-                    doc-spec.md (root)
+                    doc-spec.md (spec/)
                     +---------------------------+
                     | Common (portable seed)    |
                     | Custom (this repo)        |
@@ -179,7 +179,7 @@ docs:
 
 These are the `validate.sh` checks that enforce the *doc* contract — one slice of
 the larger verification story, not "the gate" as a whole. ("Gate" is reserved for
-an inline orchestrator halt; see [`gate-spec.md`](../gate-spec.md) and the
+an inline orchestrator halt; see [`spec/gate-spec.md`](../spec/gate-spec.md) and the
 [gate-spec.md contract](#the-gate-specmd-contract) section below for the
 four-layer map of every verification surface.) The validator parses the registry
 and asserts the contract:
@@ -351,17 +351,17 @@ sync` pre-build fork reuses — not an orchestrator pipeline step.
 ## The gate-spec.md contract
 
 The workbench declares **what stops a broken cj_goal change from landing, and at
-which layer** in one root file, [`gate-spec.md`](../gate-spec.md) — both the
+which layer** in one file, [`spec/gate-spec.md`](../spec/gate-spec.md) — both the
 human-readable map (prose + a four-layer summary table + an ASCII diagram + a
 division-of-labor) and the machine source of truth (a fenced `yaml` registry of
-`layers[]` + `gates[]`). It is the third member of the `doc-spec.md` →
-`permission-policy.md` → `gate-spec.md` family: the same shape (a root registry
-doc + a `scripts/` reader + an advisory `validate.sh` check) applied to
+`layers[]` + `gates[]`). It is the third member of the `spec/doc-spec.md` →
+`spec/permission-policy.md` → `spec/gate-spec.md` family: the same shape (a `spec/`
+registry doc + a `scripts/` reader + an advisory `validate.sh` check) applied to
 verification. This section is the mechanism reference; see the file itself for
 the contract.
 
 ```
-                    gate-spec.md (root)
+                    gate-spec.md (spec/)
                     +---------------------------+
                     | four-layer map +          |
                     | division-of-labor +       |
