@@ -35,16 +35,18 @@ fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-DOC_SPEC="$REPO_ROOT/doc-spec.md"
+# Resolve the registry spec/-then-root (mirrors the helper's back-compat fallback).
+DOC_SPEC="$REPO_ROOT/spec/doc-spec.md"
+[ -f "$DOC_SPEC" ] || DOC_SPEC="$REPO_ROOT/doc-spec.md"
 HELPER="$REPO_ROOT/scripts/doc-spec.sh"
 
 echo "=== doc-spec.md registry + doc-spec.sh helper assertions ==="
 
-# 1. doc-spec.md exists
+# 1. doc-spec.md exists (at spec/ or, for a root-only consumer, at root)
 if [ -f "$DOC_SPEC" ]; then
-  ok "doc-spec.md exists at repo root"
+  ok "doc-spec.md registry present ($DOC_SPEC)"
 else
-  fail_test "doc-spec.md missing at repo root: $DOC_SPEC"
+  fail_test "doc-spec.md missing (looked in spec/ then root): $DOC_SPEC"
   echo "FAIL: cj-document-release-config ($ERRORS error(s))"
   exit 1
 fi
@@ -124,13 +126,13 @@ else
   fail_test "helper --list-front-table-docs skipped (not executable)"
 fi
 
-# 7. --expand-whitelist includes doc-spec.md + every declared path
+# 7. --expand-whitelist includes the registry (spec/doc-spec.md) + every declared path
 if [ -x "$HELPER" ]; then
   _WL=$(bash "$HELPER" --expand-whitelist 2>/dev/null)
-  if printf '%s\n' "$_WL" | grep -qx 'doc-spec.md' \
+  if { printf '%s\n' "$_WL" | grep -qx 'spec/doc-spec.md' || printf '%s\n' "$_WL" | grep -qx 'doc-spec.md'; } \
      && printf '%s\n' "$_WL" | grep -qx 'docs/workflow.md' \
      && printf '%s\n' "$_WL" | grep -qx 'README.md'; then
-    ok "helper --expand-whitelist includes doc-spec.md + declared paths"
+    ok "helper --expand-whitelist includes the doc-spec registry + declared paths"
   else
     fail_test "helper --expand-whitelist incomplete (got: $_WL)"
   fi
