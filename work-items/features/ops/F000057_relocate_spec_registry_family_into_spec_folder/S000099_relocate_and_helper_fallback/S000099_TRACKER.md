@@ -9,6 +9,22 @@ parent: "F000057"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "claude/sleepy-cerf-e8f24b"
 blocked_by: ""
+receipts:
+  qa:
+    phase: 3
+    commit: "6595090b2b8431f5fbe43896617aca3cc14b0980"
+    completed_at: "2026-06-09T15:56:29Z"
+    test_rows_run: 10
+    ac_ids_covered: ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"]
+    ac_ids_uncovered: []
+    diff_audit:
+      changed_files_without_tests: []
+    journal_entries:
+      - "[qa-smoke] S1-S6 green (6/6)"
+      - "[qa-e2e] E1-E4 green (4/4 parent-inline)"
+      - "[qa-pass] green smoke + green E2E"
+    ready_for_ship: true
+    next_legal: ["ship"]
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -46,8 +62,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -152,3 +168,19 @@ blocked_by: ""
 - 2026-06-09 [qa-smoke-summary] red: 5/6 non-manual rows green (0 manual). S3 red blocks the suite.
 - 2026-06-09 [qa-finding] E2 (AC-9) RED — adversarial stale-root-path sweep found ONE surviving stale root-PATH reference the Must-fix-F whole-tree sweep missed: `tests/cj-document-release-config.test.sh:38` `DOC_SPEC="$REPO_ROOT/doc-spec.md"` (+ dependent assertion line 47 / header comment lines 9-11) points at the REAL repo root, where `doc-spec.md` no longer lives (moved to `spec/doc-spec.md`). This is the root cause of S3's `scripts/test.sh` FAIL. It is NOT in the journal's documented Confirmed-SAFE temp-repo-fixture set: lines 114/156/171/191/228/271 write to `$_T`/`$_TMP_REPO` mktemp dirs (intentional root-style fixtures — correct, no action), but line 38 resolves the actual `$REPO_ROOT`. Fix: make line 38 spec/-then-root aware (`DOC_SPEC="$REPO_ROOT/spec/doc-spec.md"; [ -f "$DOC_SPEC" ] || DOC_SPEC="$REPO_ROOT/doc-spec.md"`), mirroring validate.sh:730-731. Confirmed-NOT-a-bug: `skills/CJ_document-release/SKILL.md:162` READ guard IS spec-aware (`[ ! -f spec/doc-spec.md ] && [ ! -f doc-spec.md ]`); its :167 WRITE-to-root is the intentional consumer-convention path (Must-fix C, E3/AC-6 satisfied — no duplicate-root-file bug). The other validate.sh/scripts hits are non-path prose ("the doc-spec.md registry"), not stale paths.
 - 2026-06-09 [qa-refused] QA RED — smoke S3 red (test.sh FAIL via a stale-root-path reference in tests/cj-document-release-config.test.sh:38). Per the smoke-red short-circuit no E2E subagent was dispatched; E2's adversarial sweep was run inline and also reads RED on the same defect. Phase 2 QA-owned gates (`Acceptance criteria verified met`, `Smoke tests pass`) NOT transitioned — left `[ ]`. Fix the stale assertion (make it spec/-then-root aware) and re-run /CJ_qa-work-item.
+
+--- RE-QA after fix landed (commit 6595090) ---
+- 2026-06-09 [qa-smoke] S1 (AC-2): green — all 3 helpers (`doc-spec.sh`/`gate-spec.sh`/`permission-policy.sh`) `--validate` exit 0 (`OK schema_version=1` x3), resolving the relocated `spec/` registries.
+- 2026-06-09 [qa-smoke] S2 (AC-4, AC-7): green — `scripts/validate.sh` exit 0, `RESULT: PASS` (Errors 0 / Warnings 0); Checks 16/19/20/21/22 each print `PASS:` NOT `SKIP:` (Check 16 `PASS: .../spec/doc-spec.md registry (OK schema_version=1)`; Check 19 hard gate live: `PASS: no work-item refs in any human-doc (6 human-docs scanned)`); Check 15a `spec/*.md` orphan scan green (`13 docs declared`); Check 17 root allowlist = 5 entries; Check 23 in sync. Zero SKIP lines among 16/19/20/21/22.
+- 2026-06-09 [qa-smoke] S3 (AC-5, AC-7): green — `scripts/test.sh` exit 0, `RESULT: PASS` (Failures: 0). The previously-failing `tests/cj-document-release-config.test.sh` now PASSES (`OK: ... all PASS`); S94 (`OK: F000053/S000094 permission-policy regression guards`) + S96 (`OK: F000054/S000096 gate-spec regression guards`) green; zzz-scaffold spec/ orphan mirror green (`OK: Check 15a spec/: stray spec/STRAY.md triggers orphan ERROR`); Check 23 green. The S3 red is resolved.
+- 2026-06-09 [qa-smoke] S4 (AC-5): green — `diff <(doc-spec.sh --seed) templates/doc-spec-common.md` empty; seed byte-identical (#13 self-bootstrap case green in the config test).
+- 2026-06-09 [qa-smoke] S5 (AC-2): green — `PERMISSION_POLICY_PATH=/nonexistent permission-policy.sh --validate` exits 1 with `[permission-policy-no-config] permission-policy.md missing at: /nonexistent` (env override outermost, wins over spec/root fallback).
+- 2026-06-09 [qa-smoke] S6 (AC-1, AC-3, AC-10): green — all 3 files present under `spec/` and absent from root; root `*.md` = exactly 5 (CHANGELOG, CLAUDE, CONTRIBUTING, README, TODOS); spec/ holds exactly the 3; `spec/doc-spec.md` self-declares `path: spec/<name>.md`; `validate.sh` green at HEAD (lockstep landing intact).
+- 2026-06-09 [qa-smoke-summary] green: 6/6 non-manual rows green (0 manual). The S3 red is fixed.
+- 2026-06-09 [qa-e2e-run-start] RUN_ID=20260609-085629-40850 commit=6595090
+- 2026-06-09 [qa-e2e] E1 (AC-2): green — root-only temp repo (mktemp, `doc-spec.md` at root, NO spec/ dir) resolves via the fallback and `--validate` exits 0 (`OK schema_version=1`); knowledge-base consumer shape unaffected. Temp repo cleaned; no tracked file touched. [parent-inline]
+- 2026-06-09 [qa-e2e] E2 (AC-9): green — adversarial whole-tree sweep for `(doc-spec|gate-spec|permission-policy).md` refs: every `$REPO_ROOT/<name>.md` hit (test.sh:90/129, validate.sh:731/838/875/921/966, SKILL.md:537, config-test:40) is the second leg of a `spec/`-first fallback; no bare `./<name>.md` root path anywhere; remaining hits are spec/ paths, the intentional consumer-convention root WRITE (SKILL.md:164-167), mktemp temp-repo fixtures, or non-path prose. Zero stale root-PATH refs survive. [parent-inline]
+- 2026-06-09 [qa-e2e] E3 (AC-6): green — CJ_document-release self-bootstrap guard probes `spec/`-then-root (`[ ! -f spec/doc-spec.md ] && [ ! -f doc-spec.md ]`); spec/doc-spec.md present so the guard does NOT fire — no duplicate root `doc-spec.md` written; root copy confirmed absent; tree clean. [parent-inline]
+- 2026-06-09 [qa-e2e] E4 (AC-8): green — `docs/doc-general.md` + `docs/doc-custom.md` headers say "generated from the `spec/doc-spec.md` registry"; custom rows show `spec/{doc-spec,gate-spec,permission-policy}.md` paths; `generate-doc-views.sh` regeneration produced NO diff (Check 23 in sync). [parent-inline]
+- 2026-06-09 [qa-e2e-summary] green (0s subagent; 4 rows parent-inline; 0 deferred): all 4 E2E criteria green (E1-E4). Run inline per the silent re-QA contract (no Agent subagents, depth ≤ 2).
+- 2026-06-09 [qa-pass] S000099 (user-story): green smoke (6/6) + green E2E (4/4). Phase 2 QA-owned gates (`Acceptance criteria verified met`, `Smoke tests pass`) transitioned. Receipt written (commit 6595090, ready_for_ship: true, ac_ids_uncovered: []).
