@@ -19,7 +19,7 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 
 ```
 .
-├── doc-spec.md          # the doc contract: what docs this repo carries + what each is for
+├── spec/               # machine registries (doc-spec / gate-spec / permission-policy)
 ├── docs/                # human docs (philosophy.md, workflow.md, architecture.md) + generated doc-spec views (doc-general.md, doc-custom.md)
 ├── skills/              # Claude Code skills (the CJ_ family + utilities)
 ├── templates/           # work-item + doc authoring templates
@@ -33,7 +33,7 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 └── TODOS.md             # operational backlog
 ```
 
-For the full doc map (and the machine registry the validator parses), see [`doc-spec.md`](doc-spec.md).
+For the full doc map (and the machine registry the validator parses), see [`spec/doc-spec.md`](spec/doc-spec.md).
 
 ## Skills
 

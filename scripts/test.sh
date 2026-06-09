@@ -85,7 +85,9 @@ ok "F000053/S000093 trajectory-QA regression guards"
 # Parallel test.sh fixture for the new validate.sh Check 21 (repo convention: a
 # new validate.sh check ships with its test.sh assertions in the same PR).
 _S94_PP="$REPO_ROOT/scripts/permission-policy.sh"
-_S94_POLICY="$REPO_ROOT/permission-policy.md"
+# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
+_S94_POLICY="$REPO_ROOT/spec/permission-policy.md"
+[ -f "$_S94_POLICY" ] || _S94_POLICY="$REPO_ROOT/permission-policy.md"
 if [ ! -x "$_S94_PP" ] || [ ! -f "$_S94_POLICY" ]; then
   fail_test "S000094: permission-policy.sh / permission-policy.md missing"
 else
@@ -122,7 +124,9 @@ fi
 # check ships with its test.sh assertions in the same PR). Mirrors the S000094
 # permission-policy block above.
 _S96_GS="$REPO_ROOT/scripts/gate-spec.sh"
-_S96_SPEC="$REPO_ROOT/gate-spec.md"
+# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
+_S96_SPEC="$REPO_ROOT/spec/gate-spec.md"
+[ -f "$_S96_SPEC" ] || _S96_SPEC="$REPO_ROOT/gate-spec.md"
 if [ ! -x "$_S96_GS" ] || [ ! -f "$_S96_SPEC" ]; then
   fail_test "S000096: gate-spec.sh / gate-spec.md missing"
 else
@@ -441,6 +445,32 @@ if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
   ok "Check 17: validate.sh exits 0 again after the stray root doc is removed"
 else
   fail_test "Check 17: validate.sh should have exited 0 after STRAY.md removed, but exited non-zero"
+fi
+
+# Step 3b' (F000057 / S000099 / TEST-SPEC S2,S3): the new Check 15a spec/*.md
+# orphan scan. THE PARALLEL test.sh EDIT the new validate.sh orphan scan needs —
+# pre-flighted in lockstep with the scan add (the standing F000032/34/35 zzz-mirror
+# blind spot, defused). The spec-registry family moved into spec/; Check 15a now
+# holds spec/*.md to the same declared <=> on-disk discipline as docs/*.md. Plant
+# a STRAY.md under spec/ that is NOT declared in the registry → assert validate.sh
+# exits non-zero AND emits the literal spec/ orphan ERROR (`  ERROR: spec/STRAY.md
+# is in spec/ but not declared in the doc-spec.md registry`), then rm it → assert
+# validate.sh exits 0 again. STRAY is removed before later tests so it never leaks.
+touch "$REPO_ROOT/spec/STRAY.md"
+if _C15A_SPEC_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 15a spec/: validate.sh should have exited non-zero with an undeclared spec/STRAY.md, but exited 0"
+else
+  if echo "$_C15A_SPEC_OUT" | grep -qF "  ERROR: spec/STRAY.md is in spec/ but not declared in the doc-spec.md registry"; then
+    ok "Check 15a spec/: stray spec/STRAY.md triggers orphan ERROR + non-zero exit"
+  else
+    fail_test "Check 15a spec/: validate.sh exited non-zero but missing '  ERROR: spec/STRAY.md is in spec/ but not declared in the doc-spec.md registry' substring; output: $_C15A_SPEC_OUT"
+  fi
+fi
+rm -f "$REPO_ROOT/spec/STRAY.md"
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 15a spec/: validate.sh exits 0 again after the stray spec/ doc is removed"
+else
+  fail_test "Check 15a spec/: validate.sh should have exited 0 after spec/STRAY.md removed, but exited non-zero"
 fi
 
 # Step 3c (F000050 / TEST-SPEC S3): Check 19 no-work-item-refs-in-human-docs lint.

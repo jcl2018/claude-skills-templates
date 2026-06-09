@@ -32,7 +32,10 @@ set -eu
 _strip_cr() { tr -d '\r'; }
 
 REPO_ROOT_RESOLVED="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
-POLICY_PATH="${PERMISSION_POLICY_PATH:-${REPO_ROOT_RESOLVED}/permission-policy.md}"
+# Resolution order: PERMISSION_POLICY_PATH env override (outermost) ->
+# spec/permission-policy.md (this repo, post-relocation) -> root
+# permission-policy.md (root-only consumers).
+POLICY_PATH="${PERMISSION_POLICY_PATH:-$( [ -f "$REPO_ROOT_RESOLVED/spec/permission-policy.md" ] && echo "$REPO_ROOT_RESOLVED/spec/permission-policy.md" || echo "$REPO_ROOT_RESOLVED/permission-policy.md" )}"
 SUPPORTED_SCHEMA_VERSIONS="1"
 
 emit_halt() {

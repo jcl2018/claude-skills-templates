@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Auto-generate the readable general/custom doc-spec views from the doc-spec.md
-# registry — the same way generate-readme.sh generates README.md from the skill
-# catalog. The root doc-spec.md registry is the ONE source of truth; these two
-# files are generated views of it (grouped by `section`), so there is no second
-# list to keep in sync.
+# Auto-generate the readable general/custom doc-spec views from the
+# spec/doc-spec.md registry — the same way generate-readme.sh generates README.md
+# from the skill catalog. The spec/doc-spec.md registry is the ONE source of
+# truth; these two files are generated views of it (grouped by `section`), so
+# there is no second list to keep in sync.
 #
 # Writes <output-dir>/doc-general.md (section: common) and
 #        <output-dir>/doc-custom.md  (section: custom).
@@ -51,7 +51,7 @@ mkdir -p "$OUTPUT_DIR"
   echo "<!-- AUTO-GENERATED from scripts/generate-doc-views.sh — do not edit -->"
   echo "# Doc contract — general docs"
   echo ""
-  echo "The general-tier docs (\`section: common\`) every adopting repo carries, generated from the \`doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
+  echo "The general-tier docs (\`section: common\`) every adopting repo carries, generated from the \`spec/doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
   echo ""
   printf '%s\n' "$GENERAL_BODY"
 } > "$OUTPUT_DIR/doc-general.md"
@@ -61,7 +61,7 @@ mkdir -p "$OUTPUT_DIR"
   echo "<!-- AUTO-GENERATED from scripts/generate-doc-views.sh — do not edit -->"
   echo "# Doc contract — custom docs"
   echo ""
-  echo "This repo's custom-tier docs (\`section: custom\`) beyond the general set, generated from the \`doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
+  echo "This repo's custom-tier docs (\`section: custom\`) beyond the general set, generated from the \`spec/doc-spec.md\` registry. Do not hand-edit; regenerate with \`scripts/generate-doc-views.sh\`."
   echo ""
   printf '%s\n' "$CUSTOM_BODY"
 } > "$OUTPUT_DIR/doc-custom.md"

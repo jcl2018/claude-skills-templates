@@ -6,10 +6,11 @@ prose, the table, and the ASCII diagram below) and the machine source of truth
 (the fenced `yaml` registry at the end, parsed by `scripts/gate-spec.sh`). One
 file, no second list to keep in sync.
 
-It is the third member of the `doc-spec.md` → `permission-policy.md` →
-`gate-spec.md` family: the same proven shape (a root registry doc + a `scripts/`
-reader + an advisory `scripts/validate.sh` check) applied to a new concern. Anyone
-who already understands `doc-spec.md` understands this file on sight.
+It is the third member of the `spec/doc-spec.md` → `spec/permission-policy.md` →
+`spec/gate-spec.md` family: the same proven shape (a `spec/` registry doc + a
+`scripts/` reader + an advisory `scripts/validate.sh` check) applied to a new
+concern. Anyone who already understands `spec/doc-spec.md` understands this file
+on sight.
 
 ## The four verification layers
 

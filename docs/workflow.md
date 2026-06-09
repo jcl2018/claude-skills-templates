@@ -522,7 +522,7 @@ declared doc. (Mechanism detail: architecture.md `## The doc-spec.md contract +
 **Touches:**
 
 - **Scripts · tools · shell:** the `Skill` tool (dispatches upstream `/document-release`); `scripts/doc-spec.sh` (`--validate` / `--expand-whitelist` / `--list-declared` / `--seed`); `git add` + `git commit` for the doc-only auto-commit.
-- **Reads / writes:** reads `doc-spec.md` (the registry) + the declared docs; writes the whitelisted doc set (README.md, CHANGELOG.md, CLAUDE.md, `docs/**`), self-bootstraps a missing `doc-spec.md`, stub-scaffolds missing declared docs, and writes a `### Registered-doc requirements` verdict block to the gitignored `.cj-goal-feature/registered-doc-verdicts.md` scratch file.
+- **Reads / writes:** reads `spec/doc-spec.md` (the registry, resolved spec/-then-root) + the declared docs; writes the whitelisted doc set (README.md, CHANGELOG.md, CLAUDE.md, `docs/**`), self-bootstraps a missing `doc-spec.md`, stub-scaffolds missing declared docs, and writes a `### Registered-doc requirements` verdict block to the gitignored `.cj-goal-feature/registered-doc-verdicts.md` scratch file.
 
 ### Validators
 
@@ -682,7 +682,7 @@ repo that has never seen this workbench"):**
 
 | Tier | ALLOWED | A dep beyond this is a FINDING |
 |---|---|---|
-| `standalone` | own bundled scripts (`skills/<name>/scripts/`) + the doc-spec contract files (`doc-spec.md`, `docs/**`, `TODOS.md`, `work-items/`) | root `scripts/*.sh`, `CLAUDE.md` reads, root config, the GitHub slug |
+| `standalone` | own bundled scripts (`skills/<name>/scripts/`) + the doc-spec contract files (`spec/doc-spec.md`, `docs/**`, `TODOS.md`, `work-items/`) | root `scripts/*.sh`, `CLAUDE.md` reads, root config, the GitHub slug |
 | `local-only` | standalone's set PLUS the user's `~/.claude` deployed state | root workbench helpers, root config |
 | `workbench` | everything PLUS root `scripts/*.sh`, `CLAUDE.md` reads, root config | (nothing — this is the tier for skills that operate ON the workbench) |
 

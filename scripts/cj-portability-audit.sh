@@ -19,7 +19,7 @@
 # STRICT TIER LADDER (the bar is "works in a repo that has never seen this
 # workbench"). Each tier's ALLOWED dependency set:
 #   standalone  — own bundled scripts (skills/<name>/scripts/) + the doc-spec
-#                 contract files (doc-spec.md, docs/**, TODOS.md,
+#                 contract files (spec/doc-spec.md, docs/**, TODOS.md,
 #                 work-items/). NOTHING else.
 #   local-only  — standalone's set PLUS the user's ~/.claude deployed state.
 #   workbench   — everything PLUS root scripts/*.sh, the `.source` reach-back,
@@ -129,7 +129,7 @@ fi
 jq empty "$CATALOG" >/dev/null 2>&1 || { echo "$PROG: error: $CATALOG is not valid JSON." >&2; exit 1; }
 
 # ----- root config-file literals (only these + the slug are literals) -----
-# Deliberately EXCLUDES the doc-spec contract files (doc-spec.md, docs/**,
+# Deliberately EXCLUDES the doc-spec contract files (spec/doc-spec.md, docs/**,
 # TODOS.md, work-items/) — those are part of EVERY adopting repo's doc surface
 # (doc-spec.md self-bootstraps; the docs are stub-scaffolded), so a skill reaching
 # them is within EVERY tier's allowed set (not a workbench-coupling signal). Only

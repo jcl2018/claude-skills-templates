@@ -82,9 +82,12 @@ Each registry entry declares one `audit_class`:
 ## Custom: this repo's additional docs
 
 Beyond the four common human docs, this workbench carries a handful of
-**operational** docs at the repo root (agent- and ops-facing, so they may
-reference work items) plus the two generated registry views. The full
-general/custom doc lists are **generated** from the machine registry below into
+**operational** docs (agent- and ops-facing, so they may reference work items)
+plus the two generated registry views. The three spec-registry files
+(`spec/doc-spec.md`, `spec/gate-spec.md`, `spec/permission-policy.md`) live under
+`spec/` — a dedicated folder that signals "machine config, not hand-read docs"
+at a glance. The full general/custom doc lists are **generated** from the machine
+registry below into
 [`docs/doc-general.md`](docs/doc-general.md) + [`docs/doc-custom.md`](docs/doc-custom.md)
 (do not hand-edit — regenerate with `scripts/generate-doc-views.sh`); the
 contract's *why* (the logic) lives in
@@ -94,9 +97,13 @@ Repo notes:
 
 - The three human docs live under `docs/` (lowercase). `docs/workflow.md` is
   singular.
-- `doc-spec.md` and the root operational docs stay at the repo root because
-  external tooling (GitHub rendering, Claude Code's `./CLAUDE.md` auto-load,
-  `/ship`'s changelog writer) hardcodes those root paths.
+- The three spec-registry files moved into `spec/` (this repo); each helper
+  resolves `spec/<name>.md` first, then a root `<name>.md` fallback, so a
+  root-only consumer (or a fresh adopter) still resolves the registry unchanged.
+- The remaining root operational docs (`CHANGELOG.md`, `CLAUDE.md`,
+  `CONTRIBUTING.md`, `TODOS.md`) stay at the repo root because external tooling
+  (GitHub rendering, Claude Code's `./CLAUDE.md` auto-load, `/ship`'s changelog
+  writer) hardcodes those root paths.
 - The doc-only auto-commit whitelist used by `/CJ_document-release` is derived
   from the registry below — there is no separate hand-maintained whitelist file.
 
@@ -148,12 +155,12 @@ docs:
     audit_class: human-doc
     purpose: "Repo landing page: folder structure + how to get started."
     requirement: "Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs."
-  - path: doc-spec.md
+  - path: spec/doc-spec.md
     section: custom
     audit_class: operational
     purpose: "The doc contract itself (this file)."
     requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1."
-  - path: gate-spec.md
+  - path: spec/gate-spec.md
     section: custom
     audit_class: operational
     purpose: "The cj_goal verification contract — what stops a broken change from landing, and at which layer (parsed by scripts/gate-spec.sh)."
@@ -178,7 +185,7 @@ docs:
     audit_class: operational
     purpose: "Operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship."
     requirement: "Present; work-item references allowed (operational doc)."
-  - path: permission-policy.md
+  - path: spec/permission-policy.md
     section: custom
     audit_class: operational
     purpose: "The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh)."
@@ -187,10 +194,10 @@ docs:
     section: custom
     audit_class: human-doc
     purpose: "Generated readable view of the section:common (general) registry docs."
-    requirement: "Generated from the doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
+    requirement: "Generated from the spec/doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
   - path: docs/doc-custom.md
     section: custom
     audit_class: human-doc
     purpose: "Generated readable view of the section:custom registry docs."
-    requirement: "Generated from the doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
+    requirement: "Generated from the spec/doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
 ```

@@ -63,11 +63,11 @@ into `validate.sh` as an advisory check).
 /CJ_document-release is the inline doc-sync wrapper invoked at
 Step 5.5 of every cj_goal orchestrator (between QA pass and `/ship`) — folds
 doc updates into the same code PR rather than chasing them post-merge. It is also
-the keeper of the doc contract: it reads the root `doc-spec.md` registry,
+the keeper of the doc contract: it reads the `spec/doc-spec.md` registry,
 self-bootstraps a missing `doc-spec.md` from the portable Common seed, and
 stub-scaffolds any declared-but-missing doc (the duty that replaced the retired
 `/CJ_repo-init`). The non-doc per-repo prerequisites (TODOS.md, work-items/) are
-lazy-created by the skills that read them. See [`doc-spec.md`](doc-spec.md).
+lazy-created by the skills that read them. See [`spec/doc-spec.md`](spec/doc-spec.md).
 
 ## CI/CD merge convention
 
@@ -404,7 +404,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo\|task)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo\|task}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
-| `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--list-front-table-docs` (the `front_table: required` paths consumed by Check 20), `--render general\|custom` (a Markdown table of the `section: common` / `section: custom` registry docs — Doc · Purpose · Requirement; consumed by `generate-doc-views.sh` + Check 23), `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19/20/23 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
+| `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--list-front-table-docs` (the `front_table: required` paths consumed by Check 20), `--render general\|custom` (a Markdown table of the `section: common` / `section: custom` registry docs — Doc · Purpose · Requirement; consumed by `generate-doc-views.sh` + Check 23), `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `spec/doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Resolves the registry `spec/doc-spec.md`-then-root via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19/20/23 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
 
 ## Update-check mechanism (F000009)
 
@@ -476,11 +476,12 @@ leftover state can safely delete the orphaned marker + cache JSON files under
 ## Verification contract (gate-spec.md)
 
 **What stops a broken cj_goal change from landing, and at which layer** lives in
-ONE root file, [`gate-spec.md`](gate-spec.md) — both the human-readable map
+ONE file, [`spec/gate-spec.md`](spec/gate-spec.md) — both the human-readable map
 (prose + a four-layer summary table + an ASCII diagram + a division-of-labor) and
 the machine source of truth (a fenced `yaml` registry of `layers[]` + `gates[]`,
-parsed by `scripts/gate-spec.sh`). It is the third member of the `doc-spec.md` →
-`permission-policy.md` → `gate-spec.md` family. The four layers: **local-hook**
+parsed by `scripts/gate-spec.sh`). It is the third member of the `spec/doc-spec.md` →
+`spec/permission-policy.md` → `spec/gate-spec.md` family (the three spec-registry
+files live under `spec/`; each helper resolves `spec/`-then-root). The four layers: **local-hook**
 (pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
 inline orchestrator halts — isolation / design / QA / doc-sync / portability /
 ship), and **ratchet** (VERSION / portability-baseline / USAGE-freshness). "Gate"
@@ -491,8 +492,8 @@ pipeline's halt-taxonomy names `gate-spec.md` as the canonical gate sequence.
 
 ## Doc contract (doc-spec.md)
 
-What docs the repo carries — and what each one is for — lives in ONE root file,
-[`doc-spec.md`](doc-spec.md). It is both the human-readable map (prose) and the
+What docs the repo carries — and what each one is for — lives in ONE file,
+[`spec/doc-spec.md`](spec/doc-spec.md). It is both the human-readable map (prose) and the
 machine source of truth (a fenced `yaml` registry parsed by `scripts/doc-spec.sh`).
 There is no second list: the registry is the source, the prose explains it.
 
@@ -500,10 +501,11 @@ There is no second list: the registry is the source, the prose explains it.
   (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`) plus the
   root `README.md`. They must exist and carry **no work-item IDs**
   (`[FSTD]NNNNNN`) — a hard `validate.sh` lint (Check 19).
-- **Operational docs** (`audit_class: operational`) are the root `*.md` set the
-  repo pins for an external-tool reason: `doc-spec.md`, `gate-spec.md`,
-  `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `TODOS.md`. These may reference
-  work items.
+- **Operational docs** (`audit_class: operational`) are the spec-registry family
+  under `spec/` (`spec/doc-spec.md`, `spec/gate-spec.md`,
+  `spec/permission-policy.md`) plus the root `*.md` set the repo pins for an
+  external-tool reason: `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
+  `TODOS.md`. These may reference work items.
 - **Config files** stay at root (`skills-catalog.json`, `template-registry.json`,
   `VERSION`) because tooling hardcodes `./` paths to them. Docs under `skills/`,
   `templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own
