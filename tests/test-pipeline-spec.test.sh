@@ -360,6 +360,20 @@ else
   fail_test "drill (e): hook env broke the third view (exists=$([ -f "$_HE/test-pipeline.md" ] && echo yes || echo no))"
 fi
 
+# Drill (f) — REVERSE, the silent-skip catch's OTHER half: a brand-new
+# tests/*.test.sh appears on disk with NO registry row at all (drill (d) covers
+# the row-exists-but-runner-block-removed half). The reverse sweep enumerates
+# test files by name, so the orphan must surface as a finding naming the file.
+: > "$_FIX/tests/zz-unregistered-drill.test.sh"
+_F_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _F_RC=$?
+if [ "$_F_RC" -ne 0 ] && printf '%s' "$_F_OUT" | grep -qF "zz-unregistered-drill.test.sh" \
+   && printf '%s' "$_F_OUT" | grep -qF 'reverse'; then
+  ok "drill (f): unregistered test file on disk -> reverse sweep flags it (no registry row)"
+else
+  fail_test "drill (f) did not flag the unregistered test file (rc=$_F_RC): $_F_OUT"
+fi
+_rebuild_fixture
+
 # 8. Consumer-repo skip posture: a scratch repo WITHOUT the registry + parser.
 _CR=$(mk_tmp)
 git -C "$_CR" init -q 2>/dev/null || true
