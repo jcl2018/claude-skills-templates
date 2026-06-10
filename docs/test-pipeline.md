@@ -65,7 +65,7 @@ Pipeline-gate enforcement (the inline goal-pipeline halts during a run) is delib
 | goal-common portability suite — pre-ship portability gate | A clean catalog passes, dry-run runs nothing, a dishonest declaration yields findings, and an absent engine skips fail-soft. | hard-fail | pr-ci |
 | cj-id-claim suite — atomic work-item ID claim | Concurrent-race uniqueness, both reap modes, prefix isolation, same-branch reuse and worktree-shared claim-root resolution. | hard-fail | pr-ci |
 | feature-path smoke suite — worktree entry + common phases | Feature-caller worktree entry, the shared helper's worktree/ship/telemetry phases, and leaf dispatch targets present on disk. | hard-fail | pr-ci |
-| test-pipeline suite — registry parser + drift drills | Parser round-trip, malformed-registry fixtures, and the four temp-dir drift drills for the coverage cross-check and view-sync. | hard-fail | pr-ci |
+| test-pipeline suite — registry parser + drift drills | Parser round-trip, malformed-registry fixtures, and the temp-dir drift drills (banner, anchor, view, runner, hook-env, unregistered file, source pin, dead text, disabled check, vanished suite) for the coverage cross-check and view-sync. | hard-fail | pr-ci |
 | Inline — full validator re-run | Runs the whole validator inside the test suite so every check gates the test run too. | hard-fail | pr-ci |
 | Inline — harness-principle regression guards | Static guards that the trajectory-QA, permission-policy, gate-spec and within-phase-receipt fixes stay in place. | hard-fail | pr-ci |
 | Inline — catalog + frontmatter + doc-triplet smoke | No duplicate skill names; SKILL.md frontmatter parses; doc triplets carry their required sections. | hard-fail | pr-ci |

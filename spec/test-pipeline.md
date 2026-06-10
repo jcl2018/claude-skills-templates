@@ -513,7 +513,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Parser round-trip, malformed-registry fixtures, and the four temp-dir drift drills for the coverage cross-check and view-sync."
+    purpose: "Parser round-trip, malformed-registry fixtures, and the temp-dir drift drills (banner, anchor, view, runner, hook-env, unregistered file, source pin, dead text, disabled check, vanished suite) for the coverage cross-check and view-sync."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
