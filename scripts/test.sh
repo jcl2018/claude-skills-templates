@@ -194,6 +194,44 @@ _S95_WRITES=$(grep -c 'mv .*OH_RECEIPT' "$_S95_PIPE" || true)
 [ "${_S95_WRITES:-0}" -eq 1 ] || fail_test "S000095: expected exactly 1 office-hours receipt write site, found ${_S95_WRITES:-0} (scope drift)"
 ok "F000053/S000095 within-phase-receipts regression guards"
 
+# === F000059: test-pipeline registry + coverage guards ===
+# Parallel test.sh assertions for the new validate.sh Check 24 (coverage
+# cross-check) + the Check 23 third-view extension (repo convention: a new
+# validate.sh check ships with its test.sh assertions in the same PR — the
+# standing parallel-edit blind spot, defused in lockstep). The four temp-dir
+# drift drills (fake banner / broken anchor / hand-edited view / removed runner
+# block) live in tests/test-pipeline-spec.test.sh, registered in the hand-wired
+# runner section below; this block asserts the live-tree positives + the
+# fail-closed no-config path. Mirrors the S000094/S000096 blocks above.
+_S59_TP="$REPO_ROOT/scripts/test-pipeline.sh"
+_S59_REG="$REPO_ROOT/spec/test-pipeline.md"
+[ -f "$_S59_REG" ] || _S59_REG="$REPO_ROOT/test-pipeline.md"
+if [ ! -x "$_S59_TP" ] || [ ! -f "$_S59_REG" ]; then
+  fail_test "F000059: scripts/test-pipeline.sh / spec/test-pipeline.md missing"
+else
+  # S1: the registry parses.
+  [ "$(bash "$_S59_TP" --validate 2>/dev/null)" = "OK schema_version=1" ] || fail_test "F000059: test-pipeline.sh --validate did not print 'OK schema_version=1'"
+  # S2: the rendered view is work-item-ID-free (the rendered-field lint's
+  # end-to-end proof) and the coverage cross-check is clean on the live tree.
+  _S59_R=$(bash "$_S59_TP" --render 2>/dev/null)
+  if printf '%s\n' "$_S59_R" | grep -qE '[FSTD][0-9]{6}'; then
+    fail_test "F000059: --render output carries a work-item ID (rendered fields must be ID-free)"
+  fi
+  bash "$_S59_TP" --check-coverage >/dev/null 2>&1 || fail_test "F000059: test-pipeline.sh --check-coverage has findings on the live tree"
+  # S4: Check 24 + the Check 23 third-view diff are wired into validate.sh and
+  # PASS on the in-sync tree.
+  _S59_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
+  printf '%s\n' "$_S59_V" | grep -q 'Check 24: test-pipeline coverage cross-check' || fail_test "F000059: validate.sh missing Check 24"
+  printf '%s\n' "$_S59_V" | grep -q 'PASS: test-pipeline coverage cross-check clean' || fail_test "F000059: Check 24 did not PASS on the live tree"
+  printf '%s\n' "$_S59_V" | grep -q 'PASS: docs/test-pipeline.md matches the test-pipeline registry' || fail_test "F000059: Check 23 third-view diff did not PASS on the live tree"
+  # Drift path (isolated — no real-file mutation): a missing registry makes the
+  # parser fail closed with the no-config halt. if-then (not A && B || C) avoids SC2015.
+  if TEST_PIPELINE_PATH=/nonexistent-test-pipeline.md bash "$_S59_TP" --validate >/dev/null 2>&1; then
+    fail_test "F000059: parser did not fail on a missing registry (no-config drift undetected)"
+  fi
+  ok "F000059 test-pipeline registry + coverage guards"
+fi
+
 # Test: No duplicate skill names in catalog
 echo ""
 echo "Checking for duplicate skill names..."
@@ -324,6 +362,18 @@ if [ -f "$REPO_ROOT/scripts/generate-doc-views.sh" ]; then
       ok "generate-doc-views.sh writes doc-general.md + doc-custom.md"
     else
       fail_test "generate-doc-views.sh did not write both view files"
+    fi
+    # F000059 third view: when the test-pipeline parser + registry are present
+    # the generator must also write test-pipeline.md (the Check 23-extension
+    # mirror, temp-only — never writes into docs/). diff -r below covers its
+    # idempotency alongside the two doc-spec views.
+    if [ -f "$REPO_ROOT/scripts/test-pipeline.sh" ] \
+       && { [ -f "$REPO_ROOT/spec/test-pipeline.md" ] || [ -f "$REPO_ROOT/test-pipeline.md" ]; }; then
+      if [ -f "$_dv_t1/test-pipeline.md" ]; then
+        ok "generate-doc-views.sh writes the third view (test-pipeline.md) when the registry + parser are present"
+      else
+        fail_test "generate-doc-views.sh did not write test-pipeline.md despite the registry + parser being present"
+      fi
     fi
     if diff -r "$_dv_t1" "$_dv_t2" >/dev/null 2>&1; then
       ok "generate-doc-views.sh is idempotent"
@@ -1769,6 +1819,39 @@ if bash "$REPO_ROOT/tests/cj-id-claim.test.sh" >/dev/null 2>&1; then
 else
   _cic_rc=$?
   fail_test "tests/cj-id-claim.test.sh failed (rc=$_cic_rc) — run \`bash tests/cj-id-claim.test.sh\` directly to see"
+fi
+
+# Regression test (F000027 / S000057): the feature-path SHAPE harness —
+# worktree entry (--caller feature), the shared helper's worktree/ship/telemetry
+# phases under --mode feature, and the leaf-subagent dispatch targets on disk.
+# Registered by the F000059 Step-0 triage: this file sat on disk UNREGISTERED
+# (the live silent-skip instance the test-pipeline coverage cross-check now
+# mechanizes — validate.sh Check 24 reverse-flags any tests/*.test.sh without a
+# registry row, and the row's runner-path anchor forward-proves THIS block
+# exists). MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based.
+echo ""
+echo "Running tests/cj-goal-feature-smoke.test.sh (feature-path shape: worktree entry + common phases + leaf targets)..."
+if bash "$REPO_ROOT/tests/cj-goal-feature-smoke.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-feature-smoke.test.sh: worktree entry + worktree/ship/telemetry phases + leaf dispatch targets all pass"
+else
+  _cgfs_rc=$?
+  fail_test "tests/cj-goal-feature-smoke.test.sh failed (rc=$_cgfs_rc) — run \`bash tests/cj-goal-feature-smoke.test.sh\` directly to see"
+fi
+
+# Regression test (F000059): the test-pipeline registry machinery — parser
+# round-trip (validate / list / render), malformed-registry fixtures, the four
+# temp-dir drift drills for the Check 24 coverage cross-check + the Check 23
+# third-view extension, and the consumer-repo skip posture. Temp-dir isolated;
+# never mutates the live tree. MANDATORY registration — this suite tests the
+# very mechanism that catches unregistered tests, so it must not itself be an
+# unregistered test.
+echo ""
+echo "Running tests/test-pipeline-spec.test.sh (F000059 registry parser + coverage drift drills)..."
+if bash "$REPO_ROOT/tests/test-pipeline-spec.test.sh" >/dev/null 2>&1; then
+  ok "tests/test-pipeline-spec.test.sh: parser round-trip + malformed fixtures + 4 drift drills + consumer-skip posture all pass"
+else
+  _tps_rc=$?
+  fail_test "tests/test-pipeline-spec.test.sh failed (rc=$_tps_rc) — run \`bash tests/test-pipeline-spec.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

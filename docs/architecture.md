@@ -196,9 +196,10 @@ and asserts the contract:
   lint that keeps the human docs human-readable.
 - **front-table-required docs open with a table** (Check 20) — for every entry
   flagged `front_table: required` (enumerated via `doc-spec.sh
-  --list-front-table-docs`; today `docs/philosophy.md` + `docs/workflow.md`), the
+  --list-front-table-docs`; today `docs/philosophy.md`, `docs/workflow.md` and
+  `docs/test-pipeline.md`), the
   validator asserts a Markdown table appears BEFORE the doc's first `## ` heading.
-  Registry-driven, so flagging a third doc later is a one-line registry edit —
+  Registry-driven, so flagging another doc later is a one-line registry edit —
   `docs/architecture.md` is a human-doc but is deliberately NOT flagged, so it is
   exempt, which demonstrates the registry-driven scoping.
 - **workflow completeness** — `docs/workflow.md` carries a section for every
@@ -208,7 +209,9 @@ and asserts the contract:
   not hand-maintained. The validator regenerates them into a temp dir via
   `scripts/generate-doc-views.sh` and diffs; any drift is a hard error (run the
   generator to fix). Skips cleanly when the generator/helper is absent
-  (non-adopting repo).
+  (non-adopting repo). The same temp-regen+diff loop covers the third generated
+  view, `docs/test-pipeline.md`, gated on its own parser + registry being present
+  (see [the test-pipeline.md contract](#the-test-pipelinemd-contract) below).
 
 ### The helper (`scripts/doc-spec.sh`)
 
@@ -355,10 +358,12 @@ which layer** in one file, [`spec/gate-spec.md`](../spec/gate-spec.md) — both 
 human-readable map (prose + a four-layer summary table + an ASCII diagram + a
 division-of-labor) and the machine source of truth (a fenced `yaml` registry of
 `layers[]` + `gates[]`). It is the third member of the `spec/doc-spec.md` →
-`spec/permission-policy.md` → `spec/gate-spec.md` family: the same shape (a `spec/`
-registry doc + a `scripts/` reader + an advisory `validate.sh` check) applied to
-verification. This section is the mechanism reference; see the file itself for
-the contract.
+`spec/permission-policy.md` → `spec/gate-spec.md` → `spec/test-pipeline.md`
+family: the same shape (a `spec/` registry doc + a `scripts/` reader + a
+`validate.sh` check) applied to verification. gate-spec deliberately owns the
+LAYER question only; the CHECK-level enumeration lives in the family's fourth
+member (next section). This section is the mechanism reference; see the file
+itself for the contract.
 
 ```
                     gate-spec.md (spec/)
@@ -436,6 +441,76 @@ registry is stale). It is **advisory** in v1 — a finding prints but `validate.
 exits 0, exactly like Check 21 / Check 18 — because the registry is authored
 honestly (per-mode markers + the `enforced_by` escape), so the check is green on
 the clean baseline and the flip-to-strict is a one-line follow-up ratchet.
+
+## The test-pipeline.md contract
+
+The workbench declares **its own verification surface, check by check** — every
+validator check (both ID namespaces plus the warning checks), every registered
+test sub-suite and inline test family, the standalone suites, the CI workflows,
+and the git hooks — in one file, [`spec/test-pipeline.md`](../spec/test-pipeline.md):
+prose conventions + a fenced `yaml` registry of `units[]`, the fourth member of
+the spec-registry family. Humans read the **generated** view
+[`docs/test-pipeline.md`](test-pipeline.md) (a general-tier, required,
+front-table doc); the registry is the machine truth underneath it.
+
+```
+                 test-pipeline.md (spec/)
+                 +----------------------------+
+                 | anchor/extraction doctrine |
+                 | ```yaml machine registry`` |
+                 |  schema_version: 1         |
+                 |  units[]: id / family /    |
+                 |    label / anchor / source/|
+                 |    layer / disposition /   |
+                 |    skips? / ratchet? /     |
+                 |    trigger / purpose       |
+                 +-----+----------------+-----+
+                       | renders        | cross-checks
+        +--------------v----+    +------v----------------------+
+        | scripts/          |    | scripts/validate.sh         |
+        |  test-pipeline.sh |    |  Check 23 ext (HARD):       |
+        | --validate        |    |   temp-regen + diff the     |
+        | --list-units      |    |   generated view            |
+        | --render ---------+--> |  Check 24 (HARD):           |
+        |   (via generate-  |    |   --check-coverage          |
+        |    doc-views.sh)  |    |   forward anchor-grep +     |
+        | --check-coverage  |    |   reverse live-surface      |
+        +-------------------+    |   sweep + 20-token floor    |
+              |                  +-----------------------------+
+              v
+        docs/test-pipeline.md  (GENERATED human view)
+```
+
+**The two hard loops.** A hand-edit to the view, or a registry edit without
+re-rendering, fails Check 23's temp-regen+diff (run
+`scripts/generate-doc-views.sh`). A change to the live surface without a
+matching registry row — a new validator check, a renamed banner, a new test
+file, a new workflow, a new hook — fails Check 24: *forward*, every row's
+`anchor` must `grep -F` in its declared `source`; *reverse*, every live
+validator banner/comment, every `tests/*.test.sh` on disk, every workflow file
+and every installed hook must resolve to exactly one registry row; *floor*, the
+reverse extraction must keep yielding at least 20 live tokens so grammar rot
+can never make the check vacuously pass.
+
+**The silent-skip catch.** Test discovery in this repo is hand-wired, not
+glob-based — a test file on disk that nobody registers in the runner silently
+never runs. The registry mechanizes that discipline: a test row's `source` MUST
+be the runner script and its `anchor` MUST be the literal runner path, so the
+forward check proves the file is actually WIRED into the suite, and the reverse
+sweep proves every file on disk has a row at all.
+
+**What stays advisory.** Semantic accuracy of each row's one-line `purpose` (a
+check whose behavior changes under a stable banner) is not mechanized — it
+stays with the registered-doc requirements audit, like every other registered
+doc. The hard loops buy structural sync, not meaning sync.
+
+**Consumer-repo posture.** The view is a *general-tier required doc* (the
+portable seed's requirement string is mechanism-neutral), but the
+registry+parser machinery is this workbench's chosen implementation: where
+`spec/test-pipeline.md` / `scripts/test-pipeline.sh` are absent, the generator
+skips the third view with a note, Check 23's third diff skips, and Check 24
+SKIPs — a hand-maintained `docs/test-pipeline.md` copy fully satisfies the
+contract there.
 
 ## The work-copilot Copilot bundle (parallel delivery surface)
 

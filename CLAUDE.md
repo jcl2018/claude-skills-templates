@@ -396,7 +396,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
 | `deps.sh` | Shows dependency graph | When changing deps |
 | `generate-readme.sh` | Regenerates README.md from catalog | After catalog changes |
-| `generate-doc-views.sh` | Regenerates the readable doc-spec views (`docs/doc-general.md` + `docs/doc-custom.md`) from the `doc-spec.md` registry via `doc-spec.sh --render general\|custom`. `--output-dir <dir>` (default `docs`). Idempotent (no timestamps). The views are generated, not hand-maintained — `validate.sh` Check 23 fails if they drift from the registry. | After registry changes (add/edit a doc-spec entry) |
+| `generate-doc-views.sh` | Regenerates the generated doc views: `docs/doc-general.md` + `docs/doc-custom.md` from the `doc-spec.md` registry (via `doc-spec.sh --render general\|custom`) AND `docs/test-pipeline.md` from the `spec/test-pipeline.md` registry (via `test-pipeline.sh --render`; skipped with a note when the parser/registry is absent — consumer repos hand-maintain that copy). `--output-dir <dir>` (default `docs`). Idempotent (no timestamps). The views are generated, not hand-maintained — `validate.sh` Check 23 fails if any drifts from its registry. | After registry changes (add/edit a doc-spec or test-pipeline entry) |
 | `sync-upstream.sh` | Compares upstream gstack skills | When updating from gstack |
 | `setup-hooks.sh` | Installs git hooks (pre-commit validate + post-merge auto-sync) | Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks) |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
@@ -405,6 +405,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
 | `doc-spec.sh` | Parse + validate the `doc-spec.md` registry (the doc contract). Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1), `--list-declared`, `--list-human-docs`, `--list-front-table-docs` (the `front_table: required` paths consumed by Check 20), `--render general\|custom` (a Markdown table of the `section: common` / `section: custom` registry docs — Doc · Purpose · Requirement; consumed by `generate-doc-views.sh` + Check 23), `--expand-whitelist` (the doc-only auto-commit whitelist = declared paths + `spec/doc-spec.md` + `docs/**/*.md`), `--seed` (the portable Common section, for self-bootstrap). Resolves the registry `spec/doc-spec.md`-then-root via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19/20/23 + `/CJ_document-release`. | Auto-invoked by `validate.sh` + `/CJ_document-release`. |
+| `test-pipeline.sh` | Parse + validate the `spec/test-pipeline.md` registry (the verification-surface contract: one row per validate check / test sub-suite / inline test family / standalone suite / CI workflow / git hook). Subcommands: `--validate` (schema + closed enums + duplicate-id guard + the rendered-field work-item-ID lint; exit 0 + `OK schema_version=<n>`, else `[test-pipeline-no-config]` + exit 1), `--list-units` (every unit id, registry order), `--render` (the complete generated `docs/test-pipeline.md` view: AUTO-GENERATED header, leading per-family summary table, gate-spec pointer line, per-family unit tables), `--check-coverage` (the Check 24 engine: forward anchor-grep into each declared source + reverse sweep of live validate banners/comments, `tests/*.test.sh` on disk, workflows, installed hooks + ≥20-token floor). Resolves the registry `spec/test-pipeline.md`-then-root; `REPO_ROOT`/`TEST_PIPELINE_PATH` env overrides for temp-dir drills. Consumed by `validate.sh` Checks 23/24 + `generate-doc-views.sh` + `tests/test-pipeline-spec.test.sh`. | Auto-invoked by `validate.sh` + `generate-doc-views.sh`; run `--render` via `generate-doc-views.sh` after registry edits |
 
 ## Update-check mechanism (F000009)
 
@@ -480,8 +481,15 @@ ONE file, [`spec/gate-spec.md`](spec/gate-spec.md) — both the human-readable m
 (prose + a four-layer summary table + an ASCII diagram + a division-of-labor) and
 the machine source of truth (a fenced `yaml` registry of `layers[]` + `gates[]`,
 parsed by `scripts/gate-spec.sh`). It is the third member of the `spec/doc-spec.md` →
-`spec/permission-policy.md` → `spec/gate-spec.md` family (the three spec-registry
-files live under `spec/`; each helper resolves `spec/`-then-root). The four layers: **local-hook**
+`spec/permission-policy.md` → `spec/gate-spec.md` → `spec/test-pipeline.md` family
+(the four spec-registry files live under `spec/`; each helper resolves
+`spec/`-then-root). gate-spec owns the LAYER question; the CHECK-level
+enumeration (which individual checks/tests/workflows/hooks exist, what each
+asserts, when each runs) lives in the fourth member, `spec/test-pipeline.md`,
+rendered to the generated `docs/test-pipeline.md` view and enforced by
+`validate.sh` Check 23 (view-sync) + Check 24 (coverage cross-check: forward
+anchor-grep, reverse live-surface sweep, ≥20-token floor — the check that makes
+an unregistered `tests/*.test.sh` a hard failure instead of a silent skip). The four layers: **local-hook**
 (pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
 inline orchestrator halts — isolation / design / QA / doc-sync / portability /
 ship), and **ratchet** (VERSION / portability-baseline / USAGE-freshness). "Gate"
@@ -498,14 +506,15 @@ machine source of truth (a fenced `yaml` registry parsed by `scripts/doc-spec.sh
 There is no second list: the registry is the source, the prose explains it.
 
 - **Human docs** (`audit_class: human-doc`) live under `docs/`
-  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`) plus the
-  root `README.md`. They must exist and carry **no work-item IDs**
-  (`[FSTD]NNNNNN`) — a hard `validate.sh` lint (Check 19).
+  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`, the
+  generated `docs/test-pipeline.md`) plus the root `README.md`. They must exist
+  and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard `validate.sh` lint
+  (Check 19).
 - **Operational docs** (`audit_class: operational`) are the spec-registry family
   under `spec/` (`spec/doc-spec.md`, `spec/gate-spec.md`,
-  `spec/permission-policy.md`) plus the root `*.md` set the repo pins for an
-  external-tool reason: `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
-  `TODOS.md`. These may reference work items.
+  `spec/permission-policy.md`, `spec/test-pipeline.md`) plus the root `*.md` set
+  the repo pins for an external-tool reason: `CLAUDE.md`, `CHANGELOG.md`,
+  `CONTRIBUTING.md`, `TODOS.md`. These may reference work items.
 - **Config files** stay at root (`skills-catalog.json`, `template-registry.json`,
   `VERSION`) because tooling hardcodes `./` paths to them. Docs under `skills/`,
   `templates/`, `work-copilot/`, `work-items/`, and `tests/` follow their own
@@ -521,8 +530,18 @@ There is no second list: the registry is the source, the prose explains it.
 - **Check 17** — every root `*.md` on disk is a declared registry path.
 - **Check 19** — no work-item IDs in any `human-doc`.
 - **Check 20** — every `front_table: required` doc (today `docs/philosophy.md`,
-  `docs/workflow.md`) opens with a summary table BEFORE its first `## ` heading
-  (registry-driven via `doc-spec.sh --list-front-table-docs`).
+  `docs/workflow.md`, `docs/test-pipeline.md`) opens with a summary table BEFORE
+  its first `## ` heading (registry-driven via `doc-spec.sh
+  --list-front-table-docs`).
+- **Check 23** — the generated views (`docs/doc-general.md`, `docs/doc-custom.md`,
+  and — when the test-pipeline registry + parser are present —
+  `docs/test-pipeline.md`) are regenerated into a temp dir and diffed; any drift
+  is a hard error (run `scripts/generate-doc-views.sh`).
+- **Check 24** — the test-pipeline coverage cross-check (HARD,
+  SKIP-when-registry-absent): every `spec/test-pipeline.md` anchor greps in its
+  declared source (forward), every live validate banner/comment, `tests/*.test.sh`
+  on disk, workflow and installed hook resolves to exactly one registry row
+  (reverse), with a ≥20-token floor.
 
 Add a doc by adding a registry entry to `doc-spec.md` (and creating the file). A
 new root `*.md` must be a declared registry entry — `custom` for repo-specific

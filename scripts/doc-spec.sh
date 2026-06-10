@@ -29,9 +29,9 @@
 #                       `path` + doc-spec.md + every docs/**/*.md on disk
 #                       (sorted, unique).
 #   --seed              echo a COMPLETE, minimal, VALID doc-spec.md (Common +
-#                       Custom placeholder + a yaml registry of the ten general
-#                       section: common docs) for self-bootstrap of a MISSING
-#                       doc-spec.md.
+#                       Custom placeholder + a yaml registry of the eleven
+#                       general section: common docs) for self-bootstrap of a
+#                       MISSING doc-spec.md.
 #                       Does NOT require doc-spec.md to exist (that is the whole
 #                       point). Source: repo-local templates/doc-spec-common.md
 #                       if present, else the embedded heredoc below (so a consumer
@@ -227,7 +227,7 @@ carries. Nothing about the repo's other tooling has to change.
 
 ## The doc contract
 
-Every repo that adopts this contract carries ten **general docs** — the
+Every repo that adopts this contract carries eleven **general docs** — the
 `section: common` tier, sub-grouped below.
 
 **Human docs** — what a person (not just an agent) reads to understand the
@@ -239,6 +239,7 @@ project:
 | `docs/workflow.md` | The major workflows from a human's point of view; names the major entry points. ASCII flowcharts preferred. |
 | `docs/architecture.md` | The meaningful machinery under the hood — deeper than `workflow.md`. ASCII diagrams preferred. |
 | `README.md` | The landing page: folder structure + how to get started. |
+| `docs/test-pipeline.md` | Check-level map of the verification surface — every validator check, test family, CI workflow, and hook: what each asserts and when it runs. |
 
 **Operational docs** — agent- and ops-facing, so they may reference work items:
 
@@ -354,6 +355,11 @@ docs:
     audit_class: human-doc
     purpose: "Repo landing page: folder structure + how to get started."
     requirement: "Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs."
+  - path: docs/test-pipeline.md
+    section: common
+    audit_class: human-doc
+    purpose: "Check-level map of the repo's verification surface (validators, test suites, CI workflows, hooks, ratchets)."
+    requirement: "Check-level enumeration of the repo's verification surface (validators, test suites, CI workflows, hooks, ratchets) with what each asserts and when it runs; kept matching the live surface; no work-item IDs."
   - path: doc-spec.md
     section: common
     audit_class: operational

@@ -6,5 +6,6 @@ This repo's custom-tier docs (`section: custom`) beyond the general set, generat
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | spec/gate-spec.md | The cj_goal verification contract — what stops a broken change from landing, and at which layer (parsed by scripts/gate-spec.sh). | Present; one fenced yaml registry of layers[] + gates[] parsing with schema_version 1; every declared literal marker present in its mode's pipeline. |
+| spec/test-pipeline.md | The verification-surface registry — one row per validate check / test unit / CI workflow / hook (parsed by scripts/test-pipeline.sh). | Present; one fenced yaml registry of verification units parsing with schema_version 1; every anchor present in its declared source (validate.sh Check 24). |
 | CONTRIBUTING.md | Contributor authoring guide. | Present; surfaced by GitHub from the repo root. |
 | spec/permission-policy.md | The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh). | Present; one fenced yaml policy registry parsing with schema_version 1; risky verbs enumerated as deny/ask. |
