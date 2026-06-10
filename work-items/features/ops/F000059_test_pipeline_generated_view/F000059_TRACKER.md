@@ -125,3 +125,5 @@ blocked_by: ""
 
 <!-- Structured entries from the work-track journal command. Each entry has a type
      (decision, finding, blocker) and a Summary field. -->
+- 2026-06-10T18:25:58Z [feature-pr-opened] F000059 v6.0.64 PR #259
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/259
