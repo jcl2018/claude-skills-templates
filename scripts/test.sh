@@ -1849,7 +1849,7 @@ fi
 echo ""
 echo "Running tests/test-pipeline-spec.test.sh (F000059 registry parser + coverage drift drills)..."
 if bash "$REPO_ROOT/tests/test-pipeline-spec.test.sh" >/dev/null 2>&1; then
-  ok "tests/test-pipeline-spec.test.sh: parser round-trip + malformed fixtures + drift drills (a)-(f2) + consumer-skip posture all pass"
+  ok "tests/test-pipeline-spec.test.sh: parser round-trip + malformed fixtures + drift drills (a)-(h) + consumer-skip posture all pass"
 else
   _tps_rc=$?
   fail_test "tests/test-pipeline-spec.test.sh failed (rc=$_tps_rc) — run \`bash tests/test-pipeline-spec.test.sh\` directly to see"

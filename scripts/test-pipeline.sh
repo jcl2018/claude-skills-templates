@@ -306,7 +306,46 @@ _render_view() {
 _run_coverage() {
   _FINDINGS=0
 
-  # Forward: every anchor must grep -F in its declared source file.
+  # Forward: every anchor must be found in its declared source file — and for
+  # the grammar-bearing namespaces the match is EXECUTION-SHAPED, not a bare
+  # substring. A bare `grep -F` is forgeable with dead text (a commented-out
+  # `echo "=== Check N:"`, a runner invocation deleted but its log strings
+  # left behind, a `# if install_hook ...` comment) — the adversarial bypass
+  # class this engine exists to catch. Shapes:
+  #   - validate banner anchors (`=== Check N:`)  -> `^echo "=== Check N:` (live echo)
+  #   - validate comment anchors (`# Error/Warning check`) -> line-start match
+  #   - test rows (anchor tests/*.test.sh)        -> `^[^#]*bash .*<path>` (live invocation)
+  #   - hook rows (anchor `install_hook <name>`)  -> `^if install_hook <name>` (live call)
+  #   - everything else                            -> fixed-string (filenames etc.)
+  _fwd_match() {
+    # $1=family $2=anchor $3=src-file ; exit 0 = the anchor matches a LIVE line
+    case "$2" in
+      "=== Check "*)
+        # live = an actual echo emits the banner (a commented-out echo fails)
+        grep -E '^echo "' "$3" | grep -qF -- "$2" ;;
+      "# Error check "*|"# Warning check"*)
+        # live = the comment sits at line start (mirrors the reverse grammar)
+        awk -v a="$2" 'index($0, a) == 1 { f=1; exit } END { exit !f }' "$3" ;;
+      tests/*.test.sh)
+        if [ "$1" = "test" ]; then
+          # live = an uncommented bash invocation of the file (log/echo strings
+          # and comments do not count)
+          grep -E '^[^#]*bash ' "$3" | grep -qF -- "$2"
+        else
+          grep -qF -- "$2" "$3"
+        fi ;;
+      "install_hook "*)
+        # live = the actual `if install_hook <name>` call line
+        grep -E '^if install_hook ' "$3" | grep -qF -- "$2" ;;
+      scripts/*.sh)
+        # suite rows anchored on a script path: the caller string alone is
+        # forgeable by a leftover invocation of a deleted/renamed script —
+        # the anchored script must also still EXIST on disk
+        grep -qF -- "$2" "$3" && [ -f "$REPO_ROOT_RESOLVED/$2" ] ;;
+      *)
+        grep -qF -- "$2" "$3" ;;
+    esac
+  }
   _ROWCOUNT=0
   while IFS="$(printf '\t')" read -r _id _family _label _anchor _source _layer _disp _skips _ratchet _trigger _purpose; do
     [ -n "$_id" ] || continue
@@ -315,8 +354,8 @@ _run_coverage() {
     if [ ! -f "$_src" ]; then
       echo "FINDING: forward — unit '$_id' declares source '$_source' which does not exist"
       _FINDINGS=$((_FINDINGS + 1))
-    elif ! grep -qF -- "$_anchor" "$_src"; then
-      echo "FINDING: forward — unit '$_id' anchor not found in $_source (unit removed/renamed, or a test file no longer wired into the runner): $_anchor"
+    elif ! _fwd_match "$_family" "$_anchor" "$_src"; then
+      echo "FINDING: forward — unit '$_id' anchor not found LIVE in $_source (unit removed/renamed/commented out, or a test file no longer wired into the runner — dead-text mentions do not count): $_anchor"
       _FINDINGS=$((_FINDINGS + 1))
     fi
   done <<EOF
@@ -327,6 +366,7 @@ EOF
   # registry row in its namespace. _TOKENS counts every extracted live token
   # for the floor assert.
   _TOKENS=0
+  _NS_VALIDATE=0; _NS_TESTS=0; _NS_WF=0; _NS_HOOKS=0
 
   # (1) validate.sh banners + comments.
   _VAL_SRC="$REPO_ROOT_RESOLVED/scripts/validate.sh"
@@ -335,6 +375,7 @@ EOF
     while IFS= read -r _n; do
       [ -n "$_n" ] || continue
       _TOKENS=$((_TOKENS + 1))
+      _NS_VALIDATE=$((_NS_VALIDATE + 1))
       _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="validate-check-$_n" '$1 == want' | grep -c . || true)
       if [ "$_c" -ne 1 ]; then
         echo "FINDING: reverse — live banner 'Check $_n' in scripts/validate.sh resolves to $_c registry row(s); want exactly one (id: validate-check-$_n)"
@@ -347,6 +388,7 @@ EOF
     while IFS= read -r _n; do
       [ -n "$_n" ] || continue
       _TOKENS=$((_TOKENS + 1))
+      _NS_VALIDATE=$((_NS_VALIDATE + 1))
       _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="validate-error-check-$_n" '$1 == want' | grep -c . || true)
       if [ "$_c" -ne 1 ]; then
         echo "FINDING: reverse — live comment 'Error check $_n' in scripts/validate.sh resolves to $_c registry row(s); want exactly one (id: validate-error-check-$_n)"
@@ -361,6 +403,7 @@ EOF
     while IFS= read -r _wline; do
       [ -n "$_wline" ] || continue
       _TOKENS=$((_TOKENS + 1))
+      _NS_VALIDATE=$((_NS_VALIDATE + 1))
       _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v line="$_wline" '$2 == "validate" && index(line, $4) > 0' | grep -c . || true)
       if [ "$_c" -ne 1 ]; then
         echo "FINDING: reverse — live warning-check comment in scripts/validate.sh resolves to $_c registry row(s); want exactly one: $_wline"
@@ -382,6 +425,7 @@ EOF
     [ -e "$_tf" ] || continue
     _tok="tests/$(basename "$_tf")"
     _TOKENS=$((_TOKENS + 1))
+    _NS_TESTS=$((_NS_TESTS + 1))
     _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want && $5 == "scripts/test.sh"' | grep -c . || true)
     if [ "$_c" -ne 1 ]; then
       echo "FINDING: reverse — test file $_tok on disk resolves to $_c registry row(s); want exactly one (family: test, anchor: $_tok, source: scripts/test.sh — the runner, NOT the test file: the forward grep must prove the file is wired in)"
@@ -395,6 +439,7 @@ EOF
     [ -e "$_wf" ] || continue
     _wsrc=".github/workflows/$(basename "$_wf")"
     _TOKENS=$((_TOKENS + 1))
+    _NS_WF=$((_NS_WF + 1))
     _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_wsrc" '$2 == "ci" && $5 == want' | grep -c . || true)
     if [ "$_c" -ne 1 ]; then
       echo "FINDING: reverse — workflow $_wsrc on disk resolves to $_c registry row(s); want exactly one (family: ci, source: $_wsrc)"
@@ -409,6 +454,7 @@ EOF
     while IFS= read -r _hname; do
       [ -n "$_hname" ] || continue
       _TOKENS=$((_TOKENS + 1))
+      _NS_HOOKS=$((_NS_HOOKS + 1))
       _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="install_hook $_hname" '$2 == "hook" && $4 == want' | grep -c . || true)
       if [ "$_c" -ne 1 ]; then
         echo "FINDING: reverse — installed hook '$_hname' resolves to $_c registry row(s); want exactly one (family: hook, anchor: install_hook $_hname)"
@@ -419,13 +465,23 @@ $(grep -E '^if install_hook [a-z][a-z-]*' "$_SH_SRC" | sed -E 's/^if install_hoo
 EOF
   fi
 
-  # Floor-assert: the reverse extraction must keep finding a healthy number of
-  # live tokens, so extraction-grammar rot can never make this check
-  # vacuously pass.
-  if [ "$_TOKENS" -lt 20 ]; then
-    echo "FINDING: floor — reverse extraction yielded only $_TOKENS live token(s) (< 20); the extraction grammar no longer matches the live surface"
+  # Floor-asserts: the reverse extraction must keep finding a healthy number of
+  # live tokens, so extraction-grammar rot can never make this check vacuously
+  # pass. The global floor is workbench-calibrated (overridable for smaller
+  # adopting repos via TEST_PIPELINE_REVERSE_FLOOR); the per-namespace floors
+  # catch single-namespace rot the aggregate would mask (e.g. setup-hooks.sh
+  # refactoring away the `if install_hook` shape loses only 2 of ~47 tokens).
+  _FLOOR="${TEST_PIPELINE_REVERSE_FLOOR:-20}"
+  if [ "$_TOKENS" -lt "$_FLOOR" ]; then
+    echo "FINDING: floor — reverse extraction yielded only $_TOKENS live token(s) (< $_FLOOR); the extraction grammar no longer matches the live surface"
     _FINDINGS=$((_FINDINGS + 1))
   fi
+  for _ns in "validate:$_NS_VALIDATE" "test-files:$_NS_TESTS" "workflows:$_NS_WF" "hooks:$_NS_HOOKS"; do
+    if [ "${_ns#*:}" -eq 0 ]; then
+      echo "FINDING: floor — reverse extraction yielded ZERO live tokens in the '${_ns%%:*}' namespace; that namespace's extraction grammar no longer matches the live surface"
+      _FINDINGS=$((_FINDINGS + 1))
+    fi
+  done
 
   if [ "$_FINDINGS" -gt 0 ]; then
     echo "COVERAGE: findings=$_FINDINGS (rows=$_ROWCOUNT reverse_tokens=$_TOKENS)"

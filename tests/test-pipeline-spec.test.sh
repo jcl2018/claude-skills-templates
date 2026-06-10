@@ -17,7 +17,7 @@
 #   6. malformed-registry fixtures fail closed with [test-pipeline-no-config]:
 #      bad schema_version / family outside the enum / a work-item ID in a
 #      rendered field / a duplicate id / a trigger token outside the enum
-#   7. the drift drills (a)-(f2), temp-dir isolated (a COPY of the swept surface;
+#   7. the drift drills (a)-(h), temp-dir isolated (a COPY of the swept surface;
 #      the live tree is never mutated):
 #        (a) fake `=== Check 99` banner in the temp validate.sh -> the REVERSE
 #            sweep flags it
@@ -273,7 +273,7 @@ units:
 EOF
 _assert_halts bad-test-source.md "test row pointing source at the test file itself (silent-skip disarm)" "MUST declare source: scripts/test.sh"
 
-# 7. The drift drills (a)-(f2) — against a temp COPY of the swept surface.
+# 7. The drift drills (a)-(h) — against a temp COPY of the swept surface.
 # The fixture tree carries: the registry, the three anchored script sources,
 # the workflows, and name-only placeholders for every tests/*.test.sh on disk
 # (the reverse sweep enumerates file NAMES; the forward check greps the runner
@@ -284,6 +284,10 @@ _rebuild_fixture() {
   cp "$REPO_ROOT/scripts/validate.sh" "$_FIX/scripts/validate.sh"
   cp "$REPO_ROOT/scripts/test.sh" "$_FIX/scripts/test.sh"
   cp "$REPO_ROOT/scripts/setup-hooks.sh" "$_FIX/scripts/setup-hooks.sh"
+  # suite-row existence pins probe these on disk (content irrelevant)
+  : > "$_FIX/scripts/test-deploy.sh"
+  : > "$_FIX/scripts/eval.sh"
+  : > "$_FIX/scripts/windows-smoke.sh"
   cp "$REPO_ROOT"/.github/workflows/*.yml "$_FIX/.github/workflows/"
   rm -f "$_FIX/tests"/*.test.sh
   for _tf in "$REPO_ROOT"/tests/*.test.sh; do
@@ -417,6 +421,54 @@ if [ "$_F2_RC" -ne 0 ] && printf '%s' "$_F2_OUT" | grep -qF "zz-selfref.test.sh"
   ok "drill (f2): self-satisfying source row -> reverse source-pin flags the unwired test"
 else
   fail_test "drill (f2) did not flag the self-referencing row (rc=$_F2_RC): $_F2_OUT"
+fi
+_rebuild_fixture
+
+# Drill (g) — FORWARD, the dead-text bypass (adversarial find): the runner
+# INVOCATION line is deleted from the temp test.sh but every other textual
+# mention (the "Running ..." echo, the ok/fail strings) stays. A bare
+# substring grep would still pass; the execution-shaped forward match
+# (an uncommented `bash .*<path>` line) must flag the de-wired suite.
+sed -E '/^[^#]*bash .*tests\/cj-id-claim\.test\.sh/d' "$_FIX/scripts/test.sh" > "$_FIX/scripts/test.sh.cut" \
+  && mv "$_FIX/scripts/test.sh.cut" "$_FIX/scripts/test.sh"
+if grep -qF 'tests/cj-id-claim.test.sh' "$_FIX/scripts/test.sh"; then
+  _G_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _G_RC=$?
+  if [ "$_G_RC" -ne 0 ] && printf '%s' "$_G_OUT" | grep -qF "test-cj-id-claim" \
+     && printf '%s' "$_G_OUT" | grep -qF 'forward'; then
+    ok "drill (g): invocation deleted, log strings left behind -> execution-shaped forward flags it"
+  else
+    fail_test "drill (g) dead-text bypass not caught (rc=$_G_RC): $_G_OUT"
+  fi
+else
+  fail_test "drill (g) setup broken: no residual textual mention left to prove the bypass"
+fi
+_rebuild_fixture
+
+# Drill (h) — FORWARD, the commented-out-check bypass (adversarial find): a
+# validate.sh banner is commented out (the check is disabled) but the literal
+# banner text survives as dead text. The execution-shaped forward match
+# (live `^echo "` lines only) must flag the row.
+sed 's/^echo "=== Check 21:/# disabled: &/' "$_FIX/scripts/validate.sh" > "$_FIX/scripts/validate.sh.cut" \
+  && mv "$_FIX/scripts/validate.sh.cut" "$_FIX/scripts/validate.sh"
+_H2_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _H2_RC=$?
+if [ "$_H2_RC" -ne 0 ] && printf '%s' "$_H2_OUT" | grep -qF "validate-check-21" \
+   && printf '%s' "$_H2_OUT" | grep -qF 'forward'; then
+  ok "drill (h): commented-out check banner -> execution-shaped forward flags the dead check"
+else
+  fail_test "drill (h) commented-out-check bypass not caught (rc=$_H2_RC): $_H2_OUT"
+fi
+_rebuild_fixture
+
+# Drill (i) — FORWARD, the vanished-suite bypass (cross-model review find): a
+# standalone suite script is deleted/renamed while its invocation string stays
+# in the caller (easy to miss for eval.sh, which never runs in PR CI). The
+# suite-row forward match must also require the anchored script to exist.
+rm -f "$_FIX/scripts/test-deploy.sh"
+_I_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _I_RC=$?
+if [ "$_I_RC" -ne 0 ] && printf '%s' "$_I_OUT" | grep -qF "suite-test-deploy"; then
+  ok "drill (i): suite script absent from the surface -> forward existence pin flags the row"
+else
+  fail_test "drill (i) vanished-suite not caught (rc=$_I_RC): $_I_OUT"
 fi
 _rebuild_fixture
 
