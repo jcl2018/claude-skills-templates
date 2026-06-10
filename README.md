@@ -11,8 +11,8 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 
 ```
 .
-├── spec/               # machine registries (doc-spec / gate-spec / permission-policy)
-├── docs/                # human docs (philosophy.md, workflow.md, architecture.md) + generated doc-spec views (doc-general.md, doc-custom.md)
+├── spec/               # machine registries (doc-spec / gate-spec / permission-policy / test-pipeline)
+├── docs/                # human docs (philosophy.md, workflow.md, architecture.md) + generated views (doc-general.md, doc-custom.md, test-pipeline.md)
 ├── skills/              # Claude Code skills (the CJ_ family + utilities)
 ├── templates/           # work-item + doc authoring templates
 ├── work-copilot/        # the GitHub Copilot delivery bundle (Python-CLI deployed)
