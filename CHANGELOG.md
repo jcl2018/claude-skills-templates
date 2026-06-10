@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.63] - 2026-06-10
+
+### Added
+
+- **New philosophy principle: "Trustworthy by construction, not by convention" (T000046).** The third principle under `docs/philosophy.md` `## Topic: Doc contract`, stating the document-integrity thesis the workbench already practices: a doc you can't trust is worse than no doc, so trust is enforced by machinery — generated views drift-failed by CI, declared⇔on-disk checks both ways plus registry schema validation, the portable Common seed kept byte-identical across its copies by a drift test, hard lints (no work-item IDs in human docs; required front tables), and a self-healing doc-release pass (bootstrap + stub-scaffold + the advisory per-doc requirement audit) — never promised by convention. Front-table row added in matching position; doc-only change (no registry, validator, or view changes).
+
 ## [6.0.62] - 2026-06-09
 
 ### Changed
