@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.62] - 2026-06-09
+
+### Changed
+
+- **General docs are now required, and the general tier grew from 4 to 10 docs (F000058/S000100).** Six docs flipped `section: custom` → `section: common` in the doc-spec registry — the contract file itself (`spec/doc-spec.md`), `CLAUDE.md`, `CHANGELOG.md`, `TODOS.md`, and the two generated views (`docs/doc-general.md`, `docs/doc-custom.md`) — so the general (portable) tier now carries everything an adopting repo actually needs, not just the 4 human docs. The portable Common seed was restated across its three coupled copies (the `spec/doc-spec.md` Common section, `templates/doc-spec-common.md`, and the `doc-spec.sh` embedded heredoc — incidental diagram-line drift fixed, all byte-identical again) with the explicit rule **"General docs are required"**: every `section: common` doc must exist in an adopting repo; `/CJ_document-release` stub-scaffolds any missing one (the two views render REAL content via `doc-spec.sh --render` with a portable header; TODOS.md stub-scaffold and the existing lazy-creation are convergent). `/CJ_document-release` now states the two-tier logic and gained a Step 6.7.3b advisory check — a repo registry that omits a general-contract doc surfaces as a `stale:` verdict on the contract file's own line (enumerated via `--seed`-to-temp + `--render general`; the seed's root-style `doc-spec.md` is satisfied by any registry path with that basename, so `spec/doc-spec.md` qualifies; advisory, never a halt). The custom tier shrank to `CONTRIBUTING.md` + `spec/gate-spec.md` + `spec/permission-policy.md`; philosophy's "Two tiers, one portable pass" principle now states the required-ness; growth-safe seed assertions were added to `tests/cj-document-release-config.test.sh`. No new `validate.sh` check — enforcement rides the existing machinery (Checks 15/17 + stub-scaffold + the seed).
+
 ## [6.0.61] - 2026-06-09
 
 ### Changed
