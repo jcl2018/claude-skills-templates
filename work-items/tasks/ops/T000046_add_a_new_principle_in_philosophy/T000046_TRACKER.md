@@ -141,3 +141,5 @@ Scope (from /CJ_goal_task topic): Add a new principle in philosophy mentioning t
 - 2026-06-09 [qa-smoke] 7 (validate.sh): green — `./scripts/validate.sh` exit 0, Errors 0 / Warnings 0; Checks 19/20/23 explicitly PASS (front-table, no work-item refs, generated views in sync). Run per orchestrator caution: validate.sh directly, NOT scripts/test.sh (uncommitted tree).
 - 2026-06-09 [qa-smoke-summary] green: 7/7 non-manual rows green (0 manual rows pending)
 - 2026-06-09 [qa-pass] T000046 (task): green smoke from test-plan rows (7 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference. Note: `Core changes committed` gate intentionally pending — orchestrator commits after QA-green per /CJ_goal_task pipeline.
+- 2026-06-10T06:09:37Z [task-pr-opened] T000046 v6.0.63 PR #258
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/258
