@@ -12,7 +12,7 @@ carries. Nothing about the repo's other tooling has to change.
 
 ## The doc contract
 
-Every repo that adopts this contract carries ten **general docs** — the
+Every repo that adopts this contract carries eleven **general docs** — the
 `section: common` tier, sub-grouped below.
 
 **Human docs** — what a person (not just an agent) reads to understand the
@@ -24,6 +24,7 @@ project:
 | `docs/workflow.md` | The major workflows from a human's point of view; names the major entry points. ASCII flowcharts preferred. |
 | `docs/architecture.md` | The meaningful machinery under the hood — deeper than `workflow.md`. ASCII diagrams preferred. |
 | `README.md` | The landing page: folder structure + how to get started. |
+| `docs/test-pipeline.md` | Check-level map of the verification surface — every validator check, test family, CI workflow, and hook: what each asserts and when it runs. |
 
 **Operational docs** — agent- and ops-facing, so they may reference work items:
 
@@ -104,24 +105,27 @@ Each registry entry declares one `audit_class`:
 <!-- DOC-SPEC-CUSTOM:BEGIN (this repo only — edit freely) -->
 ## Custom: this repo's additional docs
 
-Beyond the ten general docs, this workbench's custom tier is three docs:
+Beyond the eleven general docs, this workbench's custom tier is four docs:
 `CONTRIBUTING.md` (the contributor authoring guide, surfaced by GitHub from the
-repo root) plus the two remaining spec-registry files (`spec/gate-spec.md`,
-`spec/permission-policy.md`). The three spec-registry files
-(`spec/doc-spec.md`, `spec/gate-spec.md`, `spec/permission-policy.md`) live under
+repo root) plus the three remaining spec-registry files (`spec/gate-spec.md`,
+`spec/permission-policy.md`, `spec/test-pipeline.md`). The four spec-registry
+files (`spec/doc-spec.md`, `spec/gate-spec.md`, `spec/permission-policy.md`,
+`spec/test-pipeline.md`) live under
 `spec/` — a dedicated folder that signals "machine config, not hand-read docs"
 at a glance. The full general/custom doc lists are **generated** from the machine
 registry below into
-[`docs/doc-general.md`](docs/doc-general.md) + [`docs/doc-custom.md`](docs/doc-custom.md)
+[`docs/doc-general.md`](docs/doc-general.md) + [`docs/doc-custom.md`](docs/doc-custom.md),
+and the general-tier `docs/test-pipeline.md` is likewise **generated** from the
+`spec/test-pipeline.md` registry by `scripts/test-pipeline.sh --render`
 (do not hand-edit — regenerate with `scripts/generate-doc-views.sh`); the
 contract's *why* (the logic) lives in
 [`docs/philosophy.md`](docs/philosophy.md) `## Topic: Doc contract`.
 
 Repo notes:
 
-- The three core human docs and the two generated views live under `docs/`
+- The three core human docs and the three generated views live under `docs/`
   (lowercase). `docs/workflow.md` is singular.
-- The three spec-registry files moved into `spec/` (this repo); each helper
+- The four spec-registry files moved into `spec/` (this repo); each helper
   resolves `spec/<name>.md` first, then a root `<name>.md` fallback, so a
   root-only consumer (or a fresh adopter) still resolves the registry unchanged.
 - The root operational docs (`CHANGELOG.md`, `CLAUDE.md`, `TODOS.md` — general
@@ -139,8 +143,9 @@ in the portable Common seed). A flagged doc must **open with a summary table**:
 the first Markdown table (a `|`-row immediately followed by a `|---|`-style
 delimiter row) must appear **before the doc's first `## ` heading**, giving a
 reader an at-a-glance index. The gate asserts a leading table only — it does not
-prescribe the table's columns. Today `docs/philosophy.md` (a row per principle)
-and `docs/workflow.md` (a row per major workflow/entry point) are flagged.
+prescribe the table's columns. Today `docs/philosophy.md` (a row per principle),
+`docs/workflow.md` (a row per major workflow/entry point) and
+`docs/test-pipeline.md` (a row per verification family) are flagged.
 `scripts/doc-spec.sh --list-front-table-docs` enumerates the flagged paths;
 `scripts/validate.sh` Check 20 consumes that list and hard-fails any flagged doc
 missing its leading table. Flagging a third doc later is a one-line registry edit
@@ -179,6 +184,12 @@ docs:
     audit_class: human-doc
     purpose: "Repo landing page: folder structure + how to get started."
     requirement: "Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs."
+  - path: docs/test-pipeline.md
+    section: common
+    audit_class: human-doc
+    front_table: required
+    purpose: "Generated check-level view of the verification surface (rendered from the spec/test-pipeline.md registry)."
+    requirement: "Generated from the spec/test-pipeline.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
   - path: spec/doc-spec.md
     section: common
     audit_class: operational
@@ -189,6 +200,11 @@ docs:
     audit_class: operational
     purpose: "The cj_goal verification contract — what stops a broken change from landing, and at which layer (parsed by scripts/gate-spec.sh)."
     requirement: "Present; one fenced yaml registry of layers[] + gates[] parsing with schema_version 1; every declared literal marker present in its mode's pipeline."
+  - path: spec/test-pipeline.md
+    section: custom
+    audit_class: operational
+    purpose: "The verification-surface registry — one row per validate check / test unit / CI workflow / hook (parsed by scripts/test-pipeline.sh)."
+    requirement: "Present; one fenced yaml registry of verification units parsing with schema_version 1; every anchor present in its declared source (validate.sh Check 24)."
   - path: CLAUDE.md
     section: common
     audit_class: operational

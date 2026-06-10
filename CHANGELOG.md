@@ -3,6 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.64] - 2026-06-10
+
+### Added
+
+- **You can now survey the repo's entire verification surface from one generated doc: `docs/test-pipeline.md`.** A new required general-tier doc enumerates, check by check, everything that protects the repo — all 25 numbered `validate.sh` checks (both ID namespaces) + 2 warning checks, every registered test sub-suite and inline `test.sh` family, the 3 standalone suites (test-deploy, eval, windows-smoke), the 3 CI workflows, both git hooks, and the 3 regression ratchets — each with what it asserts, its hard/advisory disposition, and when it runs. The leading summary table answers "what protects this repo, where, and when" at a glance; the layer model stays linked to `spec/gate-spec.md`, not re-explained.
+- **The doc cannot silently lie — it is generated and cross-checked (trustworthy by construction).** `spec/test-pipeline.md` is the 4th spec-registry family member (66 verification-unit rows; parsed by the new `scripts/test-pipeline.sh` with `--validate` / `--list-units` / `--render` / `--check-coverage`); `scripts/generate-doc-views.sh` renders the doc as its third output; `validate.sh` Check 23 now hard-fails view drift, and the new hard **Check 24** cross-checks registry ⇔ live surface both ways: forward (every anchor must match a LIVE, execution-shaped line — commented-out checks, de-wired test invocations with leftover log strings, and vanished suite scripts all fail) and reverse (every live check banner/comment, `tests/*.test.sh` file, workflow, and installed hook must resolve to exactly one registry row), with per-namespace and env-overridable global extraction floors so grammar rot can never make the check vacuously pass.
+- **The coverage check's first catch, wired in:** `tests/cj-goal-feature-smoke.test.sh` existed on disk with zero runner references — it silently never ran. It is now registered in the suite, and the new registered `tests/test-pipeline-spec.test.sh` drills the whole failure space temp-dir-isolated: fake banner, broken anchor, hand-edited view, removed runner block, hook-env regression, unregistered test file, self-satisfying source row, dead-text bypass, commented-out banner, and vanished suite script.
+- **The portable doc contract grows 10 → 11 general docs**: `docs/test-pipeline.md` joins the Common seed (mechanism-neutral requirement, byte-identical across all seed copies), so every adopting repo carries a test-pipeline doc; the doc-release skill stub-scaffolds it where missing and gives it the same mechanical view-freshness treatment as the other generated views where the registry + parser exist.
+
+### Fixed
+
+- **Pre-commit hook no longer breaks doc-view regeneration.** `generate-doc-views.sh` resolved its repo root via `git -C scripts/`, which inside a git hook (where `GIT_DIR` is exported) resolves the work tree to `scripts/` itself — the third view was silently skipped and the view-sync check blocked every commit while a direct `validate.sh` run passed. The resolution now scrubs the hook-injected `GIT_*` env vars, with a regression drill pinning hook-env renders byte-identical to clean-env renders. The generator also surfaces the parser's real halt reason on a failed render instead of swallowing it.
+
 ## [6.0.63] - 2026-06-10
 
 ### Added
