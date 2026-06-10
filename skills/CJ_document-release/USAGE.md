@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-08T18:30:00Z"
+last-updated: "2026-06-10T03:44:03Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -64,9 +64,15 @@ registry (every declared path + `doc-spec.md` + `docs/**/*.md`), with a
 registered-doc requirements audit (Step 6.7) that emits advisory `up-to-date` /
 `stale` / `missing-requirement` verdicts per registered doc (the registry docs +
 the routable skill MDs) into the PR body, including a no-work-item-ref check for
-every `human-doc`. The result is that orchestrator sessions can call
-CJ_document-release after QA, and `/ship` (next pipeline step) sees a clean tree
-where any doc updates are pre-committed.
+every `human-doc` AND a general-contract coverage check (Step 6.7.3b): the
+general set is enumerated by writing `doc-spec.sh --seed` to a temp file and
+rendering it (`DOC_SPEC_PATH=<temp> doc-spec.sh --render general`, first table
+column); a repo registry that omits a general-contract doc gets `stale: registry
+missing general-contract doc(s): <paths>` on the contract file's own verdict
+line (basename path-equivalence: `spec/doc-spec.md` satisfies the seed's
+root-style `doc-spec.md`) — advisory, never a halt. The result is that
+orchestrator sessions can call CJ_document-release after QA, and `/ship` (next
+pipeline step) sees a clean tree where any doc updates are pre-committed.
 
 ### The doc-spec.md contract
 
@@ -75,7 +81,15 @@ truth for what docs the repo carries — a portable Common section, a repo Custo
 section, and ONE fenced `yaml` registry. The registry declares each doc's `path`
 / `section` / `audit_class` / `purpose` / `requirement`; `audit_class` is a closed
 enum `{human-doc, operational}` (only `human-doc` gets the no-work-item-ref
-lint). The auto-commit whitelist + the `--docs` resolution are both DERIVED from
+lint). The registry's `section` field is the two-tier contract: `section: common`
+(general) docs are the portable contract and are REQUIRED — the seed declares
+all of them on self-bootstrap and the stub-scaffold step creates any missing one
+(for the two generated views the stub prefers REAL content rendered via
+`doc-spec.sh --render general|custom` with a portable header; `TODOS.md`
+stub-scaffold and the existing lazy-creation by TODOS-reading skills are
+convergent — whichever runs first creates the file, the other no-ops);
+`section: custom` docs are per-repo additions. The auto-commit whitelist + the
+`--docs` resolution are both DERIVED from
 this registry — there is no separate hand-maintained whitelist file. The helper
 at `scripts/doc-spec.sh` parses + validates + expands; the wrapper resolves it
 **2-tier**: repo-local first, then the deployed `_cj-shared/scripts/` home that

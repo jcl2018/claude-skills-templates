@@ -47,6 +47,15 @@ family needs:
    section skeleton + a `<!-- TODO: fill in -->` marker) and commits it. Both are
    idempotent — a re-run never writes a second copy.
 
+   **Tier logic (the general/custom contract).** `section: common` (general)
+   docs are the portable contract and are **REQUIRED** — every adopting repo
+   carries them: the portable seed declares all of them on self-bootstrap, and
+   the stub-scaffold step creates any missing one. `section: custom` docs are
+   per-repo additions — declared and carried by the repo that wants them, never
+   required anywhere else. The Step 6.7 audit surfaces a repo registry that
+   omits a general-contract doc as an advisory `stale:` verdict (see 6.7.3b) —
+   advisory, never a halt.
+
 2. **`--docs <comma-list>` per-invocation doc subset.** Operator can scope an
    invocation to a subset of declared docs (e.g. `--docs README` or
    `--docs README,CHANGELOG`). The subset is a documentation-only signal to
@@ -232,6 +241,22 @@ if [ -n "$_STUBBED" ]; then
   echo "CJ_document-release: stub-scaffolded missing declared docs:$_STUBBED (audit: stub — needs content)"
 fi
 ```
+
+**Stub shape for the two generated views.** When stub-scaffolding a missing
+`docs/doc-general.md` / `docs/doc-custom.md`, prefer REAL content over the plain
+stub above: render the table via `doc-spec.sh --render general|custom` so the
+view is born satisfying its "kept matching the registry" requirement; fall back
+to the plain stub only if `--render` fails. The header must be PORTABLE — e.g.
+`<!-- generated from the doc-spec registry — re-render via doc-spec.sh --render general|custom -->`
+— NOT a workbench header naming `spec/doc-spec.md` +
+`scripts/generate-doc-views.sh` (those paths do not exist in a root-style
+consumer repo).
+
+**TODOS.md dual-creation (convergent, not conflicting).** TODOS-reading skills
+lazy-create `TODOS.md` on first use; this stub-scaffold also creates it when it
+is declared-but-missing. The two paths are convergent: whichever runs first
+creates a minimal parseable skeleton, and the other no-ops because the file
+exists.
 
 The helper supports these subcommands the rest of this skill consumes:
 
@@ -605,6 +630,62 @@ for _hd in $(bash "$_DS_HELPER" --list-human-docs); do
     echo "  $_hd: stale — contains work-item refs"
   fi
 done
+```
+
+**View freshness (consumer repos) is judged mechanically.** The workbench keeps
+the two generated views in sync via `scripts/generate-doc-views.sh` + a CI drift
+check, but both are workbench-local and do NOT travel. In a consumer repo, judge
+the verdict for `docs/doc-general.md` / `docs/doc-custom.md` MECHANICALLY: diff
+each view's table against fresh `doc-spec.sh --render general|custom` output
+(the helper travels via `_cj-shared`); a mismatch ⇒ `stale: view out of sync
+with the registry`. The pass MAY re-render them directly — both paths are
+inside the registry-derived auto-commit whitelist.
+
+### 6.7.3b — General-contract coverage check (advisory missing-general-doc rule)
+
+The general contract (the portable seed) declares the `section: common` docs
+every adopting repo is REQUIRED to carry. When the REPO's registry omits one of
+them, surface the gap as part of the **contract file's own verdict line** (the
+registry entry whose basename is `doc-spec.md`):
+
+```
+stale: registry missing general-contract doc(s): <paths>
+```
+
+Because this is a `stale` verdict on a registered doc, it naturally suppresses
+the `Registered-doc requirements: all current` positive line — intended and
+honest. It is **ADVISORY, never a halt**: no exit, no halt marker, no
+RESULT=red.
+
+**Enumerating the general set.** Do NOT hand-parse the seed yaml, and do NOT
+use `--list-declared` (it would silently over-enumerate if the seed ever
+regains a `section: custom` entry). Write the seed to a temp file and reuse
+the parser — render the general section and take the first table column:
+
+```bash
+_GC_TMP=$(mktemp -d)
+bash "$_DS_HELPER" --seed > "$_GC_TMP/doc-spec.md" 2>/dev/null || true
+_GENERAL_SET=$(DOC_SPEC_PATH="$_GC_TMP/doc-spec.md" bash "$_DS_HELPER" --render general 2>/dev/null \
+  | awk -F'|' 'NR>2 {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}')
+rm -rf "$_GC_TMP"
+
+_DECLARED=$(bash "$_DS_HELPER" --list-declared)
+_MISSING_GC=""
+for _gc in $_GENERAL_SET; do
+  printf '%s\n' "$_DECLARED" | grep -qFx "$_gc" && continue
+  # Path equivalence: the seed declares the contract file root-style
+  # (doc-spec.md); ANY declared path whose basename is doc-spec.md SATISFIES
+  # that entry (e.g. spec/doc-spec.md) — mirroring the helper's own
+  # spec/-then-root resolution. Without this rule the workbench itself would
+  # false-positive on every run.
+  if [ "$_gc" = "doc-spec.md" ] \
+     && printf '%s\n' "$_DECLARED" | awk -F/ '{print $NF}' | grep -qFx 'doc-spec.md'; then
+    continue
+  fi
+  _MISSING_GC="$_MISSING_GC $_gc"
+done
+# Non-empty _MISSING_GC => the contract file's verdict line becomes:
+#   stale: registry missing general-contract doc(s):$_MISSING_GC
 ```
 
 ### 6.7.4 — Emit the block (RESULT + scratch file)
