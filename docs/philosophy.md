@@ -286,17 +286,23 @@ self-healed.
 The doc contract sorts every registered doc into one of two tiers, and one
 portable skill keeps both current in *any* repo — not just this workbench.
 
-> **A general tier ships to every repo by default; a custom tier is whatever a
-> repo adds on top. One portable doc-release pass keeps both current anywhere,
-> and the machine registry is the CI gate that proves it.**
+> **A general tier ships to every repo by default and is required in every
+> adopting repo; a custom tier is whatever a repo adds on top. One portable
+> doc-release pass keeps both current anywhere, and the machine registry is the
+> CI gate that proves it.**
 
-- **General tier (`section: common`).** The doc set every repo gets by default,
-  seeded from the one canonical seed the doc-release skill self-bootstraps. It is
-  "general by default": a fresh repo with no doc contract is stubbed up to the
-  general set, not left empty.
-- **Custom tier (`section: custom`).** Whatever a particular repo adds beyond the
-  general set — its own root convention docs, its own architecture notes. The
-  general tier is shared; the custom tier is the repo's own.
+- **General tier (`section: common`) — required in every adopting repo.** The
+  doc set every repo gets by default and must carry: the one canonical seed the
+  doc-release skill self-bootstraps declares all of it, and the stub-scaffold
+  pass creates any general doc that is missing. It is "general by default" AND
+  required: a fresh repo with no doc contract is stubbed up to the full general
+  set, not left empty, and a registry that omits a general doc is surfaced
+  (advisorily) on the next doc-release pass.
+- **Custom tier (`section: custom`) — per-repo.** Whatever a particular repo
+  adds beyond the general set — its own root convention docs, its own
+  architecture notes. Declared and carried only by the repo that wants them,
+  never required anywhere else. The general tier is shared and required
+  everywhere; the custom tier is the repo's own.
 - **One portable pass.** `/CJ_document-release` is written to run in any repo, not
   only this one: it reads the registry, self-heals a missing contract from the
   seed, and audits the docs against their declared requirements. When a repo has

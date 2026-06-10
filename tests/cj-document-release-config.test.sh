@@ -16,6 +16,10 @@
 #   6b. helper --list-front-table-docs emits ONLY front_table: required paths
 #   7. helper --expand-whitelist includes doc-spec.md + every declared path
 #   8. helper --seed emits the portable Common section
+#   8b. growth-safe seed assertions: the seed registry (via the DOC_SPEC_PATH
+#       temp-file idiom) --list-declared-includes the general-contract docs
+#       (CLAUDE.md, TODOS.md, docs/doc-general.md) AND the seed body states the
+#       literal rule "General docs are required"
 #   9. strict gate: a bad schema_version HALTs with [doc-sync-no-config]
 #  10. strict gate: an audit_class outside the enum HALTs with [doc-sync-no-config]
 #  11. functional portability: the real helper reads the cwd-toplevel doc-spec.md
@@ -85,7 +89,7 @@ if [ -x "$HELPER" ]; then
      && printf '%s\n' "$_DECL" | grep -qx 'docs/workflow.md' \
      && printf '%s\n' "$_DECL" | grep -qx 'docs/architecture.md' \
      && printf '%s\n' "$_DECL" | grep -qx 'README.md'; then
-    ok "helper --list-declared includes the four human docs"
+    ok "helper --list-declared includes the core human docs"
   else
     fail_test "helper --list-declared missing one of the human docs (got: $_DECL)"
   fi
@@ -150,6 +154,32 @@ if [ -x "$HELPER" ]; then
   fi
 else
   fail_test "helper --seed skipped (not executable)"
+fi
+
+# 8b. growth-safe seed assertions (general-docs-required): the seed registry
+# declares the general-contract set and states the required rule. Seed written
+# to a temp file and re-read via the DOC_SPEC_PATH override (reuses the parser —
+# no hand-parsing of seed yaml). Inclusion-based, so future seed growth breaks
+# nothing; dropping a seed entry or the rule bullet regresses loudly.
+if [ -x "$HELPER" ]; then
+  _T=$(mktemp -d)
+  bash "$HELPER" --seed > "$_T/doc-spec.md" 2>/dev/null
+  _SD=$(DOC_SPEC_PATH="$_T/doc-spec.md" bash "$HELPER" --list-declared 2>/dev/null)
+  if printf '%s\n' "$_SD" | grep -qx 'CLAUDE.md' \
+     && printf '%s\n' "$_SD" | grep -qx 'TODOS.md' \
+     && printf '%s\n' "$_SD" | grep -qx 'docs/doc-general.md'; then
+    ok "seed registry declares the general-contract docs (CLAUDE.md, TODOS.md, docs/doc-general.md)"
+  else
+    fail_test "seed registry missing a general-contract doc (got: $_SD)"
+  fi
+  if grep -qF 'General docs are required' "$_T/doc-spec.md"; then
+    ok "seed states the rule: 'General docs are required'"
+  else
+    fail_test "seed missing the literal rule phrase 'General docs are required'"
+  fi
+  rm -rf "$_T"
+else
+  fail_test "growth-safe seed assertions skipped (helper not executable)"
 fi
 
 # 9. strict gate: bad schema_version

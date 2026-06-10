@@ -12,8 +12,11 @@ carries. Nothing about the repo's other tooling has to change.
 
 ## The doc contract
 
-Every repo that adopts this contract carries four **human docs** — the docs a
-person (not just an agent) reads to understand the project:
+Every repo that adopts this contract carries ten **general docs** — the
+`section: common` tier, sub-grouped below.
+
+**Human docs** — what a person (not just an agent) reads to understand the
+project:
 
 | Doc | What it is for |
 |-----|----------------|
@@ -22,8 +25,28 @@ person (not just an agent) reads to understand the project:
 | `docs/architecture.md` | The meaningful machinery under the hood — deeper than `workflow.md`. ASCII diagrams preferred. |
 | `README.md` | The landing page: folder structure + how to get started. |
 
-Two rules make these docs trustworthy:
+**Operational docs** — agent- and ops-facing, so they may reference work items:
 
+| Doc | What it is for |
+|-----|----------------|
+| `doc-spec.md` | The doc contract itself — this file (a repo may keep it under `spec/`; tooling resolves `spec/doc-spec.md` first, then the root). |
+| `CLAUDE.md` | Agent operating instructions. |
+| `CHANGELOG.md` | Release history, updated on every release. |
+| `TODOS.md` | The operational backlog. |
+
+**Generated views (human docs)** — readable lists derived from the registry, so
+there is never a second list to hand-maintain:
+
+| Doc | What it is for |
+|-----|----------------|
+| `docs/doc-general.md` | Readable list of the `section: common` (general) docs. |
+| `docs/doc-custom.md` | Readable list of the `section: custom` docs. |
+
+Three rules make these docs trustworthy:
+
+- **General docs are required.** Every `section: common` doc must exist in an
+  adopting repo; the doc-release skill stub-scaffolds any missing one.
+  `section: custom` docs are this repo's chosen additions.
 - **Human docs carry no work-item IDs.** A reference of the shape
   `<F|S|T|D>` followed by six digits is internal-tracker noise; it does not
   belong in a doc a newcomer reads. This is enforced (a hard CI lint), not a
@@ -40,7 +63,7 @@ Two consumers parse the `yaml` registry:
             doc-spec.md  (this file)
             ┌───────────────────────────┐
             │ Common prose + Custom prose│
-            │ ```yaml machine registry```│
+            │ yaml machine registry      │
             │   schema_version: 1        │
             │   docs[]: path / section / │
             │     audit_class / purpose /│
@@ -81,9 +104,10 @@ Each registry entry declares one `audit_class`:
 <!-- DOC-SPEC-CUSTOM:BEGIN (this repo only — edit freely) -->
 ## Custom: this repo's additional docs
 
-Beyond the four common human docs, this workbench carries a handful of
-**operational** docs (agent- and ops-facing, so they may reference work items)
-plus the two generated registry views. The three spec-registry files
+Beyond the ten general docs, this workbench's custom tier is three docs:
+`CONTRIBUTING.md` (the contributor authoring guide, surfaced by GitHub from the
+repo root) plus the two remaining spec-registry files (`spec/gate-spec.md`,
+`spec/permission-policy.md`). The three spec-registry files
 (`spec/doc-spec.md`, `spec/gate-spec.md`, `spec/permission-policy.md`) live under
 `spec/` — a dedicated folder that signals "machine config, not hand-read docs"
 at a glance. The full general/custom doc lists are **generated** from the machine
@@ -95,15 +119,15 @@ contract's *why* (the logic) lives in
 
 Repo notes:
 
-- The three human docs live under `docs/` (lowercase). `docs/workflow.md` is
-  singular.
+- The three core human docs and the two generated views live under `docs/`
+  (lowercase). `docs/workflow.md` is singular.
 - The three spec-registry files moved into `spec/` (this repo); each helper
   resolves `spec/<name>.md` first, then a root `<name>.md` fallback, so a
   root-only consumer (or a fresh adopter) still resolves the registry unchanged.
-- The remaining root operational docs (`CHANGELOG.md`, `CLAUDE.md`,
-  `CONTRIBUTING.md`, `TODOS.md`) stay at the repo root because external tooling
-  (GitHub rendering, Claude Code's `./CLAUDE.md` auto-load, `/ship`'s changelog
-  writer) hardcodes those root paths.
+- The root operational docs (`CHANGELOG.md`, `CLAUDE.md`, `TODOS.md` — general
+  tier — plus the custom `CONTRIBUTING.md`) stay at the repo root because
+  external tooling (GitHub rendering, Claude Code's `./CLAUDE.md` auto-load,
+  `/ship`'s changelog writer) hardcodes those root paths.
 - The doc-only auto-commit whitelist used by `/CJ_document-release` is derived
   from the registry below — there is no separate hand-maintained whitelist file.
 
@@ -156,22 +180,22 @@ docs:
     purpose: "Repo landing page: folder structure + how to get started."
     requirement: "Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs."
   - path: spec/doc-spec.md
-    section: custom
+    section: common
     audit_class: operational
     purpose: "The doc contract itself (this file)."
-    requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1."
+    requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1; registry declares every general-contract doc."
   - path: spec/gate-spec.md
     section: custom
     audit_class: operational
     purpose: "The cj_goal verification contract — what stops a broken change from landing, and at which layer (parsed by scripts/gate-spec.sh)."
     requirement: "Present; one fenced yaml registry of layers[] + gates[] parsing with schema_version 1; every declared literal marker present in its mode's pipeline."
   - path: CLAUDE.md
-    section: custom
+    section: common
     audit_class: operational
     purpose: "Agent operating instructions (auto-loaded by Claude Code)."
     requirement: "Present; work-item references allowed (operational doc)."
   - path: CHANGELOG.md
-    section: custom
+    section: common
     audit_class: operational
     purpose: "Release history (keep-a-changelog)."
     requirement: "Present; updated by /ship + /document-release."
@@ -181,7 +205,7 @@ docs:
     purpose: "Contributor authoring guide."
     requirement: "Present; surfaced by GitHub from the repo root."
   - path: TODOS.md
-    section: custom
+    section: common
     audit_class: operational
     purpose: "Operational backlog wired into /CJ_suggest, /CJ_goal_todo_fix, /ship."
     requirement: "Present; work-item references allowed (operational doc)."
@@ -191,12 +215,12 @@ docs:
     purpose: "The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh)."
     requirement: "Present; one fenced yaml policy registry parsing with schema_version 1; risky verbs enumerated as deny/ask."
   - path: docs/doc-general.md
-    section: custom
+    section: common
     audit_class: human-doc
     purpose: "Generated readable view of the section:common (general) registry docs."
     requirement: "Generated from the spec/doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."
   - path: docs/doc-custom.md
-    section: custom
+    section: common
     audit_class: human-doc
     purpose: "Generated readable view of the section:custom registry docs."
     requirement: "Generated from the spec/doc-spec.md registry by scripts/generate-doc-views.sh; kept in sync by validate.sh Check 23; do not hand-edit."

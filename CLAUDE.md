@@ -525,7 +525,8 @@ There is no second list: the registry is the source, the prose explains it.
   (registry-driven via `doc-spec.sh --list-front-table-docs`).
 
 Add a doc by adding a registry entry to `doc-spec.md` (and creating the file). A
-new root `*.md` must be a `section: custom` registry entry, or Check 17 flags it.
+new root `*.md` must be a declared registry entry — `custom` for repo-specific
+docs, `common` only if the portable contract adopts it — or Check 17 flags it.
 Flag a doc to require a leading summary table by adding `front_table: required`
 to its registry entry — Check 20 then enforces it.
 

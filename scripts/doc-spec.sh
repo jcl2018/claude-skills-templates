@@ -29,8 +29,9 @@
 #                       `path` + doc-spec.md + every docs/**/*.md on disk
 #                       (sorted, unique).
 #   --seed              echo a COMPLETE, minimal, VALID doc-spec.md (Common +
-#                       Custom placeholder + a yaml registry of the four common
-#                       human-docs) for self-bootstrap of a MISSING doc-spec.md.
+#                       Custom placeholder + a yaml registry of the ten general
+#                       section: common docs) for self-bootstrap of a MISSING
+#                       doc-spec.md.
 #                       Does NOT require doc-spec.md to exist (that is the whole
 #                       point). Source: repo-local templates/doc-spec-common.md
 #                       if present, else the embedded heredoc below (so a consumer
@@ -226,8 +227,11 @@ carries. Nothing about the repo's other tooling has to change.
 
 ## The doc contract
 
-Every repo that adopts this contract carries four **human docs** — the docs a
-person (not just an agent) reads to understand the project:
+Every repo that adopts this contract carries ten **general docs** — the
+`section: common` tier, sub-grouped below.
+
+**Human docs** — what a person (not just an agent) reads to understand the
+project:
 
 | Doc | What it is for |
 |-----|----------------|
@@ -236,8 +240,28 @@ person (not just an agent) reads to understand the project:
 | `docs/architecture.md` | The meaningful machinery under the hood — deeper than `workflow.md`. ASCII diagrams preferred. |
 | `README.md` | The landing page: folder structure + how to get started. |
 
-Two rules make these docs trustworthy:
+**Operational docs** — agent- and ops-facing, so they may reference work items:
 
+| Doc | What it is for |
+|-----|----------------|
+| `doc-spec.md` | The doc contract itself — this file (a repo may keep it under `spec/`; tooling resolves `spec/doc-spec.md` first, then the root). |
+| `CLAUDE.md` | Agent operating instructions. |
+| `CHANGELOG.md` | Release history, updated on every release. |
+| `TODOS.md` | The operational backlog. |
+
+**Generated views (human docs)** — readable lists derived from the registry, so
+there is never a second list to hand-maintain:
+
+| Doc | What it is for |
+|-----|----------------|
+| `docs/doc-general.md` | Readable list of the `section: common` (general) docs. |
+| `docs/doc-custom.md` | Readable list of the `section: custom` docs. |
+
+Three rules make these docs trustworthy:
+
+- **General docs are required.** Every `section: common` doc must exist in an
+  adopting repo; the doc-release skill stub-scaffolds any missing one.
+  `section: custom` docs are this repo's chosen additions.
 - **Human docs carry no work-item IDs.** A reference of the shape
   `<F|S|T|D>` followed by six digits is internal-tracker noise; it does not
   belong in a doc a newcomer reads. This is enforced (a hard CI lint), not a
@@ -331,10 +355,35 @@ docs:
     purpose: "Repo landing page: folder structure + how to get started."
     requirement: "Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs."
   - path: doc-spec.md
-    section: custom
+    section: common
     audit_class: operational
     purpose: "The doc contract itself (this file)."
-    requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1."
+    requirement: "Present; Common section verbatim from the seed; registry parses with schema_version 1; registry declares every general-contract doc."
+  - path: CLAUDE.md
+    section: common
+    audit_class: operational
+    purpose: "Agent operating instructions."
+    requirement: "Present; agent operating instructions; work-item references allowed."
+  - path: CHANGELOG.md
+    section: common
+    audit_class: operational
+    purpose: "Release history."
+    requirement: "Present; release history; updated on every release."
+  - path: TODOS.md
+    section: common
+    audit_class: operational
+    purpose: "Operational backlog."
+    requirement: "Present; operational backlog; work-item references allowed."
+  - path: docs/doc-general.md
+    section: common
+    audit_class: human-doc
+    purpose: "Generated readable view of the section: common (general) registry docs."
+    requirement: "Readable list of the section: common (general) docs, kept matching the registry; no work-item IDs."
+  - path: docs/doc-custom.md
+    section: common
+    audit_class: human-doc
+    purpose: "Generated readable view of the section: custom registry docs."
+    requirement: "Readable list of the section: custom docs, kept matching the registry; no work-item IDs."
 ```
 DOCSPEC_SEED
 }
