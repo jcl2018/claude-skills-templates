@@ -12,6 +12,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Deployment** | Two delivery surfaces, one contract | The same doc-first work contract ships to Claude Code skills and a self-contained GitHub Copilot bundle. |
 | **Doc contract** | The doc contract is one file, human + machine | `doc-spec.md` is both the human-readable doc map and the machine registry the CI validator + doc-release skill parse. |
 | **Doc contract** | Two tiers, one portable pass: general by default, custom per repo | A general doc set ships to every repo; each repo adds its custom docs; one portable skill keeps both current, gated by the machine registry. |
+| **Doc contract** | Trustworthy by construction, not by convention | A doc you can't trust is worse than no doc — generated views, declared-vs-on-disk gates, hard lints, and a self-healing advisory audit make doc trust mechanical, not promised. |
 | **Harness-engineering best practices** | 1. Context is a finite resource — curate it | The window is an attention budget; keep the smallest high-signal set live. |
 | **Harness-engineering best practices** | 2. Externalize state to durable storage | Write important state to the filesystem, not just the window — if a session dies, the work survives. |
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
@@ -317,6 +318,36 @@ and the gate are one file; this one says that one file describes two tiers and a
 single portable skill maintains them anywhere. See
 [architecture.md](architecture.md) for the portable-CI-hook recipe and its honest
 boundary (the schema check travels; the declared⇔on-disk loop is workbench-local).
+
+### Trustworthy by construction, not by convention
+
+A doc you can't trust is worse than no doc — a stale map sends its reader,
+human or agent, confidently to the wrong place. The first two principles say
+where the contract lives and what it covers; this one says why you can believe
+it: every property that makes the docs trustworthy is *enforced by machinery*,
+never promised by convention.
+
+- **Generated, never hand-maintained.** Anything that would be a second copy is
+  derived from its one source — the readable doc views from the registry, the
+  README from the skill catalog — and a CI drift check fails if a derived view
+  is edited by hand. A list that cannot be hand-edited cannot quietly rot.
+- **Declared matches on-disk, both ways.** Every declared doc must exist and
+  every doc on disk must be declared — no ghosts, no orphans — and the registry
+  itself is schema-validated. The portable seed the doc-release pass bootstraps
+  from is kept byte-identical across its copies by a drift test, so "the same
+  contract everywhere" is checked, not assumed.
+- **Hard floor, self-healing above it.** Cleanliness is a hard CI lint — a human
+  doc carrying an internal work-item ID fails outright, and a required front
+  table is gated the same way — while recovery is automatic: a missing contract
+  is bootstrapped from the seed, a missing declared doc is stub-scaffolded, and
+  every registered doc is advisorily audited against its declared requirement,
+  including whether the general tier is fully present.
+
+The division of labor is deliberate: what a machine can decide (existence,
+drift, schema, IDs) is a hard gate; the judgment call — "does this doc still
+satisfy its requirement?" — is a recurring advisory audit rather than a false
+green. Convention gets you a doc set; machinery gets you a doc set you can
+trust.
 
 ## Decision tree: which CJ_ skill do I call?
 
