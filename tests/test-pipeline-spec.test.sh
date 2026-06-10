@@ -17,7 +17,7 @@
 #   6. malformed-registry fixtures fail closed with [test-pipeline-no-config]:
 #      bad schema_version / family outside the enum / a work-item ID in a
 #      rendered field / a duplicate id / a trigger token outside the enum
-#   7. the four drift drills, temp-dir isolated (a COPY of the swept surface;
+#   7. the drift drills (a)-(f2), temp-dir isolated (a COPY of the swept surface;
 #      the live tree is never mutated):
 #        (a) fake `=== Check 99` banner in the temp validate.sh -> the REVERSE
 #            sweep flags it
@@ -108,7 +108,8 @@ fi
 
 # 5. --render: idempotent, ID-free, front-table-shaped, gate-spec pointer
 _RT=$(mk_tmp)
-bash "$HELPER" --render > "$_RT/r1.md" 2>/dev/null
+bash "$HELPER" --render > "$_RT/r1.md" 2>/dev/null; _R1_RC=$?
+[ "$_R1_RC" -eq 0 ] || fail_test "helper --render exited non-zero ($_R1_RC) — idempotency/shape asserts below would be vacuous"
 bash "$HELPER" --render > "$_RT/r2.md" 2>/dev/null
 if diff -q "$_RT/r1.md" "$_RT/r2.md" >/dev/null 2>&1; then
   ok "helper --render is byte-identical across two runs"
@@ -255,7 +256,24 @@ units:
 EOF
 _assert_halts bad-trigger.md "trigger token outside the enum" "trigger token"
 
-# 7. The four drift drills — against a temp COPY of the swept surface.
+_mk_fixture bad-test-source.md <<'EOF'
+```yaml
+schema_version: 1
+units:
+  - id: test-self-ref
+    family: test
+    label: "A test suite"
+    anchor: "tests/zz-selfref.test.sh"
+    source: tests/zz-selfref.test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "A purpose."
+```
+EOF
+_assert_halts bad-test-source.md "test row pointing source at the test file itself (silent-skip disarm)" "MUST declare source: scripts/test.sh"
+
+# 7. The drift drills (a)-(f2) — against a temp COPY of the swept surface.
 # The fixture tree carries: the registry, the three anchored script sources,
 # the workflows, and name-only placeholders for every tests/*.test.sh on disk
 # (the reverse sweep enumerates file NAMES; the forward check greps the runner
@@ -371,6 +389,34 @@ if [ "$_F_RC" -ne 0 ] && printf '%s' "$_F_OUT" | grep -qF "zz-unregistered-drill
   ok "drill (f): unregistered test file on disk -> reverse sweep flags it (no registry row)"
 else
   fail_test "drill (f) did not flag the unregistered test file (rc=$_F_RC): $_F_OUT"
+fi
+_rebuild_fixture
+
+# Drill (f2) — REVERSE, the source-pin bypass (red-team find): an unwired test
+# file ships WITH a registry row, but the row points source at the test file
+# itself. The file names itself in its header, so the FORWARD grep
+# self-satisfies — only the reverse sweep's source pin (source must be
+# scripts/test.sh) catches that the suite never runs it.
+printf '#!/usr/bin/env bash\n# tests/zz-selfref.test.sh — self-referencing drill file\n' > "$_FIX/tests/zz-selfref.test.sh"
+awk '
+  /^```$/ && !done { print "  - id: test-zz-selfref"; \
+    print "    family: test"; \
+    print "    label: \"Self-ref drill suite\""; \
+    print "    anchor: \"tests/zz-selfref.test.sh\""; \
+    print "    source: tests/zz-selfref.test.sh"; \
+    print "    layer: ci"; \
+    print "    disposition: hard-fail"; \
+    print "    trigger: \"pr-ci\""; \
+    print "    purpose: \"A drill purpose.\""; done=1 }
+  { print }
+' "$_FIX/spec/test-pipeline.md" > "$_FIX/spec/test-pipeline.md.new" \
+  && mv "$_FIX/spec/test-pipeline.md.new" "$_FIX/spec/test-pipeline.md"
+_F2_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _F2_RC=$?
+if [ "$_F2_RC" -ne 0 ] && printf '%s' "$_F2_OUT" | grep -qF "zz-selfref.test.sh" \
+   && printf '%s' "$_F2_OUT" | grep -qF 'source: scripts/test.sh'; then
+  ok "drill (f2): self-satisfying source row -> reverse source-pin flags the unwired test"
+else
+  fail_test "drill (f2) did not flag the self-referencing row (rc=$_F2_RC): $_F2_OUT"
 fi
 _rebuild_fixture
 

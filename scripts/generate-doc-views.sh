@@ -87,6 +87,9 @@ TP_REGISTRY="$REPO_ROOT/spec/test-pipeline.md"
 [ -f "$TP_REGISTRY" ] || TP_REGISTRY="$REPO_ROOT/test-pipeline.md"
 if [ -f "$TP_SH" ] && [ -f "$TP_REGISTRY" ]; then
   TP_BODY="$(bash "$TP_SH" --render)" || {
+    # Surface the parser's own halt reason (captured on stdout before the
+    # non-zero exit) instead of swallowing it behind a generic message.
+    [ -n "$TP_BODY" ] && printf '%s\n' "$TP_BODY" >&2
     echo "generate-doc-views.sh: 'test-pipeline.sh --render' failed (invalid registry?) — not writing test-pipeline.md view." >&2; exit 1; }
   printf '%s\n' "$TP_BODY" > "$OUTPUT_DIR/test-pipeline.md"
 else

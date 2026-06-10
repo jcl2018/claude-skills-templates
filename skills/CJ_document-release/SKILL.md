@@ -242,7 +242,7 @@ if [ -n "$_STUBBED" ]; then
 fi
 ```
 
-**Stub shape for the two generated views.** When stub-scaffolding a missing
+**Stub shape for the generated views.** When stub-scaffolding a missing
 `docs/doc-general.md` / `docs/doc-custom.md`, prefer REAL content over the plain
 stub above: render the table via `doc-spec.sh --render general|custom` so the
 view is born satisfying its "kept matching the registry" requirement; fall back
@@ -250,7 +250,12 @@ to the plain stub only if `--render` fails. The header must be PORTABLE — e.g.
 `<!-- generated from the doc-spec registry — re-render via doc-spec.sh --render general|custom -->`
 — NOT a workbench header naming `spec/doc-spec.md` +
 `scripts/generate-doc-views.sh` (those paths do not exist in a root-style
-consumer repo).
+consumer repo). The third generated view, `docs/test-pipeline.md`, follows the
+same preference when a test-pipeline registry + parser are adoptable: render it
+via `test-pipeline.sh --render` (repo-local `scripts/` then `_cj-shared`); when
+the parser or its registry is absent (the common consumer posture), fall back
+to the plain stub — there the doc is hand-maintained and the mechanism-neutral
+seed requirement is satisfied without generation.
 
 **TODOS.md dual-creation (convergent, not conflicting).** TODOS-reading skills
 lazy-create `TODOS.md` on first use; this stub-scaffold also creates it when it
@@ -633,13 +638,18 @@ done
 ```
 
 **View freshness (consumer repos) is judged mechanically.** The workbench keeps
-the two generated views in sync via `scripts/generate-doc-views.sh` + a CI drift
-check, but both are workbench-local and do NOT travel. In a consumer repo, judge
+the generated views in sync via `scripts/generate-doc-views.sh` + a CI drift
+check, but those are workbench-local and do NOT travel. In a consumer repo, judge
 the verdict for `docs/doc-general.md` / `docs/doc-custom.md` MECHANICALLY: diff
 each view's table against fresh `doc-spec.sh --render general|custom` output
 (the helper travels via `_cj-shared`); a mismatch ⇒ `stale: view out of sync
 with the registry`. The pass MAY re-render them directly — both paths are
-inside the registry-derived auto-commit whitelist.
+inside the registry-derived auto-commit whitelist. `docs/test-pipeline.md` gets
+the same mechanical treatment ONLY where a test-pipeline registry + parser are
+present (diff against fresh `test-pipeline.sh --render` output); where they are
+absent (consumer hand-maintained copy), it is judged like any other prose doc
+against its mechanism-neutral requirement — never flagged stale merely for not
+being generated.
 
 ### 6.7.3b — General-contract coverage check (advisory missing-general-doc rule)
 

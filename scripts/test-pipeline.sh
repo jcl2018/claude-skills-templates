@@ -209,6 +209,19 @@ _run_registry_gates() {
         *) emit_halt "unit '$_id' has trigger token '$_tok' outside the closed enum {pre-commit, post-merge, pr-ci, push-main, nightly, manual}" ;;
       esac
     done
+    # Source pin for test rows (the silent-skip catch's load-bearing rule):
+    # a family:test row anchored on a tests/*.test.sh runner path MUST declare
+    # source: scripts/test.sh — the forward grep proves the file is WIRED into
+    # the suite. Pointing source at the test file itself self-satisfies the
+    # grep (every test file names itself in its header) and silently disarms
+    # the catch, so a wrong fill fails HERE with a named reason.
+    if [ "$_family" = "test" ]; then
+      case "$_anchor" in
+        tests/*.test.sh)
+          [ "$_source" = "scripts/test.sh" ] || emit_halt "unit '$_id' is a test-runner row (anchor '$_anchor') but declares source '$_source' — test rows MUST declare source: scripts/test.sh so the forward grep proves the file is wired into the suite"
+          ;;
+      esac
+    fi
     # Rendered-field work-item-ID lint: label + purpose render into the
     # generated human view (a hard-linted human-doc); anchors never render.
     if printf '%s %s' "$_label" "$_purpose" | grep -qE '[FSTD][0-9]{6}'; then
@@ -359,16 +372,19 @@ EOF
   fi
 
   # (2) tests/*.test.sh on disk -> exactly one family:test row whose anchor is
-  # the literal runner path. This is the silent-skip catch: the row's FORWARD
-  # anchor proves the file is wired into scripts/test.sh; this REVERSE pass
-  # proves every file on disk has a row at all.
+  # the literal runner path AND whose source is scripts/test.sh. This is the
+  # silent-skip catch: the row's FORWARD anchor proves the file is wired into
+  # scripts/test.sh; this REVERSE pass proves every file on disk has a row at
+  # all. The source pin is load-bearing — a row pointing source at the test
+  # file itself would self-satisfy the forward grep (the file names itself in
+  # its header), turning the catch back into a convention.
   for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
     [ -e "$_tf" ] || continue
     _tok="tests/$(basename "$_tf")"
     _TOKENS=$((_TOKENS + 1))
-    _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want' | grep -c . || true)
+    _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want && $5 == "scripts/test.sh"' | grep -c . || true)
     if [ "$_c" -ne 1 ]; then
-      echo "FINDING: reverse — test file $_tok on disk resolves to $_c registry row(s); want exactly one (family: test, anchor: $_tok)"
+      echo "FINDING: reverse — test file $_tok on disk resolves to $_c registry row(s); want exactly one (family: test, anchor: $_tok, source: scripts/test.sh — the runner, NOT the test file: the forward grep must prove the file is wired in)"
       _FINDINGS=$((_FINDINGS + 1))
     fi
   done

@@ -200,6 +200,7 @@ ok "F000053/S000095 within-phase-receipts regression guards"
 # validate.sh check ships with its test.sh assertions in the same PR — the
 # standing parallel-edit blind spot, defused in lockstep). The four temp-dir
 # drift drills (fake banner / broken anchor / hand-edited view / removed runner
+# / hook-env GIT_DIR / unregistered file / self-satisfying source
 # block) live in tests/test-pipeline-spec.test.sh, registered in the hand-wired
 # runner section below; this block asserts the live-tree positives + the
 # fail-closed no-config path. Mirrors the S000094/S000096 blocks above.
@@ -1848,7 +1849,7 @@ fi
 echo ""
 echo "Running tests/test-pipeline-spec.test.sh (F000059 registry parser + coverage drift drills)..."
 if bash "$REPO_ROOT/tests/test-pipeline-spec.test.sh" >/dev/null 2>&1; then
-  ok "tests/test-pipeline-spec.test.sh: parser round-trip + malformed fixtures + 4 drift drills + consumer-skip posture all pass"
+  ok "tests/test-pipeline-spec.test.sh: parser round-trip + malformed fixtures + drift drills (a)-(f2) + consumer-skip posture all pass"
 else
   _tps_rc=$?
   fail_test "tests/test-pipeline-spec.test.sh failed (rc=$_tps_rc) — run \`bash tests/test-pipeline-spec.test.sh\` directly to see"

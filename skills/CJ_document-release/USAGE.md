@@ -3,7 +3,7 @@ skill-name: "CJ_document-release"
 version: 0.1.0
 status: experimental
 created: "2026-06-02"
-last-updated: "2026-06-10T03:44:03Z"
+last-updated: "2026-06-10T17:39:06Z"
 ---
 
 # Skill Usage: CJ_document-release
@@ -84,8 +84,10 @@ enum `{human-doc, operational}` (only `human-doc` gets the no-work-item-ref
 lint). The registry's `section` field is the two-tier contract: `section: common`
 (general) docs are the portable contract and are REQUIRED — the seed declares
 all of them on self-bootstrap and the stub-scaffold step creates any missing one
-(for the two generated views the stub prefers REAL content rendered via
-`doc-spec.sh --render general|custom` with a portable header; `TODOS.md`
+(for the generated views the stub prefers REAL content — `doc-spec.sh --render
+general|custom` for the doc-contract pair, `test-pipeline.sh --render` for
+`docs/test-pipeline.md` where its registry + parser exist, the plain stub
+otherwise; `TODOS.md`
 stub-scaffold and the existing lazy-creation by TODOS-reading skills are
 convergent — whichever runs first creates the file, the other no-ops);
 `section: custom` docs are per-repo additions. The auto-commit whitelist + the
