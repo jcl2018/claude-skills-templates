@@ -21,6 +21,19 @@ blocked_by: ""
 #     diff_audit: { changed_files_without_tests: [] }
 #     ready_for_ship: false
 #     next_legal: []
+receipts:
+  qa:
+    phase: 3
+    commit: "f21f803af8ecf5b7409f029076be6f1d32f9cc00"
+    completed_at: "2026-06-10T16:32:43Z"
+    test_rows_run: 10
+    ac_ids_covered: [AC-1, AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8]
+    ac_ids_uncovered: []
+    diff_audit:
+      changed_files_without_tests: [CLAUDE.md, docs/architecture.md]
+    journal_entries: ["qa-smoke S1-S5 + summary", "qa-e2e-run-start RUN_ID=20260610-092804-15845", "qa-decision parent-inline reclassification", "qa-e2e E1-E5 [parent-inline]", "qa-e2e-summary green", "qa-pass S000101"]
+    ready_for_ship: true
+    next_legal: [ship]
 ---
 
 <!-- Prerequisite: Before scaffolding this work item, run /office-hours to
@@ -58,8 +71,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -162,3 +175,18 @@ blocked_by: ""
 - 2026-06-10 [impl-finding] The reverse-sweep floor counts 47 live tokens today (13 banners + 12 error comments + 2 warning comments + 15 test files + 3 workflows + 2 hooks), comfortably above the 20 floor; the warning-check namespace matches by anchor-containment (one member is unnumbered) where the numbered namespaces match by derived row id.
 - 2026-06-10 [impl] 15 files changed (5 new: spec/test-pipeline.md, scripts/test-pipeline.sh, docs/test-pipeline.md, tests/test-pipeline-spec.test.sh + this tracker set pre-existing; 10 modified: generate-doc-views.sh, validate.sh, test.sh, spec/doc-spec.md, templates/doc-spec-common.md, scripts/doc-spec.sh, docs/doc-general.md, docs/doc-custom.md, CLAUDE.md, docs/architecture.md). Verified: validate.sh PASS 0/0 (Check 23 third-view PASS + Check 24 PASS rows=66 reverse_tokens=47 findings=0); re-render byte-idempotent (3-way per-file diff); rendered view ID-free + front-table-shaped + gate-spec-linked; seed heredoc == template byte-identical AND spec/doc-spec.md Common block byte-identical (config-test 13 + manual diff both green); tests/test-pipeline-spec.test.sh standalone 23 OK / 0 FAIL; both new/extended test.sh inline blocks extracted + run green in isolation; shellcheck clean on all 5 touched scripts. Full ./scripts/test.sh deferred to QA (restore-trap vs in-flight tree caution).
 - 2026-06-10 [impl-pass] S000101: implementation complete. Phase 2 implementer-owned gates transitioned (Todos current; Files updated). QA-owned gates left for /CJ_qa-work-item.
+- 2026-06-10 [qa-smoke] S1 (AC-1): green — `test-pipeline.sh --validate` prints `OK schema_version=1`, exit 0.
+- 2026-06-10 [qa-smoke] S2 (AC-2): green — `--list-units` enumerates 66 rows (≥ 60); two consecutive `--render` runs byte-identical; rendered view greps clean for `[FSTD][0-9]{6}`.
+- 2026-06-10 [qa-smoke] S3 (AC-3): green — `generate-doc-views.sh` + `git diff --exit-code docs/test-pipeline.md` zero diff on clean tree; summary table opens before the first `## ` heading; gate-spec.md linked.
+- 2026-06-10 [qa-smoke] S4 (AC-5): green — validate.sh RESULT: PASS (0 errors, 0 warnings); Check 24 section shows PASS, not SKIP: `coverage rows=66 reverse_tokens=47 findings=0`.
+- 2026-06-10 [qa-smoke] S5 (AC-4, AC-6, AC-7): green — `./scripts/validate.sh && ./scripts/test.sh` exit 0, Test Summary Failures: 0. Confirmed in-run: Check 23 third-view diff PASS, doc-release config suite (incl. config-test 13 seed byte-identity) OK, REGISTERED tests/test-pipeline-spec.test.sh sub-suite OK (parser round-trip + malformed fixtures + drift drills), F000059 inline guard family OK. Standalone re-run of the sub-suite: all green incl. the post-implement drill (e) hook-env GIT_DIR regression (in-scope addition with the matching generate-doc-views.sh fix).
+- 2026-06-10 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending)
+- 2026-06-10 [qa-e2e-run-start] RUN_ID=20260610-092804-15845 commit=f21f803
+- 2026-06-10 [qa-decision] E2E classifier (Step 4.5): all 5 rows (E1–E5) classified read-only; the Agent tool is unavailable in this leaf QA context (nested-subagent wall), so per the classifier's safer-fallback rule all 5 rows execute parent-inline (Step 7.5, cap 5/5) with the QA runner's full toolbelt — no degradation to structural inspection. No post-ship tags; no placeholder rows.
+- 2026-06-10 [qa-e2e] E1 (AC-3): green — cold read of ONLY the leading summary table of docs/test-pipeline.md: names all 7 families (validate 27, test 31, test-deploy 1, eval 1, windows-smoke 1, ci 3, hook 2 — the validate/test/standalone-suites/ci/hook set), per-family hard-vs-advisory split (e.g. validate 22/5, hook 1/1), and triggers (pre-commit/pr-ci/push-main/nightly/manual/post-merge); each family label names its source script ("where"); gate-spec pointer line present. Answerable in well under a minute, no source files opened. [parent-inline]
+- 2026-06-10 [qa-e2e] E2 (AC-5): green — temp fixture (/tmp copy of the swept surface, baseline findings=0): (a) fake `=== Check 99:` banner appended to temp validate.sh → reverse sweep exits 1 naming the token ("live banner 'Check 99' ... resolves to 0 registry row(s); want exactly one (id: validate-check-99)"); (b) deleted the tests/test-pipeline-spec.test.sh runner block from temp test.sh → forward check exits 1 naming the orphaned row ("unit 'test-test-pipeline-spec' anchor not found in scripts/test.sh ... no longer wired into the runner"). Fixture restored clean (findings=0); live tree untouched (git status clean on scripts/ spec/ tests/ docs/ .github/). [parent-inline]
+- 2026-06-10 [qa-e2e] E3 (AC-5): green — corrupted row validate-check-24's anchor in a temp registry copy (TEST_PIPELINE_PATH override) → forward check exits 1 naming row + source ("unit 'validate-check-24' anchor not found in scripts/validate.sh"); uncorrupted baseline re-runs clean (findings=0). NOTE: first attempt used a wrong sed literal (no-op corruption, vacuous RC=0) — caught via diff-empty and re-run with the real anchor literal `"=== Check 24:"`. [parent-inline]
+- 2026-06-10 [qa-e2e] E4 (AC-4): green — fresh `git clone` of the worktree to /tmp; appended one hand-written line to docs/test-pipeline.md; ./scripts/validate.sh exits 1 with the exact Check 23-extension remediation ("ERROR: docs/test-pipeline.md drifted from the test-pipeline registry — run scripts/generate-doc-views.sh"); running scripts/generate-doc-views.sh clears it (re-run: PASS, RESULT: PASS 0/0). [parent-inline]
+- 2026-06-10 [qa-e2e] E5 (AC-8): green — scratch git repo (docs/ + generate-doc-views.sh + doc-spec.sh + seeded doc-spec.md; NO spec/test-pipeline.md, NO scripts/test-pipeline.sh): generator exits 0 with the single-line note "skipping test-pipeline.md view (...)", writes doc-general.md + doc-custom.md, writes NO docs/test-pipeline.md; parser fails closed ([test-pipeline-no-config], exit 1); validate.sh's Check 23-extension and Check 24 presence predicates (exercised verbatim against the scratch repo) both take their single-line SKIP branches. Zero errors, nothing written. [parent-inline]
+- 2026-06-10 [qa-e2e-summary] green (0s subagent; 5 rows parent-inline; 0 deferred): (no subagent-eligible rows — Agent tool unavailable in leaf QA context; all 5 rows executed parent-inline, all green)
+- 2026-06-10 [qa-pass] S000101 (user-story): green smoke + green E2E. Phase 2 gates transitioned. AC-1..AC-8 (all P0) each verified by ≥1 passing row; AC-9 (P1, secondary-doc sweep) is review-verified at ship time per the TEST-SPEC's documented posture — advisory, not a fail-closed blocker. receipts.qa written for commit f21f803 (ready_for_ship: true).
