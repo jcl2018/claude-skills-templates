@@ -1026,22 +1026,14 @@ EOF
 fi
 
 # Check 23: doc-spec generated views in sync with the registry (F000056/S000098) — HARD.
-# docs/doc-general.md + docs/doc-custom.md are GENERATED views of the doc-spec.md
-# registry (like README.md is generated from the skill catalog). This check
-# regenerates them into a temp dir via scripts/generate-doc-views.sh and diffs
-# against the on-disk docs/ copies; any drift is an ERROR (run the generator).
-# Using the generator (not bare --render) makes the diff header-safe — the
-# generator owns the header on both sides. Skips cleanly if the generator or the
-# doc-spec parser is absent (non-adopting / broken-install repo).
-#
-# F000059 extension (third view): the same temp-regen+diff loop also covers
-# docs/test-pipeline.md — the check-level verification-surface view generated
-# from the spec/test-pipeline.md registry by scripts/test-pipeline.sh --render.
-# The third diff runs ONLY when scripts/test-pipeline.sh AND the registry are
-# both present (a deliberately DIFFERENT skip predicate from the two views'
-# doc-presence skip): a consumer repo without the registry hand-maintains its
-# docs/test-pipeline.md copy, which must NOT be diffed against a generator it
-# never adopted.
+# docs/doc-general.md + docs/doc-custom.md are GENERATED views of the merged
+# doc-spec registry (general + the optional doc-spec-custom.md overlay — like
+# README.md is generated from the skill catalog). This check regenerates them
+# into a temp dir via scripts/generate-doc-views.sh and diffs against the
+# on-disk docs/ copies; any drift is an ERROR (run the generator). Using the
+# generator (not bare --render) makes the diff header-safe — the generator owns
+# the header on both sides. Skips cleanly if the generator or the doc-spec
+# parser is absent (non-adopting / broken-install repo).
 echo ""
 echo "=== Check 23: doc-spec generated views in sync ==="
 DV_GEN="$REPO_ROOT/scripts/generate-doc-views.sh"
@@ -1060,62 +1052,58 @@ else
     echo "  ERROR: doc views drifted from the registry — run scripts/generate-doc-views.sh"
     ERRORS=$((ERRORS+1))
   fi
-  # Third view: docs/test-pipeline.md (presence-gated on the parser + registry).
-  C23_TP_SH="$REPO_ROOT/scripts/test-pipeline.sh"
-  C23_TP_REG="$REPO_ROOT/spec/test-pipeline.md"
-  [ -f "$C23_TP_REG" ] || C23_TP_REG="$REPO_ROOT/test-pipeline.md"
-  if [ -f "$C23_TP_SH" ] && [ -f "$C23_TP_REG" ]; then
-    if diff "$DV_TMP/test-pipeline.md" "$REPO_ROOT/docs/test-pipeline.md" >/dev/null 2>&1; then
-      echo "  PASS: docs/test-pipeline.md matches the test-pipeline registry"
-    else
-      echo "  ERROR: docs/test-pipeline.md drifted from the test-pipeline registry — run scripts/generate-doc-views.sh"
-      ERRORS=$((ERRORS+1))
-    fi
-  else
-    echo "  SKIP: docs/test-pipeline.md view-sync (scripts/test-pipeline.sh or the test-pipeline registry absent — consumer copy is hand-maintained)"
-  fi
   rm -rf "$DV_TMP"
 fi
 
-# Check 24: test-pipeline coverage cross-check (F000059) — HARD, SKIP-when-registry-absent.
-# The registry spec/test-pipeline.md declares one row per verification unit
-# (validate checks, test sub-suites + inline families, standalone suites, CI
-# workflows, git hooks); scripts/test-pipeline.sh --check-coverage proves the
+# Check 24: test-spec coverage cross-check (F000060) — HARD, SKIP-when-registry-absent.
+# The two-tier test-spec registry (the spec/test-spec.md general rules + the
+# spec/test-spec-custom.md units overlay) declares one units: row per
+# verification unit (validate checks, test sub-suites + inline families,
+# standalone suites, CI workflows, git hooks). The check first validates the
+# merged registry (scripts/test-spec.sh --validate — the symmetric schema gate
+# Check 16 runs for the doc-spec), then runs --check-coverage to prove the
 # registry and the live surface still cover each other:
-#   forward — every row's anchor greps -F in its declared source (a removed or
-#             renamed check orphans its row; a test file whose runner block
-#             disappears from scripts/test.sh orphans that row — the silent-skip
-#             catch);
+#   forward — every unit's anchor matches LIVE in its declared source (a
+#             removed or renamed check orphans its row; a test file whose
+#             runner block disappears from scripts/test.sh orphans that row —
+#             the silent-skip catch);
 #   reverse — every live validate banner/comment, tests/*.test.sh on disk,
 #             workflow file, and installed hook resolves to exactly one row;
 #   floor   — reverse extraction must yield >= 20 live tokens, so extraction-
-#             grammar rot can never make the check vacuously pass.
-# HARD from day one: this repo authors the full registry in the same change, so
-# the baseline is clean by construction and any finding is new by definition
-# (the same rationale that made Check 23 hard on day one). When the registry is
-# absent (non-adopting repo) the check SKIPs — never an ERROR. A present
-# registry with a missing helper is a broken install and DOES error (Check 16's
-# posture for the doc-spec helper).
+#             grammar rot can never make the check vacuously pass. The reverse
+#             sweep + floor are units-gated: a rules-only registry (a seeded
+#             consumer repo with no overlay) reports "coverage cross-check
+#             inactive" and passes — never a misleading finding.
+# When the registry is absent (non-adopting repo) the check SKIPs — never an
+# ERROR (the helper itself classifies that as REGISTRY=absent + exit 0). A
+# present registry with a missing helper is a broken install and DOES error
+# (Check 16's posture for the doc-spec helper).
 echo ""
-echo "=== Check 24: test-pipeline coverage cross-check ==="
-TP_HELPER="$REPO_ROOT/scripts/test-pipeline.sh"
-TP_REGISTRY="$REPO_ROOT/spec/test-pipeline.md"
-[ -f "$TP_REGISTRY" ] || TP_REGISTRY="$REPO_ROOT/test-pipeline.md"
-if [ ! -f "$TP_REGISTRY" ]; then
-  echo "  SKIP: test-pipeline.md registry not present (non-adopting repo; check is conditional)"
-elif [ ! -f "$TP_HELPER" ]; then
-  echo "  ERROR: test-pipeline.md registry present but scripts/test-pipeline.sh helper missing"
+echo "=== Check 24: test-spec coverage cross-check ==="
+TS_HELPER="$REPO_ROOT/scripts/test-spec.sh"
+TS_REGISTRY="$REPO_ROOT/spec/test-spec.md"
+[ -f "$TS_REGISTRY" ] || TS_REGISTRY="$REPO_ROOT/test-spec.md"
+if [ ! -f "$TS_REGISTRY" ]; then
+  echo "  SKIP: test-spec.md registry not present (non-adopting repo; check is conditional)"
+elif [ ! -f "$TS_HELPER" ]; then
+  echo "  ERROR: test-spec.md registry present but scripts/test-spec.sh helper missing"
   ERRORS=$((ERRORS+1))
 else
-  if TP_OUT=$(bash "$TP_HELPER" --check-coverage 2>&1); then
-    echo "  PASS: test-pipeline coverage cross-check clean ($(printf '%s\n' "$TP_OUT" | tail -1))"
+  if TS_VAL_OUT=$(bash "$TS_HELPER" --validate 2>&1); then
+    echo "  PASS: test-spec registry valid ($(printf '%s\n' "$TS_VAL_OUT" | tail -1))"
   else
-    while IFS= read -r _tp_line; do
-      echo "  $_tp_line"
-    done <<TP_FINDINGS
-$TP_OUT
-TP_FINDINGS
-    echo "  ERROR: test-pipeline coverage cross-check failed — add/fix the registry row(s) in spec/test-pipeline.md (or wire the orphaned unit), then re-run scripts/generate-doc-views.sh"
+    echo "  ERROR: test-spec registry invalid: $TS_VAL_OUT"
+    ERRORS=$((ERRORS+1))
+  fi
+  if TS_OUT=$(bash "$TS_HELPER" --check-coverage 2>&1); then
+    echo "  PASS: test-spec coverage cross-check clean ($(printf '%s\n' "$TS_OUT" | tail -1))"
+  else
+    while IFS= read -r _ts_line; do
+      echo "  $_ts_line"
+    done <<TS_FINDINGS
+$TS_OUT
+TS_FINDINGS
+    echo "  ERROR: test-spec coverage cross-check failed — add/fix the units row(s) in spec/test-spec-custom.md (or wire the orphaned unit)"
     ERRORS=$((ERRORS+1))
   fi
 fi

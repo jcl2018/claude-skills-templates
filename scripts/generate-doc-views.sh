@@ -4,13 +4,10 @@
 # Each spec/ registry is the ONE source of truth; the docs/ files are generated
 # views of it, so there is no second list to keep in sync.
 #
-# Writes <output-dir>/doc-general.md   (doc-spec registry, section: common),
-#        <output-dir>/doc-custom.md    (doc-spec registry, section: custom), and
-#        <output-dir>/test-pipeline.md (the test-pipeline registry's check-level
-#                                       view, via scripts/test-pipeline.sh
-#                                       --render) — skipped with a one-line note
-#                                       when the parser or registry is absent
-#                                       (non-adopting / consumer repo).
+# Writes <output-dir>/doc-general.md   (merged doc-spec registry, section: common)
+#        <output-dir>/doc-custom.md    (merged doc-spec registry, section: custom
+#                                       — i.e. the doc-spec-custom.md overlay rows,
+#                                       plus any legacy in-file custom rows).
 #
 # Idempotent — no timestamps, no run-specific metadata. validate.sh Check 23
 # regenerates into a temp dir and diffs against docs/ to catch drift.
@@ -23,9 +20,8 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Scrub the GIT_* vars git exports inside hooks: with GIT_DIR set, the work tree
 # of a `git -C <dir>` call defaults to that dir, so --show-toplevel returns
-# scripts/ itself and every REPO_ROOT-relative probe (e.g. the test-pipeline
-# registry presence check) silently misses — Check 23 then diffs a view the
-# generator never wrote.
+# scripts/ itself and every REPO_ROOT-relative probe silently misses — Check 23
+# then diffs a view the generator never wrote.
 REPO_ROOT="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR/..")"
 DOC_SPEC_SH="$SCRIPT_DIR/doc-spec.sh"
 
@@ -74,24 +70,3 @@ mkdir -p "$OUTPUT_DIR"
   echo ""
   printf '%s\n' "$CUSTOM_BODY"
 } > "$OUTPUT_DIR/doc-custom.md"
-
-# test-pipeline.md — the check-level view of the verification surface, rendered
-# from the spec/test-pipeline.md registry by scripts/test-pipeline.sh --render
-# (which emits the complete doc, AUTO-GENERATED header included). Skipped with a
-# one-line note when the parser or the registry is absent: a consumer repo
-# without the registry hand-maintains (or stubs) docs/test-pipeline.md instead,
-# and this generator must never overwrite that copy. Render-then-write (capture
-# into a var first) for the same truncation-safety reason as the views above.
-TP_SH="$SCRIPT_DIR/test-pipeline.sh"
-TP_REGISTRY="$REPO_ROOT/spec/test-pipeline.md"
-[ -f "$TP_REGISTRY" ] || TP_REGISTRY="$REPO_ROOT/test-pipeline.md"
-if [ -f "$TP_SH" ] && [ -f "$TP_REGISTRY" ]; then
-  TP_BODY="$(bash "$TP_SH" --render)" || {
-    # Surface the parser's own halt reason (captured on stdout before the
-    # non-zero exit) instead of swallowing it behind a generic message.
-    [ -n "$TP_BODY" ] && printf '%s\n' "$TP_BODY" >&2
-    echo "generate-doc-views.sh: 'test-pipeline.sh --render' failed (invalid registry?) — not writing test-pipeline.md view." >&2; exit 1; }
-  printf '%s\n' "$TP_BODY" > "$OUTPUT_DIR/test-pipeline.md"
-else
-  echo "generate-doc-views.sh: skipping test-pipeline.md view (scripts/test-pipeline.sh or the test-pipeline registry absent — consumer copy is hand-maintained)"
-fi

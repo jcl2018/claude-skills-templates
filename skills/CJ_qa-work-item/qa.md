@@ -369,8 +369,8 @@ Partition `E2E_ROWS` into two groups:
 - `E2E_ROWS_PARENT` — rows classified `interactive` or `recursive` (up to 5),
   plus surplus `deferred-to-manual` rows
 
-If both groups are empty (every row deferred): proceed to Step 9 with
-`E2E_VERDICT = ambiguous` (all rows deferred to manual).
+If both groups are empty (every row deferred): proceed (via Step 8.6) to
+Step 9 with `E2E_VERDICT = ambiguous` (all rows deferred to manual).
 
 ## Step 5: Run Smoke
 
@@ -470,14 +470,15 @@ to E2E, each run gets its own marker; Step 8 always scopes to the latest one.
 
 ## Step 7: Spawn QA Engineer Subagent (E2E — user-story only)
 
-For type = defect or type = task: skip to Step 9 (the type dispatch in Step 4
-already set `E2E_ROWS = []`; this guard re-confirms for clarity).
+For type = defect or type = task: skip to Step 8.6 (the audit block), then
+Step 9 (the type dispatch in Step 4 already set `E2E_ROWS = []`; this guard
+re-confirms for clarity).
 
 **Resume E2E-revalidation guard (AC1, S000093):** if `E2E_REVALIDATE = false`
 (Step 3 found a complete `receipts.qa` that vouches for HEAD), SKIP the E2E
 subagent re-run AND Step 7.5 — reuse the receipt's E2E verdict as `E2E_VERDICT`
 (a receipt with `ready_for_ship: true` and no uncovered ACs means the prior E2E
-passed for this exact SHA). Continue to Step 9. This avoids re-paying the ~5-min
+passed for this exact SHA). Continue to Step 8.6, then Step 9. This avoids re-paying the ~5-min
 E2E budget when the receipt already vouches for HEAD; the smoke rows re-run at
 Step 5 provide the cheap re-validation.
 
@@ -711,8 +712,10 @@ rows that exist but did not run pre-ship for structural reasons:
 - {YYYY-MM-DD} [qa-e2e-summary] {E2E_VERDICT} ({SUBAGENT_DURATION_S}s subagent; {N_PARENT} rows parent-inline; {N_DEFERRED} deferred): {SUBAGENT_SUMMARY verbatim}
 ```
 
-**On `E2E_VERDICT = green`:** silent path. Continue to Step 9. NO
-AskUserQuestion (Premise: AUQ only on red/ambiguous, autoplan-style).
+**On `E2E_VERDICT = green`:** silent path. Continue to Step 8.6 (the audit
+block), then Step 9. NO AskUserQuestion (Premise: AUQ only on red/ambiguous,
+autoplan-style — the post-QA audit checkpoint is the ORCHESTRATOR's AUQ, not
+this skill's).
 
 **On `E2E_VERDICT = red`:**
 
@@ -743,6 +746,129 @@ AskUserQuestion:
 > - Abort
 
 No default — the user must adjudicate. Process the choice accordingly.
+
+## Step 8.6: Contract refresh + audits (all types — the audit block)
+
+EVERY green path into Step 9 passes through this block (user-stories arrive
+from Step 8 green / the receipt-reuse path; defect/task arrive from their
+smoke-green type dispatch). It refreshes the two custom spec overlays FIRST,
+then runs both audit skills — the feedback-loop order that keeps living
+registries from rotting: the contract is updated, then verified.
+
+**Verdict semantics (load-bearing).** Audit findings do NOT flip the QA
+RESULT red. Tests own the green/red verdict (the existing `[qa-red]` gate);
+Step 9 still transitions Phase-2 gates on test-green; findings ride the
+`AUDITS=` field of a green RESULT plus the fenced `AUDIT_FINDINGS` block. The
+post-QA checkpoint in the calling cj_goal orchestrator owns the
+Continue/Halt decision — this is what makes the checkpoint reachable at all
+(a red RESULT would halt at the existing qa gate and the operator would never
+see the findings prompt). At that checkpoint, **Continue past findings**
+writes an explicit `[qa-audit-waived]` journal line to the tracker (the
+waiver is auditable); **Halt** journals `[qa-audit-declined]`. Both lines are
+written by the ORCHESTRATOR at its checkpoint, not by this skill.
+
+**Subagent posture.** This skill usually runs AS a leaf subagent, and a
+subagent cannot spawn subagents (the nested-subagent wall) — so 8.6c/8.6d
+execute the audit skills' logic INLINE by reading their SKILL.md files
+(`skills/CJ_doc_audit/SKILL.md`, `skills/CJ_test_audit/SKILL.md`; resolve
+repo-local `skills/` first, then `~/.claude/skills/`). Standalone interactive
+runs MAY dispatch them via the Skill tool instead. Either way the report
+shapes below are identical. In a repo where the spec engines are unreachable,
+each audit reports its engine finding (per its SKILL.md Step 1) — never a
+crash.
+
+### 8.6a — Update `spec/test-spec-custom.md` (the units overlay)
+
+Agent-judged refresh: add/amend `units:` rows for test surfaces THIS
+work-item added or changed — every new `tests/*.test.sh` MUST gain a unit row
+(source `scripts/test.sh`, anchor the literal runner path) or the coverage
+check fails; a renamed/removed surface gets its row fixed/dropped. In a repo
+with no overlay and no repo-declared units, record `none` (do not invent an
+overlay). Report one line:
+
+```
+spec-update: test-spec-custom <added: ids | changed: ids | none>
+```
+
+### 8.6b — Update `spec/doc-spec-custom.md` (the doc overlay)
+
+Symmetric: a new repo-specific root/spec doc THIS work-item added gets an
+overlay row (`section: custom`); a removed doc gets its row dropped. General
+docs never go here (the general file is the seed — never edited in place).
+Report one line:
+
+```
+spec-update: doc-spec-custom <added: paths | changed: paths | none>
+```
+
+### 8.6c — Run `/CJ_doc_audit` (inline in subagent context)
+
+Execute the doc audit per `skills/CJ_doc_audit/SKILL.md`. Capture its full
+report (the `DOC_AUDIT:` / `FINDINGS=` / `DOCS_AUDITED=` / `seeded:` /
+`FINDING:` lines + verdict block).
+
+### 8.6d — Run `/CJ_test_audit` (inline in subagent context)
+
+Execute the test audit per `skills/CJ_test_audit/SKILL.md`. Capture its full
+report (the `TEST_AUDIT:` / `FINDINGS=` / `UNITS_AUDITED=` / `seeded:` /
+`FINDING:` lines + rule verdicts). For the `suite-green` rule, THIS QA run's
+own smoke/E2E results are the freshest evidence — cite them.
+
+### Extended RESULT contract
+
+The RESULT line this skill returns to its caller extends with the `AUDITS=`
+field:
+
+```
+RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>,spec_updates:<summary>
+```
+
+(for defect/task the existing per-type RESULT shape gains the same trailing
+`AUDITS=` field). `doc:`/`test:` carry each audit's status — `ok` or
+`findings:<n>` from its `FINDINGS=` line; `spec_updates:` is a compact
+summary of 8.6a/8.6b (e.g. `test-spec-custom+3,doc-spec-custom:none`).
+
+Immediately after the RESULT line, emit the fenced report block the
+orchestrator prints VERBATIM at its checkpoint. This is the **full audit
+report**, not a headline digest — the operator reads the audit evidence at
+the checkpoint itself without digging into raw output (operator decision
+2026-06-12, at this gate's first live firing). It carries, in order: the two
+spec-update lines, then EACH audit's complete report — `seeded:` line, the
+deterministic core's per-check lines, `FINDING:` lines if any, the headline
+(`DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` + `DOCS_AUDITED=`/`UNITS_AUDITED=`),
+and the agent-judged verdict lines:
+
+````
+```AUDIT_FINDINGS
+spec-update: test-spec-custom <added: ids | changed: ids | none — one-line why>
+spec-update: doc-spec-custom <added: paths | changed: paths | none — one-line why>
+--- doc audit ---
+seeded: <yes|no>
+<per-check lines, one each with its outcome: registry validate; declared docs
+ exist; orphans (docs/ + spec/); root *.md declared; human-doc ID lint;
+ front tables; generated views>
+<FINDING: lines, verbatim, if any>
+DOC_AUDIT: <ok|findings> (FINDINGS=<n>, DOCS_AUDITED=<n>)
+<per-doc requirement verdicts: `<path> — up-to-date | stale: <why> | missing-requirement | n/a`>
+--- test audit ---
+seeded: <yes|no>
+<registry validate line; the coverage summary line (rows / reverse_tokens /
+ findings) or the units-inactive note>
+<FINDING: lines, verbatim, if any>
+TEST_AUDIT: <ok|findings> (FINDINGS=<n>, UNITS_AUDITED=<n>)
+<per-rule verdicts, one line each with evidence: tests-discoverable /
+ suite-green / new-code-tested / units-anchored / single-owner>
+```
+````
+
+Append one journal entry to the tracker recording the block ran:
+
+```
+- {YYYY-MM-DD} [qa-audit] AUDITS=doc:<...>,test:<...>,spec_updates:<...> (Step 8.6a-d; findings ride the green RESULT — checkpoint decision belongs to the orchestrator)
+```
+
+Then continue to Step 9 — Step 9's transition criteria are UNCHANGED (audit
+findings do not block the test-green gate transition).
 
 ## Step 9: Transition Phase 2 Gates / Record [qa-pass] (per type, if green)
 
@@ -906,6 +1032,7 @@ QA COMPLETE: {WORK_ITEM_ID}
 
 Smoke:    {SMOKE_VERDICT} ({N_green}/{N_total_non_manual}, {N_manual} manual)
 E2E:      {E2E_VERDICT} ({SUBAGENT_DURATION_S}s)
+Audits:   doc:{ok|findings:n}, test:{ok|findings:n}, spec_updates:{summary}   (Step 8.6 — findings ride green; checkpoint decides)
 Deferred: {N_DEFERRED} (post-ship: {N_POST_SHIP}, parent-inline-cap: {N_CAP})
 Phase 2:  {gates transitioned | unchanged}
 

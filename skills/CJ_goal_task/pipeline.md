@@ -4,7 +4,8 @@ Single-keystroke orchestrator from a plain `"<small task>"` → a reviewable PR.
 flat sibling of `/CJ_goal_feature` that DROPS the `/office-hours` interactive
 design phase and the design-summary gate, and instead runs a **hard complexity
 gate** (it refuses anything that needs design or investigation, routing it to the
-right verb) + a bash scaffold. The build is fully silent (zero AUQ); `/ship` runs
+right verb) + a bash scaffold. The build is silent past the gate except for one
+checkpoint AUQ (the post-QA audit findings — Step 4.5); `/ship` runs
 inline. The pipeline STOPs at the PR — the PR is the human review.
 
 Read [SKILL.md](SKILL.md) first for path resolution, error handling, the
@@ -402,7 +403,8 @@ Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`:
 ROLE: /CJ_qa-work-item runner for /CJ_goal_task (silent — no AUQ).
 TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. A `type: task`
 work-item runs its test-plan rows as smoke-equivalent. Return the RESULT line
-verbatim: RESULT: SMOKE=<...>; PHASE2_GATES=<...>.
+verbatim — including the AUDITS= field — plus the fenced AUDIT_FINDINGS block
+immediately after it: RESULT: SMOKE=<...>; PHASE2_GATES=<...>; AUDITS=doc:<...>,test:<...>,spec_updates:<...>
 <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
 ```
 
@@ -410,7 +412,37 @@ If QA returns red: **HALT** with `[qa-red]` (re-use the existing CJ_qa-work-item
 halt marker), end_state `halted_at_qa`, `pr_url=N/A`,
 `raw_output_path=$RAW_DIR/qa-raw.txt`, + the 3-line block + telemetry.
 
-On green: record the qa boundary, then continue to Step 5.5.
+On green: record the qa boundary, then continue to Step 4.5 (the QA-audit
+checkpoint), then Step 5.5.
+
+## Step 4.5: QA-audit findings checkpoint (ALWAYS — the one AUQ in the chain)
+
+Identical contract to `/CJ_goal_feature` Step 3.4 (the canonical gate row is
+`qa-audit`, order 45, in `spec/gate-spec.md`). Immediately after QA returns
+green, parse the RESULT's `AUDITS=` field + the fenced `AUDIT_FINDINGS` block
+(the four qa.md Step 8.6 step reports) and surface an AskUserQuestion ALWAYS
+— findings or not:
+
+> QA-audit checkpoint for {WORK_ITEM_ID} — AUDITS=doc:<...>,test:<...>,spec_updates:<...>
+>
+> {AUDIT_FINDINGS block, verbatim}
+>
+> Options:
+> - Continue — proceed to doc-sync + /ship
+> - Halt — stop the run here; I want to act on these findings first
+
+**On Continue:** if either audit reported findings, append the auditable
+waiver line `- $TS [qa-audit-waived] operator continued past audit findings
+at the post-QA checkpoint: AUDITS=...` to the work-item tracker journal (a
+fully-green digest writes nothing). Continue to Step 5.5.
+
+**On Halt:** append `- $TS [qa-audit-declined] operator halted at the
+post-QA audit checkpoint.` + the family-contract fields (`next_action=` act
+on the findings, then resume — QA re-runs and the checkpoint re-fires;
+`resume_cmd=/CJ_goal_task "$TOPIC"`; `pr_url=N/A`;
+`raw_output_path=$RAW_DIR/qa-raw.txt`) to `$RESUME_DIR/.resume.log`, write a
+telemetry line with end_state `halted_at_qa_audit`, and exit 1. The
+checkpoint is a pure read of the QA RESULT (no phase boundary recorded).
 
 ## Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper)
 

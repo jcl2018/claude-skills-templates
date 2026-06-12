@@ -49,13 +49,15 @@ four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 
 | Entry point | What it does |
 |-------------|--------------|
-| `/CJ_goal_feature "<topic>"` | One-line feature topic → reviewable PR (design → scaffold → implement → QA → doc-sync → ship; stops at the PR). |
-| `/CJ_goal_task "<small task>"` | Small ad-hoc task → reviewable PR (complexity gate → scaffold → implement → QA → doc-sync → ship; stops at the PR; no design, no investigation). |
-| `/CJ_goal_defect "<bug>"` | Bug description → shipped fix (root-cause → RCA → implement → QA → doc-sync → ship → land). |
+| `/CJ_goal_feature "<topic>"` | One-line feature topic → reviewable PR (design → scaffold → implement → QA → audit checkpoint → doc-sync → ship; stops at the PR). |
+| `/CJ_goal_task "<small task>"` | Small ad-hoc task → reviewable PR (complexity gate → scaffold → implement → QA → audit checkpoint → doc-sync → ship; stops at the PR; no design, no investigation). |
+| `/CJ_goal_defect "<bug>"` | Bug description → shipped fix (root-cause → RCA → implement → QA → audit checkpoint → doc-sync → ship → land). |
 | `/CJ_goal_todo_fix [<id> \| "<frag>"]` | Drain shippable `TODOS.md` rows into PRs (single-TODO or `--max-drain N` batch). |
+| `/CJ_doc_audit` | Audit any repo's docs against its doc contract (seed-delivers `spec/doc-spec.md` when missing; reports findings). |
+| `/CJ_test_audit` | Audit any repo's tests against its test contract (seed-delivers `spec/test-spec.md` when missing; coverage cross-check + rule verdicts). |
 | Machinery | The deterministic shared helpers the orchestrators call — worktree init/cleanup, pre-build skills-sync, version-queue preflight (see the `## Machinery` section). |
 | Utilities & phase-step skills | The single-step building blocks the chains dispatch / the operator runs directly — scaffold, implement, QA, doc-release, the validator, `/CJ_suggest`, `/CJ_system-health`. |
-| Utility audits | Standalone read-only audits — `/CJ_portability-audit`, `/CJ_improve-queue`. |
+| Utility audits | Standalone read-only audits — `/CJ_portability-audit`, `/CJ_doc_audit`, `/CJ_test_audit`, `/CJ_improve-queue`. |
 
 ## Orchestrators
 
@@ -94,9 +96,12 @@ capture doc path -> resume state file (last_completed_phase + HEAD SHA + PR# + o
    v
 design-summary approval gate   [INLINE AUQ - go/no-go; digest SOURCED FROM the receipt, not the resident transcript]
    |   `- Abort -> HALT
-   v  Approve & build ->  SILENT depth-<=2 leaf Agent subagents
+   v  Approve & build ->  SILENT depth-<=2 leaf Agent subagents (one checkpoint AUQ below)
 /CJ_scaffold-work-item -> /CJ_implement-from-spec -> /CJ_qa-work-item
    |
+   v
+QA-audit checkpoint   [INLINE AUQ - ALWAYS; Step 8.6 AUDIT_FINDINGS digest; Continue / Halt]
+   |   `- Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
    v
 /CJ_document-release   [INLINE Step 5.5 - doc-sync folds doc edits into the PR; halt-on-red]
    |
@@ -133,8 +138,8 @@ mid-chain without redoing finished phases.
 
 **Touches:**
 
-- **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA runs `/CJ_doc_audit` + `/CJ_test_audit` inline at its Step 8.6), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa -> QA-audit checkpoint (Step 3.4 — AUQ ALWAYS on the Step 8.6 AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode feature`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
 
@@ -169,9 +174,12 @@ HARD complexity gate + scaffold   [INLINE - scripts/cj-task-scaffold.sh --topic 
    |   `- explicit-large-scope  -> HALT (halted_at_too_complex; suggest /CJ_goal_feature)
    |   on PASS -> bash-scaffold a `type: task` work-item (T-ID) from the topic
    v  record scaffold boundary -> resume state file (last_completed_phase + HEAD SHA + work-item dir)
-   v  SILENT depth-<=2 leaf Agent subagents (zero AUQ)
+   v  SILENT depth-<=2 leaf Agent subagents (one checkpoint AUQ below)
 /CJ_implement-from-spec -> /CJ_qa-work-item
    |
+   v
+QA-audit checkpoint   [INLINE AUQ - ALWAYS; Step 8.6 AUDIT_FINDINGS digest; Continue / Halt]
+   |   `- Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
    v
 /CJ_document-release   [INLINE Step 5.5 - doc-sync folds doc edits into the PR; halt-on-red]
    |
@@ -208,8 +216,8 @@ and the resume state file lets a re-invocation pick up mid-chain.
 
 **Touches:**
 
-- **Skills dispatched:** `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check. No `/office-hours`, no `/CJ_scaffold-work-item` (the scaffold is bash, not the skill).
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Skills dispatched:** `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA runs `/CJ_doc_audit` + `/CJ_test_audit` inline at its Step 8.6), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check. No `/office-hours`, no `/CJ_scaffold-work-item` (the scaffold is bash, not the skill).
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa -> QA-audit checkpoint (Step 4.5 — AUQ ALWAYS on the Step 8.6 AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode task`), `skills/CJ_goal_task/scripts/cj-task-scaffold.sh` (the complexity gate + topic-driven `type: task` scaffold), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller task`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
 
@@ -250,6 +258,9 @@ scaffold .inbox/<slug>/DRAFT.md   (no defect ID yet; idempotent)
    |
    v  write RCA.md + test-plan.md -> /CJ_qa-work-item (leaf subagent)
    |
+   v  QA-audit checkpoint                    (Step 8.5 - AUQ ALWAYS; Step 8.6 AUDIT_FINDINGS digest; Continue / Halt)
+   |        Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
+   |
    v  /CJ_document-release                   (Step 5.5 doc-sync; halt-on-red)
    |
    v  portability gate                       (Step 5.7 - cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship)
@@ -277,8 +288,8 @@ with `cj-worktree-cleanup.sh` sweeping the now-landed worktree.
 
 **Touches:**
 
-- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> `/land-and-deploy` -> cleanup (`--phase cleanup`) -> telemetry.
+- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent; runs `/CJ_doc_audit` + `/CJ_test_audit` inline at its Step 8.6), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` -> QA-audit checkpoint (Step 8.5 — AUQ ALWAYS on the Step 8.6 AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> `/land-and-deploy` -> cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit`, `--mode defect`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller defect`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same fix PR.
 
@@ -317,6 +328,9 @@ T-task scaffold (TRACKER + test-plan, pure bash)
 /CJ_qa-work-item          (leaf Agent subagent, halt-on-red)
    |
    v
+QA-audit checkpoint   (AUQ ALWAYS interactive; --quiet auto-continues on doc:ok,test:ok / halts on findings)
+   |   (Halt -> HALT halted_at_qa_audit; Continue past findings journals [qa-audit-waived])
+   v
 /CJ_document-release   (Step 5.5 doc-sync; halt-on-red)
    |
    v
@@ -351,8 +365,8 @@ each diff); on land it hash-verified DONE-marks the row and
 
 **Touches:**
 
-- **Skills dispatched:** `/CJ_suggest` (drain-mode enumeration, `--for-skill cj-goal`), `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (leaf Agent subagents), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 fires per drained TODO), `/land-and-deploy` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
-- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit --mode feature`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> `/land-and-deploy` -> TODOS.md DONE-mark -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
+- **Skills dispatched:** `/CJ_suggest` (drain-mode enumeration, `--for-skill cj-goal`), `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (leaf Agent subagents; QA runs `/CJ_doc_audit` + `/CJ_test_audit` inline at its Step 8.6), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 fires per drained TODO), `/land-and-deploy` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
+- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` -> QA-audit checkpoint (interactive: AUQ ALWAYS on the Step 8.6 AUDIT_FINDINGS digest, Continue past findings journals `[qa-audit-waived]`; `--quiet`: auto-continue on doc:ok,test:ok, halt `[qa-audit-declined]` / halted_at_qa_audit on findings) -> doc-sync (Step 5.5) -> portability gate (Step 5.7, `--phase portability-audit --mode feature`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> `/land-and-deploy` -> TODOS.md DONE-mark -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` pre-build skills-sync + `--phase portability-audit` the pre-ship portability gate), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller todo`, base-freshness; drain mode creates one worktree per TODO via `scripts/drain-one-todo.sh`), `scripts/cj-worktree-cleanup.sh` (post-land janitor, called directly), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into each drained TODO's PR. Also marks the closed row in TODOS.md (hash-verified).
 
@@ -719,6 +733,62 @@ once the workbench's declarations are fully reconciled.
 - **Skills dispatched:** none (a single-step utility; no chain).
 - **Scripts / tools:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the deployed shared home), invoked by the skill AND by `scripts/validate.sh`.
 - **Docs it updates:** none — read-only. (Resolving a finding is a separate operator edit to `skills-catalog.json`.)
+
+### /CJ_doc_audit
+
+**Status:** experimental
+**Category:** local-only (runs in ANY repo; resolves its engine repo-local
+`scripts/doc-spec.sh` then the deployed `_cj-shared` home; matches
+`skills-catalog.json`)
+**Source:** `skills/CJ_doc_audit/SKILL.md` · `skills/CJ_doc_audit/USAGE.md` ·
+engine `scripts/doc-spec.sh`
+
+**Invoke when:** you want one keystroke that answers "do this repo's docs follow
+its doc contract?" — in the workbench or any consumer repo. First run in a fresh
+repo seed-delivers the two-tier contract (`spec/doc-spec.md` from
+`doc-spec.sh --seed`, `seeded: yes`; second run `seeded: no`). Also executed
+INLINE by `/CJ_qa-work-item` Step 8.6c inside every cj_goal run, feeding the
+post-QA checkpoint.
+
+**Touches:**
+
+- **Scripts · tools · shell:** `scripts/doc-spec.sh` (`--seed` / `--validate` /
+  the merged list subcommands / `--render`), plus read-only `grep`/`diff` for
+  the deterministic conformance pass (front tables, orphans, work-item IDs,
+  view sync).
+- **Reads / writes:** reads the merged registry (`spec/doc-spec.md` +
+  `spec/doc-spec-custom.md`) and every declared doc; its ONLY write is the
+  idempotent seed delivery of a missing `spec/doc-spec.md`. Findings ride the
+  `DOC_AUDIT:` report — never a halt.
+
+### /CJ_test_audit
+
+**Status:** experimental
+**Category:** local-only (runs in ANY repo; resolves its engine repo-local
+`scripts/test-spec.sh` then the deployed `_cj-shared` home; matches
+`skills-catalog.json`)
+**Source:** `skills/CJ_test_audit/SKILL.md` · `skills/CJ_test_audit/USAGE.md` ·
+engine `scripts/test-spec.sh`
+
+**Invoke when:** you want one keystroke that answers "are this repo's tests
+aligned with its test contract?". First run in a fresh repo seed-delivers the
+general 5-rule contract (`spec/test-spec.md` from `test-spec.sh --seed`); the
+coverage cross-check activates once the repo declares `units:` rows in
+`spec/test-spec-custom.md` (a rules-only repo gets the named "coverage
+cross-check inactive" note). Also executed INLINE by `/CJ_qa-work-item` Step
+8.6d inside every cj_goal run, feeding the post-QA checkpoint.
+
+**Touches:**
+
+- **Scripts · tools · shell:** `scripts/test-spec.sh` (`--seed` / `--validate` /
+  `--list-rules` / `--list-units` / `--check-coverage` — the forward + reverse
+  + floor engine), plus the repo's declared suite runner when judging
+  `suite-green` standalone.
+- **Reads / writes:** reads the merged registry (`spec/test-spec.md` +
+  `spec/test-spec-custom.md`) and the live verification surface
+  (`scripts/validate.sh` banners, `tests/*.test.sh`, workflows, hooks); its
+  ONLY write is the idempotent seed delivery of a missing `spec/test-spec.md`.
+  Findings ride the `TEST_AUDIT:` report — never a halt.
 
 ## See also
 

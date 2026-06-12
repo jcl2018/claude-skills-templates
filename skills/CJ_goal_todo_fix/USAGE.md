@@ -36,7 +36,12 @@ pull + `skills-deploy install` from `.source`, fail-soft) — so the drain runs
 against current skills — plus the `skills-update-check` advisory it newly gained
 (F000045). It then chains `/CJ_suggest` (rank) → bash T-task scaffold →
 `/CJ_implement-from-spec` → `/CJ_qa-work-item` (impl→qa leaf Agent subagents,
-halt-on-red between) → `/CJ_document-release` (Step 5.5 doc-sync) → a pre-ship
+halt-on-red between; QA runs the doc/test audits inline at its Step 8.6) → the
+QA-audit checkpoint (interactive runs: AUQ ALWAYS on the AUDIT_FINDINGS digest,
+Continue past findings journals `[qa-audit-waived]`; `--quiet` runs:
+auto-continue on doc:ok,test:ok, halt `[qa-audit-declined]` /
+`halted_at_qa_audit` on any findings) → `/CJ_document-release` (Step 5.5
+doc-sync) → a pre-ship
 portability gate (Step 5.7, `cj-goal-common.sh --phase portability-audit --mode
 feature`, run STRICT; HALTs on a dishonest skill portability declaration before
 the PR) → `/ship` (open PR) → `/land-and-deploy` (merge + verify) per drained
@@ -70,7 +75,7 @@ Halt-on-red stops the loop and writes the finding to the tracker journal.
 
 - `/CJ_suggest` — ranks TODOS.md rows; drain mode calls it with `--for-skill cj-goal`
 - `/CJ_implement-from-spec` — dispatched per drained TODO (leaf Agent subagent) to write the code
-- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between
+- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between; its Step 8.6 runs `/CJ_doc_audit` + `/CJ_test_audit` inline and feeds the QA-audit checkpoint
 - `/ship` (upstream gstack) — opens PR with Gate #2 diff-review AUQ
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/schedule` (upstream gstack) — pair with `--quiet` for cron-style drains

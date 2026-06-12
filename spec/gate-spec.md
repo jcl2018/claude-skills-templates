@@ -56,8 +56,9 @@ is a **ratchet**. Three words, three referents, no overload.
   edit ──▶ [local-hook] ──▶ [pipeline-gate]* ──▶ [ci] ──▶ PR (human review) ──▶ land
             commit            during the run        on the PR
             (validate.sh)     (isolation→design→    (validate.sh +
-                               qa→doc-sync→          test.sh + shellcheck +
-                               portability→ship)     windows smoke)
+                               qa→qa-audit→          test.sh + shellcheck +
+                               doc-sync→             windows smoke)
+                               portability→ship)
             with [ratchet] properties checked inside ci and the orchestrator
             (* a cj_goal run; a plain commit skips the pipeline-gate layer)
 ```
@@ -76,6 +77,7 @@ guarantee is not re-checked at three layers with three vocabularies.
 | A defect actually found a root cause before anything shipped | **pipeline-gate** | the investigate Iron-Law gate (`[investigate-no-root-cause]`, defect only) |
 | A "task" is genuinely small (not disguised design/bug work) | **pipeline-gate** | the hard complexity gate (`[task-too-complex]`, task only) |
 | The work-item's tests pass | **pipeline-gate** | the QA gate (`[qa-red]`; todo enforces via a subagent, no bracket marker) |
+| The operator saw the doc/test audit findings before the PR budget was spent | **pipeline-gate** | the qa-audit checkpoint (`[qa-audit-declined]`, universal; run-locally scoped — the qa.md Step 8.6 audit block produces the digest, the orchestrator AUQ owns the decision; waivers journal as `[qa-audit-waived]`) |
 | Doc drift is folded into the same PR | **pipeline-gate** | the doc-sync gate (`[doc-sync-red]`, universal) |
 | No touched skill declares a portability tier it does not honor | **pipeline-gate** | the portability gate (`[portability-red]`, universal) |
 | The change reaches a human before it merges | **pipeline-gate** | the ship gate (`[ship-declined]`; PR-stop + human merge) |
@@ -199,6 +201,18 @@ gates:
     disposition: halt
     backing: "/CJ_qa-work-item leaf subagent"
     checks: "the work-item's test rows pass"
+  # --- universal, same marker in all four: the post-QA audit-findings checkpoint ---
+  - id: qa-audit
+    layer: pipeline-gate
+    order: 45
+    markers:
+      feature: "[qa-audit-declined]"
+      defect:  "[qa-audit-declined]"
+      task:    "[qa-audit-declined]"
+      todo:    "[qa-audit-declined]"
+    disposition: halt
+    backing: "/CJ_qa-work-item Step 8.6 audit block + orchestrator checkpoint AUQ"
+    checks: "the operator saw the doc/test audit findings before the PR budget was spent"
   # --- universal, same marker in all four: the case enforced literally ---
   - id: doc-sync
     layer: pipeline-gate

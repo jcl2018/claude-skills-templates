@@ -69,30 +69,39 @@ general set is enumerated by writing `doc-spec.sh --seed` to a temp file and
 rendering it (`DOC_SPEC_PATH=<temp> doc-spec.sh --render general`, first table
 column); a repo registry that omits a general-contract doc gets `stale: registry
 missing general-contract doc(s): <paths>` on the contract file's own verdict
-line (basename path-equivalence: `spec/doc-spec.md` satisfies the seed's
-root-style `doc-spec.md`) — advisory, never a halt. The result is that
-orchestrator sessions can call CJ_document-release after QA, and `/ship` (next
+line (basename path-equivalence for spec/-prefixed seed paths: a root-style
+consumer's `doc-spec.md` satisfies the seed's `spec/doc-spec.md`) — advisory,
+never a halt. The result is that
+orchestrator sessions can call CJ_document-release after QA (and after the
+post-QA audit checkpoint), and `/ship` (next
 pipeline step) sees a clean tree where any doc updates are pre-committed.
 
 ### The doc-spec.md contract
 
-The wrapper reads the `spec/doc-spec.md` on every run. It is the single source of
-truth for what docs the repo carries — a portable Common section, a repo Custom
-section, and ONE fenced `yaml` registry. The registry declares each doc's `path`
-/ `section` / `audit_class` / `purpose` / `requirement`; `audit_class` is a closed
+The wrapper reads the merged doc-spec registry on every run: the GENERAL
+`spec/doc-spec.md` (byte-identical to the seed, never edited in place) plus the
+optional `spec/doc-spec-custom.md` overlay (`section: custom` rows in the same
+fenced-yaml grammar) — `doc-spec.sh` merges them internally, and a path
+duplicated across the two files is a validate error. The registry declares each
+doc's `path`
+/ `section` / `audit_class` / `purpose` / `requirement` (+ the optional
+`front_table`); `audit_class` is a closed
 enum `{human-doc, operational}` (only `human-doc` gets the no-work-item-ref
-lint). The registry's `section` field is the two-tier contract: `section: common`
+lint). The two-tier contract: `section: common`
 (general) docs are the portable contract and are REQUIRED — the seed declares
-all of them on self-bootstrap and the stub-scaffold step creates any missing one
+all of them on self-bootstrap (delivered to `spec/doc-spec.md`) and the
+stub-scaffold step creates any missing one
 (for the generated views the stub prefers REAL content — `doc-spec.sh --render
-general|custom` for the doc-contract pair, `test-pipeline.sh --render` for
-`docs/test-pipeline.md` where its registry + parser exist, the plain stub
-otherwise; `TODOS.md`
+general|custom`; `spec/test-spec.md` is special-cased via `test-spec.sh --seed`
+so the stub is a VALID registry, never a title-plus-section stub that would
+hard-halt the test audit; `front_table: required` docs get a stub that opens
+with a summary table; `TODOS.md`
 stub-scaffold and the existing lazy-creation by TODOS-reading skills are
 convergent — whichever runs first creates the file, the other no-ops);
-`section: custom` docs are per-repo additions. The auto-commit whitelist + the
+`section: custom` docs are per-repo additions declared in the overlay. The
+auto-commit whitelist + the
 `--docs` resolution are both DERIVED from
-this registry — there is no separate hand-maintained whitelist file. The helper
+the merged registry — there is no separate hand-maintained whitelist file. The helper
 at `scripts/doc-spec.sh` parses + validates + expands; the wrapper resolves it
 **2-tier**: repo-local first, then the deployed `_cj-shared/scripts/` home that
 travels with the install (no runtime manifest `.source` reach-back —
