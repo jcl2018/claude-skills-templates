@@ -770,10 +770,41 @@ If QA returns red: halt with `[qa-red]` (re-use the existing CJ_qa-work-item
 halt marker — do NOT mint a new one), append a journal entry with `pr_url=N/A`,
 print the C7 3-line block. Telemetry: `end_state=halted_at_qa`.
 
-If green: QA appended a `[qa-pass]` entry to the tracker, so the tree is dirty
-again with a NON-DOC change. Commit that tracker update (`git add` the tracker +
-`git commit`) so Step 5.5's clean-tree gate sees a clean non-doc tree, then
-continue to Step 5.5 (Doc-sync) → Step 9 (/ship).
+If green: run the Step 8.5 QA-audit checkpoint (below). Then — QA (and possibly
+the checkpoint waiver) appended journal entries to the tracker, so the tree is
+dirty again with a NON-DOC change. Commit that tracker update (`git add` the
+tracker + `git commit`) so Step 5.5's clean-tree gate sees a clean non-doc
+tree, then continue to Step 5.5 (Doc-sync) → Step 9 (/ship).
+
+## Step 8.5: QA-audit findings checkpoint (ALWAYS — AUQ)
+
+Identical contract to `/CJ_goal_feature` Step 3.4 (the canonical gate row is
+`qa-audit`, order 45, in `spec/gate-spec.md`). Immediately after QA returns
+green, parse the QA RESULT's `AUDITS=doc:<...>,test:<...>,spec_updates:<...>`
+field + the fenced `AUDIT_FINDINGS` block (the four qa.md Step 8.6 step
+reports: the two spec-overlay updates + the doc audit + the test audit) and
+surface an AskUserQuestion **ALWAYS** — findings or not:
+
+> QA-audit checkpoint for {DEFECT_ID} — AUDITS=doc:<...>,test:<...>,spec_updates:<...>
+>
+> {AUDIT_FINDINGS block, verbatim}
+>
+> Options:
+> - Continue — proceed to doc-sync + /ship
+> - Halt — stop the run here; I want to act on these findings first
+
+**On Continue:** if either audit reported findings, append the auditable
+waiver line `- $TS [qa-audit-waived] operator continued past audit findings
+at the post-QA checkpoint: AUDITS=...` to the defect tracker journal (a
+fully-green digest writes nothing), then proceed to the tracker commit above.
+
+**On Halt:** append `- $TS [qa-audit-declined] operator halted at the
+post-QA audit checkpoint.` + the family-contract fields (`next_action=` act
+on the audit findings, then resume — QA re-runs and the checkpoint re-fires;
+`resume_cmd=/CJ_goal_defect "<bug description>"`; `pr_url=N/A`;
+`raw_output_path=` the QA raw output) to the journal, write a telemetry line
+with `end_state=halted_at_qa_audit`, and exit. The checkpoint is a pure read
+of the QA RESULT (no phase boundary recorded).
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
@@ -1117,8 +1148,9 @@ canonical-resolve halts that do not apply to an always-draft front door):
 `halted_at_investigate_no_sentinel`, `halted_at_investigate_parse_error`,
 `halted_at_investigate_no_root_cause`, `halted_at_investigate_blocked`,
 `halted_at_investigate_unverified`, `halted_at_investigate_not_isolated`,
-`halted_at_promote_lock_timeout`, `halted_at_qa`, `halted_at_doc_sync`,
-`halted_at_portability`, `halted_at_ship`, `halted_at_deploy`.
+`halted_at_promote_lock_timeout`, `halted_at_qa`, `halted_at_qa_audit`,
+`halted_at_doc_sync`, `halted_at_portability`, `halted_at_ship`,
+`halted_at_deploy`.
 
 Add any new halt with: (a) a journal entry in the appropriate Step, (b) a
 telemetry write before exit, (c) a row in SKILL.md's halt-taxonomy table.

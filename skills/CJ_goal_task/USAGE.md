@@ -40,12 +40,16 @@ last-updated: "2026-06-08T01:15:48Z"
 
 `cj_goal_task` is `/CJ_goal_feature` with the design phase swapped for an
 automatic gate, and `/CJ_goal_todo_fix` minus the TODOS-row requirement. It is the
-**most autonomous** verb up to the PR-stop: there is **zero AskUserQuestion** on
-the happy path. The flow is: pre-build skills-sync → `cj-task-*` worktree (with
+**most autonomous** verb up to the PR-stop: **one AskUserQuestion** on
+the happy path — the post-QA audit checkpoint. The flow is: pre-build
+skills-sync → `cj-task-*` worktree (with
 base-freshness) → isolation gate → a **hard complexity gate** (in
 `scripts/cj-task-scaffold.sh`) that REFUSES design/bug/large topics and otherwise
 silently bash-scaffolds a `type: task` work-item (T-ID) from the topic → silent
-`/CJ_implement-from-spec` → `/CJ_qa-work-item` leaf subagents → `/CJ_document-release`
+`/CJ_implement-from-spec` → `/CJ_qa-work-item` leaf subagents (QA runs the
+doc/test audits inline at its Step 8.6) → the QA-audit checkpoint AUQ (Step 4.5
+— ALWAYS; Continue past findings journals `[qa-audit-waived]`, Halt journals
+`[qa-audit-declined]` / `halted_at_qa_audit`) → `/CJ_document-release`
 (Step 5.5 doc-sync) → portability gate (Step 5.7, halt-on-red) → `/ship` (with the
 diff-review AUQ suppressed) → STOP at the open PR. The PR is the human review;
 `/land-and-deploy` is a separate manual step. The deterministic worktree / sync /
@@ -75,7 +79,8 @@ portability / pr-check / cleanup phases come from `cj-goal-common.sh --mode task
   bug topics here
 - `/CJ_goal_todo_fix` — sibling verb for draining existing `TODOS.md` rows
 - `/CJ_implement-from-spec` — silent leaf subagent (Step 3)
-- `/CJ_qa-work-item` — silent leaf subagent (Step 4)
+- `/CJ_qa-work-item` — silent leaf subagent (Step 4); its Step 8.6 runs
+  `/CJ_doc_audit` + `/CJ_test_audit` inline and feeds the Step 4.5 checkpoint
 - `/CJ_document-release` — inline Step 5.5 doc-sync wrapper
 - `/ship` (upstream gstack) — inline final step; opens the PR with diff-review AUQ
   suppressed

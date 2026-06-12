@@ -41,7 +41,10 @@ Then a 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad →
 `/investigate` as Agent subagent (Iron-Law: no RCA ⇒ HALT) → on populated RCA,
 write RCA+test-plan and promote draft to a canonical
 `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted ONLY after
-the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent →
+the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent (runs the doc/test
+audits inline at its Step 8.6) → the QA-audit checkpoint AUQ (Step 8.5 —
+ALWAYS; Continue past findings journals `[qa-audit-waived]`, Halt journals
+`[qa-audit-declined]` / `halted_at_qa_audit`) →
 `/CJ_document-release` (Step 5.5 doc-sync) → a pre-ship portability gate
 (Step 5.7, `cj-goal-common.sh --phase portability-audit`, run STRICT; HALTs on a
 dishonest skill portability declaration before the PR) → `/ship` (Gate #2 always
@@ -70,7 +73,8 @@ subagent-spawns-subagent).
 ## Related skills
 
 - `/investigate` (upstream gstack) — Iron-Law root-cause analysis subagent
-- `/CJ_qa-work-item` — leaf subagent that runs the test-plan rows
+- `/CJ_qa-work-item` — leaf subagent that runs the test-plan rows; its Step 8.6
+  runs `/CJ_doc_audit` + `/CJ_test_audit` inline and feeds the Step 8.5 checkpoint
 - `/ship` (upstream gstack) — opens PR with Gate #2
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/CJ_goal_feature` — sibling top-level verb for feature-from-topic

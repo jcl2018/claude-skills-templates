@@ -364,6 +364,8 @@ map for *using* it. Every `CJ_` front door converges on the same downstream chai
 | "What should I work on?" | `/CJ_suggest` |
 | "Is my `~/.claude/` healthy?" | `/CJ_system-health` |
 | "Are my skills' `portability` labels honest?" | `/CJ_portability-audit` |
+| "Do this repo's docs follow its doc contract?" | `/CJ_doc_audit` |
+| "Are this repo's tests aligned with its test contract?" | `/CJ_test_audit` |
 | Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` |
 
 Internal phase-step skills are dispatched transitively by the orchestrators — do

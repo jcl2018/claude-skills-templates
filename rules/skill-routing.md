@@ -15,3 +15,5 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "fix this TODO", "auto-resolve TODOs", "clear the TODO backlog", "ship the next TODO", "close TODOs from TODOS.md", "auto-ship TODOs", "resolve a TODO end-to-end" -> /CJ_goal_todo_fix [<T-ID> | "<fragment>"]
 - "fix TODO backlog continuously", "loop through TODOs", "auto-clear TODOs" -> /loop /CJ_goal_todo_fix
 - "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "check this Anthropic article", "add this pattern to TODOS" -> /CJ_improve-queue evaluate <url>
+- "audit this repo's docs", "check doc hygiene", "does this repo follow its doc contract", "check doc-spec alignment" -> /CJ_doc_audit
+- "audit this repo's tests", "are tests aligned with the test spec", "check the test coverage contract", "check test-spec alignment" -> /CJ_test_audit

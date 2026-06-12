@@ -1,43 +1,37 @@
-# test-pipeline.md — the verification-surface registry
+# test-spec-custom.md — this repo's verification-surface overlay
 
-This file is the machine source of truth for **the repo's verification
-surface**: one registry row per verification unit — every numbered
-`scripts/validate.sh` check (both ID namespaces) and warning check, every
-registered `tests/*.test.sh` sub-suite and inline `scripts/test.sh` family,
-the standalone suites (`test-deploy`, `eval`, `windows-smoke`), the GitHub
-Actions workflows, and the git hooks. It is the fourth member of the
-spec-registry family (`spec/doc-spec.md` → `spec/permission-policy.md` →
-`spec/gate-spec.md` → `spec/test-pipeline.md`): a `spec/` registry doc + a
-`scripts/` reader + `validate.sh` checks.
+This file is the **custom tier** of the two-tier test contract: the machine
+source of truth for **this repo's verification surface**, one `units:` row per
+verification unit — every numbered `scripts/validate.sh` check (both ID
+namespaces) and warning check, every registered `tests/*.test.sh` sub-suite
+and inline `scripts/test.sh` family, the standalone suites (`test-deploy`,
+`eval`, `windows-smoke`), the GitHub Actions workflows, and the git hooks.
+`scripts/test-spec.sh` merges these rows into the portable general contract
+([`spec/test-spec.md`](test-spec.md), the seed — never edited in place), so
+consumers see ONE registry.
 
-Humans do not read this file to survey the surface — they read
-[`docs/test-pipeline.md`](../docs/test-pipeline.md), which is **generated**
-from this registry by `scripts/test-pipeline.sh --render` (via
-`scripts/generate-doc-views.sh`). This registry deliberately answers the
-CHECK-level question only; the LAYER question (what stops a broken cj_goal
-change from landing, and at which layer — including the pipeline-gate halts)
-stays with [`spec/gate-spec.md`](gate-spec.md). Pipeline-gate units are NOT
-rows here; the rendered view carries a single pointer line to gate-spec
-instead.
+This registry deliberately answers the CHECK-level question only; the LAYER
+question (what stops a broken cj_goal change from landing, and at which layer
+— including the pipeline-gate halts) stays with
+[`spec/gate-spec.md`](gate-spec.md). Pipeline-gate units are NOT rows here.
 
 ## How the registry is enforced
 
-Two hard `validate.sh` loops keep this registry honest by construction:
+One hard `validate.sh` loop keeps this registry honest by construction —
+**coverage (Check 24, via `scripts/test-spec.sh --check-coverage`)**:
 
-- **View-sync (Check 23 extension)** — the generated `docs/test-pipeline.md`
-  is regenerated into a temp dir and diffed on every validate run; a hand-edit
-  or an un-regenerated registry edit fails the pre-commit hook and CI.
-- **Coverage (Check 24, via `scripts/test-pipeline.sh --check-coverage`)** —
-  - *Forward*: every row's `anchor` must `grep -F` in its declared `source`
-    file. A renamed/removed check orphans its row; a de-registered test file's
-    runner block disappearing from `scripts/test.sh` orphans that row.
-  - *Reverse*: every live `^echo "=== Check N:"` banner, `^# Error check N:`
-    comment and `^# Warning check` comment in `scripts/validate.sh`, every
-    `tests/*.test.sh` on disk, every `.github/workflows/*.yml`, and every
-    `install_hook` invocation in `scripts/setup-hooks.sh` must resolve to
-    exactly one registry row in its namespace.
-  - *Floor*: reverse extraction must yield ≥ 20 tokens, so grammar rot can
-    never make the check vacuously pass.
+- *Forward*: every row's `anchor` must match LIVE in its declared `source`
+  file. A renamed/removed check orphans its row; a de-registered test file's
+  runner block disappearing from `scripts/test.sh` orphans that row.
+- *Reverse*: every live `^echo "=== Check N:"` banner, `^# Error check N:`
+  comment and `^# Warning check` comment in `scripts/validate.sh`, every
+  `tests/*.test.sh` on disk, every `.github/workflows/*.yml`, and every
+  `install_hook` invocation in `scripts/setup-hooks.sh` must resolve to
+  exactly one registry row in its namespace.
+- *Floor*: reverse extraction must yield ≥ 20 tokens, so grammar rot can
+  never make the check vacuously pass. Both the reverse sweep and the floor
+  are **gated on `units:` rows existing** — a rules-only consumer repo gets a
+  named "coverage cross-check inactive" note, never a misleading finding.
 
 Semantic accuracy of each `purpose` one-liner is NOT mechanized — it stays
 with the advisory registered-doc requirements audit (the same posture as every
@@ -45,16 +39,16 @@ other registered doc). The checks above buy structural sync, not meaning sync.
 
 ## Schema
 
-The fenced `yaml` block at the end is the registry. Keep it the **only**
-fenced `yaml` block in this file. One `units[]` entry per verification unit:
+The fenced `yaml` block at the end is the overlay registry. Keep it the
+**only** fenced `yaml` block in this file. One `units[]` entry per
+verification unit:
 
-- `id` — stable slug, unique, `[a-z0-9-]+`.
+- `id` — stable slug, unique across the merged registry, `[a-z0-9-]+`.
 - `family` — closed enum: `validate | test | test-deploy | eval |
   windows-smoke | ci | hook`.
-- `label` — the human label. **Work-item-ID-free** (it renders into the
-  human view, a hard-linted human-doc). For `validate` rows the label
-  preserves the exact ID namespace — "Error check 11" and "Check 11" are two
-  distinct live checks sharing a numeral.
+- `label` — the human label. **Work-item-ID-free** (the rendered-field lint).
+  For `validate` rows the label preserves the exact ID namespace — "Error
+  check 11" and "Check 11" are two distinct live checks sharing a numeral.
 - `anchor` — a literal grep string locating the unit in its `source` file.
   Anchors MAY carry work-item IDs (they never render) but must not contain
   double quotes or tabs (parser constraint).
@@ -74,14 +68,14 @@ fenced `yaml` block in this file. One `units[]` entry per verification unit:
   instead of ERROR when its precondition is absent). Orthogonal to
   `disposition`; never conflated.
 - `ratchet` — optional boolean flag marking the regression ratchets
-  (VERSION-never-regresses, USAGE freshness, the portability baseline). A
-  rendering flag, never a `layer` value, never a duplicate row.
+  (VERSION-never-regresses, USAGE freshness, the portability baseline).
 - `trigger` — when the unit runs: quoted, space-separated, each token in the
   closed enum `pre-commit | post-merge | pr-ci | push-main | nightly |
   manual`. Doctrine for `manual`: every script is trivially manual-runnable,
   so `manual` is recorded only where manual invocation is a documented
-  operational mode (the standalone suites, the eval harness); enforcement
-  rows (validate/test) record their enforcement triggers only.
+  operational mode (the standalone suites, the eval harness, the portability
+  audit verb); enforcement rows (validate/test) record their enforcement
+  triggers only.
 - `purpose` — authored, single-line, work-item-ID-free description of what
   the unit asserts.
 
@@ -102,19 +96,18 @@ Row-granularity conventions the extraction grammar honors:
   boundary).
 
 `purpose` and `label` are single-line double-quoted strings (no YAML
-folding). The parser is `scripts/test-pipeline.sh`
-(`--validate | --list-units | --render | --check-coverage`), an awk-only
-reader in the `gate-spec.sh` idiom; it resolves this registry
-`spec/test-pipeline.md` first, then a root `test-pipeline.md` fallback.
-`--validate` additionally lints every rendered field (`label`, `purpose`)
-for the work-item-ID pattern, so an ID slip fails at the registry — before
-the human-doc lint ever sees the rendered view.
+folding). The parser is `scripts/test-spec.sh`
+(`--validate | --list-rules | --list-units | --check-coverage | --seed`), an
+awk-only reader in the `gate-spec.sh` idiom; it resolves the general registry
+`spec/test-spec.md` first, then a root `test-spec.md` fallback, and this
+overlay next to it. `--validate` additionally lints every `label` + `purpose`
+for the work-item-ID pattern, so an ID slip fails at the registry.
 
-## Machine registry
+## Machine registry (overlay)
 
 ```yaml
-# test-pipeline registry (parsed by scripts/test-pipeline.sh; consumed by
-# validate.sh Check 23 (view-sync) + Check 24 (coverage) + generate-doc-views.sh)
+# test-spec custom overlay (units merged into spec/test-spec.md by
+# scripts/test-spec.sh; consumed by validate.sh Check 24 --check-coverage)
 schema_version: 1
 units:
   # ---- validate family: scripts/validate.sh error checks (comment-anchored) ----
@@ -365,17 +358,29 @@ units:
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
-    purpose: "Regenerates the doc views (general, custom, and — when the test-pipeline registry and parser are present — the test-pipeline view) into a temp dir and diffs against docs/; any drift fails."
+    purpose: "Regenerates the generated doc views (general, custom) from the merged doc-spec registry into a temp dir and diffs against docs/; any drift fails."
   - id: validate-check-24
     family: validate
-    label: "Check 24 — test-pipeline coverage cross-check"
+    label: "Check 24 — test-spec coverage cross-check"
     anchor: "=== Check 24:"
     source: scripts/validate.sh
     layer: ci
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
-    purpose: "Forward: every test-pipeline registry anchor greps in its declared source. Reverse: every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one registry row, with a floor of twenty reverse tokens; skips when the registry is absent."
+    purpose: "Validates the merged test-spec registry, then cross-checks coverage: forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens; skips when the registry is absent."
+  # ---- validate family: the portability audit engine (repo-custom test logic) ----
+  - id: portability-audit
+    family: validate
+    label: "portability audit — declared-vs-actual skill dependency lint"
+    anchor: "scripts/cj-portability-audit.sh"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: advisory
+    skips_when_absent: true
+    ratchet: true
+    trigger: "pre-commit pr-ci manual"
+    purpose: "The portability engine behind the advisory audit check and the strict pre-ship orchestrator gate: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet."
   # ---- test family: registered tests/*.test.sh sub-suites ----
   # (source MUST be scripts/test.sh and anchor MUST be the literal runner path —
   #  the forward check proves the file is wired into the hand-wired runner.)
@@ -505,15 +510,33 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Feature-caller worktree entry, the shared helper's worktree/ship/telemetry phases, and leaf dispatch targets present on disk."
-  - id: test-test-pipeline-spec
+  - id: test-doc-spec-overlay
     family: test
-    label: "test-pipeline suite — registry parser + drift drills"
-    anchor: "tests/test-pipeline-spec.test.sh"
+    label: "doc-spec overlay suite — two-tier merge semantics"
+    anchor: "tests/doc-spec-overlay.test.sh"
     source: scripts/test.sh
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Parser round-trip, malformed-registry fixtures, and the temp-dir drift drills (banner, anchor, view, runner, hook-env, unregistered file, source pin, dead text, disabled check, vanished suite) for the coverage cross-check and view-sync."
+    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and render-custom from the overlay."
+  - id: test-test-spec
+    family: test
+    label: "test-spec suite — two-tier registry parser + coverage drills"
+    anchor: "tests/test-spec.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills."
+  - id: test-cj-audit-skills
+    family: test
+    label: "audit-skills suite — seed delivery + audit engines"
+    anchor: "tests/cj-audit-skills.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, seeded-violation findings, and the clean workbench baseline."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
@@ -650,15 +673,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Shared-script self-containment, bundle install, develop-in-place and the in-place install-equals-clone contract."
-  - id: testsh-test-pipeline-guards
+  - id: testsh-test-spec-guards
     family: test
-    label: "Inline — test-pipeline registry + coverage guards"
-    anchor: "# === F000059: test-pipeline registry + coverage guards ==="
+    label: "Inline — test-spec registry + coverage guards"
+    anchor: "# === F000060: test-spec registry + coverage guards ==="
     source: scripts/test.sh
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "The test-pipeline parser validates, the rendered view stays free of work-item IDs, the generated view is in sync, and the coverage cross-check passes on the live tree."
+    purpose: "The test-spec parser validates the merged registry, the coverage cross-check passes on the live tree, and an absent registry classifies as inactive rather than a finding."
   # ---- standalone suites (wrapper blocks in test.sh share these rows) ----
   - id: suite-test-deploy
     family: test-deploy

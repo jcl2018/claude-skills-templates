@@ -1,46 +1,51 @@
 #!/usr/bin/env bash
-# test-pipeline.sh — parse + validate the test-pipeline.md registry; render the
-# generated human view; run the coverage cross-check.
+# test-spec.sh — parse + validate the two-tier test-spec registry (the general
+# test-spec.md rules + the optional test-spec-custom.md units overlay); run the
+# coverage cross-check; emit the portable general seed for self-bootstrap.
 #
-# test-pipeline.md is the machine source of truth for the repo's verification
-# surface: one registry row per verification unit (validate.sh checks in both ID
-# namespaces + warning checks, registered tests/*.test.sh sub-suites, inline
-# test.sh families, standalone suites, CI workflows, git hooks). It is the
-# fourth member of the doc-spec -> permission-policy -> gate-spec spec-registry
-# family. This helper parses that registry (awk only — no python/yaml
-# dependency, portable to bash 3.2) and mirrors scripts/gate-spec.sh /
-# scripts/doc-spec.sh. It is consumed by scripts/validate.sh (Check 23
-# view-sync + Check 24 coverage), scripts/generate-doc-views.sh (the third
-# generated view, docs/test-pipeline.md), and scripts/test.sh.
+# test-spec.md is the GENERAL tier of the test contract: the portable rules
+# every adopting repo holds its verification surface to (tests-discoverable,
+# suite-green, new-code-tested, units-anchored, single-owner) — delivered
+# verbatim by --seed and never edited in place. The repo-specific unit-level
+# enumeration (one row per validate check / test sub-suite / inline family /
+# standalone suite / CI workflow / git hook) lives in an optional
+# test-spec-custom.md OVERLAY next to it (same fenced ```yaml grammar, units:
+# rows). This helper merges the two internally, so every consumer
+# (scripts/validate.sh Check 24, the /CJ_test_audit skill, scripts/test.sh)
+# sees ONE registry. awk only — no python/yaml dependency, portable to bash
+# 3.2; mirrors scripts/gate-spec.sh / scripts/doc-spec.sh.
 #
-# Strict posture (registry-reading subcommands): test-pipeline.md missing OR no
-# yaml registry OR more than one yaml fence OR schema_version unsupported OR a
-# unit missing id/family/label/anchor/source/layer/disposition/trigger/purpose
-# OR an enum violation OR a duplicate id OR a work-item ID in a rendered field
-# (label/purpose)  ->  HALT with `[test-pipeline-no-config] <reason>` on stdout
-# + exit 1.
+# Absent-vs-invalid split (the lesson from the predecessor engine's ambiguous
+# exit-1): when NEITHER spec/test-spec.md NOR a root test-spec.md exists, every
+# registry-reading subcommand prints `REGISTRY=absent` and exits 0 — a distinct,
+# machine-classifiable skip, never a halt. A PRESENT-but-invalid registry
+# (either file) HALTs with `[test-spec-no-config] <reason>` on stdout + exit 1.
 #
-# Subcommands:
-#   --validate         exit 0 + print `OK schema_version=<n>` if the registry
-#                      is valid; exit 1 + halt-emit otherwise. Includes the
-#                      rendered-field work-item-ID lint (label + purpose), so
-#                      an ID slip fails here — before the human-doc lint ever
-#                      sees the rendered view.
-#   --list-units       echo every declared unit id (registry order).
-#   --render           emit the full generated markdown view (AUTO-GENERATED
-#                      header, leading per-family summary table, the single
-#                      gate-spec pointer line for the pipeline-gate layer,
-#                      per-family unit tables). Deterministic; no timestamps.
+# Subcommands (all registry-reading subcommands operate on the MERGE):
+#   --validate         `REGISTRY=absent` + exit 0 when the general file is
+#                      absent; exit 0 + `OK schema_version=<n>` when the merged
+#                      registry is valid; exit 1 + halt-emit otherwise. Includes
+#                      the rendered-field work-item-ID lint (label + purpose).
+#   --list-rules       echo every declared rule id (registry order).
+#   --list-units       echo every declared unit id (registry order; empty when
+#                      no overlay declares units).
 #   --check-coverage   the Check 24 engine. Forward: every unit's `anchor`
-#                      must grep -F in its declared `source` file. Reverse:
+#                      must match LIVE in its declared `source` file. Reverse:
 #                      every live `=== Check N:` banner / `# Error check N:` /
 #                      `# Warning check` comment in scripts/validate.sh, every
 #                      tests/*.test.sh on disk, every .github/workflows/*.yml,
 #                      and every `install_hook <name>` invocation in
 #                      scripts/setup-hooks.sh must resolve to exactly one
-#                      registry row in its namespace. Floor: reverse
-#                      extraction must yield >= 20 tokens. Findings print as
-#                      `FINDING: ...` lines; exit 1 on any finding.
+#                      registry row in its namespace. Floor: reverse extraction
+#                      must yield >= TEST_SPEC_REVERSE_FLOOR (default 20)
+#                      tokens. The reverse sweep + floor apply ONLY when units:
+#                      rows exist — a rules-only registry (the seeded consumer
+#                      default) prints a named "coverage cross-check inactive"
+#                      note + exits 0 instead of inventing extraction findings.
+#                      Findings print as `FINDING: ...` lines; exit 1 on any.
+#   --seed             echo a COMPLETE, minimal, VALID general test-spec.md for
+#                      self-bootstrap of a MISSING test-spec.md. Does NOT
+#                      require the registry to exist; emits ONLY seed content.
 #   --help|-h
 #
 # family closed enum:      validate | test | test-deploy | eval | windows-smoke | ci | hook.
@@ -56,34 +61,100 @@ _strip_cr() { tr -d '\r'; }
 
 # Resolve repo root (allows REPO_ROOT override for tests / temp-dir drills).
 REPO_ROOT_RESOLVED="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
-# Resolution order: TEST_PIPELINE_PATH env override (outermost) ->
-# spec/test-pipeline.md (this repo) -> root test-pipeline.md (root-only
-# consumers). Same spec/-then-root idiom as the three sibling helpers.
-TEST_PIPELINE_PATH="${TEST_PIPELINE_PATH:-$( [ -f "$REPO_ROOT_RESOLVED/spec/test-pipeline.md" ] && echo "$REPO_ROOT_RESOLVED/spec/test-pipeline.md" || echo "$REPO_ROOT_RESOLVED/test-pipeline.md" )}"
+# Resolution order: TEST_SPEC_PATH env override (outermost) ->
+# spec/test-spec.md (this repo) -> root test-spec.md (root-only consumers).
+# Same spec/-then-root idiom as the sibling helpers.
+TEST_SPEC_PATH="${TEST_SPEC_PATH:-$( [ -f "$REPO_ROOT_RESOLVED/spec/test-spec.md" ] && echo "$REPO_ROOT_RESOLVED/spec/test-spec.md" || echo "$REPO_ROOT_RESOLVED/test-spec.md" )}"
+# The optional units overlay ALWAYS lives next to the resolved general file
+# (spec/test-spec-custom.md here; root test-spec-custom.md in a root-style
+# consumer; sibling of any TEST_SPEC_PATH override in temp-dir drills — which
+# keeps overridden parses hermetic). TEST_SPEC_CUSTOM_PATH overrides outermost.
+TEST_SPEC_CUSTOM_PATH="${TEST_SPEC_CUSTOM_PATH:-$(dirname "$TEST_SPEC_PATH")/test-spec-custom.md}"
 SUPPORTED_SCHEMA_VERSIONS="1"
 
 emit_halt() {
-  echo "[test-pipeline-no-config] $1"
+  echo "[test-spec-no-config] $1"
   exit 1
 }
 
-# Extract the single fenced ```yaml ... ``` block from test-pipeline.md.
-_extract_yaml() {
+# The distinct registry-absent path: NEITHER the resolved general file NOR a
+# root fallback exists. Callers (validate.sh Check 24, the audit skills)
+# classify skip-vs-findings on this literal without parsing halt prose.
+_emit_absent_and_exit() {
+  echo "REGISTRY=absent"
+  exit 0
+}
+
+# Extract the single fenced ```yaml ... ``` block from one registry file ($1).
+_extract_yaml_file() {
   awk '
     /^```yaml/ { if (!seen) { f=1; seen=1; next } }
     /^```/     { if (f) { f=0 } }
     f          { print }
-  ' "$TEST_PIPELINE_PATH" | _strip_cr
+  ' "$1" | _strip_cr
 }
 
-_schema_version() {
-  _extract_yaml | awk '/^schema_version:/ { print $2; exit }'
+# Emit the registry files in merge order: the general file, then the overlay
+# when present. Every merged read iterates this list.
+_registry_files() {
+  echo "$TEST_SPEC_PATH"
+  [ -f "$TEST_SPEC_CUSTOM_PATH" ] && echo "$TEST_SPEC_CUSTOM_PATH"
+  return 0
 }
 
-# Parse the units[] block into TSV rows (11 columns):
+_schema_version_file() {
+  _extract_yaml_file "$1" | awk '/^schema_version:/ { print $2; exit }'
+}
+
+# Parse one file's rules[] block into TSV rows (4 columns):
+#   id, statement, scope, enforced_by
+# Flag-based, key-anchored — the same shape as the units parser below.
+# statement/scope/enforced_by are quoted single-line values, extracted by
+# stripping the `key: "…"` wrapper. EMPTY fields are emitted as a literal `-`
+# placeholder (tab-IFS reads collapse consecutive tabs); readers normalize.
+_parse_rules_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_id != "") {
+        printf "%s\t%s\t%s\t%s\n", nz(cur_id), nz(cur_stmt), nz(cur_scope), nz(cur_enf)
+      }
+      cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
+    }
+    /^rules:/          { in_rules=1; next }
+    /^units:/          { in_rules=0; next }
+    !in_rules          { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
+    /^[[:space:]]*statement:/    { cur_stmt=strip($0); next }
+    /^[[:space:]]*scope:/        { cur_scope=strip($0); next }
+    /^[[:space:]]*enforced_by:/  { cur_enf=strip($0); next }
+    END { flush() }
+  '
+}
+
+# Merged rules TSV across general + overlay (general first).
+_parse_rules() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_rules_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's units[] block into TSV rows (11 columns):
 #   id, family, label, anchor, source, layer, disposition,
 #   skips_when_absent, ratchet, trigger, purpose
-# Flag-based, key-anchored — the same shape as gate-spec.sh / doc-spec.sh.
+# Flag-based, key-anchored — ported intact from the predecessor engine so the
+# extraction grammar and reverse-sweep id conventions survive the migration.
 # label/anchor/trigger/purpose are quoted single-line values; they are
 # extracted by stripping the `key: "…"` wrapper (so they may contain spaces
 # and most punctuation, but no double quotes and no tabs — a documented
@@ -94,8 +165,8 @@ _schema_version() {
 # key) are emitted as a literal `-` placeholder: a bash `read` with IFS=<tab>
 # COLLAPSES consecutive tabs (tab is IFS whitespace), so empty TSV fields would
 # silently shift every later column left. Readers normalize `-` back to "".
-_parse_units() {
-  _extract_yaml | awk '
+_parse_units_file() {
+  _extract_yaml_file "$1" | awk '
     function strip(line,   v) {
       v=line
       sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)   # drop `  key: "`
@@ -114,6 +185,7 @@ _parse_units() {
       cur_purpose=""
     }
     /^units:/          { in_units=1; next }
+    /^rules:/          { in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -131,36 +203,80 @@ _parse_units() {
   '
 }
 
+# Merged units TSV across general + overlay (general first; the general seed
+# carries no units, so in practice these are the overlay's rows).
+_parse_units() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_units_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
 # ---- Validation gates (run for every registry-reading subcommand) ----
 _run_registry_gates() {
-  [ -f "$TEST_PIPELINE_PATH" ] || emit_halt "test-pipeline.md missing (resolved spec/-then-root): $TEST_PIPELINE_PATH"
+  [ -f "$TEST_SPEC_PATH" ] || _emit_absent_and_exit
 
-  _FENCES=$(grep -cE '^```yaml' "$TEST_PIPELINE_PATH" || true)
-  [ "${_FENCES:-0}" -eq 1 ] || emit_halt "test-pipeline.md must carry exactly ONE fenced \`\`\`yaml registry block (found ${_FENCES:-0})"
+  # Per-file structural gates (general, then the overlay when present).
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    case "$_rf" in
+      "$TEST_SPEC_PATH") _disp="test-spec.md" ;;
+      *)                 _disp="test-spec-custom.md (overlay)" ;;
+    esac
+    _FENCES=$(grep -cE '^```yaml' "$_rf" || true)
+    [ "${_FENCES:-0}" -eq 1 ] || emit_halt "$_disp must carry exactly ONE fenced \`\`\`yaml registry block (found ${_FENCES:-0})"
+    _YAML_BODY=$(_extract_yaml_file "$_rf")
+    [ -n "$_YAML_BODY" ] || emit_halt "$_disp has no fenced \`\`\`yaml registry block"
+    _SV=$(_schema_version_file "$_rf")
+    [ -n "$_SV" ] || emit_halt "schema_version field missing in the $_disp registry"
+    _SV_OK=0
+    for v in $SUPPORTED_SCHEMA_VERSIONS; do
+      [ "$_SV" = "$v" ] && { _SV_OK=1; break; }
+    done
+    [ "$_SV_OK" -eq 1 ] || emit_halt "$_disp schema_version=${_SV} unsupported (this helper supports ${SUPPORTED_SCHEMA_VERSIONS})"
+  done <<EOF
+$(_registry_files)
+EOF
+  SCHEMA_VERSION=$(_schema_version_file "$TEST_SPEC_PATH")
 
-  _YAML_BODY=$(_extract_yaml)
-  [ -n "$_YAML_BODY" ] || emit_halt "test-pipeline.md has no fenced \`\`\`yaml registry block"
-
-  SCHEMA_VERSION=$(_schema_version)
-  [ -n "$SCHEMA_VERSION" ] || emit_halt "schema_version field missing in the test-pipeline registry"
-
-  SCHEMA_OK=0
-  for v in $SUPPORTED_SCHEMA_VERSIONS; do
-    [ "$SCHEMA_VERSION" = "$v" ] && { SCHEMA_OK=1; break; }
-  done
-  [ "$SCHEMA_OK" -eq 1 ] || emit_halt "schema_version=${SCHEMA_VERSION} unsupported (this helper supports ${SUPPORTED_SCHEMA_VERSIONS})"
-
+  _RULES=$(_parse_rules)
   _UNITS=$(_parse_units)
-  [ -n "$_UNITS" ] || emit_halt "the test-pipeline registry declares no units (empty units[] list)"
+  [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
-  # Duplicate-id guard: total ids vs unique ids.
-  _N_IDS=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | grep -c . || true)
-  _N_UNIQ=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
-  [ "$_N_IDS" -eq "$_N_UNIQ" ] || emit_halt "duplicate unit id(s): $(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  # Duplicate-id guards (per namespace, across the merged registry).
+  _N_R=$(printf '%s\n' "$_RULES" | awk -F'\t' '{print $1}' | grep -c . || true)
+  _N_RU=$(printf '%s\n' "$_RULES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+  [ "$_N_R" -eq "$_N_RU" ] || emit_halt "duplicate rule id(s): $(printf '%s\n' "$_RULES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  if [ -n "$_UNITS" ]; then
+    _N_IDS=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_UNIQ=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_IDS" -eq "$_N_UNIQ" ] || emit_halt "duplicate unit id(s): $(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+
+  # Per-rule required keys.
+  while IFS="$(printf '\t')" read -r _rid _rstmt _rscope _renf; do
+    [ -n "$_rid" ] || continue
+    [ "$_rstmt" = "-" ] && _rstmt=""
+    [ "$_rscope" = "-" ] && _rscope=""
+    [ "$_renf" = "-" ] && _renf=""
+    case "$_rid" in
+      *[!a-z0-9-]*) emit_halt "rule id '$_rid' is not a slug ([a-z0-9-]+ only)" ;;
+    esac
+    [ -n "$_rstmt" ]  || emit_halt "rule '$_rid' is missing 'statement'"
+    [ -n "$_rscope" ] || emit_halt "rule '$_rid' is missing 'scope'"
+    [ -n "$_renf" ]   || emit_halt "rule '$_rid' is missing 'enforced_by'"
+  done <<EOF
+$_RULES
+EOF
 
   # Per-unit required keys + closed enums + the rendered-field work-item-ID lint.
+  [ -n "$_UNITS" ] || return 0
   while IFS="$(printf '\t')" read -r _id _family _label _anchor _source _layer _disp _skips _ratchet _trigger _purpose; do
-    # Normalize the `-` empty-field placeholders back to "" (see _parse_units).
+    [ -n "$_id" ] || continue
+    # Normalize the `-` empty-field placeholders back to "" (see _parse_units_file).
     [ "$_family" = "-" ] && _family=""
     [ "$_label" = "-" ] && _label=""
     [ "$_anchor" = "-" ] && _anchor=""
@@ -171,7 +287,6 @@ _run_registry_gates() {
     [ "$_ratchet" = "-" ] && _ratchet=""
     [ "$_trigger" = "-" ] && _trigger=""
     [ "$_purpose" = "-" ] && _purpose=""
-    [ -n "$_id" ] || emit_halt "a unit is missing 'id'"
     case "$_id" in
       *[!a-z0-9-]*) emit_halt "unit id '$_id' is not a slug ([a-z0-9-]+ only)" ;;
     esac
@@ -222,8 +337,9 @@ _run_registry_gates() {
           ;;
       esac
     fi
-    # Rendered-field work-item-ID lint: label + purpose render into the
-    # generated human view (a hard-linted human-doc); anchors never render.
+    # Rendered-field work-item-ID lint: label + purpose are the fields a
+    # future generated view would render (and the audit skills quote);
+    # anchors never render.
     if printf '%s %s' "$_label" "$_purpose" | grep -qE '[FSTD][0-9]{6}'; then
       emit_halt "unit '$_id' carries a work-item ID in a rendered field (label/purpose must be ID-free; literal ID-bearing strings belong in the non-rendered anchor)"
     fi
@@ -232,78 +348,18 @@ $_UNITS
 EOF
 }
 
-# ---- Renderer (the docs/test-pipeline.md body) ----
-# Pure function of the registry: AUTO-GENERATED header, intro, the leading
-# per-family summary table (BEFORE the first `## ` heading — satisfies the
-# front-table lint), the single gate-spec pointer line, then one section per
-# family. Family display strings live here (renderer constants, ID-free).
-_render_view() {
-  printf '%s\n' "$_UNITS" | awk '
-    BEGIN {
-      FS="\t"
-      nfam=7
-      fam[1]="validate";      famh[1]="validate — scripts/validate.sh checks"
-      fam[2]="test";          famh[2]="test — scripts/test.sh suite"
-      fam[3]="test-deploy";   famh[3]="test-deploy — skills-deploy suite (scripts/test-deploy.sh)"
-      fam[4]="eval";          famh[4]="eval — behavioral eval harness (scripts/eval.sh)"
-      fam[5]="windows-smoke"; famh[5]="windows-smoke — Git Bash smoke (scripts/windows-smoke.sh)"
-      fam[6]="ci";            famh[6]="ci — GitHub Actions workflows"
-      fam[7]="hook";          famh[7]="hook — git hooks (scripts/setup-hooks.sh)"
-      ntrig=6
-      trigs[1]="pre-commit"; trigs[2]="post-merge"; trigs[3]="pr-ci"
-      trigs[4]="push-main";  trigs[5]="nightly";    trigs[6]="manual"
-    }
-    {
-      n++
-      f[n]=$2; lab[n]=$3; disp[n]=$7; skp[n]=$8; rat[n]=$9; trg[n]=$10; pur[n]=$11
-      gsub(/\|/, "\\|", lab[n]); gsub(/\|/, "\\|", pur[n])
-      cnt[$2]++
-      if ($7 == "hard-fail") hard[$2]++; else adv[$2]++
-      m=split($10, tt, " ")
-      for (i=1; i<=m; i++) ftrig[$2 "," tt[i]]=1
-    }
-    END {
-      print "<!-- AUTO-GENERATED from scripts/test-pipeline.sh --render — do not edit. Edit spec/test-pipeline.md, then run scripts/generate-doc-views.sh. -->"
-      print "# Test pipeline — the verification surface"
-      print ""
-      print "Every validator check, test family, standalone suite, CI workflow and git hook that protects this repo — what each asserts, how it fails (hard-fail vs advisory, with skip-when-absent and regression-ratchet flags), and when it runs. Generated from the machine registry; do not edit by hand."
-      print ""
-      print "| Family | Units | Hard / advisory | Triggers |"
-      print "|--------|-------|-----------------|----------|"
-      for (k=1; k<=nfam; k++) {
-        fk=fam[k]
-        if (!(fk in cnt)) continue
-        ts=""
-        for (i=1; i<=ntrig; i++) if ((fk "," trigs[i]) in ftrig) ts = ts (ts=="" ? "" : ", ") trigs[i]
-        printf "| %s | %d | %d hard / %d advisory | %s |\n", famh[k], cnt[fk], hard[fk]+0, adv[fk]+0, ts
-      }
-      print ""
-      print "Pipeline-gate enforcement (the inline goal-pipeline halts during a run) is deliberately not enumerated here — [spec/gate-spec.md](../spec/gate-spec.md) owns the gate sequence and the four-layer model."
-      for (k=1; k<=nfam; k++) {
-        fk=fam[k]
-        if (!(fk in cnt)) continue
-        print ""
-        print "## " famh[k]
-        print ""
-        print "| Unit | What it asserts | Disposition | When it runs |"
-        print "|------|-----------------|-------------|--------------|"
-        for (j=1; j<=n; j++) {
-          if (f[j] != fk) continue
-          d=disp[j]
-          if (skp[j] == "true") d = d " · skips when absent"
-          if (rat[j] == "true") d = d " · ratchet"
-          tl=trg[j]; gsub(/ /, ", ", tl)
-          printf "| %s | %s | %s | %s |\n", lab[j], pur[j], d, tl
-        }
-      }
-    }
-  '
-}
-
-# ---- Coverage cross-check (the Check 24 engine) ----
+# ---- Coverage cross-check (the Check 24 engine, ported) ----
 # Forward + reverse + floor. Findings print as `FINDING: ...`; the summary line
-# is the last line either way. Exit 1 on any finding.
+# is the last line either way. Exit 1 on any finding. The reverse sweep + floor
+# apply ONLY when units: rows exist (the units-gated contract): a rules-only
+# registry — the seeded consumer default — prints a named inactive note + exits
+# 0 instead of misleading extraction-grammar findings.
 _run_coverage() {
+  if [ -z "$_UNITS" ]; then
+    echo "no units declared — coverage cross-check inactive; declare units in spec/test-spec-custom.md to activate"
+    return 0
+  fi
+
   _FINDINGS=0
 
   # Forward: every anchor must be found in its declared source file — and for
@@ -338,7 +394,7 @@ _run_coverage() {
         # live = the actual `if install_hook <name>` call line
         grep -E '^if install_hook ' "$3" | grep -qF -- "$2" ;;
       scripts/*.sh)
-        # suite rows anchored on a script path: the caller string alone is
+        # rows anchored on a script path: the caller string alone is
         # forgeable by a leftover invocation of a deleted/renamed script —
         # the anchored script must also still EXIST on disk
         grep -qF -- "$2" "$3" && [ -f "$REPO_ROOT_RESOLVED/$2" ] ;;
@@ -468,10 +524,10 @@ EOF
   # Floor-asserts: the reverse extraction must keep finding a healthy number of
   # live tokens, so extraction-grammar rot can never make this check vacuously
   # pass. The global floor is workbench-calibrated (overridable for smaller
-  # adopting repos via TEST_PIPELINE_REVERSE_FLOOR); the per-namespace floors
+  # adopting repos via TEST_SPEC_REVERSE_FLOOR); the per-namespace floors
   # catch single-namespace rot the aggregate would mask (e.g. setup-hooks.sh
-  # refactoring away the `if install_hook` shape loses only 2 of ~47 tokens).
-  _FLOOR="${TEST_PIPELINE_REVERSE_FLOOR:-20}"
+  # refactoring away the `if install_hook` shape loses only 2 of ~49 tokens).
+  _FLOOR="${TEST_SPEC_REVERSE_FLOOR:-20}"
   if [ "$_TOKENS" -lt "$_FLOOR" ]; then
     echo "FINDING: floor — reverse extraction yielded only $_TOKENS live token(s) (< $_FLOOR); the extraction grammar no longer matches the live surface"
     _FINDINGS=$((_FINDINGS + 1))
@@ -491,6 +547,92 @@ EOF
   return 0
 }
 
+# ---- Portable seed (a COMPLETE, minimal, VALID general test-spec.md) ----
+# The embedded heredoc makes --seed self-contained so a CONSUMER repo — where
+# only the deployed scripts/test-spec.sh is present — can self-bootstrap. The
+# heredoc and the workbench's spec/test-spec.md stay byte-identical, guarded by
+# tests/test-spec.test.sh. NO registry gates here — --seed exists precisely to
+# bootstrap a MISSING test-spec.md (the doc-spec.sh --seed lesson).
+_emit_seed() {
+  cat <<'TESTSPEC_SEED'
+<!-- TEST-SPEC-GENERAL:BEGIN (portable — keep byte-identical across adopting repos) -->
+# test-spec.md — the general test contract
+
+This file is the single answer to one question: **what rules is this repo's
+verification surface held to?** It is both the human-readable statement (the
+prose below) and the machine source of truth (the fenced `yaml` registry at
+the end), parsed by `test-spec.sh` (resolved `spec/test-spec.md` first, then a
+root `test-spec.md` fallback).
+
+This file is the **general tier** of a two-tier contract, delivered verbatim
+(`test-spec.sh --seed` emits it byte-for-byte). A repo adopts the contract by
+dropping in this file — and never editing it: repo-specific test logic — the
+unit-level enumeration of the verification surface (every validator check,
+test sub-suite, CI workflow, git hook) — lives in an optional
+**`test-spec-custom.md` overlay** next to this file (`units:` rows in the same
+fenced-yaml grammar). The parser merges the two internally, so consumers see
+ONE registry. An overlay-absent repo carries the rules alone: the coverage
+cross-check stays **inactive** until `units:` rows exist, and tooling reports
+that state by name instead of inventing findings.
+
+## The five general rules
+
+| Rule | What it asserts |
+|------|-----------------|
+| `tests-discoverable` | every test file under the repo's test dir(s) is wired into a runner declared by a `units:` row — no silent skips |
+| `suite-green` | the declared full-suite runner passes before ship |
+| `new-code-tested` | a change that adds behavior carries test rows covering it |
+| `units-anchored` | every declared unit's anchor greps in its declared source (forward coverage) |
+| `single-owner` | every live test surface resolves to exactly one declared unit (reverse coverage) |
+
+Two enforcement layers stand behind the rules:
+
+- **Deterministic** — `test-spec.sh --check-coverage` mechanizes
+  `units-anchored` / `single-owner` / `tests-discoverable` wherever `units:`
+  rows exist: forward, every unit's `anchor` must match LIVE in its declared
+  `source`; reverse, every live test surface must resolve to exactly one unit;
+  floor, the reverse extraction must keep yielding a healthy token count so
+  grammar rot can never make the check vacuously pass.
+- **Agent-judged** — `suite-green` and `new-code-tested` are judged against the
+  repo's current state by the test audit (a red suite or behavior-adding code
+  without covering test rows is a finding), layered ABOVE the deterministic
+  floor, never replacing it.
+
+## Machine registry
+
+The block below is the source of truth. Keep it the only fenced `yaml` block in
+this file.
+
+```yaml
+# test-spec registry (parsed by test-spec.sh; merged with the optional
+# test-spec-custom.md overlay; consumed by a CI validator + a test-audit skill)
+schema_version: 1
+rules:
+  - id: tests-discoverable
+    statement: "Every test file under the repo's test dir(s) (default tests/) is wired into a runner declared by a units: row — a test file on disk that no runner invokes silently never runs."
+    scope: "every test file on disk"
+    enforced_by: "test-spec.sh --check-coverage reverse sweep (active when units: rows exist)"
+  - id: suite-green
+    statement: "The declared full-suite runner passes before ship."
+    scope: "the whole verification surface"
+    enforced_by: "agent-judged by the test audit / QA (a red suite is a finding)"
+  - id: new-code-tested
+    statement: "A change that adds behavior carries test rows covering it."
+    scope: "every behavior-adding change"
+    enforced_by: "agent-judged by the test audit / QA (code-without-units drift is a finding)"
+  - id: units-anchored
+    statement: "Every declared unit's anchor matches LIVE in its declared source file (forward coverage — dead-text mentions do not count)."
+    scope: "every units: row"
+    enforced_by: "test-spec.sh --check-coverage forward anchor-grep"
+  - id: single-owner
+    statement: "Every live test surface resolves to exactly one declared unit (reverse coverage)."
+    scope: "every live validator banner/comment, test file on disk, CI workflow, installed hook"
+    enforced_by: "test-spec.sh --check-coverage reverse sweep + floor (active when units: rows exist)"
+```
+<!-- TEST-SPEC-GENERAL:END -->
+TESTSPEC_SEED
+}
+
 # ---- Subcommand dispatch ----
 
 case "${1:-}" in
@@ -498,37 +640,44 @@ case "${1:-}" in
     _run_registry_gates
     echo "OK schema_version=$SCHEMA_VERSION"
     ;;
+  --list-rules)
+    _run_registry_gates
+    printf '%s\n' "$_RULES" | awk -F'\t' 'NF {print $1}'
+    ;;
   --list-units)
     _run_registry_gates
-    printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}'
-    ;;
-  --render)
-    _run_registry_gates
-    _render_view
+    [ -n "$_UNITS" ] && printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $1}'
+    exit 0
     ;;
   --check-coverage)
     _run_registry_gates
     _run_coverage
     ;;
+  --seed)
+    # NO registry gates — --seed bootstraps a MISSING test-spec.md.
+    _emit_seed
+    ;;
   --help|-h)
     cat <<'USAGE'
-test-pipeline.sh — parse + validate the test-pipeline.md registry; render the
-generated human view; run the coverage cross-check.
+test-spec.sh — parse + validate the two-tier test-spec registry (general rules
++ optional test-spec-custom.md units overlay; all reads operate on the merge);
+run the coverage cross-check; emit the portable general seed.
 
 Usage:
-  test-pipeline.sh --validate        # exit 0 if the registry schema is ok
-  test-pipeline.sh --list-units      # every declared unit id (registry order)
-  test-pipeline.sh --render          # the full generated markdown view
-  test-pipeline.sh --check-coverage  # forward anchors + reverse sweep + floor
+  test-spec.sh --validate        # REGISTRY=absent/exit 0 when absent; exit 0 OK when valid; halt when invalid
+  test-spec.sh --list-rules      # every declared rule id (registry order)
+  test-spec.sh --list-units      # every declared unit id (registry order; empty without an overlay)
+  test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated)
+  test-spec.sh --seed            # complete minimal valid general test-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-units|--render|--check-coverage}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--check-coverage|--seed}" >&2
     exit 2
     ;;
   *)
-    echo "test-pipeline.sh: unknown subcommand '$1'" >&2
+    echo "test-spec.sh: unknown subcommand '$1'" >&2
     echo "  see --help" >&2
     exit 2
     ;;

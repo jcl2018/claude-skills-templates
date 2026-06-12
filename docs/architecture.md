@@ -120,31 +120,39 @@ point-in-time doc audits on a feature branch outside the `cj_goal` pipeline.
 
 ## The doc-spec.md contract + /CJ_document-release
 
-The workbench declares **what docs it carries and what each is for** in one root
-file, `doc-spec.md` — both the human-readable map and the machine source of truth
-(a fenced `yaml` registry). See [`spec/doc-spec.md`](../spec/doc-spec.md) for the
-contract itself; this section is the mechanism reference for how it is parsed,
-enforced, and self-healed.
+The workbench declares **what docs it carries and what each is for** in a
+two-tier registry: the GENERAL `spec/doc-spec.md` (the portable contract,
+byte-identical to `doc-spec.sh --seed`, never edited in place) plus the
+optional `spec/doc-spec-custom.md` overlay carrying this repo's
+`section: custom` rows. The parser merges the two internally, so every
+consumer sees ONE registry. See [`spec/doc-spec.md`](../spec/doc-spec.md) for
+the contract itself; this section is the mechanism reference for how it is
+parsed, merged, enforced, and self-healed.
 
 ```
-                    doc-spec.md (spec/)
-                    +---------------------------+
-                    | Common (portable seed)    |
-                    | Custom (this repo)        |
-                    | ```yaml machine registry``|
-                    |  schema_version: 1        |
-                    |  docs[]: path / section / |
-                    |    audit_class / purpose /|
-                    |    requirement            |
-                    +-----+---------------+-----+
-                          | parses        | parses
+   doc-spec.md (spec/ — GENERAL,        doc-spec-custom.md (spec/ —
+   == doc-spec.sh --seed)               optional overlay, this repo)
+   +---------------------------+        +---------------------------+
+   | Common prose (portable)   |        | repo-specific prose       |
+   | ```yaml machine registry``|        | ```yaml registry —        |
+   |  schema_version: 1        |        |  section: custom entries  |
+   |  docs[]: path / section / |        |  in the same grammar``    |
+   |    audit_class / purpose /|        +-------------+-------------+
+   |    requirement /          |                      |
+   |    front_table (optional) |                      |
+   +-------------+-------------+                      |
+                 +-----------------+------------------+
+                                   | merged by scripts/doc-spec.sh
+                                   | (duplicate path => error)
+                          +--------+--------+
+                          | parses          | parses
             +-------------v---+     +------v--------------------+
             | scripts/        |     | /CJ_document-release      |
-            |   validate.sh   |     |  (+ scripts/doc-spec.sh)  |
-            | declared <=>    |     |  1. read doc-spec.md      |
-            |  on-disk        |     |     (self-bootstrap from  |
-            | schema valid    |     |      the Common seed if   |
-            | no work-item    |     |      missing)             |
+            |   validate.sh   |     |  + /CJ_doc_audit          |
+            | declared <=>    |     |  1. read the merge        |
+            |  on-disk        |     |     (self-bootstrap the   |
+            | schema valid    |     |      general seed into    |
+            | no work-item    |     |      spec/ if missing)    |
             |  IDs in human   |     |  2. stub-scaffold missing |
             |  docs           |     |     declared docs         |
             +-----------------+     |  3. registered-doc audit  |
@@ -155,7 +163,8 @@ enforced, and self-healed.
 
 ### The registry schema
 
-The `yaml` block in `doc-spec.md` is the source of truth:
+The `yaml` block in each file (general + overlay, same grammar) is the source
+of truth:
 
 ```yaml
 schema_version: 1
@@ -163,17 +172,23 @@ docs:
   - path: docs/philosophy.md
     section: common          # common | custom
     audit_class: human-doc   # human-doc | operational
+    front_table: required    # optional; enforced only where present
     purpose: "..."
     requirement: "..."
 ```
 
-- **`schema_version`** — must be `1`. Any other value is a hard error.
+- **`schema_version`** — must be `1` (in each file). Any other value is a hard error.
 - **`audit_class`** — closed enum. `human-doc` = human-facing, must exist + carry
   **no work-item IDs** (`[FSTD]NNNNNN`) + ASCII charts preferred (advisory).
   `operational` = must exist, work-item references allowed (CHANGELOG, CLAUDE.md,
   TODOS.md, etc.).
-- **`section`** — `common` (portable, byte-identical across adopting repos, seeded
-  from `templates/doc-spec-common.md`) or `custom` (repo-specific).
+- **`section`** — `common` (portable, byte-identical across adopting repos —
+  the general file only) or `custom` (repo-specific — the overlay; legacy
+  in-file custom rows still parse for back-compat).
+- **`front_table`** — optional, part of the portable seed schema; a flagged doc
+  must open with a summary table before its first `## ` heading.
+- **duplicate-path guard** — the same `path` declared in both files (or twice
+  anywhere in the merge) fails `--validate`.
 
 ### The doc-spec checks in `scripts/validate.sh`
 
@@ -196,8 +211,8 @@ and asserts the contract:
   lint that keeps the human docs human-readable.
 - **front-table-required docs open with a table** (Check 20) — for every entry
   flagged `front_table: required` (enumerated via `doc-spec.sh
-  --list-front-table-docs`; today `docs/philosophy.md`, `docs/workflow.md` and
-  `docs/test-pipeline.md`), the
+  --list-front-table-docs`; today `docs/philosophy.md` and `docs/workflow.md` —
+  flagged in the portable seed itself), the
   validator asserts a Markdown table appears BEFORE the doc's first `## ` heading.
   Registry-driven, so flagging another doc later is a one-line registry edit —
   `docs/architecture.md` is a human-doc but is deliberately NOT flagged, so it is
@@ -205,13 +220,11 @@ and asserts the contract:
 - **workflow completeness** — `docs/workflow.md` carries a section for every
   `CJ_goal_*` orchestrator, each with an ASCII chart and a 4-bullet Touches block.
 - **generated views in sync** (Check 23) — the readable general/custom doc lists
-  (`docs/doc-general.md` + `docs/doc-custom.md`) are *generated* from the registry,
-  not hand-maintained. The validator regenerates them into a temp dir via
-  `scripts/generate-doc-views.sh` and diffs; any drift is a hard error (run the
-  generator to fix). Skips cleanly when the generator/helper is absent
-  (non-adopting repo). The same temp-regen+diff loop covers the third generated
-  view, `docs/test-pipeline.md`, gated on its own parser + registry being present
-  (see [the test-pipeline.md contract](#the-test-pipelinemd-contract) below).
+  (`docs/doc-general.md` + `docs/doc-custom.md`) are *generated* from the merged
+  registry, not hand-maintained. The validator regenerates them into a temp dir
+  via `scripts/generate-doc-views.sh` and diffs; any drift is a hard error (run
+  the generator to fix). Skips cleanly when the generator/helper is absent
+  (non-adopting repo).
 
 ### The helper (`scripts/doc-spec.sh`)
 
@@ -226,17 +239,22 @@ consume. Subcommands:
   `required` (a separate awk pass; the workbench-local field the validator's
   front-table check consumes).
 - `--render general|custom` — emit a Markdown table (Doc · Purpose · Requirement)
-  of the `section: common` (general) or `section: custom` registry docs. Consumed
+  of the merged `section: common` (general) or `section: custom` (the overlay,
+  plus any legacy in-file custom rows) registry docs. Consumed
   by `scripts/generate-doc-views.sh` to produce the `docs/doc-general.md` +
   `docs/doc-custom.md` views, and by Check 23's drift comparison.
-- `--expand-whitelist` — emit the doc-only auto-commit whitelist (every declared
-  `path` + `doc-spec.md` + every `docs/**/*.md` on disk; sorted, unique).
-- `--seed` — emit the portable Common-section seed (used by the self-bootstrap to
-  recreate a missing `doc-spec.md`).
+- `--expand-whitelist` — emit the doc-only auto-commit whitelist (every merged
+  declared `path` + the contract files + every `docs/**/*.md` on disk; sorted,
+  unique).
+- `--seed` — emit the portable general file (used by the self-bootstrap and by
+  `/CJ_doc_audit`'s seed delivery to recreate a missing `spec/doc-spec.md`; kept
+  3-way byte-identical with `spec/doc-spec.md` + `templates/doc-spec-common.md`).
 
-It reads `doc-spec.md` via `git rev-parse --show-toplevel`, so a copy resolved
-from the deployed `_cj-shared` home still parses THIS repo's registry — never the
-workbench's.
+It reads the registry via `git rev-parse --show-toplevel` (general resolved
+`spec/`-then-root; the overlay always next to the general file), so a copy
+resolved from the deployed `_cj-shared` home still parses THIS repo's registry —
+never the workbench's. All subcommands operate on the MERGE; an overlay-absent
+repo simply parses the general file alone.
 
 ### The portable CI hook (scoped honestly)
 
@@ -357,8 +375,9 @@ The workbench declares **what stops a broken cj_goal change from landing, and at
 which layer** in one file, [`spec/gate-spec.md`](../spec/gate-spec.md) — both the
 human-readable map (prose + a four-layer summary table + an ASCII diagram + a
 division-of-labor) and the machine source of truth (a fenced `yaml` registry of
-`layers[]` + `gates[]`). It is the third member of the `spec/doc-spec.md` →
-`spec/permission-policy.md` → `spec/gate-spec.md` → `spec/test-pipeline.md`
+`layers[]` + `gates[]`). It is the third member of the `spec/doc-spec.md` (+
+`spec/doc-spec-custom.md` overlay) → `spec/permission-policy.md` →
+`spec/gate-spec.md` → `spec/test-spec.md` (+ `spec/test-spec-custom.md` overlay)
 family: the same shape (a `spec/` registry doc + a `scripts/` reader + a
 `validate.sh` check) applied to verification. gate-spec deliberately owns the
 LAYER question only; the CHECK-level enumeration lives in the family's fourth
@@ -394,7 +413,8 @@ itself for the contract.
 each owning a different guarantee: **local-hook** (the pre-commit `validate.sh`,
 hard-fail at commit), **ci** (GitHub Actions, hard-fail on the PR),
 **pipeline-gate** (the inline orchestrator halts — isolation, design-summary, QA,
-doc-sync, portability, ship — during a run), and **ratchet** (monotonic guards:
+the qa-audit checkpoint, doc-sync, portability, ship — during a run), and
+**ratchet** (monotonic guards:
 Check 8 VERSION-never-regresses, the portability `FINDINGS=0` baseline, Check 14
 USAGE.md freshness). The contract reserves the word **"gate"** for a single
 referent — a `pipeline-gate` row — so `validate.sh`-as-a-whole is the **ci**
@@ -402,12 +422,16 @@ layer (a set of *checks*), never "the gate."
 
 **The per-mode `markers` map.** A gate's `markers` is a map keyed by
 `feature|defect|task|todo`. A mode absent from the map does not run that gate
-(only `doc-sync` + `portability` are universal; isolation has three different
-markers and is absent in todo; `design-gate`/`root-cause`/`complexity` are
-single-mode). A map value is either a literal `"[marker]"` (Check 22 greps for it
-in that mode's files) or `{ enforced_by: subagent | auq }` (the gate runs but
-emits no bracket marker — the escape hatch that keeps the baseline honestly
-clean, e.g. todo's QA + ship).
+(`qa-audit`, `doc-sync` + `portability` are universal; isolation has three
+different markers and is absent in todo; `design-gate`/`root-cause`/`complexity`
+are single-mode). A map value is either a literal `"[marker]"` (Check 22 greps
+for it in that mode's files) or `{ enforced_by: subagent | auq }` (the gate runs
+but emits no bracket marker — the escape hatch that keeps the baseline honestly
+clean, e.g. todo's QA + ship). The `qa-audit` row (order 45, between qa 40 and
+doc-sync 50) is the post-QA audit-findings checkpoint: the QA leaf's Step 8.6
+block produces the doc/test audit digest, the orchestrator AUQ owns the
+Continue/Halt decision (`[qa-audit-declined]` literal in all four modes;
+waivers journal as `[qa-audit-waived]`).
 
 ### The helper (`scripts/gate-spec.sh`)
 
@@ -442,55 +466,70 @@ exits 0, exactly like Check 21 / Check 18 — because the registry is authored
 honestly (per-mode markers + the `enforced_by` escape), so the check is green on
 the clean baseline and the flip-to-strict is a one-line follow-up ratchet.
 
-## The test-pipeline.md contract
+## The test-spec.md contract (two-tier)
 
-The workbench declares **its own verification surface, check by check** — every
-validator check (both ID namespaces plus the warning checks), every registered
-test sub-suite and inline test family, the standalone suites, the CI workflows,
-and the git hooks — in one file, [`spec/test-pipeline.md`](../spec/test-pipeline.md):
-prose conventions + a fenced `yaml` registry of `units[]`, the fourth member of
-the spec-registry family. Humans read the **generated** view
-[`docs/test-pipeline.md`](test-pipeline.md) (a general-tier, required,
-front-table doc); the registry is the machine truth underneath it.
+The workbench declares its test contract in TWO tiers, mirroring the doc
+contract. The GENERAL [`spec/test-spec.md`](../spec/test-spec.md) (byte-identical
+to `test-spec.sh --seed`, never edited in place) carries the five portable
+rules every adopting repo holds its verification surface to —
+`tests-discoverable`, `suite-green`, `new-code-tested`, `units-anchored`,
+`single-owner`. The CUSTOM overlay
+[`spec/test-spec-custom.md`](../spec/test-spec-custom.md) carries **this repo's
+verification surface, check by check** — every validator check (both ID
+namespaces plus the warning checks), every registered test sub-suite and inline
+test family, the standalone suites, the CI workflows, and the git hooks — as
+`units:` rows. `scripts/test-spec.sh` merges the two internally; consumers see
+ONE registry.
 
 ```
-                 test-pipeline.md (spec/)
-                 +----------------------------+
-                 | anchor/extraction doctrine |
-                 | ```yaml machine registry`` |
-                 |  schema_version: 1         |
-                 |  units[]: id / family /    |
-                 |    label / anchor / source/|
-                 |    layer / disposition /   |
-                 |    skips? / ratchet? /     |
-                 |    trigger / purpose       |
-                 +-----+----------------+-----+
-                       | renders        | cross-checks
-        +--------------v----+    +------v----------------------+
+   test-spec.md (spec/ — GENERAL,       test-spec-custom.md (spec/ —
+   == test-spec.sh --seed)              optional overlay, this repo)
+   +---------------------------+       +----------------------------+
+   | the 5 portable rules      |       | anchor/extraction doctrine |
+   | ```yaml machine registry``|       | ```yaml machine registry`` |
+   |  schema_version: 1        |       |  units[]: id / family /    |
+   |  rules[]: id / statement /|       |    label / anchor / source/|
+   |    scope / enforced_by    |       |    layer / disposition /   |
+   +-------------+-------------+       |    skips? / ratchet? /     |
+                 |                     |    trigger / purpose       |
+                 |                     +-------------+--------------+
+                 +-----------+-----------------------+
+                             | merged by scripts/test-spec.sh
+                             | (REGISTRY=absent + exit 0 when neither
+                             |  spec/ nor root general file exists)
+                  +----------+----------+
+                  | parses              | cross-checks
+        +---------v---------+    +------v----------------------+
         | scripts/          |    | scripts/validate.sh         |
-        |  test-pipeline.sh |    |  Check 23 ext (HARD):       |
-        | --validate        |    |   temp-regen + diff the     |
-        | --list-units      |    |   generated view            |
-        | --render ---------+--> |  Check 24 (HARD):           |
-        |   (via generate-  |    |   --check-coverage          |
-        |    doc-views.sh)  |    |   forward anchor-grep +     |
+        |  test-spec.sh     |    |  Check 24 (HARD):           |
+        | --validate        |    |   --validate the merge,     |
+        | --list-rules      |    |   then --check-coverage:    |
+        | --list-units      |    |   forward anchor-grep +     |
         | --check-coverage  |    |   reverse live-surface      |
-        +-------------------+    |   sweep + 20-token floor    |
-              |                  +-----------------------------+
-              v
-        docs/test-pipeline.md  (GENERATED human view)
+        | --seed            |    |   sweep + 20-token floor    |
+        +---------+---------+    |   (reverse+floor UNITS-     |
+                  |              |    GATED)                   |
+                  v              +-----------------------------+
+        /CJ_test_audit  (seed-deliver -> validate -> coverage ->
+                         agent-judged suite-green / new-code-tested)
 ```
 
-**The two hard loops.** A hand-edit to the view, or a registry edit without
-re-rendering, fails Check 23's temp-regen+diff (run
-`scripts/generate-doc-views.sh`). A change to the live surface without a
-matching registry row — a new validator check, a renamed banner, a new test
-file, a new workflow, a new hook — fails Check 24: *forward*, every row's
-`anchor` must `grep -F` in its declared `source`; *reverse*, every live
-validator banner/comment, every `tests/*.test.sh` on disk, every workflow file
-and every installed hook must resolve to exactly one registry row; *floor*, the
-reverse extraction must keep yielding at least 20 live tokens so grammar rot
-can never make the check vacuously pass.
+**The hard loop.** A change to the live surface without a matching units row —
+a new validator check, a renamed banner, a new test file, a new workflow, a new
+hook — fails Check 24: *forward*, every row's `anchor` must match LIVE in its
+declared `source` (execution-shaped matching; dead-text mentions do not count);
+*reverse*, every live validator banner/comment, every `tests/*.test.sh` on
+disk, every workflow file and every installed hook must resolve to exactly one
+registry row; *floor*, the reverse extraction must keep yielding at least 20
+live tokens (`TEST_SPEC_REVERSE_FLOOR`) so grammar rot can never make the check
+vacuously pass. Check 24 also runs `test-spec.sh --validate` first — the
+symmetric schema gate Check 16 runs for the doc-spec.
+
+**The units gate (one parser, two postures).** The reverse sweep + floor apply
+ONLY where `units:` rows exist. A seeded consumer repo carries the rules alone:
+its coverage cross-check reports `no units declared — coverage cross-check
+inactive` by name and passes — never a misleading extraction-grammar finding.
+Declaring units in `spec/test-spec-custom.md` activates the deterministic floor.
 
 **The silent-skip catch.** Test discovery in this repo is hand-wired, not
 glob-based — a test file on disk that nobody registers in the runner silently
@@ -499,18 +538,26 @@ be the runner script and its `anchor` MUST be the literal runner path, so the
 forward check proves the file is actually WIRED into the suite, and the reverse
 sweep proves every file on disk has a row at all.
 
-**What stays advisory.** Semantic accuracy of each row's one-line `purpose` (a
-check whose behavior changes under a stable banner) is not mechanized — it
-stays with the registered-doc requirements audit, like every other registered
-doc. The hard loops buy structural sync, not meaning sync.
+**What stays agent-judged.** `suite-green` and `new-code-tested` (rules the
+grep engine structurally cannot prove) are judged by `/CJ_test_audit` against
+the repo's current state, layered ABOVE the deterministic floor; semantic
+accuracy of each row's one-line `purpose` likewise stays with the advisory
+registered-doc requirements audit. The hard loop buys structural sync, not
+meaning sync.
 
-**Consumer-repo posture.** The view is a *general-tier required doc* (the
-portable seed's requirement string is mechanism-neutral), but the
-registry+parser machinery is this workbench's chosen implementation: where
-`spec/test-pipeline.md` / `scripts/test-pipeline.sh` are absent, the generator
-skips the third view with a note, Check 23's third diff skips, and Check 24
-SKIPs — a hand-maintained `docs/test-pipeline.md` copy fully satisfies the
-contract there.
+**The audit verbs.** `/CJ_doc_audit` + `/CJ_test_audit` front the two
+contracts as standalone operator keystrokes in ANY repo: seed-deliver the
+general file when missing (creating `spec/`; `seeded: yes`, idempotent
+`seeded: no`), validate the merge, run the deterministic pass, layer the
+agent-judged verdicts, and report `DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=`.
+Inside a cj_goal run the same logic executes INLINE at `/CJ_qa-work-item`
+Step 8.6 (a subagent cannot spawn subagents), and every orchestrator surfaces
+the digest at its post-QA `qa-audit` checkpoint before doc-sync.
+
+**Consumer-repo posture.** Where no test-spec registry exists at all, the
+parser classifies it mechanically — `REGISTRY=absent` + exit 0 — and Check 24
+SKIPs; the first `/CJ_test_audit` run seeds the general contract and the repo
+opts into units whenever it is ready.
 
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
