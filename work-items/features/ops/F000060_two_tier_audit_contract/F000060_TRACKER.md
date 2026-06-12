@@ -147,3 +147,5 @@ blocked_by: ""
 - 2026-06-12 [decision] D5.4 — the post-audit checkpoint ALWAYS prompts in interactive cj_goal runs; `/CJ_goal_todo_fix --quiet` auto-continues on green and halts on red.
 - 2026-06-12 [decision] D6 — full parser parity (Approach A): `scripts/test-spec.sh` carries a deterministic Check-24-equivalent coverage cross-check re-targeted at the merged two-tier registry; agent-judged alignment layers on top in the skills.
 - 2026-06-12 [decision] Supersession — this design replaces the earlier same-day orchestrator-gate design (chjiang-claude-unruffled-kalam-e25974-design-20260612-124229.md); the earlier scaffold was deleted and this scaffold is fresh (IDs F000060/S000102 reclaimed via cj-id-claim.sh same-branch reuse).
+- 2026-06-12T23:28:06Z [feature-pr-opened] F000060 v6.0.65 PR #261
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/261
