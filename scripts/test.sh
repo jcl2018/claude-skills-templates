@@ -1680,14 +1680,16 @@ else
   fail_test "tests/cj-document-release-config.test.sh failed (rc=$_cdrc_rc) — run \`bash tests/cj-document-release-config.test.sh\` directly to see"
 fi
 
-# Regression test (F000035): all 3 cj_goal orchestrators (CJ_goal_feature,
-# CJ_goal_defect, CJ_goal_todo_fix) have the Step 5.5 doc-sync subsection wired
-# into pipeline.md AND both [doc-sync-red] / [doc-sync-non-doc-write] halt-taxonomy
-# rows in SKILL.md, with correct row ordering (after qa, before ship).
+# Regression test (F000035 + F000064): all 4 cj_goal orchestrators (CJ_goal_feature,
+# CJ_goal_defect, CJ_goal_task, CJ_goal_todo_fix) have the Step 5.5 doc-sync
+# subsection wired into pipeline.md AND both [doc-sync-red] / [doc-sync-non-doc-write]
+# halt-taxonomy rows in SKILL.md, with the F000064 post-sync run-order (qa-audit
+# checkpoint BEFORE doc-sync in the table's run-order listing; before ship) AND
+# the post-sync audit semantics ("AFTER doc-sync" in the halted_at_qa_audit row).
 echo ""
-echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035 3-way symmetric Step 5.5 wiring)..."
+echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035/F000064 4-way symmetric Step 5.5 wiring + post-sync order)..."
 if bash "$REPO_ROOT/tests/cj-goal-doc-sync-wiring.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-doc-sync-wiring.test.sh: Step 5.5 + halt-taxonomy rows present in all 3 cj_goal orchestrators with correct ordering"
+  ok "tests/cj-goal-doc-sync-wiring.test.sh: Step 5.5 + halt-taxonomy rows present in all 4 cj_goal orchestrators with the post-sync ordering"
 else
   _cgdsw_rc=$?
   fail_test "tests/cj-goal-doc-sync-wiring.test.sh failed (rc=$_cgdsw_rc) — run \`bash tests/cj-goal-doc-sync-wiring.test.sh\` directly to see"

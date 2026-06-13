@@ -911,22 +911,11 @@ gates:
     disposition: halt
     backing: "/CJ_qa-work-item leaf subagent"
     checks: "the work-item's test rows pass"
-  # --- universal, same marker in all four: the post-QA audit-findings checkpoint ---
-  - id: qa-audit
-    layer: pipeline-gate
-    order: 45
-    markers:
-      feature: "[qa-audit-declined]"
-      defect:  "[qa-audit-declined]"
-      task:    "[qa-audit-declined]"
-      todo:    "[qa-audit-declined]"
-    disposition: halt
-    backing: "/CJ_qa-work-item Step 8.6 audit block + orchestrator checkpoint AUQ"
-    checks: "the operator saw the doc/test audit findings before the PR budget was spent"
-  # --- universal, same marker in all four: the case enforced literally ---
+  # --- universal, same marker in all four: doc-sync runs BEFORE the qa-audit
+  #     checkpoint (F000064 reorder), so the checkpoint decides on post-sync docs ---
   - id: doc-sync
     layer: pipeline-gate
-    order: 50
+    order: 45
     markers:
       feature: "[doc-sync-red]"
       defect:  "[doc-sync-red]"
@@ -935,6 +924,18 @@ gates:
     disposition: halt
     backing: "/CJ_document-release (Step 5.5 doc-sync)"
     checks: "doc drift is folded into the same PR (registry parses; declared docs current)"
+  # --- universal, same marker in all four: the post-sync audit-findings checkpoint ---
+  - id: qa-audit
+    layer: pipeline-gate
+    order: 50
+    markers:
+      feature: "[qa-audit-declined]"
+      defect:  "[qa-audit-declined]"
+      task:    "[qa-audit-declined]"
+      todo:    "[qa-audit-declined]"
+    disposition: halt
+    backing: "orchestrator-level post-sync /CJ_doc_audit + /CJ_test_audit (one combined read-only subagent, run AFTER doc-sync) + the checkpoint AUQ"
+    checks: "the operator saw the post-sync doc/test audit findings before the PR budget was spent"
   # --- universal, same marker in all four ---
   - id: portability
     layer: pipeline-gate
