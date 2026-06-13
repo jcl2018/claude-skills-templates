@@ -1,7 +1,7 @@
 # doc-spec-custom.md — this repo's doc-contract overlay
 
 This file is the **custom tier** of the two-tier doc contract: the
-repo-specific docs this workbench carries beyond the eleven general docs
+repo-specific docs this workbench carries beyond the twelve general docs
 declared in [`spec/doc-spec.md`](doc-spec.md) (the portable seed, never edited
 in place). `scripts/doc-spec.sh` merges this overlay's registry into the
 general one internally, so every consumer — `validate.sh` Checks 15–23,

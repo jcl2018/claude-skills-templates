@@ -246,6 +246,7 @@ mk_cod_fixture() {
   printf '# philosophy\n\n| Principle | Summary |\n|---|---|\n| 1 | first |\n\n## Principle 1\n\nBody.\n' > "$_cf/docs/philosophy.md"
   printf '# workflow\n\n| Workflow | Entry |\n|---|---|\n| build | /go |\n\n## Flows\n\nBody.\n' > "$_cf/docs/workflow.md"
   printf '# architecture\n\nMachinery prose.\n' > "$_cf/docs/architecture.md"
+  printf '# reference\n\nCurated external references.\n\n## Tooling\n\n- [x](https://example.com) — why.\n' > "$_cf/docs/reference.md"
   printf '# readme\n\nFolder structure + getting started.\n' > "$_cf/README.md"
   printf '# agent instructions\n' > "$_cf/CLAUDE.md"
   printf '# changelog\n' > "$_cf/CHANGELOG.md"

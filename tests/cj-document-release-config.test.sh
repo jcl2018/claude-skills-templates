@@ -167,8 +167,9 @@ if [ -x "$HELPER" ]; then
   _SD=$(DOC_SPEC_PATH="$_T/doc-spec.md" bash "$HELPER" --list-declared 2>/dev/null)
   if printf '%s\n' "$_SD" | grep -qx 'CLAUDE.md' \
      && printf '%s\n' "$_SD" | grep -qx 'TODOS.md' \
-     && printf '%s\n' "$_SD" | grep -qx 'docs/doc-general.md'; then
-    ok "seed registry declares the general-contract docs (CLAUDE.md, TODOS.md, docs/doc-general.md)"
+     && printf '%s\n' "$_SD" | grep -qx 'docs/doc-general.md' \
+     && printf '%s\n' "$_SD" | grep -qx 'docs/reference.md'; then
+    ok "seed registry declares the general-contract docs (CLAUDE.md, TODOS.md, docs/doc-general.md, docs/reference.md)"
   else
     fail_test "seed registry missing a general-contract doc (got: $_SD)"
   fi

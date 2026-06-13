@@ -536,7 +536,8 @@ validate error. There is no second list: the merged registry is the source,
 the prose explains it.
 
 - **Human docs** (`audit_class: human-doc`) live under `docs/`
-  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`) plus the
+  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`,
+  `docs/reference.md`) plus the
   root `README.md`. They must exist
   and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard `validate.sh` lint
   (Check 19).
