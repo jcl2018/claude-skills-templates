@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.68] - 2026-06-12
+
+### Changed
+
+- **doc-spec is now a parsed 3-column Markdown table, not a YAML registry + generated views** (F000063/S000105). `spec/doc-spec.md` (and the `spec/doc-spec-custom.md` overlay) is a `| Doc | Purpose | Requirement |` table that `scripts/doc-spec.sh` parses directly — the file IS the readable interface. The fenced-YAML block and the per-row `section` / `audit_class` / `front_table` fields are dropped; `audit_class` (human-doc vs operational) is now derived from path convention (a declared path under `docs/` or root `README.md` is a human-doc), so Check 19 (no work-item IDs in human-docs) survives unchanged. `doc-spec.sh --check-on-disk` runs 4 checks (was 6); `--render` and `--list-front-table-docs` are removed. The 3-way `--seed` byte-identity (`spec/doc-spec.md` == `doc-spec.sh --seed` == `templates/doc-spec-common.md`) holds.
+- **The verification contract is consolidated: `gate-spec.md` is folded into the test-spec family** (F000063/S000105). The general `spec/test-spec.md` now answers "what kinds of verification, what each owns, when each triggers" via the four-layer map (`layers[]`: local-hook / ci / pipeline-gate / ratchet) alongside the five portable rules; the per-mode pipeline-gate halts move to `spec/test-spec-custom.md` as a new top-level `gates:` array. `scripts/gate-spec.sh`'s parsing (`--list-layers` / `--list-gates`) folds into `scripts/test-spec.sh`. `validate.sh` Check 22 (gate marker drift) folds into Check 24 with its marker-drift portion kept ADVISORY. All four `CJ_goal_*` pipelines re-point their canonical-gate-sequence reference to `spec/test-spec.md`.
+
+### Removed
+
+- **Generated doc views + their generator** (F000063): `docs/doc-general.md`, `docs/doc-custom.md`, and `scripts/generate-doc-views.sh` are deleted (the spec tables are now the readable views), along with `validate.sh` Check 23 (generated-views-in-sync) and Check 20 (`front_table` leading-summary-table lint).
+- **`spec/gate-spec.md` + `scripts/gate-spec.sh`** (F000063): retired and folded into the test-spec family (see Changed).
+
 ## [6.0.67] - 2026-06-12
 
 ### Added

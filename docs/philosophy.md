@@ -18,7 +18,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
 | **Harness-engineering best practices** | 4. Verification is a continuous gate — judge the path | A quality gate at every step, evaluating the trajectory, with the verifier kept independent of the doer. |
 | **Harness-engineering best practices** | 5. Tools & permissions are first-class | Spec tools like prompts; design permission before capability and give the riskiest verbs the strictest rules. |
-| **CI/CD** | Four verification layers, one owner each | local-hook / ci / pipeline-gate / ratchet — each guarantee is owned by exactly one layer; `gate-spec.md` is the map. |
+| **CI/CD** | Four verification layers, one owner each | local-hook / ci / pipeline-gate / ratchet — each guarantee is owned by exactly one layer; `test-spec.md` is the map. |
 | — | Decision tree | Which `CJ_` skill to call for a given input — see the routing map at the bottom of this doc. |
 
 ## Topic: Deployment
@@ -190,9 +190,9 @@ doer. *In the workbench:* `/CJ_personal-workflow check` runs at every phase
 boundary, QA executes the work-item's test rows rather than merely checking a
 TEST-SPEC exists, and a pre-ship portability gate halts the run before a PR is
 ever opened. The concrete map of this principle — every verification surface, at
-which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is one
-the `spec/gate-spec.md` registry; the **CI/CD topic** below is the layered model this
-principle resolves to.
+which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is the
+`spec/test-spec.md` registry (its `layers[]` map + the overlay's `gates[]`); the
+**CI/CD topic** below is the layered model this principle resolves to.
 
 ### 5. Tools & permissions are first-class
 
@@ -255,32 +255,30 @@ undocumented, portability-dishonest, or self-merging) by a **pipeline-gate**, an
 a regression of a monotonic property by a **ratchet**.
 
 The concrete, machine-checked map of all four layers and every gate — the prose,
-the division-of-labor table, and a fenced `yaml` registry — is one file,
-[`spec/gate-spec.md`](../spec/gate-spec.md) (enforced by `validate.sh`
-Check 22). This topic is the principle; `gate-spec.md` is the live map.
+the four-layer table, and a fenced `yaml` registry — is the verification
+contract [`spec/test-spec.md`](../spec/test-spec.md) (its `layers[]` map + the
+overlay's per-mode `gates[]`, enforced by `validate.sh` Check 24). This topic is
+the principle; `test-spec.md` is the live map.
 
 ## Topic: Doc contract
 
 These principles are about how the *docs themselves* are kept honest. The model
 is one chain: a single machine **registry** (`spec/doc-spec.md`) is the
-source of truth; readable **generated views** are derived from it (the same way
-`README.md` is generated from the skill catalog) so there is never a second list
-to hand-maintain; and the contract's **logic** lives here. `doc-spec.sh
---validate` is the portable CI hook that keeps the registry well-formed, and a
-`validate.sh` drift check keeps the generated views in lockstep with the
-registry.
+source of truth — one Markdown table that a human reads and the parser parses,
+so there is never a second copy to hand-maintain; and the contract's **logic**
+lives here. `doc-spec.sh --validate` is the portable CI hook that keeps the
+registry well-formed.
 
 ### The doc contract is one file, human + machine
 
 What docs the repo carries — and what each one is for — lives in one file,
 `spec/doc-spec.md`. It is both the human-readable map and the machine source of
-truth (a fenced `yaml` registry the CI validator and the doc-release skill both
-parse). Human docs carry no internal work-item IDs; that rule is a hard CI lint,
-not a guideline. The readable general/custom doc lists are generated from that
-registry into `docs/doc-general.md` + `docs/doc-custom.md` — generated views, not
-a second list to keep in sync. See [spec/doc-spec.md](../spec/doc-spec.md) for the
-contract itself and [architecture.md](architecture.md) for how it is enforced and
-self-healed.
+truth: a single 3-column Markdown table (`Doc · Purpose · Requirement`) the CI
+validator and the doc-release skill both parse directly. The table IS the
+source — no fenced registry, no generated view, no second list to keep in sync.
+Human docs carry no internal work-item IDs; that rule is a hard CI lint, not a
+guideline. See [spec/doc-spec.md](../spec/doc-spec.md) for the contract itself
+and [architecture.md](architecture.md) for how it is enforced and self-healed.
 
 ### Two tiers, one portable pass: general by default, custom per repo
 

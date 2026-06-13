@@ -38,11 +38,11 @@ last-updated: "2026-06-12T00:00:00Z"
 
 Three stages, split exactly along the deterministic/judged boundary. **Stage 1
 (deterministic — engine):** ONE call to `doc-spec.sh --check-on-disk` — the
-six conformance checks (declared⇔on-disk, orphans, root-declared, ID-free
-human docs, front tables, views-in-sync) live inside a tested script, so no
+four conformance checks (declared⇔on-disk, orphans, root-declared, ID-free
+human docs) live inside a tested script, so no
 executor can re-derive the loops wrong (the word-split defect class is
 designed out). **Stage 2 (requirement compliance — agent-judged,
-evidence-forced):** each declared doc's `requirement:` string is quoted,
+evidence-forced):** each declared doc's `Requirement` cell is quoted,
 decomposed into clauses, and judged clause-by-clause with cited evidence —
 verdicts `satisfies` / `missing-requirement (soft)` / `n/a` /
 `FINDING: stage2/<path>`. **Stage 3 (implementation drift — agent-judged):**

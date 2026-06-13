@@ -1,22 +1,43 @@
 <!-- TEST-SPEC-GENERAL:BEGIN (portable — keep byte-identical across adopting repos) -->
-# test-spec.md — the general test contract
+# test-spec.md — the verification contract
 
-This file is the single answer to one question: **what rules is this repo's
-verification surface held to?** It is both the human-readable statement (the
-prose below) and the machine source of truth (the fenced `yaml` registry at
-the end), parsed by `test-spec.sh` (resolved `spec/test-spec.md` first, then a
-root `test-spec.md` fallback).
+This file is the single answer to one question: **what stops a broken change
+from landing, what rules is the repo's verification surface held to, and at
+which layer?** It is both the human-readable map (the prose + the four-layer
+table below) and the machine source of truth (the fenced `yaml` registry at the
+end), parsed by `test-spec.sh` (resolved `spec/test-spec.md` first, then a root
+`test-spec.md` fallback).
 
 This file is the **general tier** of a two-tier contract, delivered verbatim
 (`test-spec.sh --seed` emits it byte-for-byte). A repo adopts the contract by
 dropping in this file — and never editing it: repo-specific test logic — the
 unit-level enumeration of the verification surface (every validator check,
-test sub-suite, CI workflow, git hook) — lives in an optional
-**`test-spec-custom.md` overlay** next to this file (`units:` rows in the same
-fenced-yaml grammar). The parser merges the two internally, so consumers see
-ONE registry. An overlay-absent repo carries the rules alone: the coverage
-cross-check stays **inactive** until `units:` rows exist, and tooling reports
-that state by name instead of inventing findings.
+test sub-suite, CI workflow, git hook) AND the per-mode pipeline gates — lives
+in an optional **`test-spec-custom.md` overlay** next to this file (`units:`
+rows + a `gates:` array in the same fenced-yaml grammar). The parser merges the
+two internally, so consumers see ONE registry. An overlay-absent repo carries
+the rules + layers alone: the coverage cross-check stays **inactive** until
+`units:` rows exist, and tooling reports that state by name instead of inventing
+findings.
+
+## The four verification layers
+
+A change passes through up to four independent verification layers between an
+edit and a landed PR. Each layer runs at a different moment and owns a different
+kind of guarantee:
+
+| Layer | When it runs | What it owns | Disposition |
+|-------|--------------|--------------|-------------|
+| **local-hook** | at `git commit` (pre-commit hook) | the commit is structurally valid before it ever leaves your machine | hard-fail (blocks the commit) |
+| **ci** | on every PR (GitHub Actions) | the whole tree is structurally + behaviorally sound on a clean runner | hard-fail (gates the PR) |
+| **pipeline-gate** | during an orchestrated run | this run did the right thing — isolated, designed, tested, documented, honest — before it reached the PR | mixed (most halt; some advise) |
+| **ratchet** | inside ci / the orchestrator | a monotonic property never regresses (VERSION, the portability baseline, doc freshness) | advisory or hard-fail |
+
+The word **"gate"** is reserved here for a single thing: an **inline
+orchestrator halt** (a `pipeline-gate` row, declared per repo in the overlay's
+`gates:` array). The CI validator-as-a-whole is the **ci** layer (a set of
+numbered *checks*), not "the gate." A monotonic guard is a **ratchet**. Three
+words, three referents, no overload.
 
 ## The five general rules
 
@@ -44,7 +65,9 @@ Two enforcement layers stand behind the rules:
 ## Machine registry
 
 The block below is the source of truth. Keep it the only fenced `yaml` block in
-this file.
+this file. It carries `rules[]` (the five portable rules) and `layers[]` (the
+four-layer map). The repo-specific `units:` enumeration and the per-mode
+`gates:` array live in the optional `test-spec-custom.md` overlay.
 
 ```yaml
 # test-spec registry (parsed by test-spec.sh; merged with the optional
@@ -71,5 +94,26 @@ rules:
     statement: "Every live test surface resolves to exactly one declared unit (reverse coverage)."
     scope: "every live validator banner/comment, test file on disk, CI workflow, installed hook"
     enforced_by: "test-spec.sh --check-coverage reverse sweep + floor (active when units: rows exist)"
+layers:
+  - id: local-hook
+    name: "Local pre-commit hook"
+    trigger: "at git commit"
+    disposition: hard-fail
+    owns: "the commit is structurally valid before it leaves the machine"
+  - id: ci
+    name: "CI on every PR"
+    trigger: "on every PR"
+    disposition: hard-fail
+    owns: "the whole tree is structurally + behaviorally sound on a clean runner"
+  - id: pipeline-gate
+    name: "In-orchestrator gates"
+    trigger: "during an orchestrated run"
+    disposition: mixed
+    owns: "this run did the right thing before it reached the PR"
+  - id: ratchet
+    name: "Regression ratchets"
+    trigger: "inside ci / the orchestrator"
+    disposition: advisory
+    owns: "a monotonic property never regresses"
 ```
 <!-- TEST-SPEC-GENERAL:END -->

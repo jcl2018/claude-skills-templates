@@ -1,6 +1,6 @@
 ---
 name: CJ_doc_audit
-description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract exists (creates spec/ and seed-delivers spec/doc-spec.md via doc-spec.sh --seed when missing, reporting seeded: yes; idempotent seeded: no on re-run). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids, front-table, views-render vs the MERGED registry), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
+description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract exists (creates spec/ and seed-delivers spec/doc-spec.md via doc-spec.sh --seed when missing, reporting seeded: yes; idempotent seeded: no on re-run). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids vs the MERGED registry — four checks), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
 version: 0.2.0
 allowed-tools:
   - Bash
@@ -124,11 +124,11 @@ The engine probes registry existence itself (absent ⇒ `REGISTRY=absent` +
 exit 0 — cannot normally occur here, Step 2 just delivered the seed; if it
 does, the `stage1/seed` finding above already covers it), validates the
 MERGED registry (`spec/doc-spec.md` + `spec/doc-spec-custom.md`-if-present),
-then runs the six conformance checks — declared-exists, orphans (docs/*.md
-maxdepth 1 + spec/*.md), root-declared, human-doc-ids, front-table,
-views-render (table-block vs fresh `--render`) — emitting `check: <id> — PASS`
-/ `FINDING: stage1/<id> — <detail>` lines plus the `CHECKS_RUN=`/`FINDINGS=`
-tail. Its `FINDINGS=` count IS the engine-check portion of `STAGE1_FINDINGS`.
+then runs the four conformance checks — declared-exists, orphans (docs/*.md
+maxdepth 1 + spec/*.md), root-declared, human-doc-ids — emitting
+`check: <id> — PASS` / `FINDING: stage1/<id> — <detail>` lines plus the
+`CHECKS_RUN=`/`FINDINGS=` tail. Its `FINDINGS=` count IS the engine-check
+portion of `STAGE1_FINDINGS`.
 
 A present-but-invalid registry makes the engine exit 1 with
 `[doc-sync-no-config] <reason>`: count ONE STAGE-1 finding —
@@ -168,13 +168,11 @@ fresh-context run is the independence proof.
 ## Step 4: Stage 2 — requirement compliance (agent-judged, evidence-forced)
 
 For EACH declared doc in the merged registry (enumerate via
-`--list-declared`; read each entry's `requirement:` string from the registry
-yaml):
+`--list-declared`; read each row's `Requirement` cell from the registry table):
 
-1. **Quote** the doc's `requirement:` string.
+1. **Quote** the doc's `Requirement` cell.
 2. **Decompose** it into clauses (e.g. "Arranged by principle" / "states the
-   repo's first principle(s)" / "no work-item IDs" / "opens with a summary
-   table").
+   repo's first principle(s)" / "no work-item IDs").
 3. **Check each clause** against the doc's ACTUAL content (read the doc).
 4. **Emit exactly one verdict line** per doc, citing the decisive evidence:
 
@@ -188,10 +186,8 @@ FINDING: stage2/<path> — clause '<clause>' not met: <evidence>
 Only `FINDING:` lines count toward `STAGE2_FINDINGS` (`missing-requirement`
 and `n/a` are non-counting). A doc failing multiple clauses emits one FINDING
 line per failed clause. Clauses already proven deterministically by Stage 1
-(e.g. "opens with a summary table" = the `front-table` check; "no work-item
-IDs" = `human-doc-ids`) are CITED from Stage 1's output ("front-table: PASS
-per Stage 1"), never re-derived. Generated views' requirement ("kept matching
-the merged registry") is likewise Stage 1's `views-render` evidence.
+(e.g. "no work-item IDs" = the `human-doc-ids` check) are CITED from Stage 1's
+output ("human-doc-ids: PASS per Stage 1"), never re-derived.
 
 ## Step 5: Stage 3 — implementation drift (agent-judged, evidence-forced)
 
@@ -214,8 +210,7 @@ workflows, 4 spec-registry files, 9 top-level dirs`):
 - Top-level directories: `ls -d */`.
 
 **5.2 — Cross-walk each contract doc** per the doc-type playbook (apply the
-rows that exist in THIS repo; generated views are EXCLUDED — generated
-content cannot drift by hand, Stage 1's `views-render` owns it):
+rows that exist in THIS repo):
 
 | Doc | Cross-walk |
 |---|---|

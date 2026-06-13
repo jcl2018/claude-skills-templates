@@ -295,8 +295,8 @@ diff-review AUQ suppressed, the PR-stop, the halt taxonomy, and telemetry.
 
 ## Halt-on-Red Taxonomy
 
-Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
-enforced by `validate.sh` Check 22). The halts below are this mode's subset of
+Canonical gate sequence: `spec/test-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 24). The halts below are this mode's subset of
 that declared sequence — the registry is the source of truth for the ordering.
 
 All halts write a structured journal entry (the resume state dir pre-scaffold, or

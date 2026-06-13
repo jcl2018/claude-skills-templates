@@ -1,6 +1,6 @@
 ---
 name: CJ_document-release
-description: "Workbench wrapper around upstream /document-release. Reads the MERGED two-tier doc-spec registry (the general spec/doc-spec.md, resolved spec/-then-root, + the optional spec/doc-spec-custom.md overlay; self-bootstraps a missing general file from the portable seed INTO spec/doc-spec.md; stub-scaffolds any missing declared doc — spec/test-spec.md special-cased via test-spec.sh --seed, front_table docs stubbed with a leading summary table), adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a doc-only whitelist DERIVED from the merged registry (non-whitelist writes HALT with [doc-sync-non-doc-write]). A missing/invalid registry HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the cj_goal orchestrators at Step 5.5 — between the QA pass + post-QA audit checkpoint and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
+description: "Workbench wrapper around upstream /document-release. Reads the MERGED two-tier doc-spec registry (the general spec/doc-spec.md, resolved spec/-then-root, + the optional spec/doc-spec-custom.md overlay; self-bootstraps a missing general file from the portable seed INTO spec/doc-spec.md; stub-scaffolds any missing declared doc — spec/test-spec.md special-cased via test-spec.sh --seed), adds a --docs <comma-list> subset flag for per-invocation doc filtering (best-effort, documentation-only), a halt-on-red contract that emits [doc-sync-red] on upstream failure, and an auto-commit step gated by a doc-only whitelist DERIVED from the merged registry (non-whitelist writes HALT with [doc-sync-non-doc-write]). A missing/invalid registry HALTs with [doc-sync-no-config] BEFORE any audit. Invoked inline by the cj_goal orchestrators at Step 5.5 — between the QA pass + post-QA audit checkpoint and /ship — so doc updates fold into the same code PR rather than chasing them post-merge."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -47,14 +47,15 @@ family needs:
    section skeleton + a `<!-- TODO: fill in -->` marker) and commits it. Both are
    idempotent — a re-run never writes a second copy.
 
-   **Tier logic (the general/custom contract).** `section: common` (general)
-   docs are the portable contract and are **REQUIRED** — every adopting repo
-   carries them: the portable seed declares all of them on self-bootstrap, and
-   the stub-scaffold step creates any missing one. `section: custom` docs are
-   per-repo additions — declared and carried by the repo that wants them, never
-   required anywhere else. The Step 6.7 audit surfaces a repo registry that
-   omits a general-contract doc as an advisory `stale:` verdict (see 6.7.3b) —
-   advisory, never a halt.
+   **Tier logic (the general/custom contract).** The general docs (declared in
+   the seed `spec/doc-spec.md`) are the portable contract and are **REQUIRED** —
+   every adopting repo carries them: the portable seed declares all of them on
+   self-bootstrap, and the stub-scaffold step creates any missing one. Overlay
+   docs (declared in `spec/doc-spec-custom.md`) are per-repo additions —
+   declared and carried by the repo that wants them, never required anywhere
+   else. The Step 6.7 audit surfaces a repo registry that omits a
+   general-contract doc as an advisory `stale:` verdict (see 6.7.3b) — advisory,
+   never a halt.
 
 2. **`--docs <comma-list>` per-invocation doc subset.** Operator can scope an
    invocation to a subset of declared docs (e.g. `--docs README` or
@@ -197,10 +198,10 @@ fi
 ### Validate the registry (strict)
 
 Validate the registry via the helper. The helper exits 1 + emits
-`[doc-sync-no-config] <reason>` when the registry is missing / has no `yaml`
-block / schema_version-unsupported / an entry missing required fields / an
-audit_class outside the closed enum. The wrapper HALTs immediately on non-zero
-exit — no fallback:
+`[doc-sync-no-config] <reason>` when the registry is missing / has no registry
+table / has a malformed table row (a literal `|` inside a cell or the wrong
+column count) / a path is duplicated across the two files. The wrapper HALTs
+immediately on non-zero exit — no fallback:
 
 ```bash
 CONFIG_OUT=$(bash "$_DS_HELPER" --validate 2>&1)
@@ -218,9 +219,9 @@ fi
 ### Stub-scaffold missing declared docs
 
 For each declared doc that is missing from disk, write a stub (title + a section
-skeleton its `audit_class` implies + a `<!-- TODO: fill in -->` marker) and
-commit it. Idempotent: only missing docs are written, so a re-run is a NO-OP and
-never produces a second stub. Record each stubbed doc in the audit as `stub —
+skeleton its path-derived audit_class implies + a `<!-- TODO: fill in -->`
+marker) and commit it. Idempotent: only missing docs are written, so a re-run is
+a NO-OP and never produces a second stub. Record each stubbed doc in the audit as `stub —
 needs content`:
 
 ```bash
@@ -246,16 +247,6 @@ if [ -n "$_STUBBED" ]; then
 fi
 ```
 
-**Stub shape for the generated views.** When stub-scaffolding a missing
-`docs/doc-general.md` / `docs/doc-custom.md`, prefer REAL content over the plain
-stub above: render the table via `doc-spec.sh --render general|custom` so the
-view is born satisfying its "kept matching the merged registry" requirement;
-fall back to the plain stub only if `--render` fails. The header must be
-PORTABLE — e.g.
-`<!-- generated from the doc-spec registry — re-render via doc-spec.sh --render general|custom -->`
-— NOT a workbench header naming `scripts/generate-doc-views.sh` (that path does
-not exist in a consumer repo).
-
 **Stub shape for `spec/test-spec.md` (special-cased — never the generic stub).**
 The seed declares `spec/test-spec.md` (the general test contract), and that file
 is itself a machine registry: a generic title-plus-section stub would be a
@@ -266,19 +257,6 @@ repo. So when `spec/test-spec.md` is declared-but-missing, deliver it via
 `_cj-shared`; temp-file + `--validate` + `mv`, mirroring the doc-spec
 self-bootstrap corruption guard). Fall back to the plain stub ONLY if the
 engine is unreachable (and record the audit verdict `stub — needs content`).
-
-**Stub shape for `front_table: required` docs.** The seed flags
-`docs/philosophy.md` + `docs/workflow.md` with `front_table: required`, so a
-generic stub of a flagged doc would immediately fail the front-table check /
-the doc audit. When the stubbed path is in `doc-spec.sh
---list-front-table-docs`, OPEN the stub with a minimal summary table before any
-`## ` heading:
-
-```
-| Section | Summary |
-|---------|---------|
-| (stub)  | This doc is declared in the doc-spec registry but has not been written yet. |
-```
 
 **TODOS.md dual-creation (convergent, not conflicting).** TODOS-reading skills
 lazy-create `TODOS.md` on first use; this stub-scaffold also creates it when it
@@ -293,11 +271,9 @@ duplicated across the two files is a `--validate` error):
 
 - `--validate` — exit 0 + print `OK schema_version=<n>` if the merged registry
   is valid; exit 1 + halt-emit otherwise (incl. a present-but-invalid overlay).
-- `--list-declared` — emit every declared `path` (merged; sorted, unique).
-- `--list-human-docs` — emit only the `audit_class: human-doc` paths (used by the
-  no-work-item-ref audit check).
-- `--list-front-table-docs` — emit only the paths flagged `front_table: required`
-  (consumed by `validate.sh` Check 20 + the front-table stub shape above).
+- `--list-declared` — emit every declared `Doc` path (merged; sorted, unique).
+- `--list-human-docs` — emit only the path-derived human-doc paths (a path under
+  `docs/` or the root `README.md`; used by the no-work-item-ref audit check).
 - `--expand-whitelist` — emit the doc-only auto-commit whitelist (every merged
   declared `path` + the contract files + every `docs/**/*.md`). Step 2 + Step 6
   use this.
@@ -649,7 +625,8 @@ run's `git diff <base>...HEAD` and assigns ONE verdict:
   never a halt.
 - `n/a` — registered but out of scope for this run's judgment.
 
-For every `audit_class: human-doc` registered doc, ALSO run the
+For every path-derived human-doc (a declared path under `docs/` or the root
+`README.md`) registered doc, ALSO run the
 no-work-item-ref check: grep the doc for `[FSTD][0-9]{6}`; any hit forces the
 verdict `stale: contains work-item refs` (the advisory mirror of the hard
 `validate.sh` Check 19):
@@ -664,19 +641,9 @@ for _hd in $(bash "$_DS_HELPER" --list-human-docs); do
 done
 ```
 
-**View freshness (consumer repos) is judged mechanically.** The workbench keeps
-the generated views in sync via `scripts/generate-doc-views.sh` + a CI drift
-check, but those are workbench-local and do NOT travel. In a consumer repo, judge
-the verdict for `docs/doc-general.md` / `docs/doc-custom.md` MECHANICALLY: diff
-each view's table against fresh `doc-spec.sh --render general|custom` output
-(the helper travels via `_cj-shared`; the render reads the merged registry —
-general + any overlay); a mismatch ⇒ `stale: view out of sync
-with the registry`. The pass MAY re-render them directly — both paths are
-inside the registry-derived auto-commit whitelist.
-
 ### 6.7.3b — General-contract coverage check (advisory missing-general-doc rule)
 
-The general contract (the portable seed) declares the `section: common` docs
+The general contract (the portable seed) declares the general docs
 every adopting repo is REQUIRED to carry. When the REPO's registry omits one of
 them, surface the gap as part of the **contract file's own verdict line** (the
 registry entry whose basename is `doc-spec.md`):
@@ -690,16 +657,15 @@ the `Registered-doc requirements: all current` positive line — intended and
 honest. It is **ADVISORY, never a halt**: no exit, no halt marker, no
 RESULT=red.
 
-**Enumerating the general set.** Do NOT hand-parse the seed yaml, and do NOT
-use `--list-declared` (it would silently over-enumerate if the seed ever
-regains a `section: custom` entry). Write the seed to a temp file and reuse
-the parser — render the general section and take the first table column:
+**Enumerating the general set.** Do NOT hand-parse the seed table. Write the
+seed to a temp file (with NO sibling overlay) and reuse the parser —
+`--list-declared` on the isolated seed IS the general set, because the seed
+carries only general rows:
 
 ```bash
 _GC_TMP=$(mktemp -d)
 bash "$_DS_HELPER" --seed > "$_GC_TMP/doc-spec.md" 2>/dev/null || true
-_GENERAL_SET=$(DOC_SPEC_PATH="$_GC_TMP/doc-spec.md" bash "$_DS_HELPER" --render general 2>/dev/null \
-  | awk -F'|' 'NR>2 {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}')
+_GENERAL_SET=$(DOC_SPEC_PATH="$_GC_TMP/doc-spec.md" bash "$_DS_HELPER" --list-declared 2>/dev/null)
 rm -rf "$_GC_TMP"
 
 _DECLARED=$(bash "$_DS_HELPER" --list-declared)
@@ -808,7 +774,7 @@ suppress the `[doc-sync-red]` or `[doc-sync-non-doc-write]` halt contracts.
 | Error | Marker | Recovery |
 |-------|--------|----------|
 | Not a git repo | (no marker — usage halt) | Run inside a repo |
-| `doc-spec.md` missing / no yaml registry / schema_version unsupported / entry missing required fields / audit_class outside enum | `[doc-sync-no-config]` | Repair `spec/doc-spec.md`'s yaml registry (or let the self-bootstrap recreate it from the Common seed); re-run |
+| `doc-spec.md` missing / no registry table / malformed table row (literal `|` in a cell, wrong column count) / duplicate path across the two files | `[doc-sync-no-config]` | Repair `spec/doc-spec.md`'s registry table (or let the self-bootstrap recreate it from the Common seed); re-run |
 | `doc-spec.sh` helper unreachable | `[doc-sync-no-config]` | Restore `scripts/doc-spec.sh`, or re-run `skills-deploy install` to refresh the deployed `_cj-shared` home; re-run |
 | On main / base branch (refuses on the base branch) | `[doc-sync-red]` | Run from a feature branch |
 | Working tree has uncommitted non-doc changes (pre-run) | `[doc-sync-red]` | Commit or stash non-doc changes; re-run |

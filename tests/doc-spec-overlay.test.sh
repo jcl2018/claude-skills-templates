@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
 # tests/doc-spec-overlay.test.sh
 #
-# Regression test for the two-tier doc-spec registry (F000060): the general
-# spec/doc-spec.md (== doc-spec.sh --seed, byte-identical) merged with the
-# optional spec/doc-spec-custom.md overlay by scripts/doc-spec.sh.
+# Regression test for the two-tier doc-spec registry (F000060 + F000063): the
+# general spec/doc-spec.md (== doc-spec.sh --seed, byte-identical) merged with
+# the optional spec/doc-spec-custom.md overlay by scripts/doc-spec.sh. The
+# registry is a 3-column Markdown table (| Doc | Purpose | Requirement |) parsed
+# directly — audit_class is DERIVED from the path (docs/* or README.md =>
+# human-doc), not a declared field; the tier is the file, not a per-row field.
 #
 # Asserts:
 #   1. live tree: --validate exits 0 on the MERGED registry; the merged
-#      --list-declared carries general AND overlay paths; --render custom
-#      renders the overlay rows; --list-front-table-docs lists the seed's
-#      flagged docs
+#      --list-declared carries general AND overlay paths; --list-human-docs is
+#      exactly the path-derived human-doc set
 #   2. seed 3-way byte identity: the embedded --seed heredoc (templates/
 #      absent) == spec/doc-spec.md == templates/doc-spec-common.md
 #   3. overlay-absent fixture: general-only results, no finding, no error
-#   4. overlay-present fixture: merged list + render-custom from the overlay
+#   4. overlay-present fixture: merged list + whitelist from the overlay
 #   5. duplicate path across the two files => --validate halts
 #      [doc-sync-no-config] naming the duplicate
-#   6. present-but-invalid overlay (bad audit_class) => --validate halts
+#   6. present-but-invalid overlay (malformed table row, literal | in a cell)
+#      => --validate halts
 #   7. DOC_SPEC_PATH override stays hermetic: the overlay resolves NEXT TO the
 #      overridden general file, never the live repo's overlay
 #   8. --check-on-disk battery (the audit Stage-1 engine): clean fixture =>
-#      all 6 check lines PASS + CHECKS_RUN=6 + FINDINGS=0 + exit 0; SEVEN
+#      all 4 check lines PASS + CHECKS_RUN=4 + FINDINGS=0 + exit 0; FOUR
 #      seeded violations (missing declared doc; orphan in docs/; orphan in
 #      spec/ — a non-self-declaring overlay; undeclared root *.md; work-item
-#      ID in a human-doc; missing front table; view-table drift) each flip
-#      EXACTLY their own `FINDING: stage1/<id>` + FINDINGS=1 + exit 1;
-#      registry-absent => REGISTRY=absent + exit 0 (probe before parse
-#      gates); invalid registry => [doc-sync-no-config] + exit 1
+#      ID in a human-doc) each flip EXACTLY their own `FINDING: stage1/<id>`
+#      + FINDINGS=1 + exit 1; registry-absent => REGISTRY=absent + exit 0
+#      (probe before parse gates); invalid registry => [doc-sync-no-config] +
+#      exit 1
 #
 # Temp-dir isolated; never mutates the live tree.
 
@@ -58,7 +61,7 @@ echo "=== doc-spec two-tier overlay merge assertions ==="
 
 [ -x "$HELPER" ] || { fail_test "scripts/doc-spec.sh missing or not executable"; echo "FAIL: doc-spec-overlay ($ERRORS error(s))"; exit 1; }
 
-# 1. live tree: merged validate + lists + render
+# 1. live tree: merged validate + lists
 _V=$(bash "$HELPER" --validate 2>&1); _VRC=$?
 if [ "$_VRC" -eq 0 ] && printf '%s' "$_V" | grep -qF 'OK schema_version=1'; then
   ok "live --validate exits 0 on the merged registry"
@@ -69,35 +72,24 @@ fi
 _LD=$(bash "$HELPER" --list-declared 2>/dev/null)
 if printf '%s\n' "$_LD" | grep -qx 'docs/philosophy.md' \
    && printf '%s\n' "$_LD" | grep -qx 'spec/test-spec.md' \
-   && printf '%s\n' "$_LD" | grep -qx 'spec/gate-spec.md' \
+   && printf '%s\n' "$_LD" | grep -qx 'spec/permission-policy.md' \
    && printf '%s\n' "$_LD" | grep -qx 'spec/doc-spec-custom.md' \
    && printf '%s\n' "$_LD" | grep -qx 'spec/test-spec-custom.md'; then
-  ok "live --list-declared carries general (philosophy, test-spec) AND overlay (gate-spec, both overlay self-rows) paths"
+  ok "live --list-declared carries general (philosophy, test-spec) AND overlay (permission-policy, both overlay self-rows) paths"
 else
   fail_test "live --list-declared missing merged paths (got: $(printf '%s' "$_LD" | tr '\n' ' '))"
 fi
 
-_RC_OUT=$(bash "$HELPER" --render custom 2>/dev/null)
-if printf '%s\n' "$_RC_OUT" | grep -qF 'spec/gate-spec.md' \
-   && printf '%s\n' "$_RC_OUT" | grep -qF 'CONTRIBUTING.md' \
-   && printf '%s\n' "$_RC_OUT" | grep -qF 'spec/permission-policy.md'; then
-  ok "live --render custom renders the overlay's migrated rows"
+# --list-human-docs is exactly the path-derived human-doc set (docs/* + README.md);
+# operational paths (CLAUDE.md, spec/*.md) must be absent.
+_HD=$(bash "$HELPER" --list-human-docs 2>/dev/null)
+if printf '%s\n' "$_HD" | grep -qx 'docs/philosophy.md' \
+   && printf '%s\n' "$_HD" | grep -qx 'README.md' \
+   && ! printf '%s\n' "$_HD" | grep -qx 'CLAUDE.md' \
+   && ! printf '%s\n' "$_HD" | grep -qx 'spec/doc-spec.md'; then
+  ok "live --list-human-docs is the path-derived human-doc set (docs/* + README.md; operational excluded)"
 else
-  fail_test "live --render custom missing overlay rows: $_RC_OUT"
-fi
-if printf '%s\n' "$_RC_OUT" | grep -qF 'docs/philosophy.md'; then
-  fail_test "live --render custom leaked a section:common row"
-else
-  ok "live --render custom carries no section:common rows"
-fi
-
-_FT=$(bash "$HELPER" --list-front-table-docs 2>/dev/null)
-if [ "$(printf '%s\n' "$_FT" | grep -c .)" -eq 2 ] \
-   && printf '%s\n' "$_FT" | grep -qx 'docs/philosophy.md' \
-   && printf '%s\n' "$_FT" | grep -qx 'docs/workflow.md'; then
-  ok "live --list-front-table-docs == the seed's two flagged docs"
-else
-  fail_test "front-table list wrong (got: $(printf '%s' "$_FT" | tr '\n' ' '))"
+  fail_test "live --list-human-docs wrong (got: $(printf '%s' "$_HD" | tr '\n' ' '))"
 fi
 
 # 2. seed 3-way byte identity (heredoc forced via empty REPO_ROOT temp)
@@ -123,43 +115,20 @@ if [ "$_GA_RC" -eq 0 ]; then
 else
   fail_test "overlay-absent fixture errored (rc=$_GA_RC): $_GA_V"
 fi
-_GA_C=$(REPO_ROOT="$_GA" bash "$HELPER" --render custom 2>/dev/null | { grep -c '^| ' || true; })
-# 2 = header + delimiter rows only (no data rows render with a leading '| path')
-if [ "${_GA_C:-0}" -eq 0 ]; then
-  ok "overlay-absent fixture: --render custom has no custom data rows"
-else
-  # header rows start with '| Doc' / '|---'; data rows are '| <path> |'
-  _GA_DATA=$(REPO_ROOT="$_GA" bash "$HELPER" --render custom 2>/dev/null | { grep -vc '^| Doc\|^|---' || true; })
-  if [ "${_GA_DATA:-0}" -eq 0 ]; then
-    ok "overlay-absent fixture: --render custom has no custom data rows"
-  else
-    fail_test "overlay-absent fixture rendered unexpected custom data rows"
-  fi
-fi
 
-# 4. overlay-present fixture: merged list + render-custom from the overlay
+# 4. overlay-present fixture: merged list + whitelist from the overlay
 cat > "$_GA/doc-spec-custom.md" <<'EOF'
 # overlay fixture
-```yaml
-schema_version: 1
-docs:
-  - path: EXTRA.md
-    section: custom
-    audit_class: operational
-    purpose: "An overlay fixture doc."
-    requirement: "Present."
-```
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `EXTRA.md` | An overlay fixture doc. | Present. |
 EOF
 _GA_LD=$(REPO_ROOT="$_GA" bash "$HELPER" --list-declared 2>/dev/null)
 if printf '%s\n' "$_GA_LD" | grep -qx 'EXTRA.md' && printf '%s\n' "$_GA_LD" | grep -qx 'README.md'; then
   ok "overlay-present fixture: --list-declared is the MERGE (general + overlay row)"
 else
   fail_test "overlay-present fixture merge broken (got: $(printf '%s' "$_GA_LD" | tr '\n' ' '))"
-fi
-if REPO_ROOT="$_GA" bash "$HELPER" --render custom 2>/dev/null | grep -qF 'EXTRA.md'; then
-  ok "overlay-present fixture: --render custom reads the overlay"
-else
-  fail_test "overlay-present fixture: --render custom missing the overlay row"
 fi
 if REPO_ROOT="$_GA" bash "$HELPER" --expand-whitelist 2>/dev/null | grep -qx 'EXTRA.md'; then
   ok "overlay-present fixture: --expand-whitelist includes the overlay path"
@@ -169,15 +138,11 @@ fi
 
 # 5. duplicate path across the two files => --validate halts
 cat > "$_GA/doc-spec-custom.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: README.md
-    section: custom
-    audit_class: operational
-    purpose: "Duplicate of a general row."
-    requirement: "Present."
-```
+# overlay fixture
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `README.md` | Duplicate of a general row. | Present. |
 EOF
 _DUP=$(REPO_ROOT="$_GA" bash "$HELPER" --validate 2>&1); _DUP_RC=$?
 if [ "$_DUP_RC" -ne 0 ] && printf '%s' "$_DUP" | grep -qF '[doc-sync-no-config]' \
@@ -188,15 +153,13 @@ else
   fail_test "duplicate-path guard did not fire (rc=$_DUP_RC): $_DUP"
 fi
 
-# 6. present-but-invalid overlay halts
+# 6. present-but-invalid overlay halts (a literal | inside a cell => wrong column count)
 cat > "$_GA/doc-spec-custom.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: BAD.md
-    section: custom
-    audit_class: not-a-class
-```
+# overlay fixture
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `a|b.md` | bad cell | Present. |
 EOF
 _BAD=$(REPO_ROOT="$_GA" bash "$HELPER" --validate 2>&1); _BAD_RC=$?
 if [ "$_BAD_RC" -ne 0 ] && printf '%s' "$_BAD" | grep -qF '[doc-sync-no-config]' \
@@ -211,21 +174,17 @@ rm -f "$_GA/doc-spec-custom.md"
 _H=$(mk_tmp)
 bash "$HELPER" --seed > "$_H/doc-spec.md" 2>/dev/null
 _H_LD=$(DOC_SPEC_PATH="$_H/doc-spec.md" bash "$HELPER" --list-declared 2>/dev/null)
-if printf '%s\n' "$_H_LD" | grep -qx 'spec/gate-spec.md'; then
+if printf '%s\n' "$_H_LD" | grep -qx 'spec/permission-policy.md'; then
   fail_test "DOC_SPEC_PATH override leaked the live repo's overlay rows (not hermetic)"
 else
   ok "DOC_SPEC_PATH override is hermetic (live overlay rows NOT merged into the temp parse)"
 fi
 cat > "$_H/doc-spec-custom.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: SIBLING.md
-    section: custom
-    audit_class: operational
-    purpose: "Sibling overlay of an overridden general file."
-    requirement: "Present."
-```
+# overlay fixture
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `SIBLING.md` | Sibling overlay of an overridden general file. | Present. |
 EOF
 _H_LD2=$(DOC_SPEC_PATH="$_H/doc-spec.md" bash "$HELPER" --list-declared 2>/dev/null)
 if printf '%s\n' "$_H_LD2" | grep -qx 'SIBLING.md'; then
@@ -234,17 +193,16 @@ else
   fail_test "sibling overlay of an overridden general file was not merged"
 fi
 
-# 8. --check-on-disk battery (the audit Stage-1 engine; F000061)
+# 8. --check-on-disk battery (the audit Stage-1 engine; F000063: 4 checks)
 
 # Fixture builder: a COMPLETE clean repo for the seeded general contract —
-# every declared doc present, front-table docs open with a table, generated
-# views' table blocks match fresh --render output. Echoes the fixture dir.
+# every declared doc present. Echoes the fixture dir.
 mk_cod_fixture() {
   _cf=$(mk_tmp)
   mkdir -p "$_cf/spec" "$_cf/docs"
   bash "$HELPER" --seed > "$_cf/spec/doc-spec.md" 2>/dev/null
-  printf '# philosophy\n\n| Principle | Summary |\n|---|---|\n| 1 | first |\n\n## Principle 1\n\nBody.\n' > "$_cf/docs/philosophy.md"
-  printf '# workflow\n\n| Workflow | Entry |\n|---|---|\n| build | /go |\n\n## Flows\n\nBody.\n' > "$_cf/docs/workflow.md"
+  printf '# philosophy\n\n## Principle 1\n\nBody.\n' > "$_cf/docs/philosophy.md"
+  printf '# workflow\n\n## Flows\n\nBody.\n' > "$_cf/docs/workflow.md"
   printf '# architecture\n\nMachinery prose.\n' > "$_cf/docs/architecture.md"
   printf '# reference\n\nCurated external references.\n\n## Tooling\n\n- [x](https://example.com) — why.\n' > "$_cf/docs/reference.md"
   printf '# readme\n\nFolder structure + getting started.\n' > "$_cf/README.md"
@@ -252,8 +210,6 @@ mk_cod_fixture() {
   printf '# changelog\n' > "$_cf/CHANGELOG.md"
   printf '# todos\n' > "$_cf/TODOS.md"
   printf '# test contract stub\n' > "$_cf/spec/test-spec.md"
-  { printf '<!-- view stub -->\n# general view\n\nprose\n\n'; REPO_ROOT="$_cf" bash "$HELPER" --render general 2>/dev/null; } > "$_cf/docs/doc-general.md"
-  { printf '<!-- view stub -->\n# custom view\n\nprose\n\n'; REPO_ROOT="$_cf" bash "$HELPER" --render custom 2>/dev/null; } > "$_cf/docs/doc-custom.md"
   printf '%s' "$_cf"
 }
 
@@ -271,14 +227,14 @@ assert_one_finding() {
   fi
 }
 
-# 8a. clean fixture: all 6 PASS, CHECKS_RUN=6, FINDINGS=0, exit 0
+# 8a. clean fixture: all 4 PASS, CHECKS_RUN=4, FINDINGS=0, exit 0
 _CF=$(mk_cod_fixture)
 _COD=$(REPO_ROOT="$_CF" bash "$HELPER" --check-on-disk 2>&1); _COD_RC=$?
 if [ "$_COD_RC" -eq 0 ] \
-   && [ "$(printf '%s\n' "$_COD" | grep -c '^check: .* — PASS$')" -eq 6 ] \
-   && printf '%s\n' "$_COD" | grep -qx 'CHECKS_RUN=6' \
+   && [ "$(printf '%s\n' "$_COD" | grep -c '^check: .* — PASS$')" -eq 4 ] \
+   && printf '%s\n' "$_COD" | grep -qx 'CHECKS_RUN=4' \
    && printf '%s\n' "$_COD" | grep -qx 'FINDINGS=0'; then
-  ok "--check-on-disk clean fixture: 6 PASS lines + CHECKS_RUN=6 + FINDINGS=0 + exit 0"
+  ok "--check-on-disk clean fixture: 4 PASS lines + CHECKS_RUN=4 + FINDINGS=0 + exit 0"
 else
   fail_test "--check-on-disk clean fixture not clean (rc=$_COD_RC): $_COD"
 fi
@@ -292,23 +248,17 @@ _V=$(mk_cod_fixture); printf 'stray doc\n' > "$_V/docs/extra.md"
 assert_one_finding "$_V" "orphans" "orphan in docs/"
 
 # 8d. violation 3 — orphan in spec/: a NON-SELF-DECLARING overlay (declares
-# EXTRA.md but not itself => the overlay file IS the orphan, by design). The
-# custom view is regenerated against the merged registry and EXTRA.md is
-# created, so the ONLY finding is the orphan overlay.
+# EXTRA.md but not itself => the overlay file IS the orphan, by design). EXTRA.md
+# is created so the ONLY finding is the orphan overlay.
 _V=$(mk_cod_fixture)
 cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: EXTRA.md
-    section: custom
-    audit_class: operational
-    purpose: "An overlay-declared extra doc."
-    requirement: "Present."
-```
+# overlay fixture
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `EXTRA.md` | An overlay-declared extra doc. | Present. |
 EOF
 printf 'extra doc\n' > "$_V/EXTRA.md"
-{ printf '<!-- view stub -->\n# custom view\n\nprose\n\n'; REPO_ROOT="$_V" bash "$HELPER" --render custom 2>/dev/null; } > "$_V/docs/doc-custom.md"
 _OV_OUT=$(REPO_ROOT="$_V" bash "$HELPER" --check-on-disk 2>&1); _OV_RC=$?
 if [ "$_OV_RC" -eq 1 ] \
    && printf '%s\n' "$_OV_OUT" | grep -qF 'FINDING: stage1/orphans' \
@@ -327,17 +277,7 @@ assert_one_finding "$_V" "root-declared" "undeclared root *.md"
 _V=$(mk_cod_fixture); printf '\nShipped by F000999.\n' >> "$_V/docs/architecture.md"
 assert_one_finding "$_V" "human-doc-ids" "work-item ID in a human-doc"
 
-# 8g. violation 6 — missing front table on a front_table: required doc
-_V=$(mk_cod_fixture)
-printf '# philosophy\n\nNo table here.\n\n## Principle 1\n\nBody.\n' > "$_V/docs/philosophy.md"
-assert_one_finding "$_V" "front-table" "missing front table"
-
-# 8h. violation 7 — view-table drift (a hand-added row in the generated view)
-_V=$(mk_cod_fixture)
-printf '| fake.md | hand-added | drift |\n' >> "$_V/docs/doc-general.md"
-assert_one_finding "$_V" "views-render" "view-table drift"
-
-# 8i. registry-absent => REGISTRY=absent + exit 0 (probe BEFORE parse gates)
+# 8g. registry-absent => REGISTRY=absent + exit 0 (probe BEFORE parse gates)
 _AB=$(mk_tmp)
 _AB_OUT=$(REPO_ROOT="$_AB" bash "$HELPER" --check-on-disk 2>&1); _AB_RC=$?
 if [ "$_AB_RC" -eq 0 ] && printf '%s\n' "$_AB_OUT" | grep -qx 'REGISTRY=absent'; then
@@ -346,8 +286,8 @@ else
   fail_test "--check-on-disk registry-absent mis-handled (rc=$_AB_RC): $_AB_OUT"
 fi
 
-# 8j. present-but-invalid registry => [doc-sync-no-config] + exit 1
-printf 'garbage, no yaml block\n' > "$_AB/doc-spec.md"
+# 8h. present-but-invalid registry => [doc-sync-no-config] + exit 1
+printf 'garbage, no registry table\n' > "$_AB/doc-spec.md"
 _IV_OUT=$(REPO_ROOT="$_AB" bash "$HELPER" --check-on-disk 2>&1); _IV_RC=$?
 if [ "$_IV_RC" -eq 1 ] && printf '%s\n' "$_IV_OUT" | grep -qF '[doc-sync-no-config]'; then
   ok "--check-on-disk present-but-invalid registry keeps the [doc-sync-no-config] halt (exit 1)"

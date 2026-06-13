@@ -856,56 +856,6 @@ else
   echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
 fi
 
-# Check 20: front-table-required docs open with a summary table (hard lint)
-# For every doc-spec.md registry entry flagged `front_table: required` (enumerated
-# via doc-spec.sh --list-front-table-docs — registry-driven, no hardcoded
-# filenames), assert the doc OPENS with a Markdown table: a `^\|` row IMMEDIATELY
-# followed by a delimiter row (`^\|[ :|+-]*-[ :|+-]*\|$`) appearing BEFORE the
-# doc's first `^## ` heading. Stopping at the first `^## ` is essential — both
-# flagged docs already contain tables LATER (in a decision tree / a utility
-# section), so a whole-file grep would yield a false PASS. awk-only, bash-3.2-safe.
-# On a miss emit `  ERROR:` inline (the Check 15-19 style; NOT the fail() helper,
-# which prints `FAIL:` — the negative test greps a literal `  ERROR:` prefix).
-# Skips silently when doc-spec.md / the helper is absent (non-adopting repo).
-echo ""
-echo "=== Check 20: front-table-required docs open with a summary table ==="
-DOC_SPEC_HELPER="$REPO_ROOT/scripts/doc-spec.sh"
-# Resolve spec/-then-root so this check never silently SKIPs after the move.
-_C20_DOC_SPEC="$REPO_ROOT/spec/doc-spec.md"
-[ -f "$_C20_DOC_SPEC" ] || _C20_DOC_SPEC="$REPO_ROOT/doc-spec.md"
-if [ -f "$_C20_DOC_SPEC" ] && [ -x "$DOC_SPEC_HELPER" ]; then
-  FRONT_TABLE_DOCS=$(bash "$DOC_SPEC_HELPER" --list-front-table-docs 2>/dev/null || true)
-  C20_CHECKED=0
-  for d in $FRONT_TABLE_DOCS; do
-    C20_CHECKED=$((C20_CHECKED+1))
-    if [ ! -f "$REPO_ROOT/$d" ]; then
-      # Missing-on-disk is already an ERROR in Check 15a; don't double-count. Skip.
-      continue
-    fi
-    # awk: walk from the top; stop at the first `^## `. A table is found when the
-    # current line is a delimiter row AND the immediately-preceding line was a
-    # `^|` row. NOTE: a bare `exit 0` would jump to END and the END's `exit`
-    # would clobber the code — so set found=1 + `exit` (no arg, preserves it) and
-    # let `END { exit !found }` yield 0-on-hit / 1-on-miss.
-    if awk '
-      /^## / { exit }
-      /^\|[ :|+-]*-[ :|+-]*\|$/ {
-        if (prev ~ /^\|/) { found = 1; exit }
-      }
-      { prev = $0 }
-      END { exit !found }
-    ' "$REPO_ROOT/$d" >/dev/null 2>&1; then
-      echo "  PASS: $d opens with a summary table (before its first '## ' heading)"
-    else
-      echo "  ERROR: front-table-required doc $d does not open with a summary table before its first '## ' heading (front_table: required in doc-spec.md — add a leading Markdown table, e.g. a '|'-row followed by a '|---|' delimiter row)"
-      ERRORS=$((ERRORS+1))
-    fi
-  done
-  [ "$C20_CHECKED" -eq 0 ] && echo "  SKIP: no front_table: required docs declared in the doc-spec.md registry"
-else
-  echo "  SKIP: doc-spec.md / helper not present (non-adopting repo; check is conditional)"
-fi
-
 # Check 21: cj_goal permission-policy <-> enforcement-point drift (F000053/S000094) — ADVISORY.
 # permission-policy.md is the single declared allow/ask/deny contract; this check
 # flags drift between it and the enforcement points (advisory — exit 0, like
@@ -945,43 +895,85 @@ else
   fi
 fi
 
-# Check 22: cj_goal gate-spec <-> pipeline marker drift (F000054/S000096) — ADVISORY.
-# gate-spec.md is the single declared verification map (the doc-spec -> permission-
-# policy -> gate-spec family's third member); this check flags drift between the
-# registry and the four live CJ_goal_* pipelines (advisory — exit 0, like Check 21
-# / Check 18; a follow-up PR flips it strict once it runs clean across a few real
-# builds). Two asserts: (1) the registry parses; (2) per-mode marker drift — for
-# every gate, for every mode key in its `markers` map, a literal "[marker]" must
-# appear in at least one of that mode's files (skills/CJ_goal_<mode-dir>/pipeline.md
-# OR SKILL.md); an {enforced_by: ...} value is skipped (the gate runs but emits no
-# bracket marker). A missing literal marker => advisory finding (the pipeline
-# drifted from the contract, or the registry is stale). Skips silently when the
-# registry / parser is absent (non-adopting repo).
+# Check 24: test-spec coverage cross-check + gate marker drift (F000060 + F000063).
+# MIXED disposition: the coverage portion is HARD (exit 1), the per-mode gate
+# marker-drift portion (absorbed from the retired Check 22) is ADVISORY (exit 0).
+# SKIP-when-registry-absent.
+#
+# The two-tier test-spec registry (the spec/test-spec.md general rules + layers +
+# the spec/test-spec-custom.md units + gates overlay) declares one units: row per
+# verification unit (validate checks, test sub-suites + inline families,
+# standalone suites, CI workflows, git hooks) AND a gates: array of per-mode
+# pipeline-gate rows (the four-layer map's pipeline-gate layer, folded in from
+# the retired gate-spec.md). The check first validates the merged registry
+# (scripts/test-spec.sh --validate — the symmetric schema gate Check 16 runs for
+# the doc-spec), then runs --check-coverage to prove the registry and the live
+# surface still cover each other:
+#   forward — every unit's anchor matches LIVE in its declared source (a
+#             removed or renamed check orphans its row; a test file whose
+#             runner block disappears from scripts/test.sh orphans that row —
+#             the silent-skip catch);
+#   reverse — every live validate banner/comment, tests/*.test.sh on disk,
+#             workflow file, and installed hook resolves to exactly one row;
+#   floor   — reverse extraction must yield >= 20 live tokens, so extraction-
+#             grammar rot can never make the check vacuously pass. The reverse
+#             sweep + floor are units-gated: a rules-only registry (a seeded
+#             consumer repo with no overlay) reports "coverage cross-check
+#             inactive" and passes — never a misleading finding.
+# THEN the ADVISORY gate marker-drift cross-check (was Check 22): for every gate
+# in the gates: array, for every mode key in its `markers` map, a literal
+# "[marker]" must appear in at least one of that mode's files
+# (skills/CJ_goal_<mode-dir>/{pipeline.md,SKILL.md}); an {enforced_by: ...} value
+# is skipped. A missing literal marker => ADVISORY finding (exit 0 preserved —
+# this portion NEVER hard-fails, deliberately; only the coverage portion errors).
+# When the registry is absent (non-adopting repo) the check SKIPs — never an
+# ERROR (the helper itself classifies that as REGISTRY=absent + exit 0). A
+# present registry with a missing helper is a broken install and DOES error
+# (Check 16's posture for the doc-spec helper).
 echo ""
-echo "=== Check 22: cj_goal gate-spec marker drift (advisory) ==="
-GS_HELPER="$REPO_ROOT/scripts/gate-spec.sh"
-# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
-# The resolved path is used BOTH in the guard below AND in the awk parse.
-GS_FILE="$REPO_ROOT/spec/gate-spec.md"
-[ -f "$GS_FILE" ] || GS_FILE="$REPO_ROOT/gate-spec.md"
-if [ ! -f "$GS_FILE" ] || [ ! -x "$GS_HELPER" ]; then
-  echo "  SKIP: gate-spec.md / scripts/gate-spec.sh absent (non-adopting repo)"
+echo "=== Check 24: test-spec coverage cross-check + gate marker drift ==="
+TS_HELPER="$REPO_ROOT/scripts/test-spec.sh"
+TS_REGISTRY="$REPO_ROOT/spec/test-spec.md"
+[ -f "$TS_REGISTRY" ] || TS_REGISTRY="$REPO_ROOT/test-spec.md"
+# The gates: array lives in the overlay (next to the general file).
+TS_OVERLAY="$(dirname "$TS_REGISTRY")/test-spec-custom.md"
+if [ ! -f "$TS_REGISTRY" ]; then
+  echo "  SKIP: test-spec.md registry not present (non-adopting repo; check is conditional)"
+elif [ ! -f "$TS_HELPER" ]; then
+  echo "  ERROR: test-spec.md registry present but scripts/test-spec.sh helper missing"
+  ERRORS=$((ERRORS+1))
 else
-  GS_DRIFT=0
-  if ! bash "$GS_HELPER" --validate >/dev/null 2>&1; then
-    echo "  ADVISORY: gate-spec.md does not parse ($(bash "$GS_HELPER" --validate 2>&1 | head -1))"
-    GS_DRIFT=$((GS_DRIFT+1))
+  if TS_VAL_OUT=$(bash "$TS_HELPER" --validate 2>&1); then
+    echo "  PASS: test-spec registry valid ($(printf '%s\n' "$TS_VAL_OUT" | tail -1))"
   else
-    # Per-mode marker drift guard. Reuse the helper's own awk parse to extract
-    # one `<gate-id> <mode> <value>` triple per declared marker, then grep each
-    # literal in that mode's pipeline.md OR SKILL.md. mode-dir map: feature ->
-    # CJ_goal_feature, defect -> CJ_goal_defect, task -> CJ_goal_task, todo ->
-    # CJ_goal_todo_fix. An {enforced_by:...} value emits no triple (skipped).
+    echo "  ERROR: test-spec registry invalid: $TS_VAL_OUT"
+    ERRORS=$((ERRORS+1))
+  fi
+  if TS_OUT=$(bash "$TS_HELPER" --check-coverage 2>&1); then
+    echo "  PASS: test-spec coverage cross-check clean ($(printf '%s\n' "$TS_OUT" | tail -1))"
+  else
+    while IFS= read -r _ts_line; do
+      echo "  $_ts_line"
+    done <<TS_FINDINGS
+$TS_OUT
+TS_FINDINGS
+    echo "  ERROR: test-spec coverage cross-check failed — add/fix the units row(s) in spec/test-spec-custom.md (or wire the orphaned unit)"
+    ERRORS=$((ERRORS+1))
+  fi
+
+  # --- ADVISORY: per-mode gate marker drift (absorbed Check 22; exit 0) ---
+  # Parse one `<gate-id> <mode> <literal>` triple per declared bracket marker
+  # from the gates: array in the overlay, then grep each literal in that mode's
+  # pipeline.md OR SKILL.md. An {enforced_by:...} value emits no triple (skipped).
+  # A missing literal => ADVISORY finding only (never increments ERRORS).
+  GS_DRIFT=0
+  if [ -f "$TS_OVERLAY" ]; then
     GS_TRIPLES=$(awk '
       /^```yaml/ { if (!seen) { f=1; seen=1; next } }
       /^```/     { if (f) { f=0 } }
       !f { next }
       /^gates:/ { in_gates=1; next }
+      /^(rules|units|layers):/ { in_gates=0; next }
       !in_gates { next }
       /^[[:space:]]*-[[:space:]]*id:/ { cur_id=$3; in_markers=0; next }
       /^[[:space:]]*layer:/ || /^[[:space:]]*order:/ || /^[[:space:]]*disposition:/ || /^[[:space:]]*backing:/ || /^[[:space:]]*checks:/ { in_markers=0; next }
@@ -994,7 +986,7 @@ else
         gsub(/^"|"$/, "", val)
         print cur_id "\t" mode "\t" val
       }
-    ' "$GS_FILE")
+    ' "$TS_OVERLAY")
     while IFS="$(printf '\t')" read -r _gid _mode _marker; do
       [ -n "$_marker" ] || continue
       case "$_mode" in
@@ -1019,92 +1011,9 @@ $GS_TRIPLES
 EOF
   fi
   if [ "$GS_DRIFT" -eq 0 ]; then
-    echo "  PASS: gate-spec registry + the four CJ_goal_* pipelines in sync (parses; every declared literal marker present in its mode's files)"
+    echo "  PASS: gate marker drift — the gates: array + the four CJ_goal_* pipelines in sync (every declared literal marker present in its mode's files)"
   else
-    echo "  ADVISORY: $GS_DRIFT gate-spec marker drift finding(s) (advisory in v1; a follow-up flips this strict once it runs clean across a few real builds)"
-  fi
-fi
-
-# Check 23: doc-spec generated views in sync with the registry (F000056/S000098) — HARD.
-# docs/doc-general.md + docs/doc-custom.md are GENERATED views of the merged
-# doc-spec registry (general + the optional doc-spec-custom.md overlay — like
-# README.md is generated from the skill catalog). This check regenerates them
-# into a temp dir via scripts/generate-doc-views.sh and diffs against the
-# on-disk docs/ copies; any drift is an ERROR (run the generator). Using the
-# generator (not bare --render) makes the diff header-safe — the generator owns
-# the header on both sides. Skips cleanly if the generator or the doc-spec
-# parser is absent (non-adopting / broken-install repo).
-echo ""
-echo "=== Check 23: doc-spec generated views in sync ==="
-DV_GEN="$REPO_ROOT/scripts/generate-doc-views.sh"
-DV_SPEC="$REPO_ROOT/scripts/doc-spec.sh"
-if [ ! -f "$DV_GEN" ] || [ ! -f "$DV_SPEC" ]; then
-  echo "  SKIP: scripts/generate-doc-views.sh / scripts/doc-spec.sh absent (non-adopting repo)"
-elif [ ! -f "$REPO_ROOT/docs/doc-general.md" ] || [ ! -f "$REPO_ROOT/docs/doc-custom.md" ]; then
-  echo "  SKIP: docs/doc-general.md / docs/doc-custom.md not present (views not adopted)"
-else
-  DV_TMP=$(mktemp -d)
-  if bash "$DV_GEN" --output-dir "$DV_TMP" >/dev/null 2>&1 \
-     && diff "$DV_TMP/doc-general.md" "$REPO_ROOT/docs/doc-general.md" >/dev/null 2>&1 \
-     && diff "$DV_TMP/doc-custom.md" "$REPO_ROOT/docs/doc-custom.md" >/dev/null 2>&1; then
-    echo "  PASS: docs/doc-general.md + docs/doc-custom.md match the registry"
-  else
-    echo "  ERROR: doc views drifted from the registry — run scripts/generate-doc-views.sh"
-    ERRORS=$((ERRORS+1))
-  fi
-  rm -rf "$DV_TMP"
-fi
-
-# Check 24: test-spec coverage cross-check (F000060) — HARD, SKIP-when-registry-absent.
-# The two-tier test-spec registry (the spec/test-spec.md general rules + the
-# spec/test-spec-custom.md units overlay) declares one units: row per
-# verification unit (validate checks, test sub-suites + inline families,
-# standalone suites, CI workflows, git hooks). The check first validates the
-# merged registry (scripts/test-spec.sh --validate — the symmetric schema gate
-# Check 16 runs for the doc-spec), then runs --check-coverage to prove the
-# registry and the live surface still cover each other:
-#   forward — every unit's anchor matches LIVE in its declared source (a
-#             removed or renamed check orphans its row; a test file whose
-#             runner block disappears from scripts/test.sh orphans that row —
-#             the silent-skip catch);
-#   reverse — every live validate banner/comment, tests/*.test.sh on disk,
-#             workflow file, and installed hook resolves to exactly one row;
-#   floor   — reverse extraction must yield >= 20 live tokens, so extraction-
-#             grammar rot can never make the check vacuously pass. The reverse
-#             sweep + floor are units-gated: a rules-only registry (a seeded
-#             consumer repo with no overlay) reports "coverage cross-check
-#             inactive" and passes — never a misleading finding.
-# When the registry is absent (non-adopting repo) the check SKIPs — never an
-# ERROR (the helper itself classifies that as REGISTRY=absent + exit 0). A
-# present registry with a missing helper is a broken install and DOES error
-# (Check 16's posture for the doc-spec helper).
-echo ""
-echo "=== Check 24: test-spec coverage cross-check ==="
-TS_HELPER="$REPO_ROOT/scripts/test-spec.sh"
-TS_REGISTRY="$REPO_ROOT/spec/test-spec.md"
-[ -f "$TS_REGISTRY" ] || TS_REGISTRY="$REPO_ROOT/test-spec.md"
-if [ ! -f "$TS_REGISTRY" ]; then
-  echo "  SKIP: test-spec.md registry not present (non-adopting repo; check is conditional)"
-elif [ ! -f "$TS_HELPER" ]; then
-  echo "  ERROR: test-spec.md registry present but scripts/test-spec.sh helper missing"
-  ERRORS=$((ERRORS+1))
-else
-  if TS_VAL_OUT=$(bash "$TS_HELPER" --validate 2>&1); then
-    echo "  PASS: test-spec registry valid ($(printf '%s\n' "$TS_VAL_OUT" | tail -1))"
-  else
-    echo "  ERROR: test-spec registry invalid: $TS_VAL_OUT"
-    ERRORS=$((ERRORS+1))
-  fi
-  if TS_OUT=$(bash "$TS_HELPER" --check-coverage 2>&1); then
-    echo "  PASS: test-spec coverage cross-check clean ($(printf '%s\n' "$TS_OUT" | tail -1))"
-  else
-    while IFS= read -r _ts_line; do
-      echo "  $_ts_line"
-    done <<TS_FINDINGS
-$TS_OUT
-TS_FINDINGS
-    echo "  ERROR: test-spec coverage cross-check failed — add/fix the units row(s) in spec/test-spec-custom.md (or wire the orphaned unit)"
-    ERRORS=$((ERRORS+1))
+    echo "  ADVISORY: $GS_DRIFT gate marker drift finding(s) (advisory — this portion never hard-fails; only the coverage cross-check above errors)"
   fi
 fi
 

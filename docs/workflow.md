@@ -758,8 +758,8 @@ subagents), feeding the post-QA checkpoint.
 **Touches:**
 
 - **Scripts · tools · shell:** `scripts/doc-spec.sh` (`--seed` / `--validate` /
-  `--check-on-disk` — the Stage-1 engine — / the merged list subcommands /
-  `--render`), plus the Agent tool for the standalone fresh-context dispatch of
+  `--check-on-disk` — the Stage-1 engine — / the merged list subcommands),
+  plus the Agent tool for the standalone fresh-context dispatch of
   Stages 2+3.
 - **Reads / writes:** reads the merged registry (`spec/doc-spec.md` +
   `spec/doc-spec-custom.md`), every declared doc, and the live repo state

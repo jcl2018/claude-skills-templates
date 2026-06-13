@@ -1,19 +1,23 @@
 # test-spec-custom.md — this repo's verification-surface overlay
 
 This file is the **custom tier** of the two-tier test contract: the machine
-source of truth for **this repo's verification surface**, one `units:` row per
-verification unit — every numbered `scripts/validate.sh` check (both ID
-namespaces) and warning check, every registered `tests/*.test.sh` sub-suite
-and inline `scripts/test.sh` family, the standalone suites (`test-deploy`,
-`eval`, `windows-smoke`), the GitHub Actions workflows, and the git hooks.
-`scripts/test-spec.sh` merges these rows into the portable general contract
-([`spec/test-spec.md`](test-spec.md), the seed — never edited in place), so
-consumers see ONE registry.
+source of truth for **this repo's verification surface**. It carries two
+top-level arrays. (1) A `units:` block — one row per verification unit: every
+numbered `scripts/validate.sh` check (both ID namespaces) and warning check,
+every registered `tests/*.test.sh` sub-suite and inline `scripts/test.sh`
+family, the standalone suites (`test-deploy`, `eval`, `windows-smoke`), the
+GitHub Actions workflows, and the git hooks. (2) A `gates:` block — one row per
+per-mode pipeline-gate halt (the four-layer map's `pipeline-gate` layer, folded
+in from the retired `gate-spec.md`). `scripts/test-spec.sh` merges both into the
+portable general contract ([`spec/test-spec.md`](test-spec.md), the seed — which
+carries the `rules:` + the four-layer `layers:` registry — never edited in
+place), so consumers see ONE verification contract.
 
-This registry deliberately answers the CHECK-level question only; the LAYER
-question (what stops a broken cj_goal change from landing, and at which layer
-— including the pipeline-gate halts) stays with
-[`spec/gate-spec.md`](gate-spec.md). Pipeline-gate units are NOT rows here.
+The `gates:` rows are a SEPARATE array, NOT `units:` rows: the `units:` `layer`
+enum is `{local-hook, ci}` and would reject `pipeline-gate`. The general
+test-spec carries the four `layers:` (local-hook / ci / pipeline-gate /
+ratchet); this overlay carries the per-mode `gates:` that run in the
+`pipeline-gate` layer.
 
 ## How the registry is enforced
 
@@ -58,8 +62,8 @@ verification unit:
   check is what proves the file is actually WIRED into the suite (test
   discovery is hand-wired, not glob-based; an unregistered test file silently
   never runs).
-- `layer` — the gate-spec layer that OWNS the unit, closed enum
-  `local-hook | ci`. Per the gate-spec doctrine ("validate.sh-as-a-whole is
+- `layer` — the four-layer-map layer that OWNS the unit, closed enum
+  `local-hook | ci`. Per the doctrine ("validate.sh-as-a-whole is
   the ci layer"), `validate` rows record `ci`; hook rows record `local-hook`.
   Firing points are fully captured by `trigger`.
 - `disposition` — closed enum `hard-fail | advisory` (failure severity only).
@@ -97,17 +101,38 @@ Row-granularity conventions the extraction grammar honors:
 
 `purpose` and `label` are single-line double-quoted strings (no YAML
 folding). The parser is `scripts/test-spec.sh`
-(`--validate | --list-rules | --list-units | --check-coverage | --seed`), an
-awk-only reader in the `gate-spec.sh` idiom; it resolves the general registry
-`spec/test-spec.md` first, then a root `test-spec.md` fallback, and this
-overlay next to it. `--validate` additionally lints every `label` + `purpose`
-for the work-item-ID pattern, so an ID slip fails at the registry.
+(`--validate | --list-rules | --list-units | --list-layers | --list-gates |
+--check-coverage | --seed`), an awk-only reader; it resolves the general
+registry `spec/test-spec.md` first, then a root `test-spec.md` fallback, and
+this overlay next to it. `--validate` additionally lints every `label` +
+`purpose` for the work-item-ID pattern, so an ID slip fails at the registry.
+
+### The `gates:` array (per-mode pipeline-gate rows)
+
+A `gates[]` entry declares one pipeline-gate halt:
+
+- `id` — stable slug, unique across the `gates:` array, `[a-z0-9-]+`.
+- `layer` — always `pipeline-gate` (the closed value; this array's whole point
+  is the layer the `units:` enum cannot hold).
+- `order` — the canonical run order; a mode runs its subset of gates in this
+  order.
+- `markers` — a **per-mode map** keyed by `feature | defect | task | todo`. A
+  mode absent from the map does not run that gate. A map value is either a
+  literal `"[marker]"` (validate.sh Check 24's advisory marker-drift
+  cross-check greps for it in that mode's `skills/CJ_goal_<mode>/{pipeline,SKILL}.md`)
+  OR `{ enforced_by: subagent | auq }` (the gate runs but emits no bracket
+  marker, so the cross-check records it without grepping — the escape hatch
+  that keeps the baseline honestly clean).
+- `disposition` — closed enum `hard-fail | advisory | mixed | halt`.
+- `backing` — free text: the live enforcement point.
+- `checks` — free text: what the gate proves.
 
 ## Machine registry (overlay)
 
 ```yaml
-# test-spec custom overlay (units merged into spec/test-spec.md by
-# scripts/test-spec.sh; consumed by validate.sh Check 24 --check-coverage)
+# test-spec custom overlay (units + gates merged into spec/test-spec.md by
+# scripts/test-spec.sh; consumed by validate.sh Check 24 --check-coverage +
+# the advisory per-mode marker-drift cross-check)
 schema_version: 1
 units:
   # ---- validate family: scripts/validate.sh error checks (comment-anchored) ----
@@ -319,16 +344,6 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "No registry human-doc contains an internal work-item ID; skips when the doc registry is absent."
-  - id: validate-check-20
-    family: validate
-    label: "Check 20 — front-table docs open with a summary table"
-    anchor: "=== Check 20:"
-    source: scripts/validate.sh
-    layer: ci
-    disposition: hard-fail
-    skips_when_absent: true
-    trigger: "pre-commit pr-ci"
-    purpose: "Every front-table-flagged doc opens with a Markdown table before its first section heading; skips when the doc registry is absent."
   - id: validate-check-21
     family: validate
     label: "Check 21 — permission-policy drift"
@@ -339,36 +354,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "The permission policy parses, the handoff gate derives its denylist from it, and every goal orchestrator references it; skips when the policy is absent."
-  - id: validate-check-22
-    family: validate
-    label: "Check 22 — gate-spec marker drift"
-    anchor: "=== Check 22:"
-    source: scripts/validate.sh
-    layer: ci
-    disposition: advisory
-    skips_when_absent: true
-    trigger: "pre-commit pr-ci"
-    purpose: "The gate-spec registry parses and every declared literal halt marker appears in its mode's pipeline files; skips when the registry is absent."
-  - id: validate-check-23
-    family: validate
-    label: "Check 23 — generated doc views in sync"
-    anchor: "=== Check 23:"
-    source: scripts/validate.sh
-    layer: ci
-    disposition: hard-fail
-    skips_when_absent: true
-    trigger: "pre-commit pr-ci"
-    purpose: "Regenerates the generated doc views (general, custom) from the merged doc-spec registry into a temp dir and diffs against docs/; any drift fails."
   - id: validate-check-24
     family: validate
-    label: "Check 24 — test-spec coverage cross-check"
+    label: "Check 24 — test-spec coverage cross-check + gate marker drift"
     anchor: "=== Check 24:"
     source: scripts/validate.sh
     layer: ci
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
-    purpose: "Validates the merged test-spec registry, then cross-checks coverage: forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens; skips when the registry is absent."
+    purpose: "Validates the merged test-spec registry, then cross-checks coverage (forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens) — hard; then the advisory per-mode gate marker-drift cross-check over the gates array (absorbed from the retired Check 22); skips when the registry is absent."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -455,7 +450,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Doc registry shape, every doc-spec helper subcommand, strict no-config gates, and the byte-identical embedded seed."
+    purpose: "Doc registry table shape, every doc-spec helper subcommand, strict no-config gates (malformed table row, no-table registry), and the byte-identical embedded seed."
   - id: test-cj-goal-doc-sync-wiring
     family: test
     label: "goal doc-sync wiring suite — symmetric step wiring"
@@ -518,7 +513,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, render-custom from the overlay, and the --check-on-disk Stage-1 battery (clean fixture; seven seeded violations each isolated to its own stage1/<id> finding; registry-absent REGISTRY=absent; invalid-registry halt)."
+    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and the --check-on-disk Stage-1 battery (clean fixture; four seeded violations each isolated to its own stage1/<id> finding; registry-absent REGISTRY=absent; invalid-registry halt)."
   - id: test-test-spec
     family: test
     label: "test-spec suite — two-tier registry parser + coverage drills"
@@ -555,7 +550,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Static guards that the trajectory-QA, permission-policy, gate-spec and within-phase-receipt fixes stay in place."
+    purpose: "Static guards that the trajectory-QA, permission-policy and within-phase-receipt fixes stay in place."
   - id: testsh-catalog-smoke
     family: test
     label: "Inline — catalog + frontmatter + doc-triplet smoke"
@@ -573,7 +568,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Doctor, lint and deps scripts run without crashing; the README and doc-view generators are idempotent (temp-only)."
+    purpose: "Doctor, lint and deps scripts run without crashing; the README generator is idempotent (temp-only)."
   - id: testsh-skill-creation-integration
     family: test
     label: "Inline — manual skill-creation integration cycle"
@@ -757,4 +752,117 @@ units:
     disposition: advisory
     trigger: "post-merge"
     purpose: "Re-deploys skills, templates and rules into the local home after pulls that touch them; best-effort, never blocks git."
+gates:
+  # The per-mode pipeline-gate rows (folded in from the retired gate-spec.md).
+  # These are a SEPARATE top-level array, NOT units: rows — the units: `layer`
+  # enum is {local-hook, ci} and would reject `pipeline-gate`. Each gate's
+  # `markers` is a per-mode map (feature|defect|task|todo); a mode absent from
+  # the map does not run that gate. A map value is either a literal "[marker]"
+  # (validate.sh Check 24's advisory marker-drift cross-check greps for it in
+  # that mode's pipeline files) OR { enforced_by: subagent | auq } (the gate
+  # runs but emits no bracket marker, so the cross-check records it without
+  # grepping). order = the canonical run order; a mode runs its subset in this
+  # order. backing = the live enforcement point; checks = what the gate proves.
+  # --- same concept, DIFFERENT marker per mode, absent in todo (todo runs inside the drain worktree) ---
+  - id: isolation
+    layer: pipeline-gate
+    order: 10
+    markers:
+      feature: "[feature-not-isolated]"
+      defect:  "[investigate-not-isolated]"
+      task:    "[task-not-isolated]"
+      # todo: omitted — todo runs inside the drain worktree, no isolation gate
+    disposition: halt
+    backing: "cj-worktree-init.sh isolation assertion"
+    checks: "the build runs in a clean, isolated worktree (no in-place source write)"
+  # --- feature-only: the design-summary approval gate ---
+  - id: design-gate
+    layer: pipeline-gate
+    order: 20
+    markers:
+      feature: "[design-gate-declined]"
+      # defect/task/todo: omitted — no /office-hours design phase
+    disposition: halt
+    backing: "design-summary approval AUQ (feature pipeline)"
+    checks: "the APPROVED design is confirmed before the autonomous build budget is spent"
+  # --- defect-only: the investigate Iron-Law gate ---
+  - id: root-cause
+    layer: pipeline-gate
+    order: 25
+    markers:
+      defect: "[investigate-no-root-cause]"
+      # feature/task/todo: omitted — only defect roots a fix in /investigate
+    disposition: halt
+    backing: "/investigate Iron-Law gate (defect pipeline)"
+    checks: "a populated root cause exists before anything is promoted or shipped"
+  # --- task-only: the hard complexity gate ---
+  - id: complexity
+    layer: pipeline-gate
+    order: 30
+    markers:
+      task: "[task-too-complex]"
+      # feature/defect/todo: omitted — only task gates on size
+    disposition: halt
+    backing: "cj-task-scaffold.sh hard complexity gate (task pipeline)"
+    checks: "the task is genuinely small (not disguised design or bug work)"
+  # --- a gate feature/defect/task run with a literal marker; todo enforces WITHOUT a marker ---
+  - id: qa
+    layer: pipeline-gate
+    order: 40
+    markers:
+      feature: "[qa-red]"
+      defect:  "[qa-red]"
+      task:    "[qa-red]"
+      todo:    { enforced_by: subagent }   # runs QA, emits no bracket marker
+    disposition: halt
+    backing: "/CJ_qa-work-item leaf subagent"
+    checks: "the work-item's test rows pass"
+  # --- universal, same marker in all four: the post-QA audit-findings checkpoint ---
+  - id: qa-audit
+    layer: pipeline-gate
+    order: 45
+    markers:
+      feature: "[qa-audit-declined]"
+      defect:  "[qa-audit-declined]"
+      task:    "[qa-audit-declined]"
+      todo:    "[qa-audit-declined]"
+    disposition: halt
+    backing: "/CJ_qa-work-item Step 8.6 audit block + orchestrator checkpoint AUQ"
+    checks: "the operator saw the doc/test audit findings before the PR budget was spent"
+  # --- universal, same marker in all four: the case enforced literally ---
+  - id: doc-sync
+    layer: pipeline-gate
+    order: 50
+    markers:
+      feature: "[doc-sync-red]"
+      defect:  "[doc-sync-red]"
+      task:    "[doc-sync-red]"
+      todo:    "[doc-sync-red]"
+    disposition: halt
+    backing: "/CJ_document-release (Step 5.5 doc-sync)"
+    checks: "doc drift is folded into the same PR (registry parses; declared docs current)"
+  # --- universal, same marker in all four ---
+  - id: portability
+    layer: pipeline-gate
+    order: 60
+    markers:
+      feature: "[portability-red]"
+      defect:  "[portability-red]"
+      task:    "[portability-red]"
+      todo:    "[portability-red]"
+    disposition: halt
+    backing: "cj-goal-common.sh --phase portability-audit (PORTABILITY_STRICT=1)"
+    checks: "no touched skill declares a portability tier it does not honor"
+  # --- feature/defect/task run a ship gate with a literal marker; todo ships via /land-and-deploy ---
+  - id: ship
+    layer: pipeline-gate
+    order: 70
+    markers:
+      feature: "[ship-declined]"
+      defect:  "[ship-declined]"
+      task:    "[ship-declined]"
+      todo:    { enforced_by: auq }   # /ship Gate #2 fires per drained TODO; no [ship-declined] bracket
+    disposition: halt
+    backing: "/ship Gate #2 (always human)"
+    checks: "the change reaches a human before it merges (PR-stop + human merge)"
 ```
