@@ -130,3 +130,5 @@ blocked_by: ""
 - 2026-06-12 [decision] D15.2 — curated v1 (real entries grounded only in sources the repo demonstrably uses, verified by grep), not an empty stub; the operator prunes/extends at the PR.
 - 2026-06-12 [decision] No `front_table` — reference.md is a categorized link shelf, not a principle/workflow index; only philosophy.md + workflow.md require a leading summary table, so Check 20 deliberately does not apply.
 - 2026-06-12 [decision] `validate.sh` untouched — registry-reading checks auto-cover the new declared doc; an extra validate.sh edit would be redundant and out of scope.
+- 2026-06-13T02:51:22Z [feature-pr-opened] F000062 v6.0.67 PR #263
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/263
