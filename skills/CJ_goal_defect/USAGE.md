@@ -3,7 +3,7 @@ skill-name: "CJ_goal_defect"
 version: 0.1.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-13T04:02:12Z"
+last-updated: "2026-06-13T08:50:59Z"
 ---
 
 # Skill Usage: CJ_goal_defect
@@ -41,11 +41,16 @@ Then a 4-step chain: throwaway `.inbox/<slug>/DRAFT.md` scratchpad →
 `/investigate` as Agent subagent (Iron-Law: no RCA ⇒ HALT) → on populated RCA,
 write RCA+test-plan and promote draft to a canonical
 `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted ONLY after
-the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent (runs the doc/test
-audits inline at its Step 8.6) → the QA-audit checkpoint AUQ (Step 8.5 —
-ALWAYS; Continue past findings journals `[qa-audit-waived]`, Halt journals
-`[qa-audit-declined]` / `halted_at_qa_audit`) →
-`/CJ_document-release` (Step 5.5 doc-sync) → a pre-ship portability gate
+the Iron-Law gate passes) → `/CJ_qa-work-item` leaf subagent (with the audits
+DEFERRED — the orchestrator passes a literal `DEFER_AUDIT: true` directive so QA
+skips its Step 8.6c/8.6d doc/test audits and returns `AUDITS=deferred`, while
+still running the 8.6a/8.6b spec-overlay writes) → an idempotent pre-doc-sync
+commit → `/CJ_document-release` (Step 5.5 doc-sync) → ONE combined READ-ONLY
+post-sync doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`, dispatched by the
+orchestrator on the POST-sync tree) → the QA-audit checkpoint AUQ (Step 8.5 —
+ALWAYS, on that POST-sync audit report; Continue past findings journals
+`[qa-audit-waived]`, Halt journals `[qa-audit-declined]` / `halted_at_qa_audit`)
+→ a pre-ship portability gate
 (Step 5.7, `cj-goal-common.sh --phase portability-audit`, run STRICT; HALTs on a
 dishonest skill portability declaration before the PR) → `/ship` (Gate #2 always
 human) → `/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of the
@@ -73,8 +78,11 @@ subagent-spawns-subagent).
 ## Related skills
 
 - `/investigate` (upstream gstack) — Iron-Law root-cause analysis subagent
-- `/CJ_qa-work-item` — leaf subagent that runs the test-plan rows; its Step 8.6
-  runs `/CJ_doc_audit` + `/CJ_test_audit` inline and feeds the Step 8.5 checkpoint
+- `/CJ_qa-work-item` — leaf subagent that runs the test-plan rows; when
+  orchestrator-driven it DEFERS its Step 8.6c/8.6d audits (`DEFER_AUDIT: true`),
+  and the orchestrator runs ONE combined read-only post-sync `/CJ_doc_audit` +
+  `/CJ_test_audit` AFTER doc-sync, which feeds the Step 8.5 checkpoint (standalone
+  `/CJ_qa-work-item` still runs them inline)
 - `/ship` (upstream gstack) — opens PR with Gate #2
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/CJ_goal_feature` — sibling top-level verb for feature-from-topic

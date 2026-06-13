@@ -3,7 +3,7 @@ skill-name: "CJ_qa-work-item"
 version: 1.0.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-06T03:46:08Z"
+last-updated: "2026-06-13T07:50:02Z"
 ---
 
 # Skill Usage: CJ_qa-work-item
@@ -31,14 +31,29 @@ last-updated: "2026-06-06T03:46:08Z"
 Runs each TEST-SPEC row as a smoke test (and, for user-stories, dispatches a
 fresh-context E2E subagent per test row). Writes findings to the tracker journal,
 transitions Phase 2 QA-owned gates, halts on red. On every GREEN path it then
-runs the Step 8.6 audit block: refresh the two custom spec overlays
-(`spec/test-spec-custom.md` units, `spec/doc-spec-custom.md` rows) FIRST, then
-run `/CJ_doc_audit` + `/CJ_test_audit` inline. Audit findings ride the green
-RESULT's `AUDITS=` field + a fenced `AUDIT_FINDINGS` block — they never flip QA
-red; the calling cj_goal orchestrator's post-QA checkpoint AUQ owns the
-Continue/Halt decision. Output is structured (gate transitions + journal
-entries + the extended RESULT); orchestrators read the result and either
-advance, prompt the checkpoint, or halt the pipeline.
+runs the Step 8.6 audit block, which has two halves with different deferral
+behavior:
+
+- **8.6a/8.6b — overlay WRITES (always inline):** refresh the two custom spec
+  overlays (`spec/test-spec-custom.md` units, `spec/doc-spec-custom.md` rows).
+  These run on every green path regardless of any defer directive — they must
+  land pre-sync so the orchestrator's commit + doc-sync fold them into the PR.
+- **8.6c/8.6d — three-stage AUDITS (deferrable):** Step 8.6.0 checks the
+  dispatch prompt for the literal `DEFER_AUDIT: true` directive (the
+  orchestrator-to-QA defer signal — a greppable string, NOT an argv flag, since
+  QA is dispatched as a subagent prompt). Standalone (no directive): run
+  `/CJ_doc_audit` + `/CJ_test_audit` inline and emit the `AUDIT_FINDINGS` block,
+  exactly as before — standalone QA is the last doc-mutating point, so the
+  inline audit stays. Orchestrator-driven (`DEFER_AUDIT: true`): SKIP 8.6c/8.6d,
+  report `AUDITS=deferred`, emit no `AUDIT_FINDINGS` — the orchestrator runs the
+  audit at the authoritative post-sync point.
+
+Audit findings ride the green RESULT's `AUDITS=` field + (when not deferred) a
+fenced `AUDIT_FINDINGS` block — they never flip QA red; the calling cj_goal
+orchestrator's post-QA checkpoint AUQ owns the Continue/Halt decision. Output is
+structured (gate transitions + journal entries + the extended RESULT);
+orchestrators read the result and either advance, prompt the checkpoint, or halt
+the pipeline.
 
 ## Common pitfalls
 

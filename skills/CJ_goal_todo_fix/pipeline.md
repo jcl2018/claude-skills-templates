@@ -43,28 +43,69 @@ silent / no-AUQ), minus the scaffold step (3.1):
    on halt-on-red regardless of `--quiet`.
 
 2. **QA.** On impl green, dispatch `/CJ_qa-work-item` via the **Agent** tool
-   against the same `$WORK_ITEM_DIR`:
+   against the same `$WORK_ITEM_DIR`. The dispatch prompt carries the literal
+   directive `DEFER_AUDIT: true` so QA DEFERS its three-stage audit (qa.md Step
+   8.6c/8.6d) — the orchestrator runs that audit ONCE at the authoritative
+   post-sync point (Step 5.5b). QA still runs its 8.6a/8.6b overlay writes inline
+   and returns `AUDITS=deferred` with NO `AUDIT_FINDINGS` block:
 
    ```
    ROLE: /CJ_qa-work-item runner for /CJ_goal_todo_fix (silent — no AUQ).
-   TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. Return the
-   RESULT line verbatim: RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>.
+   DEFER_AUDIT: true
+   TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. The literal
+   DEFER_AUDIT: true directive above tells QA to run its Step 8.6a/8.6b overlay
+   writes inline but DEFER the 8.6c/8.6d three-stage audit (the orchestrator runs
+   the post-sync audit itself at Step 5.5b). Return the RESULT line verbatim —
+   including the AUDITS= field (it will read AUDITS=deferred,spec_updates:<...>);
+   do NOT expect an AUDIT_FINDINGS block on the deferred path:
+   RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates:<...>
    <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
    ```
 
    On QA red: **HALT** with end_state `halted_at_qa` (re-use the CJ_qa-work-item
    halt marker — do NOT mint a new one), write the journal entry, and stop.
 
-Only on QA green does control proceed to Step 5.5 (Doc-sync). Both subagents
-are depth-≤2 leaves (they do NOT spawn further subagents — the F000027 wall).
+Only on QA green does control proceed to Step 5.4 (the pre-doc-sync commit),
+then Step 5.5 (Doc-sync), then Step 5.5b (the post-sync audit), then the
+QA-audit checkpoint (consuming the post-sync report; SKILL.md), then Step 5.7
+(portability), then `/ship`. Both subagents are depth-≤2 leaves (they do NOT
+spawn further subagents — the F000027 wall).
+
+### Step 5.4: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
+
+`scripts/todo_fix.sh` bash-scaffolds the T-task but does NOT commit, and the
+impl + QA leaf subagents WRITE the fix + the qa.md 8.6a/8.6b spec-overlay
+refreshes without committing; `/ship` (the committer) runs after doc-sync.
+`/CJ_document-release` (Step 5.5) hard-refuses on an uncommitted NON-DOC change
+(`[doc-sync-red]`). This NEW orchestrator-layer step commits the QA-green tree so
+doc-sync never hits the uncommitted-non-doc refusal during a drain.
+
+The commit is **idempotent**: it skips when the tree is already clean at HEAD, so
+a resume after the commit already ran does NOT double-commit. It records NO new
+phase boundary — it is gated on the live tree state:
+
+```bash
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if git -C "$_REPO_ROOT" diff --quiet && git -C "$_REPO_ROOT" diff --cached --quiet; then
+  echo "[pre-doc-sync-commit] tree already clean at HEAD — nothing to commit (idempotent skip)."
+else
+  git -C "$_REPO_ROOT" add -A
+  git -C "$_REPO_ROOT" commit -m "fix: $T_ID $TODO_HEADING_OR_T_ID (QA-green; pre-doc-sync commit)" >/dev/null
+  echo "[pre-doc-sync-commit] committed the QA-green fix + 8.6a/8.6b overlay writes (clean tree for doc-sync)."
+fi
+```
+
+(`/ship` adds the VERSION/CHANGELOG bump as a follow-on commit.) Only after a
+clean tree is established does control proceed to Step 5.5 (doc-sync).
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
-Doc-sync runs INLINE between the QA-green boundary (the `/CJ_qa-work-item`
-leaf-subagent green return) and `/ship`, so any doc updates fold into the
-SAME per-TODO PR as the TODO fix. There is no post-merge doc-drift window
-for orchestrator-driven paths: the doc update ships in the same PR as the
-TODO fix.
+Doc-sync runs INLINE between the pre-doc-sync commit (Step 5.4) and the post-sync
+audit (Step 5.5b), so any doc updates fold into the SAME per-TODO PR as the TODO
+fix. There is no post-merge doc-drift window for orchestrator-driven paths: the
+doc update ships in the same PR as the TODO fix. Doc-sync now runs **before** the
+post-sync audit + the QA-audit checkpoint (F000064 reorder), so the checkpoint
+decides on the docs that will actually ship.
 
 Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
 (v1 orchestrator wiring runs a full audit; the per-doc subset flag is for
@@ -136,7 +177,50 @@ EOF
 esac
 ```
 
-Only on green or green-noop does control proceed to `/ship` Gate #2.
+Only on green or green-noop does control proceed to Step 5.5b (the post-sync
+audit), then the QA-audit checkpoint (SKILL.md), then the Step 5.7 portability
+gate, then `/ship` Gate #2.
+
+### Step 5.5b: Post-sync doc/test audit (NEW — ONE combined read-only subagent)
+
+Now that doc-sync has folded its doc updates into the per-TODO PR, run the
+three-stage doc/test audit ONCE, at the authoritative **post-sync** point. This
+is the audit QA deferred (via `DEFER_AUDIT: true`, Step 4) — the orchestrator runs
+it itself here so the QA-audit checkpoint decides on the docs that will actually
+ship.
+
+Dispatch ONE combined depth-2 fresh-context subagent via the **Agent** tool
+(`subagent_type: general-purpose`) that runs BOTH `/CJ_doc_audit` and
+`/CJ_test_audit` over the post-sync tree. It is **READ-ONLY** — it reports, it
+writes NO overlay/doc fixes (preserving the "everything in the PR is
+post-sync-clean" invariant; a needed fix surfaces at the checkpoint, where the
+operator Halts and re-runs so the fix lands pre-sync on the next pass). Dispatch
+ONE subagent, not two — the audit skills' standalone contract lets one
+fresh-context subagent judge both audits, and two would double the cost this
+mechanism exists to avoid:
+
+```
+ROLE: combined post-sync doc/test auditor for /CJ_goal_todo_fix (READ-ONLY — report, do not fix).
+TASK: Run /CJ_doc_audit and then /CJ_test_audit over the CURRENT (post-doc-sync)
+repo tree, standalone (all three stages each). Do NOT write any doc/overlay
+fixes — this is a read-only report. Return BOTH skills' full per-stage reports
+verbatim: the DOC_AUDIT: headline (FINDINGS= + STAGE1/2/3_FINDINGS= +
+DOCS_AUDITED= + seeded: + the three --- stage N --- sections) and the
+TEST_AUDIT: headline (FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= +
+seeded: + the three --- stage N --- sections), then emit a single fenced
+AUDIT_FINDINGS block combining both for the checkpoint to print verbatim.
+<inputs>REPO_ROOT: <absolute repo root></inputs>
+```
+
+Capture the subagent's output to `$RAW_DIR/post-sync-audit-raw.txt`. Parse the
+two `FINDINGS=` lines into a compact `AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>`
+digest and capture the fenced `AUDIT_FINDINGS` block for the checkpoint. This step
+is a **pure read** (records NO phase boundary, writes no fixes), so a resume
+re-runs it. If the audit subagent crashes (no parseable report), treat it as
+`AUDITS=doc:audit-error,test:audit-error` and surface the raw output at the
+checkpoint — do NOT halt here (the checkpoint owns the decision). The QA-audit
+checkpoint (described in [SKILL.md](SKILL.md)) then consumes THIS post-sync digest
++ AUDIT_FINDINGS block (NOT a pre-sync QA RESULT field).
 
 ### --quiet mode interaction
 
