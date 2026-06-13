@@ -9,6 +9,19 @@ parent: "F000065"
 repo: "/Users/chjiang/Documents/projects/claude-skills-templates"
 branch: "cj-feat-audit-self-heal"
 blocked_by: ""
+receipts:
+  qa:
+    phase: 3
+    commit: "e8ec259353020c5ca99c18b841ed48f1462f85e1"
+    completed_at: "2026-06-13T09:15:33Z"
+    test_rows_run: 8
+    ac_ids_covered: ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"]
+    ac_ids_uncovered: []
+    diff_audit:
+      changed_files_without_tests: []
+    journal_entries: ["[qa-smoke] S1-S5 green", "[qa-smoke-summary] green 5/5", "[qa-e2e] E1-E3 green", "[qa-e2e-summary] green", "[qa-audit] doc:ok,test:ok", "[qa-pass]"]
+    ready_for_ship: true
+    next_legal: ["ship"]
 ---
 
 <!-- Prerequisite: this atomic story derives directly from the parent feature's
@@ -44,8 +57,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -140,3 +153,16 @@ blocked_by: ""
 - [impl] 2026-06-13 — Phase 1: `scripts/doc-spec.sh` gained `--classify`/`--reconcile` + the legacy-yaml parser, asymmetry guard, and atomic temp→validate→mv migrate; `scripts/test-spec.sh` gained the symmetric (reduced) pair. Phase 2: both audit SKILL.mds (Step 0 flag + classify-driven Step 2 + report/error-table), both USAGE.mds (canonical-template section), the seed heredocs + spec files + `templates/doc-spec-common.md` (canonical-template prose, identity preserved), `skills-catalog.json` (v0.3.0 + reconcile-aware descriptions), two new `tests/*-reconcile.test.sh` registered in `scripts/test.sh` + `spec/test-spec-custom.md`. All shellcheck-clean (`--norc`); validate 0/0; full test.sh PASS.
 - [impl-auto] 2026-06-13 — Run under `/CJ_implement-from-spec --auto` (cj_goal silent-build runner role, no AUQ available). The catalog edit (a normally-sensitive surface) was PRE-AUTHORIZED by the approved design + the runner contract; proceeded without halting on the sensitive-surface gate.
 - [impl-pass] 2026-06-13 — S000109: implementation complete. Phase 2 implementer-owned gates transitioned (Todos + Files); the QA-owned gates (Acceptance criteria verified met / Smoke tests pass) are left for /CJ_qa-work-item.
+- 2026-06-13 [qa-smoke] S1 (AC-1): green — `tests/doc-spec-reconcile.test.sh` classify cases pass: absent→GENERATION=absent, canonical→canonical, legacy YAML→legacy (signature-gated), two-position→DUPLICATE=1, no-table-no-sig→malformed (never mislabeled legacy).
+- 2026-06-13 [qa-smoke] S2 (AC-2): green — `tests/doc-spec-reconcile.test.sh` reconcile case: 44-row legacy fixture migrated to canonical Markdown, 44 in == 44 out (every row preserved), migrated file --validate's clean, `.bak` written, second --reconcile is no-op (RECONCILE: already canonical).
+- 2026-06-13 [qa-smoke] S3 (AC-3): green — `doc-spec.sh --reconcile` on a legacy `docs/*` row declared `operational` fires `RECONCILE-WARN: ... audit_class was 'operational' but path derives 'human-doc'` (dedicated grep + the test-file asymmetry assertion).
+- 2026-06-13 [qa-smoke] S4 (AC-4): green — `tests/test-spec-reconcile.test.sh`: symmetric --classify (absent/canonical/duplicate/malformed — NEVER legacy, no divergent on-disk legacy format), --reconcile is a clean dedup/no-op; duplicate reported with neither file deleted; malformed HALTS [test-spec-no-config].
+- 2026-06-13 [qa-smoke] S5 (AC-5, AC-6): green — canonical workbench classifies GENERATION=canonical/DUPLICATE=0 for both engines; `doc-spec.sh --check-on-disk` emits ZERO RECONCILE: lines; `scripts/validate.sh` 0 errors/0 warnings (Check 24 coverage clean, both new units registered); full `scripts/test.sh` PASS (0 failures, both new reconcile test files registered + run).
+- 2026-06-13 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending)
+- 2026-06-13 [qa-e2e-run-start] RUN_ID=20260613-021043-93138 commit=e8ec259
+- 2026-06-13 [qa-e2e] E1 (AC-5): green — legacy temp repo: doc_audit Step-2 classify=legacy; PLAIN run surfaced the advisory `RECONCILE:` directive and wrote nothing (checksum unchanged, no .bak); `--reconcile` migrated all 4 declared rows (--list-declared: CLAUDE.md/README.md/docs/philosophy.md/docs/workflow.md), wrote a .bak, --validate clean (OK schema_version=1), fired RECONCILE-WARN for the operational docs/philosophy.md row; final PLAIN run classified canonical with zero reconcile lines; idempotent re-run => `RECONCILE: already canonical`. [parent-inline]
+- 2026-06-13 [qa-e2e] E2 (AC-5): green — canonical workbench: both doc-spec.sh and test-spec.sh --classify => GENERATION=canonical/DUPLICATE=0; neither audit Step-2 emits a directive; doc-spec --check-on-disk and test-spec --validate/--check-coverage emit ZERO RECONCILE/RECONCILE-WARN lines. [parent-inline]
+- 2026-06-13 [qa-e2e] E3 (AC-4): green — test-spec symmetric self-heal: duplicate temp repo (test-spec.md at both spec/ and root) => --classify DUPLICATE=1 (both positions reported); PLAIN run surfaced the advisory directive + wrote nothing; --reconcile reported the redundant root copy via RECONCILE-WARN and deleted NEITHER file. The sole divergence from the doc-spec path (no legacy migration) is the documented OQ3 reduction (test-spec born fenced-yaml at ce7af57, no divergent on-disk legacy format) — within the rubric's allowed-divergence clause. [parent-inline]
+- 2026-06-13 [qa-e2e-summary] green (0s subagent; 3 rows parent-inline; 0 deferred): all 3 E2E rows verified green inline (depth-2 leaf — no subagent dispatch; ran the audit Step-2 classify/reconcile logic directly per the audit SKILL.md). Tracker journal updated.
+- 2026-06-13 [qa-audit] AUDITS=doc:ok,test:ok,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a-d; findings ride the green RESULT — checkpoint decision belongs to the orchestrator). Dogfooded the F000065-modified audits inline: both classify the live workbench GENERATION=canonical/DUPLICATE=0 with ZERO RECONCILE noise; doc audit 0/0/0 (14 docs), test audit 0/0/0 (68 units); the two new reconcile units' purpose strings truthfully match their source assertions.
+- 2026-06-13 [qa-pass] S000109 (user-story): green smoke + green E2E. Phase 2 gates transitioned (Acceptance criteria verified met / Smoke tests pass); receipts.qa written (commit e8ec259, ready_for_ship: true, ac_ids_uncovered: []).
