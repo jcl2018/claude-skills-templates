@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.70] - 2026-06-13
+
+### Fixed
+
+- **`/CJ_doc_audit` now names the remedy for missing required docs** (D000034). When Stage 1 (`scripts/doc-spec.sh --check-on-disk`) finds declared docs missing on disk (e.g. running in a consumer repo where `docs/workflow.md` doesn't exist yet), the engine emits a trailing `REMEDIATION: stage1/declared-exists — …` advisory line pointing at `/CJ_document-release` (the verb that stub-scaffolds declared-but-missing docs, reading this same registry). Previously the audit force-regenerated the *contract* itself (`spec/doc-spec.md` via `--seed`) but surfaced the docs it *declares* as bare `declared-exists` findings with no next step — a dead-end list. The remediation line is advisory only: it does NOT count toward `FINDINGS=`/`STAGE1_FINDINGS`, appears only when docs are missing, and the audit stays read-mostly (it names the fix, it does not scaffold). Documented in `skills/CJ_doc_audit/SKILL.md` (Step 3 + Step 6) + `USAGE.md`; regression-tested in `tests/doc-spec-overlay.test.sh` (8a-2 clean ⇒ no line, 8b-2 missing ⇒ pointer).
+
 ## [6.0.68] - 2026-06-12
 
 ### Changed
