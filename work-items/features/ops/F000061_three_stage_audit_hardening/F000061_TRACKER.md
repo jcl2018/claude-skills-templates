@@ -132,3 +132,5 @@ blocked_by: ""
 - 2026-06-12 [decision] D10.2 — standalone runs MUST dispatch Stages 2+3 to ONE fresh-context general-purpose subagent (REQUIRED, not optional); in-QA (Step 8.6c/d, already a subagent) the QA agent executes both stages inline per the same protocols — both SKILL.mds state the degradation honestly.
 - 2026-06-12 [decision] D10.3 — BOTH audits get the identical three-stage shape + per-stage report in this PR (operator chose symmetry over the smaller doc-only diff).
 - 2026-06-12 [decision] D11 — Approach A: skill-layer hardening only; validate.sh untouched (Checks 15/17/19/20 keep their own implementations); convergence onto `--check-on-disk` is a tracked TODOS row, not part of this diff.
+- 2026-06-13T01:45:18Z [feature-pr-opened] F000061 v6.0.66 PR #262
+  pr_url=https://github.com/jcl2018/claude-skills-templates/pull/262
