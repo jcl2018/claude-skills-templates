@@ -253,6 +253,39 @@ state — gstack-next-version is an upstream feature not currently deployed here
 See `work-items/defects/D000008_*` for the full root cause and the planned upstream fix
 to gstack.
 
+## Post-land recap
+
+After **any** land/merge succeeds, surface a short two-part recap to the operator
+so they are not left guessing what just shipped or how to confirm it. This fires
+on every land path:
+
+- a direct `/land-and-deploy` invocation,
+- the `CJ_goal_defect` land step (`skills/CJ_goal_defect/pipeline.md` Step 10), and
+- the `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail (per drained TODO).
+
+`/land-and-deploy` is an upstream gstack skill this workbench never edits (the
+same rule that makes `/CJ_document-release` wrap `/document-release`), so the
+recap lives here as a convention the agent reads — not as an edit to the gstack
+skill.
+
+Emit the recap **only after** the merge is verified `MERGED` (the
+verify-before-cleanup step in `## CI/CD merge convention`), as two labelled parts:
+
+1. **What this merge did** — 1–3 lines: the change in plain terms, the version it
+   bumped to, and the PR number + squash-merge SHA (e.g. "v6.0.69 — added the
+   layer-grouped verification-surface section to `spec/test-spec-custom.md`; PR
+   #267, `cdc684c`").
+2. **How to verify it** — the concrete commands or checks for *this* change, not a
+   generic checklist (e.g. `scripts/test-spec.sh --check-coverage`, `git show
+   origin/main:<file>`, or "open PR #N and read section X"). Name the one or two
+   checks that actually prove the change is live and correct.
+
+It is **advisory**: it never blocks, never changes the land outcome, and adds no
+gate — it is the post-land mirror of the pre-build design-summary digest, a
+courtesy recap so the operator can review or verify at a glance. Like the other
+convention sections here, it is prose guidance; there is no `validate.sh` check
+that asserts it fired.
+
 ## Work item templates
 
 Each workflow skill owns its own templates and artifact manifest:
