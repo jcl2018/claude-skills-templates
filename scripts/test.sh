@@ -118,27 +118,27 @@ else
   ok "F000053/S000094 permission-policy regression guards"
 fi
 
-# === F000054/S000096: gate-spec regression guards ===
-# Exercise the gate-spec parser + the Check-22 drift wiring. Parallel test.sh
-# fixture for the new validate.sh Check 22 (repo convention: a new validate.sh
-# check ships with its test.sh assertions in the same PR). Mirrors the S000094
-# permission-policy block above.
-_S96_GS="$REPO_ROOT/scripts/gate-spec.sh"
-# Resolve spec/-then-root (the family moved into spec/; root remains a fallback).
-_S96_SPEC="$REPO_ROOT/spec/gate-spec.md"
-[ -f "$_S96_SPEC" ] || _S96_SPEC="$REPO_ROOT/gate-spec.md"
-if [ ! -x "$_S96_GS" ] || [ ! -f "$_S96_SPEC" ]; then
-  fail_test "S000096: gate-spec.sh / gate-spec.md missing"
+# === F000054/S000096 + F000063: gate (layers/gates) regression guards ===
+# Exercise the layers[] + gates[] parsing — folded from the retired gate-spec.sh
+# into scripts/test-spec.sh (F000063) — and the Check-24 advisory marker-drift
+# wiring (absorbed from the retired Check 22). The layers/gates live in the
+# merged test-spec registry: layers[] in the general spec/test-spec.md, the
+# per-mode gates[] in spec/test-spec-custom.md.
+_S96_TS="$REPO_ROOT/scripts/test-spec.sh"
+_S96_SPEC="$REPO_ROOT/spec/test-spec.md"
+[ -f "$_S96_SPEC" ] || _S96_SPEC="$REPO_ROOT/test-spec.md"
+if [ ! -x "$_S96_TS" ] || [ ! -f "$_S96_SPEC" ]; then
+  fail_test "S000096: test-spec.sh / test-spec.md missing"
 else
-  # S1: the registry parses (schema_version + every gate's required keys + closed enums).
-  bash "$_S96_GS" --validate >/dev/null 2>&1 || fail_test "S000096: gate-spec.sh --validate failed (registry does not parse)"
-  [ "$(bash "$_S96_GS" --validate 2>/dev/null)" = "OK schema_version=1" ] || fail_test "S000096: --validate did not print 'OK schema_version=1'"
+  # S1: the merged registry parses (schema_version + every layer/gate's keys + closed enums).
+  bash "$_S96_TS" --validate >/dev/null 2>&1 || fail_test "S000096: test-spec.sh --validate failed (merged registry does not parse)"
+  [ "$(bash "$_S96_TS" --validate 2>/dev/null)" = "OK schema_version=1" ] || fail_test "S000096: --validate did not print 'OK schema_version=1'"
   # S2: the reader emits the right sets — the four layers + at least the known gates.
   for _l in local-hook ci pipeline-gate ratchet; do
-    bash "$_S96_GS" --list-layers 2>/dev/null | grep -qx "$_l" || fail_test "S000096: --list-layers missing layer '$_l'"
+    bash "$_S96_TS" --list-layers 2>/dev/null | grep -qx "$_l" || fail_test "S000096: --list-layers missing layer '$_l'"
   done
   for _g in isolation qa doc-sync portability ship; do
-    bash "$_S96_GS" --list-gates 2>/dev/null | grep -qx "$_g" || fail_test "S000096: --list-gates missing gate '$_g'"
+    bash "$_S96_TS" --list-gates 2>/dev/null | grep -qx "$_g" || fail_test "S000096: --list-gates missing gate '$_g'"
   done
   # S4: the universal markers resolve in ALL four modes' files; the per-mode
   # isolation markers resolve in their declared mode's file (either pipeline.md or SKILL.md).
@@ -154,18 +154,18 @@ else
     || fail_test "S000096: isolation marker [investigate-not-isolated] absent from the defect mode's files"
   { grep -qF '[task-not-isolated]' "$REPO_ROOT/skills/CJ_goal_task/pipeline.md" 2>/dev/null || grep -qF '[task-not-isolated]' "$REPO_ROOT/skills/CJ_goal_task/SKILL.md" 2>/dev/null; } \
     || fail_test "S000096: isolation marker [task-not-isolated] absent from the task mode's files"
-  # S3: Check 22 is wired into validate.sh, advisory, and PASSes on the in-sync tree (exit 0).
+  # S3: the marker-drift cross-check is folded into validate.sh Check 24, advisory,
+  # and PASSes on the in-sync tree (exit 0; only the coverage portion can hard-fail).
   _S96_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S96_V" | grep -q 'Check 22: cj_goal gate-spec marker drift' || fail_test "S000096: validate.sh missing Check 22"
-  printf '%s\n' "$_S96_V" | grep -q 'PASS: gate-spec registry + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 22 did not PASS on the in-sync tree"
-  # Advisory posture: validate.sh exits 0 with Check 22 present (no hard-fail from the gate-spec check).
-  "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1 || fail_test "S000096: validate.sh exits non-zero with Check 22 active (check is not advisory)"
+  printf '%s\n' "$_S96_V" | grep -q 'Check 24: test-spec coverage cross-check + gate marker drift' || fail_test "S000096: validate.sh Check 24 missing the merged banner"
+  printf '%s\n' "$_S96_V" | grep -q 'PASS: gate marker drift — the gates: array + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 24 marker-drift did not PASS on the in-sync tree"
+  # Advisory posture: validate.sh exits 0 (no hard-fail from the marker-drift portion).
+  "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1 || fail_test "S000096: validate.sh exits non-zero with Check 24 active"
   # Drift path (isolated — no real-file mutation): a missing registry makes the
-  # parser fail closed with the no-config halt. if-then (not A && B || C) avoids SC2015.
-  if GATE_SPEC_PATH=/nonexistent-gate-spec.md bash "$_S96_GS" --validate >/dev/null 2>&1; then
-    fail_test "S000096: parser did not fail on a missing registry (no-config drift undetected)"
-  fi
-  ok "F000054/S000096 gate-spec regression guards"
+  # parser classify absent (REGISTRY=absent + exit 0); a malformed one fails closed.
+  [ "$(TEST_SPEC_PATH=/nonexistent-test-spec.md bash "$_S96_TS" --list-gates 2>/dev/null)" = "REGISTRY=absent" ] \
+    || fail_test "S000096: --list-gates on an absent registry did not classify REGISTRY=absent"
+  ok "F000054/S000096 + F000063 gate (layers/gates) regression guards"
 fi
 
 # === F000053/S000095: within-phase-receipts regression guards ===
@@ -366,30 +366,6 @@ else
   fail_test "generate-readme.sh crashed"
 fi
 
-# generate-doc-views.sh: runs + idempotent (temp-only — the EXIT trap does NOT
-# restore docs/doc-*.md, so this mirror of validate.sh Check 23 must NEVER write
-# into docs/; generate into two temp dirs and compare, like the README check above).
-if [ -f "$REPO_ROOT/scripts/generate-doc-views.sh" ]; then
-  _dv_t1=$(mktemp -d)
-  _dv_t2=$(mktemp -d)
-  if bash "$REPO_ROOT/scripts/generate-doc-views.sh" --output-dir "$_dv_t1" >/dev/null 2>&1 \
-     && bash "$REPO_ROOT/scripts/generate-doc-views.sh" --output-dir "$_dv_t2" >/dev/null 2>&1; then
-    ok "generate-doc-views.sh runs without crash"
-    if [ -f "$_dv_t1/doc-general.md" ] && [ -f "$_dv_t1/doc-custom.md" ]; then
-      ok "generate-doc-views.sh writes doc-general.md + doc-custom.md"
-    else
-      fail_test "generate-doc-views.sh did not write both view files"
-    fi
-    if diff -r "$_dv_t1" "$_dv_t2" >/dev/null 2>&1; then
-      ok "generate-doc-views.sh is idempotent"
-    else
-      fail_test "generate-doc-views.sh produces different output on repeated runs"
-    fi
-  else
-    fail_test "generate-doc-views.sh crashed"
-  fi
-  rm -rf "$_dv_t1" "$_dv_t2"
-fi
 
 # Integration test: catalog consistency after manual skill creation
 echo ""
@@ -558,45 +534,6 @@ if [ -f "$_C19_HUMANDOC" ]; then
   fi
 else
   fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
-fi
-
-# Step 3d (F000052 / TEST-SPEC S4): Check 20 front-table-required negative test.
-# THE PARALLEL test.sh EDIT the new validate.sh check needs (the F000032/34/35
-# blind spot — every prior new validate.sh check forgot its zzz-test-scaffold /
-# plant-and-restore assertion; defused here in lockstep with the Check 20 add).
-# docs/philosophy.md is flagged `front_table: required` in the doc-spec.md
-# registry. Temporarily STRIP its leading summary table (every `^|` row before the
-# first `^## ` heading), assert validate.sh exits non-zero AND emits the literal
-# Check 20 `  ERROR:` prefix for docs/philosophy.md, then RESTORE the file exactly
-# from a backup and assert validate.sh exits 0 again. Backup-and-restore so the
-# checkout is never left dirty. Proves Check 20 actually FIRES, not just defaults
-# green.
-_C20_FTDOC="$REPO_ROOT/docs/philosophy.md"
-if [ -f "$_C20_FTDOC" ]; then
-  cp "$_C20_FTDOC" "/tmp/c20-ftdoc-backup-$$"
-  # Strip leading table rows (lines starting with `|`) that appear BEFORE the
-  # first `^## ` heading. awk -> temp -> mv (in-place edit, portable).
-  awk 'BEGIN{past=0} /^## /{past=1} { if (!past && $0 ~ /^\|/) next; print }' \
-    "/tmp/c20-ftdoc-backup-$$" > "/tmp/c20-ftdoc-stripped-$$" \
-    && mv "/tmp/c20-ftdoc-stripped-$$" "$_C20_FTDOC"
-  if _C20_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-    fail_test "Check 20: validate.sh should have exited non-zero with docs/philosophy.md's leading table stripped, but exited 0"
-  else
-    if echo "$_C20_OUT" | grep -qF "  ERROR: front-table-required doc docs/philosophy.md does not open with a summary table"; then
-      ok "Check 20: stripping docs/philosophy.md's leading table triggers front-table ERROR + non-zero exit"
-    else
-      fail_test "Check 20: validate.sh exited non-zero but missing the Check-20 ERROR for docs/philosophy.md; output: $_C20_OUT"
-    fi
-  fi
-  cp "/tmp/c20-ftdoc-backup-$$" "$_C20_FTDOC"
-  rm -f "/tmp/c20-ftdoc-backup-$$" "/tmp/c20-ftdoc-stripped-$$"
-  if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-    ok "Check 20: validate.sh exits 0 again after the leading table is restored"
-  else
-    fail_test "Check 20: validate.sh should have exited 0 after docs/philosophy.md's table was restored, but exited non-zero"
-  fi
-else
-  fail_test "Check 20: docs/philosophy.md (a front_table-required doc) not found for the negative test"
 fi
 
 # Step 4: frontmatter is parseable
@@ -1843,15 +1780,15 @@ else
   fail_test "tests/cj-goal-feature-smoke.test.sh failed (rc=$_cgfs_rc) — run \`bash tests/cj-goal-feature-smoke.test.sh\` directly to see"
 fi
 
-# Regression test (F000060): the doc-spec two-tier overlay machinery — merge
-# semantics (overlay present/absent), the duplicate-path guard, merged list
-# subcommands, the seed == general-file byte identity (3-way lockstep), and
-# render-custom from the overlay. Temp-dir isolated; never mutates the live
-# tree. MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based.
+# Regression test (F000060 + F000063): the doc-spec two-tier overlay machinery —
+# merge semantics (overlay present/absent), the duplicate-path guard, merged list
+# subcommands, the seed == general-file byte identity (3-way lockstep), and the
+# 4-check --check-on-disk Stage-1 battery. Temp-dir isolated; never mutates the
+# live tree. MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based.
 echo ""
 echo "Running tests/doc-spec-overlay.test.sh (F000060 doc-spec two-tier overlay merge)..."
 if bash "$REPO_ROOT/tests/doc-spec-overlay.test.sh" >/dev/null 2>&1; then
-  ok "tests/doc-spec-overlay.test.sh: overlay merge + duplicate-path guard + seed byte-identity + render-custom all pass"
+  ok "tests/doc-spec-overlay.test.sh: overlay merge + duplicate-path guard + seed byte-identity + Stage-1 battery all pass"
 else
   _dso_rc=$?
   fail_test "tests/doc-spec-overlay.test.sh failed (rc=$_dso_rc) — run \`bash tests/doc-spec-overlay.test.sh\` directly to see"

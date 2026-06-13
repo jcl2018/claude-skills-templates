@@ -12,8 +12,8 @@ Read [SKILL.md](SKILL.md) first for path resolution, error handling, the
 halt-taxonomy summary, the resume contract, and the idempotency contract. Then
 follow the steps below.
 
-Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
-enforced by `validate.sh` Check 22). The gates this pipeline halts at are this
+Canonical gate sequence: `spec/test-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 24). The gates this pipeline halts at are this
 mode's subset of that one declared sequence.
 
 ---
@@ -679,7 +679,7 @@ The checkpoint is a **pure read** of the QA RESULT (it records NO phase
 boundary): a resume after `[qa-audit-declined]` re-dispatches QA (the
 existing always-re-dispatch rule) and the checkpoint re-fires on the fresh
 audit digest. Canonical gate row: `qa-audit` (order 45) in
-`spec/gate-spec.md`.
+`spec/test-spec-custom.md`.
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 

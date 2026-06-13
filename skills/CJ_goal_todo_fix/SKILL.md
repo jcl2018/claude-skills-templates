@@ -112,7 +112,7 @@ orchestrator runs the **QA-audit checkpoint** (below) on the QA RESULT's
 ## QA-audit findings checkpoint (per drained TODO — between QA and Step 5.5 doc-sync)
 
 Identical contract to `/CJ_goal_feature` Step 3.4 (canonical gate row:
-`qa-audit`, order 45, in `spec/gate-spec.md`). The QA leaf subagent's RESULT
+`qa-audit`, order 45, in `spec/test-spec-custom.md`). The QA leaf subagent's RESULT
 carries `AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>,spec_updates:<...>`
 plus the fenced `AUDIT_FINDINGS` block (qa.md Step 8.6: the two spec-overlay
 updates + `/CJ_doc_audit` + `/CJ_test_audit`, run inline by the QA agent).
@@ -429,8 +429,8 @@ per-iteration terminal instead.
 
 ## Halt classes / end states
 
-Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
-enforced by `validate.sh` Check 22). The classes below are this mode's subset of
+Canonical gate sequence: `spec/test-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 24). The classes below are this mode's subset of
 that declared sequence — the registry is the source of truth for the ordering.
 (todo runs inside the drain worktree, so it has no isolation gate; its QA + ship
 gates are `enforced_by` a subagent / AUQ rather than a bracket marker.)

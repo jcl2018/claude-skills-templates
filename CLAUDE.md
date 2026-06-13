@@ -415,7 +415,6 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
 | `deps.sh` | Shows dependency graph | When changing deps |
 | `generate-readme.sh` | Regenerates README.md from catalog | After catalog changes |
-| `generate-doc-views.sh` | Regenerates the generated doc views: `docs/doc-general.md` + `docs/doc-custom.md` from the MERGED doc-spec registry (`spec/doc-spec.md` + the `spec/doc-spec-custom.md` overlay, via `doc-spec.sh --render general\|custom`). `--output-dir <dir>` (default `docs`). Idempotent (no timestamps). The views are generated, not hand-maintained — `validate.sh` Check 23 fails if either drifts from the registry. | After registry changes (add/edit a doc-spec general or overlay entry) |
 | `sync-upstream.sh` | Compares upstream gstack skills | When updating from gstack |
 | `setup-hooks.sh` | Installs git hooks (pre-commit validate + post-merge auto-sync) | Auto-run by `setup.sh`; run manually only after a direct `git clone` + `skills-deploy install` (that path does not install hooks) |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle (`work-copilot/`) into a target repo | When setting up a new target repo for Copilot |
@@ -423,7 +422,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo\|task)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo\|task}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
-| `doc-spec.sh` | Parse + validate the two-tier doc-spec registry (the doc contract): the GENERAL `spec/doc-spec.md` (byte-identical to `--seed`, never edited in place) merged with the optional `spec/doc-spec-custom.md` overlay (same fenced-yaml grammar, `section: custom` entries; the overlay always resolves next to the general file). All list subcommands + `--validate` operate on the MERGE; a path duplicated across the two files is a `--validate` error. Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1 — incl. a present-but-invalid overlay), `--check-on-disk` (the audit Stage-1 engine: six deterministic conformance checks of the merged registry vs the disk — declared-exists, orphans incl. an undeclared overlay, root-declared, human-doc-ids, front-table, views-render table-block vs fresh `--render`; `check: <id> — PASS` / `FINDING: stage1/<id>` lines + `CHECKS_RUN=`/`FINDINGS=` tail; probes registry existence BEFORE the parse gates — absent ⇒ `REGISTRY=absent` + exit 0, present-but-invalid ⇒ the `[doc-sync-no-config]` halt), `--list-declared`, `--list-human-docs`, `--list-front-table-docs` (the `front_table: required` paths consumed by Check 20 — `front_table` is now a portable seed field), `--render general\|custom` (a Markdown table of the merged `section: common` / `section: custom` rows — `--render custom` therefore reads the overlay, plus any legacy in-file custom rows), `--expand-whitelist` (the doc-only auto-commit whitelist = merged declared paths + the contract files + `docs/**/*.md`), `--seed` (the portable general file, for self-bootstrap; 3-way byte-identical with `spec/doc-spec.md` + `templates/doc-spec-common.md`). Resolves the registry `spec/doc-spec.md`-then-root via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19/20/23 + `/CJ_document-release` + `/CJ_doc_audit`. | Auto-invoked by `validate.sh` + `/CJ_document-release` + `/CJ_doc_audit`. |
+| `doc-spec.sh` | Parse + validate the two-tier doc-spec registry (the doc contract): the GENERAL `spec/doc-spec.md` (byte-identical to `--seed`, never edited in place) merged with the optional `spec/doc-spec-custom.md` overlay (same 3-column Markdown-table grammar — `\| Doc \| Purpose \| Requirement \|`; the overlay always resolves next to the general file). The table IS the registry — `audit_class` is DERIVED from the path (a path under `docs/` or the root `README.md` is a human-doc, else operational), not a declared column; the tier is the file (general vs overlay), not a per-row field. All list subcommands + `--validate` operate on the MERGE; a path duplicated across the two files is a `--validate` error. Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1 — incl. a present-but-invalid overlay or a malformed table row / literal `\|` in a cell), `--check-on-disk` (the audit Stage-1 engine: FOUR deterministic conformance checks of the merged registry vs the disk — declared-exists, orphans incl. an undeclared overlay, root-declared, human-doc-ids; `check: <id> — PASS` / `FINDING: stage1/<id>` lines + `CHECKS_RUN=`/`FINDINGS=` tail; probes registry existence BEFORE the parse gates — absent ⇒ `REGISTRY=absent` + exit 0, present-but-invalid ⇒ the `[doc-sync-no-config]` halt), `--list-declared`, `--list-human-docs` (the path-derived human-doc paths), `--expand-whitelist` (the doc-only auto-commit whitelist = merged declared paths + the contract files + `docs/**/*.md`), `--seed` (the portable general file, for self-bootstrap; 3-way byte-identical with `spec/doc-spec.md` + `templates/doc-spec-common.md`). Resolves the registry `spec/doc-spec.md`-then-root via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19 + `/CJ_document-release` + `/CJ_doc_audit`. | Auto-invoked by `validate.sh` + `/CJ_document-release` + `/CJ_doc_audit`. |
 | `test-spec.sh` | Parse + validate the two-tier test-spec registry (the test contract): the GENERAL `spec/test-spec.md` (the 5 portable rules — tests-discoverable, suite-green, new-code-tested, units-anchored, single-owner; byte-identical to `--seed`) merged with the optional `spec/test-spec-custom.md` units overlay (this repo's one-row-per-verification-unit enumeration: validate checks, test sub-suites, inline families, standalone suites, CI workflows, git hooks). Subcommands: `--validate` (merged schema + closed enums + duplicate-id guard + the test-row source pin + the rendered-field work-item-ID lint; `[test-spec-no-config]` + exit 1 when present-but-invalid), `--list-rules`, `--list-units`, `--check-coverage` (the Check 24 engine: forward anchor-grep into each declared source + reverse sweep of live validate banners/comments, `tests/*.test.sh` on disk, workflows, installed hooks + ≥20-token floor `TEST_SPEC_REVERSE_FLOOR` — reverse+floor apply ONLY when `units:` rows exist; a rules-only registry reports "coverage cross-check inactive"), `--seed`. An ABSENT registry (neither `spec/test-spec.md` nor root `test-spec.md`) is the distinct `REGISTRY=absent` + exit 0 path — a machine-classifiable skip, never a halt. `REPO_ROOT`/`TEST_SPEC_PATH`/`TEST_SPEC_CUSTOM_PATH` env overrides for temp-dir drills. Consumed by `validate.sh` Check 24 + `/CJ_test_audit` + `tests/test-spec.test.sh`. | Auto-invoked by `validate.sh` + `/CJ_test_audit`. |
 
 ## Update-check mechanism (F000009)
@@ -493,57 +492,62 @@ AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).
 
-## Verification contract (gate-spec.md)
+## Verification contract (test-spec.md)
 
-**What stops a broken cj_goal change from landing, and at which layer** lives in
-ONE file, [`spec/gate-spec.md`](spec/gate-spec.md) — both the human-readable map
-(prose + a four-layer summary table + an ASCII diagram + a division-of-labor) and
-the machine source of truth (a fenced `yaml` registry of `layers[]` + `gates[]`,
-parsed by `scripts/gate-spec.sh`). It is the third member of the `spec/doc-spec.md` →
-`spec/permission-policy.md` → `spec/gate-spec.md` → `spec/test-spec.md` family
-(the spec-registry files live under `spec/`; each helper resolves
-`spec/`-then-root; the doc-spec + test-spec members are TWO-TIER — a portable
-general seed plus an optional `spec/*-custom.md` overlay the parser merges in).
-gate-spec owns the LAYER question; the CHECK-level enumeration (which
-individual checks/tests/workflows/hooks exist, what each asserts, when each
-runs) lives in the test-spec member's overlay, `spec/test-spec-custom.md`
-(`units:` rows in the predecessor registry's row shape, kept verbatim), enforced by `validate.sh`
-Check 24 (validate-the-merge + coverage cross-check: forward anchor-grep,
-reverse live-surface sweep, ≥20-token floor — the check that makes an
-unregistered `tests/*.test.sh` a hard failure instead of a silent skip; both
-reverse + floor are units-gated so a rules-only consumer repo reports
-"inactive", never findings). The four layers: **local-hook**
+**What stops a broken cj_goal change from landing, what rules the verification
+surface is held to, and at which layer** lives in ONE two-tier contract: the
+GENERAL [`spec/test-spec.md`](spec/test-spec.md) (the five portable `rules[]` +
+the four-layer `layers[]` map — both the human-readable table and the machine
+source of truth, byte-identical to `test-spec.sh --seed`) plus this repo's
+[`spec/test-spec-custom.md`](spec/test-spec-custom.md) overlay (the CHECK-level
+`units:` enumeration + the per-mode pipeline-gate `gates:` array). It is the
+member of the `spec/doc-spec.md` → `spec/permission-policy.md` →
+`spec/test-spec.md` family (the spec-registry files live under `spec/`; each
+helper resolves `spec/`-then-root; the doc-spec + test-spec members are
+TWO-TIER — a portable general seed plus an optional `spec/*-custom.md` overlay
+the parser merges in). (The former `spec/gate-spec.md` member was folded into
+this contract by F000063 — its `layers[]` into the general file, its `gates[]`
+into the overlay, its `gate-spec.sh` parsing into `scripts/test-spec.sh`.) The
+CHECK-level enumeration (which individual checks/tests/workflows/hooks exist,
+what each asserts, when each runs) is the overlay's `units:` rows; the per-mode
+pipeline-gate halts are its `gates:` array. Both are enforced by `validate.sh`
+Check 24 — a MIXED check: validate-the-merge + the HARD coverage cross-check
+(forward anchor-grep, reverse live-surface sweep, ≥20-token floor — the check
+that makes an unregistered `tests/*.test.sh` a hard failure instead of a silent
+skip; both reverse + floor are units-gated so a rules-only consumer repo reports
+"inactive", never findings) PLUS the ADVISORY per-mode gate marker-drift
+cross-check (absorbed from the retired Check 22). The four layers: **local-hook**
 (pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
 inline orchestrator halts — isolation / design / QA / qa-audit / doc-sync /
 portability / ship), and **ratchet** (VERSION / portability-baseline /
 USAGE-freshness). "Gate"
 means a `pipeline-gate` row; `validate.sh`-as-a-whole is the **ci** layer (a set
-of *checks*), never "the gate." `validate.sh` Check 22 (advisory) cross-checks
-every declared literal marker against the four `CJ_goal_*` pipelines (the
-`qa-audit` row, order 45, declares the literal `[qa-audit-declined]` in ALL
+of *checks*), never "the gate." Check 24's advisory marker-drift portion
+cross-checks every declared literal marker against the four `CJ_goal_*` pipelines
+(the `qa-audit` row, order 45, declares the literal `[qa-audit-declined]` in ALL
 FOUR modes — the post-QA audit-findings checkpoint). Each
-pipeline's halt-taxonomy names `gate-spec.md` as the canonical gate sequence.
+pipeline's halt-taxonomy names `spec/test-spec.md` as the canonical gate sequence.
 
 ## Doc contract (doc-spec.md)
 
 What docs the repo carries — and what each one is for — lives in a TWO-TIER
 registry: the GENERAL [`spec/doc-spec.md`](spec/doc-spec.md) (byte-identical to
 `doc-spec.sh --seed` — the portable contract, never edited in place) plus this
-repo's [`spec/doc-spec-custom.md`](spec/doc-spec-custom.md) overlay (the
-`section: custom` rows). `scripts/doc-spec.sh` merges the two internally —
-every consumer sees ONE registry; a path duplicated across the two files is a
-validate error. There is no second list: the merged registry is the source,
-the prose explains it.
+repo's [`spec/doc-spec-custom.md`](spec/doc-spec-custom.md) overlay. Both tiers
+are a 3-column Markdown table (`| Doc | Purpose | Requirement |`) parsed
+directly — the table IS the registry. `scripts/doc-spec.sh` merges the two
+internally — every consumer sees ONE registry; a path duplicated across the two
+files is a validate error. There is no second list: the merged registry is the
+source, the prose explains it.
 
-- **Human docs** (`audit_class: human-doc`) live under `docs/`
-  (`docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`,
-  `docs/reference.md`) plus the
-  root `README.md`. They must exist
-  and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard `validate.sh` lint
-  (Check 19).
-- **Operational docs** (`audit_class: operational`) are the spec-registry family
+- **Human docs** (path-derived `audit_class: human-doc` — a declared path under
+  `docs/` or the root `README.md`) are `docs/philosophy.md`, `docs/workflow.md`,
+  `docs/architecture.md`, `docs/reference.md` plus the root `README.md`. They
+  must exist and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard
+  `validate.sh` lint (Check 19).
+- **Operational docs** (every other declared path) are the spec-registry family
   under `spec/` (general: `spec/doc-spec.md`, `spec/test-spec.md`; custom:
-  `spec/gate-spec.md`, `spec/permission-policy.md`, `spec/doc-spec-custom.md`,
+  `spec/permission-policy.md`, `spec/doc-spec-custom.md`,
   `spec/test-spec-custom.md`) plus the root `*.md` set
   the repo pins for an external-tool reason: `CLAUDE.md`, `CHANGELOG.md`,
   `CONTRIBUTING.md` (custom), `TODOS.md`. These may reference work items.
@@ -557,18 +561,10 @@ the prose explains it.
   `docs/*.md` / `spec/*.md` on disk is declared (no orphans).
 - **Check 15b** — `docs/workflow.md` has a section for every `CJ_goal_*`
   orchestrator (ASCII chart + a 4-bullet Touches block).
-- **Check 16** — the merged doc-spec registry schema validates (`doc-spec.sh
+- **Check 16** — the merged doc-spec registry table validates (`doc-spec.sh
   --validate` — general + overlay + the duplicate-path guard).
 - **Check 17** — every root `*.md` on disk is a declared registry path.
 - **Check 19** — no work-item IDs in any `human-doc`.
-- **Check 20** — every `front_table: required` doc (today `docs/philosophy.md`,
-  `docs/workflow.md` — the field is part of the portable seed schema, optional,
-  enforced only where present) opens with a summary table BEFORE
-  its first `## ` heading (registry-driven via `doc-spec.sh
-  --list-front-table-docs`).
-- **Check 23** — the generated views (`docs/doc-general.md`, `docs/doc-custom.md`)
-  are regenerated from the merged registry into a temp dir and diffed; any drift
-  is a hard error (run `scripts/generate-doc-views.sh`).
 - **Check 24** — the test-spec coverage cross-check (HARD,
   SKIP-when-registry-absent): validates the merged test-spec registry
   (`test-spec.sh --validate`), then every `spec/test-spec-custom.md` unit anchor
@@ -577,13 +573,11 @@ the prose explains it.
   on disk, workflow and installed hook resolves to exactly one registry row
   (reverse), with a ≥20-token floor — reverse + floor units-gated.
 
-Add a repo-specific doc by adding a registry entry to `spec/doc-spec-custom.md`
+Add a repo-specific doc by adding a table row to `spec/doc-spec-custom.md`
 (and creating the file) — never by editing the general `spec/doc-spec.md` (it
 must stay byte-identical to the seed). A new root `*.md` must be a declared
-registry entry — `custom` (overlay) for repo-specific docs, `common` only if
-the portable contract adopts it — or Check 17 flags it. Flag a doc to require
-a leading summary table by adding `front_table: required` to its registry
-entry — Check 20 then enforces it.
+registry row — the overlay for repo-specific docs, the general file only if
+the portable contract adopts it — or Check 17 flags it.
 
 ## /CJ_document-release doc audit conventions
 

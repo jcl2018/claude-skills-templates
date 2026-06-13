@@ -66,9 +66,10 @@ registered-doc requirements audit (Step 6.7) that emits advisory `up-to-date` /
 the routable skill MDs) into the PR body, including a no-work-item-ref check for
 every `human-doc` AND a general-contract coverage check (Step 6.7.3b): the
 general set is enumerated by writing `doc-spec.sh --seed` to a temp file and
-rendering it (`DOC_SPEC_PATH=<temp> doc-spec.sh --render general`, first table
-column); a repo registry that omits a general-contract doc gets `stale: registry
-missing general-contract doc(s): <paths>` on the contract file's own verdict
+listing it (`DOC_SPEC_PATH=<temp> doc-spec.sh --list-declared` — the isolated
+seed carries only general rows); a repo registry that omits a general-contract
+doc gets `stale: registry missing general-contract doc(s): <paths>` on the
+contract file's own verdict
 line (basename path-equivalence for spec/-prefixed seed paths: a root-style
 consumer's `doc-spec.md` satisfies the seed's `spec/doc-spec.md`) — advisory,
 never a halt. The result is that
@@ -80,39 +81,33 @@ pipeline step) sees a clean tree where any doc updates are pre-committed.
 
 The wrapper reads the merged doc-spec registry on every run: the GENERAL
 `spec/doc-spec.md` (byte-identical to the seed, never edited in place) plus the
-optional `spec/doc-spec-custom.md` overlay (`section: custom` rows in the same
-fenced-yaml grammar) — `doc-spec.sh` merges them internally, and a path
-duplicated across the two files is a validate error. The registry declares each
-doc's `path`
-/ `section` / `audit_class` / `purpose` / `requirement` (+ the optional
-`front_table`); `audit_class` is a closed
-enum `{human-doc, operational}` (only `human-doc` gets the no-work-item-ref
-lint). The two-tier contract: `section: common`
-(general) docs are the portable contract and are REQUIRED — the seed declares
-all of them on self-bootstrap (delivered to `spec/doc-spec.md`) and the
-stub-scaffold step creates any missing one
-(for the generated views the stub prefers REAL content — `doc-spec.sh --render
-general|custom`; `spec/test-spec.md` is special-cased via `test-spec.sh --seed`
-so the stub is a VALID registry, never a title-plus-section stub that would
-hard-halt the test audit; `front_table: required` docs get a stub that opens
-with a summary table; `TODOS.md`
-stub-scaffold and the existing lazy-creation by TODOS-reading skills are
-convergent — whichever runs first creates the file, the other no-ops);
-`section: custom` docs are per-repo additions declared in the overlay. The
-auto-commit whitelist + the
-`--docs` resolution are both DERIVED from
-the merged registry — there is no separate hand-maintained whitelist file. The helper
-at `scripts/doc-spec.sh` parses + validates + expands; the wrapper resolves it
-**2-tier**: repo-local first, then the deployed `_cj-shared/scripts/` home that
-travels with the install (no runtime manifest `.source` reach-back —
+optional `spec/doc-spec-custom.md` overlay (the same 3-column Markdown-table
+grammar) — `doc-spec.sh` merges them internally, and a path duplicated across
+the two files is a validate error. The registry is a `| Doc | Purpose |
+Requirement |` table: each row declares a doc's path, what it is for, and what
+makes it current. `audit_class` is no longer a column — it is DERIVED from the
+path (a path under `docs/` or the root `README.md` is a `human-doc`, every
+other declared path is `operational`); only human-docs get the no-work-item-ref
+lint. The two-tier contract: the general docs are the portable contract and are
+REQUIRED — the seed declares all of them on self-bootstrap (delivered to
+`spec/doc-spec.md`) and the stub-scaffold step creates any missing one
+(`spec/test-spec.md` is special-cased via `test-spec.sh --seed` so the stub is a
+VALID registry, never a title-plus-section stub that would hard-halt the test
+audit; `TODOS.md` stub-scaffold and the existing lazy-creation by TODOS-reading
+skills are convergent — whichever runs first creates the file, the other
+no-ops); overlay docs are per-repo additions declared in `doc-spec-custom.md`.
+The auto-commit whitelist + the `--docs` resolution are both DERIVED from the
+merged registry — there is no separate hand-maintained whitelist file. The
+helper at `scripts/doc-spec.sh` parses + validates + expands; the wrapper
+resolves it **2-tier**: repo-local first, then the deployed `_cj-shared/scripts/`
+home that travels with the install (no runtime manifest `.source` reach-back —
 `CJ_document-release` is `local-only`, not `workbench`). A `_cj-shared`-resolved
 helper still parses THAT repo's own `doc-spec.md` because it reads the registry
 from the cwd's git toplevel (`git rev-parse --show-toplevel`), not its own
 location. Strict-required posture: the wrapper HALTs with `[doc-sync-no-config]`
-BEFORE any audit when `doc-spec.md` is missing the `yaml` registry, declares an
-unsupported `schema_version`, or has an entry with a missing field / an
-out-of-enum `audit_class`. A simply-absent `doc-spec.md` is self-bootstrapped
-from the portable Common seed instead of halting.
+BEFORE any audit when `doc-spec.md` has no registry table or a malformed table
+row (a literal `|` inside a cell). A simply-absent `doc-spec.md` is
+self-bootstrapped from the portable Common seed instead of halting.
 
 ### Runs cold in a non-workbench repo
 
@@ -125,16 +120,16 @@ cj_goal PR-body surfacing, which doesn't exist standalone, and isn't gitignored 
 a consumer repo). The catalog-independent halves — 6.7.1 (registry-doc audit) and
 6.7.3 (the human-doc no-work-item-ID lint) — still run. No `set -e` abort, no `jq`
 stderr noise, no stray artifact. The honest CI boundary: `doc-spec.sh --validate`
-(registry schema) is the portable gate a consumer repo wires in; the
-declared⇔on-disk loop (`validate.sh` Checks 15/15a) + `front_table` discipline are
-workbench-local and do NOT travel.
+(registry table) is the portable gate a consumer repo wires in; the
+declared⇔on-disk loop (`validate.sh` Checks 15/15a) is workbench-local and does
+NOT travel.
 
 ## Common pitfalls
 
-- `[doc-sync-no-config]` halt means `doc-spec.md`'s `yaml` registry is broken —
-  no `yaml` block, an unsupported `schema_version`, an entry missing a required
-  field, or an `audit_class` outside `{human-doc, operational}`. Repair the
-  registry block (spec/doc-spec.md, resolved spec/-then-root). (A simply-absent `doc-spec.md` is NOT a halt —
+- `[doc-sync-no-config]` halt means `doc-spec.md`'s registry table is broken —
+  no registry table, a malformed table row (a literal `|` inside a cell or the
+  wrong column count), or a path duplicated across the two files. Repair the
+  registry table (spec/doc-spec.md, resolved spec/-then-root). (A simply-absent `doc-spec.md` is NOT a halt —
   the wrapper self-bootstraps it from the portable Common seed and continues.)
 - Invoking on main: refuses fast with `[doc-sync-red]`; switch to a feature
   branch and re-run.

@@ -12,8 +12,8 @@ Read [SKILL.md](SKILL.md) first for path resolution, error handling, the
 halt-taxonomy summary, and the idempotency contract. Then follow the steps
 below.
 
-Canonical gate sequence: `gate-spec.md` (the cross-cj_goal verification contract;
-enforced by `validate.sh` Check 22). The gates this pipeline halts at are this
+Canonical gate sequence: `spec/test-spec.md` (the cross-cj_goal verification contract;
+enforced by `validate.sh` Check 24). The gates this pipeline halts at are this
 mode's subset of that one declared sequence.
 
 ---
@@ -779,7 +779,7 @@ tree, then continue to Step 5.5 (Doc-sync) → Step 9 (/ship).
 ## Step 8.5: QA-audit findings checkpoint (ALWAYS — AUQ)
 
 Identical contract to `/CJ_goal_feature` Step 3.4 (the canonical gate row is
-`qa-audit`, order 45, in `spec/gate-spec.md`). Immediately after QA returns
+`qa-audit`, order 45, in `spec/test-spec-custom.md`). Immediately after QA returns
 green, parse the QA RESULT's `AUDITS=doc:<...>,test:<...>,spec_updates:<...>`
 field + the fenced `AUDIT_FINDINGS` block (the four qa.md Step 8.6 step
 reports: the two spec-overlay updates + the doc audit + the test audit) and

@@ -3,7 +3,7 @@ skill-name: "CJ_goal_defect"
 version: 0.1.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-08T01:15:48Z"
+last-updated: "2026-06-13T04:02:12Z"
 ---
 
 # Skill Usage: CJ_goal_defect

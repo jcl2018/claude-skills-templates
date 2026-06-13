@@ -13,15 +13,14 @@
 #   4. helper --validate exits 0 + prints OK schema_version=1
 #   5. helper --list-declared returns the human docs (docs/philosophy.md etc.)
 #   6. helper --list-human-docs returns ONLY human-doc paths (no operational)
-#   6b. helper --list-front-table-docs emits ONLY front_table: required paths
 #   7. helper --expand-whitelist includes doc-spec.md + every declared path
 #   8. helper --seed emits the portable Common section
 #   8b. growth-safe seed assertions: the seed registry (via the DOC_SPEC_PATH
 #       temp-file idiom) --list-declared-includes the general-contract docs
-#       (CLAUDE.md, TODOS.md, docs/doc-general.md) AND the seed body states the
+#       (CLAUDE.md, TODOS.md) AND the seed body states the
 #       literal rule "General docs are required"
-#   9. strict gate: a bad schema_version HALTs with [doc-sync-no-config]
-#  10. strict gate: an audit_class outside the enum HALTs with [doc-sync-no-config]
+#   9. strict gate: a malformed table row (literal | in a cell) HALTs with [doc-sync-no-config]
+#  10. strict gate: a no-table registry HALTs with [doc-sync-no-config]
 #  11. functional portability: the real helper reads the cwd-toplevel doc-spec.md
 #      (run from a temp repo with no scripts/ dir)
 #  12. self-bootstrap regression: --seed with NO doc-spec.md present exits 0 and
@@ -55,12 +54,11 @@ else
   exit 1
 fi
 
-# 2. exactly one fenced ```yaml block
-_YAML_FENCES=$(grep -cE '^```yaml' "$DOC_SPEC" || true)
-if [ "${_YAML_FENCES:-0}" -eq 1 ]; then
-  ok "doc-spec.md has exactly one fenced \`\`\`yaml registry block"
+# 2. carries the registry table header (the table IS the registry — no yaml fence)
+if grep -qE '^\| Doc \| Purpose \| Requirement \|' "$DOC_SPEC"; then
+  ok "doc-spec.md carries the | Doc | Purpose | Requirement | registry table header"
 else
-  fail_test "doc-spec.md should have exactly 1 \`\`\`yaml block, found $_YAML_FENCES"
+  fail_test "doc-spec.md missing the registry table header (| Doc | Purpose | Requirement |)"
 fi
 
 # 3. helper exists + executable
@@ -111,25 +109,6 @@ else
   fail_test "helper --list-human-docs skipped (not executable)"
 fi
 
-# 6b. --list-front-table-docs emits ONLY the front_table: required paths (F000052).
-# Synthetic temp registry: one entry WITH front_table: required (docs/philosophy.md)
-# and one WITHOUT (docs/architecture.md). Asserts the flagged path is emitted and
-# the unflagged one is not — proving the new subcommand filters on the field.
-if [ -x "$HELPER" ]; then
-  _T=$(mktemp -d)
-  printf '```yaml\nschema_version: 1\ndocs:\n  - path: docs/philosophy.md\n    section: common\n    audit_class: human-doc\n    front_table: required\n  - path: docs/architecture.md\n    section: common\n    audit_class: human-doc\n```\n' > "$_T/doc-spec.md"
-  _FT=$(REPO_ROOT="$_T" bash "$HELPER" --list-front-table-docs 2>/dev/null)
-  rm -rf "$_T"
-  if printf '%s\n' "$_FT" | grep -qx 'docs/philosophy.md' \
-     && ! printf '%s\n' "$_FT" | grep -qx 'docs/architecture.md'; then
-    ok "helper --list-front-table-docs emits only front_table: required paths"
-  else
-    fail_test "helper --list-front-table-docs wrong set (expected only docs/philosophy.md, got: $_FT)"
-  fi
-else
-  fail_test "helper --list-front-table-docs skipped (not executable)"
-fi
-
 # 7. --expand-whitelist includes the registry (spec/doc-spec.md) + every declared path
 if [ -x "$HELPER" ]; then
   _WL=$(bash "$HELPER" --expand-whitelist 2>/dev/null)
@@ -167,9 +146,8 @@ if [ -x "$HELPER" ]; then
   _SD=$(DOC_SPEC_PATH="$_T/doc-spec.md" bash "$HELPER" --list-declared 2>/dev/null)
   if printf '%s\n' "$_SD" | grep -qx 'CLAUDE.md' \
      && printf '%s\n' "$_SD" | grep -qx 'TODOS.md' \
-     && printf '%s\n' "$_SD" | grep -qx 'docs/doc-general.md' \
-     && printf '%s\n' "$_SD" | grep -qx 'docs/reference.md'; then
-    ok "seed registry declares the general-contract docs (CLAUDE.md, TODOS.md, docs/doc-general.md, docs/reference.md)"
+     && printf '%s\n' "$_SD" | grep -qx 'docs/architecture.md'; then
+    ok "seed registry declares the general-contract docs (CLAUDE.md, TODOS.md, docs/architecture.md)"
   else
     fail_test "seed registry missing a general-contract doc (got: $_SD)"
   fi
@@ -183,34 +161,35 @@ else
   fail_test "growth-safe seed assertions skipped (helper not executable)"
 fi
 
-# 9. strict gate: bad schema_version
+# 9. strict gate: a malformed table row (a literal | inside a cell — the
+# Doc cell carries `a|b`, splitting the row to the wrong column count)
 if [ -x "$HELPER" ]; then
   _T=$(mktemp -d)
-  printf '```yaml\nschema_version: 9\ndocs:\n  - path: README.md\n    section: common\n    audit_class: human-doc\n```\n' > "$_T/doc-spec.md"
+  printf '# bad\n\n| Doc | Purpose | Requirement |\n|-----|---------|-------------|\n| a|b | p | r |\n' > "$_T/doc-spec.md"
   _BAD=$(REPO_ROOT="$_T" bash "$HELPER" --validate 2>&1); _BRC=$?
   rm -rf "$_T"
   if [ "$_BRC" -ne 0 ] && printf '%s' "$_BAD" | grep -qF '[doc-sync-no-config]'; then
-    ok "strict gate: bad schema_version HALTs with [doc-sync-no-config]"
+    ok "strict gate: a malformed table row (literal | in a cell) HALTs with [doc-sync-no-config]"
   else
-    fail_test "strict gate: bad schema_version did not halt (rc=$_BRC out=$_BAD)"
+    fail_test "strict gate: malformed table row did not halt (rc=$_BRC out=$_BAD)"
   fi
 else
-  fail_test "strict gate (schema) skipped (helper not executable)"
+  fail_test "strict gate (malformed row) skipped (helper not executable)"
 fi
 
-# 10. strict gate: audit_class outside the enum
+# 10. strict gate: no registry table at all
 if [ -x "$HELPER" ]; then
   _T=$(mktemp -d)
-  printf '```yaml\nschema_version: 1\ndocs:\n  - path: README.md\n    section: common\n    audit_class: not-a-class\n```\n' > "$_T/doc-spec.md"
+  printf '# no table here\n\nJust prose, no registry table.\n' > "$_T/doc-spec.md"
   _BAD=$(REPO_ROOT="$_T" bash "$HELPER" --validate 2>&1); _BRC=$?
   rm -rf "$_T"
   if [ "$_BRC" -ne 0 ] && printf '%s' "$_BAD" | grep -qF '[doc-sync-no-config]'; then
-    ok "strict gate: audit_class outside the enum HALTs with [doc-sync-no-config]"
+    ok "strict gate: a no-table registry HALTs with [doc-sync-no-config]"
   else
-    fail_test "strict gate: bad audit_class did not halt (rc=$_BRC out=$_BAD)"
+    fail_test "strict gate: no-table registry did not halt (rc=$_BRC out=$_BAD)"
   fi
 else
-  fail_test "strict gate (enum) skipped (helper not executable)"
+  fail_test "strict gate (no table) skipped (helper not executable)"
 fi
 
 # 11. functional portability: real helper reads cwd-toplevel doc-spec.md from a
@@ -222,13 +201,11 @@ if [ -x "$HELPER" ]; then
     (
       git -C "$_TMP_REPO" init -q 2>/dev/null
       cat > "$_TMP_REPO/doc-spec.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: README.md
-    section: common
-    audit_class: human-doc
-```
+# doc contract
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `README.md` | Landing page. | Present. |
 EOF
       cd "$_TMP_REPO" || exit 3
       _OUT=$(bash "$HELPER" --validate 2>&1); _RC=$?
@@ -302,13 +279,11 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$_T" init -q 2>/dev/null || true
   # doc-spec.md present, skills-catalog.json deliberately ABSENT (cold repo).
   cat > "$_T/doc-spec.md" <<'EOF'
-```yaml
-schema_version: 1
-docs:
-  - path: README.md
-    section: common
-    audit_class: human-doc
-```
+# doc contract
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `README.md` | Landing page. | Present. |
 EOF
   # Reproduce the Step 6.7.2 guard (catalog read) + the Step 6.7.4 scratch-skip,
   # exactly as the SKILL.md prescribes. Run with `set -e` to PROVE no abort is

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # tests/test-spec.test.sh
 #
-# Regression test for the two-tier test-spec registry (F000060): the general
-# spec/test-spec.md (5 portable rules; == test-spec.sh --seed) merged with the
-# spec/test-spec-custom.md units overlay by scripts/test-spec.sh — the
-# machinery behind validate.sh Check 24. Ports the coverage drift drills from
-# the retired predecessor suite.
+# Regression test for the two-tier test-spec registry (F000060 + F000063): the
+# general spec/test-spec.md (5 portable rules + the four-layer layers[] map;
+# == test-spec.sh --seed) merged with the spec/test-spec-custom.md units + gates
+# overlay by scripts/test-spec.sh — the machinery behind validate.sh Check 24.
+# Ports the coverage drift drills from the retired predecessor suite; the
+# layers[]/gates[] parsing folded in from the retired gate-spec.sh (F000063).
 #
 # Asserts:
 #   1. both registry files present, exactly one fenced ```yaml block each;
@@ -110,6 +111,27 @@ if [ "${_N:-0}" -ge 60 ] && [ "$_N" -eq "$_NU" ]; then
   ok "--list-units enumerates $_N overlay units, all ids unique"
 else
   fail_test "--list-units wrong shape (n=$_N unique=$_NU; want >= 60 and equal)"
+fi
+# F000063: the merged registry carries the four-layer layers[] (general) + the
+# per-mode gates[] (overlay, folded in from the retired gate-spec.md).
+_LAYERS=$(bash "$HELPER" --list-layers 2>/dev/null)
+if printf '%s\n' "$_LAYERS" | grep -qx 'local-hook' \
+   && printf '%s\n' "$_LAYERS" | grep -qx 'ci' \
+   && printf '%s\n' "$_LAYERS" | grep -qx 'pipeline-gate' \
+   && printf '%s\n' "$_LAYERS" | grep -qx 'ratchet'; then
+  ok "--list-layers enumerates the four verification layers"
+else
+  fail_test "--list-layers wrong (got: $(printf '%s' "$_LAYERS" | tr '\n' ' '))"
+fi
+_GATES=$(bash "$HELPER" --list-gates 2>/dev/null)
+if printf '%s\n' "$_GATES" | grep -qx 'isolation' \
+   && printf '%s\n' "$_GATES" | grep -qx 'qa-audit' \
+   && printf '%s\n' "$_GATES" | grep -qx 'doc-sync' \
+   && printf '%s\n' "$_GATES" | grep -qx 'portability' \
+   && printf '%s\n' "$_GATES" | grep -qx 'ship'; then
+  ok "--list-gates enumerates the per-mode pipeline gates"
+else
+  fail_test "--list-gates wrong (got: $(printf '%s' "$_GATES" | tr '\n' ' '))"
 fi
 
 # 3. absent-vs-invalid split
@@ -380,8 +402,12 @@ _rebuild_fixture
 # Drill (f2) — the source-pin bypass: an unwired test file ships WITH a row
 # whose source points at the test file itself; the validate-time pin halts.
 printf '#!/usr/bin/env bash\n# tests/zz-selfref.test.sh — self-referencing drill file\n' > "$_FIX/tests/zz-selfref.test.sh"
+# Insert the self-ref unit row inside the units: block — BEFORE the top-level
+# `gates:` line (the overlay carries units: then gates:); appending at the
+# closing fence would land it inside the gates: block and the gates parser
+# would mis-read it.
 awk '
-  /^```$/ && !done { print "  - id: test-zz-selfref"; \
+  /^gates:$/ && !done { print "  - id: test-zz-selfref"; \
     print "    family: test"; \
     print "    label: \"Self-ref drill suite\""; \
     print "    anchor: \"tests/zz-selfref.test.sh\""; \

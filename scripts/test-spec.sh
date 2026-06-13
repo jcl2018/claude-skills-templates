@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 # test-spec.sh — parse + validate the two-tier test-spec registry (the general
-# test-spec.md rules + the optional test-spec-custom.md units overlay); run the
-# coverage cross-check; emit the portable general seed for self-bootstrap.
+# test-spec.md rules + layers + the optional test-spec-custom.md units + gates
+# overlay); run the coverage cross-check; emit the portable general seed for
+# self-bootstrap.
 #
-# test-spec.md is the GENERAL tier of the test contract: the portable rules
-# every adopting repo holds its verification surface to (tests-discoverable,
-# suite-green, new-code-tested, units-anchored, single-owner) — delivered
-# verbatim by --seed and never edited in place. The repo-specific unit-level
-# enumeration (one row per validate check / test sub-suite / inline family /
-# standalone suite / CI workflow / git hook) lives in an optional
-# test-spec-custom.md OVERLAY next to it (same fenced ```yaml grammar, units:
-# rows). This helper merges the two internally, so every consumer
-# (scripts/validate.sh Check 24, the /CJ_test_audit skill, scripts/test.sh)
-# sees ONE registry. awk only — no python/yaml dependency, portable to bash
-# 3.2; mirrors scripts/gate-spec.sh / scripts/doc-spec.sh.
+# test-spec.md is the GENERAL tier of the verification contract: the portable
+# rules every adopting repo holds its verification surface to
+# (tests-discoverable, suite-green, new-code-tested, units-anchored,
+# single-owner) PLUS the four-layer map (local-hook / ci / pipeline-gate /
+# ratchet — the layers[] registry, folded in from the retired gate-spec.md) —
+# delivered verbatim by --seed and never edited in place. The repo-specific
+# unit-level enumeration (one row per validate check / test sub-suite / inline
+# family / standalone suite / CI workflow / git hook) lives in an optional
+# test-spec-custom.md OVERLAY next to it (units: rows), alongside the per-mode
+# pipeline-gate rows (a SEPARATE top-level gates: array — the units: `layer`
+# enum {local-hook, ci} cannot hold `pipeline-gate`). This helper merges
+# everything internally, so every consumer (scripts/validate.sh Check 24, the
+# /CJ_test_audit skill, scripts/test.sh) sees ONE registry. awk only — no
+# python/yaml dependency, portable to bash 3.2; mirrors scripts/doc-spec.sh.
 #
 # Absent-vs-invalid split (the lesson from the predecessor engine's ambiguous
 # exit-1): when NEITHER spec/test-spec.md NOR a root test-spec.md exists, every
@@ -29,6 +33,9 @@
 #   --list-rules       echo every declared rule id (registry order).
 #   --list-units       echo every declared unit id (registry order; empty when
 #                      no overlay declares units).
+#   --list-layers      echo every declared layer id (general layers[]; sorted).
+#   --list-gates       echo every declared gate id (overlay gates[]; sorted;
+#                      empty when no overlay declares gates).
 #   --check-coverage   the Check 24 engine. Forward: every unit's `anchor`
 #                      must match LIVE in its declared `source` file. Reverse:
 #                      every live `=== Check N:` banner / `# Error check N:` /
@@ -49,9 +56,15 @@
 #   --help|-h
 #
 # family closed enum:      validate | test | test-deploy | eval | windows-smoke | ci | hook.
-# layer closed enum:       local-hook | ci.
-# disposition closed enum: hard-fail | advisory.
+# unit layer closed enum:  local-hook | ci.
+# unit disposition enum:   hard-fail | advisory.
 # trigger token enum:      pre-commit | post-merge | pr-ci | push-main | nightly | manual.
+# layer id closed enum:    local-hook | ci | pipeline-gate | ratchet.
+# layer disposition enum:  hard-fail | advisory | mixed.
+# gate layer:              pipeline-gate (the only value).
+# gate disposition enum:   hard-fail | advisory | mixed | halt.
+# gate marker mode enum:   feature | defect | task | todo.
+# gate marker value:       a "[...]" literal OR { enforced_by: subagent | auq }.
 # schema_version supported: 1.
 
 set -eu
@@ -127,8 +140,8 @@ _parse_rules_file() {
       }
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
-    /^rules:/          { in_rules=1; next }
-    /^units:/          { in_rules=0; next }
+    /^rules:/                  { in_rules=1; next }
+    /^(units|layers|gates):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -184,8 +197,8 @@ _parse_units_file() {
       cur_layer=""; cur_disp=""; cur_skips=""; cur_ratchet=""; cur_trigger=""
       cur_purpose=""
     }
-    /^units:/          { in_units=1; next }
-    /^rules:/          { in_units=0; next }
+    /^units:/                  { in_units=1; next }
+    /^(rules|layers|gates):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -209,6 +222,105 @@ _parse_units() {
   while IFS= read -r _rf; do
     [ -n "$_rf" ] || continue
     _parse_units_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's layers[] block into TSV rows: id<TAB>name<TAB>disposition.
+# Flag-based, key-anchored — scoped within the top-level `layers:` block
+# (stops at the next top-level key: rules:/units:/gates:). The layers[] registry
+# lives in the GENERAL file (the four-layer map, folded in from gate-spec.md).
+_parse_layers_file() {
+  _extract_yaml_file "$1" | awk '
+    function flush() {
+      if (cur_id != "") { printf "%s\t%s\t%s\n", cur_id, cur_name, cur_disp }
+      cur_id=""; cur_name=""; cur_disp=""
+    }
+    /^layers:/                 { in_layers=1; next }
+    /^(rules|units|gates):/    { flush(); in_layers=0; next }
+    !in_layers                 { next }
+    /^[[:space:]]*#/           { next }
+    /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
+    /^[[:space:]]*name:/        { cur_name=$2; next }
+    /^[[:space:]]*disposition:/ { cur_disp=$2; next }
+    END { if (in_layers) flush() }
+  '
+}
+
+# Merged layers TSV across general + overlay (in practice only the general
+# carries layers).
+_parse_layers() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_layers_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's gates[] block into TSV rows:
+#   id<TAB>layer<TAB>order<TAB>disposition<TAB>backing_present<TAB>markers_blob
+# markers_blob is a space-separated list of `mode=value` tokens, where value is
+# either a bracket literal (e.g. [portability-red]) or `enforced_by:<kind>`.
+# Ported intact from the retired scripts/gate-spec.sh _parse_gates. Scoped
+# within the top-level `gates:` block. backing_present is 1 when a `backing:`
+# key was seen (its value can be free text, so only presence is recorded).
+_parse_gates_file() {
+  _extract_yaml_file "$1" | awk '
+    function flush() {
+      if (cur_id != "") {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", cur_id, cur_layer, cur_order, cur_disp, cur_backing, cur_markers
+      }
+      cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
+    }
+    /^gates:/                  { in_gates=1; next }
+    /^(rules|units|layers):/   { flush(); in_gates=0; next }
+    !in_gates                  { next }
+    # A new gate entry.
+    /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
+    # Gate-level keys (also close any open markers map).
+    /^[[:space:]]*layer:/       { in_markers=0; cur_layer=$2; next }
+    /^[[:space:]]*order:/        { in_markers=0; cur_order=$2; next }
+    /^[[:space:]]*disposition:/  { in_markers=0; cur_disp=$2;  next }
+    /^[[:space:]]*backing:/      { in_markers=0; cur_backing="1"; next }
+    /^[[:space:]]*checks:/       { in_markers=0; next }
+    # Open the per-mode markers map.
+    /^[[:space:]]*markers:/      { in_markers=1; next }
+    # Inside the markers map: `mode: value` lines (a bracket literal or an
+    # {enforced_by: kind} inline map). Comment-only lines (full-line `#`) are
+    # skipped — they document an omitted mode.
+    in_markers && /^[[:space:]]*[a-z]+:[[:space:]]*/ {
+      mode=$1; sub(/:$/, "", mode); sub(/:.*/, "", mode)
+      val=$0
+      sub(/^[[:space:]]*[a-z]+:[[:space:]]*/, "", val)
+      sub(/[[:space:]]+#.*$/, "", val)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      if (val ~ /^\{[[:space:]]*enforced_by:/) {
+        kind=val
+        sub(/^\{[[:space:]]*enforced_by:[[:space:]]*/, "", kind)
+        sub(/[[:space:]]*\}.*$/, "", kind)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", kind)
+        tok=mode "=enforced_by:" kind
+      } else {
+        gsub(/^"|"$/, "", val)
+        tok=mode "=" val
+      }
+      cur_markers = (cur_markers=="" ? tok : cur_markers " " tok)
+      next
+    }
+    END { if (in_gates) flush() }
+  '
+}
+
+# Merged gates TSV across general + overlay (in practice only the overlay
+# carries gates).
+_parse_gates() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_gates_file "$_rf"
   done <<EOF
 $(_registry_files)
 EOF
@@ -244,6 +356,8 @@ EOF
 
   _RULES=$(_parse_rules)
   _UNITS=$(_parse_units)
+  _LAYERS=$(_parse_layers)
+  _GATES=$(_parse_gates)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -254,6 +368,11 @@ EOF
     _N_IDS=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_UNIQ=$(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_IDS" -eq "$_N_UNIQ" ] || emit_halt "duplicate unit id(s): $(printf '%s\n' "$_UNITS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_GATES" ]; then
+    _N_G=$(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_GU=$(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_G" -eq "$_N_GU" ] || emit_halt "duplicate gate id(s): $(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -271,6 +390,62 @@ EOF
   done <<EOF
 $_RULES
 EOF
+
+  # Per-layer required keys + closed enums (the general four-layer map).
+  if [ -n "$_LAYERS" ]; then
+    while IFS="$(printf '\t')" read -r _lid _lname _ldisp; do
+      [ -n "$_lid" ] || continue
+      [ -n "$_lname" ] || emit_halt "layer '$_lid' is missing 'name'"
+      [ -n "$_ldisp" ] || emit_halt "layer '$_lid' is missing 'disposition'"
+      case "$_lid" in
+        local-hook|ci|pipeline-gate|ratchet) : ;;
+        *) emit_halt "layer id '$_lid' is outside the closed enum {local-hook, ci, pipeline-gate, ratchet}" ;;
+      esac
+      case "$_ldisp" in
+        hard-fail|advisory|mixed) : ;;
+        *) emit_halt "layer '$_lid' has disposition '$_ldisp' outside the closed enum {hard-fail, advisory, mixed}" ;;
+      esac
+    done <<EOF
+$_LAYERS
+EOF
+  fi
+
+  # Per-gate required keys + closed enums + per-mode marker grammar (the overlay
+  # pipeline-gate rows folded in from gate-spec.md).
+  if [ -n "$_GATES" ]; then
+    while IFS="$(printf '\t')" read -r _gid _glayer _gorder _gdisp _gback _gmarkers; do
+      [ -n "$_gid" ] || continue
+      case "$_gid" in
+        *[!a-z0-9-]*) emit_halt "gate id '$_gid' is not a slug ([a-z0-9-]+ only)" ;;
+      esac
+      [ -n "$_glayer" ] || emit_halt "gate '$_gid' is missing 'layer'"
+      [ -n "$_gorder" ] || emit_halt "gate '$_gid' is missing 'order'"
+      [ -n "$_gdisp" ] || emit_halt "gate '$_gid' is missing 'disposition'"
+      [ "$_gback" = "1" ] || emit_halt "gate '$_gid' is missing 'backing'"
+      [ -n "$_gmarkers" ] || emit_halt "gate '$_gid' has an empty 'markers' map (a gate runs in >=1 mode)"
+      [ "$_glayer" = "pipeline-gate" ] || emit_halt "gate '$_gid' has layer '$_glayer' (gates: rows are always layer: pipeline-gate)"
+      case "$_gdisp" in
+        hard-fail|advisory|mixed|halt) : ;;
+        *) emit_halt "gate '$_gid' has disposition '$_gdisp' outside the closed enum {hard-fail, advisory, mixed, halt}" ;;
+      esac
+      # Each marker token is mode=value; value is a "[...]" literal or enforced_by:<kind>.
+      for _tok in $_gmarkers; do
+        _mode=${_tok%%=*}
+        _val=${_tok#*=}
+        case "$_mode" in
+          feature|defect|task|todo) : ;;
+          *) emit_halt "gate '$_gid' markers map has mode '$_mode' outside {feature, defect, task, todo}" ;;
+        esac
+        case "$_val" in
+          \[*\]) : ;;                                  # a bracket literal marker
+          enforced_by:subagent|enforced_by:auq) : ;;   # the escape hatch
+          *) emit_halt "gate '$_gid' mode '$_mode' has marker value '$_val' that is neither a \"[...]\" literal nor {enforced_by: subagent|auq}" ;;
+        esac
+      done
+    done <<EOF
+$_GATES
+EOF
+  fi
 
   # Per-unit required keys + closed enums + the rendered-field work-item-ID lint.
   [ -n "$_UNITS" ] || return 0
@@ -556,24 +731,45 @@ EOF
 _emit_seed() {
   cat <<'TESTSPEC_SEED'
 <!-- TEST-SPEC-GENERAL:BEGIN (portable — keep byte-identical across adopting repos) -->
-# test-spec.md — the general test contract
+# test-spec.md — the verification contract
 
-This file is the single answer to one question: **what rules is this repo's
-verification surface held to?** It is both the human-readable statement (the
-prose below) and the machine source of truth (the fenced `yaml` registry at
-the end), parsed by `test-spec.sh` (resolved `spec/test-spec.md` first, then a
-root `test-spec.md` fallback).
+This file is the single answer to one question: **what stops a broken change
+from landing, what rules is the repo's verification surface held to, and at
+which layer?** It is both the human-readable map (the prose + the four-layer
+table below) and the machine source of truth (the fenced `yaml` registry at the
+end), parsed by `test-spec.sh` (resolved `spec/test-spec.md` first, then a root
+`test-spec.md` fallback).
 
 This file is the **general tier** of a two-tier contract, delivered verbatim
 (`test-spec.sh --seed` emits it byte-for-byte). A repo adopts the contract by
 dropping in this file — and never editing it: repo-specific test logic — the
 unit-level enumeration of the verification surface (every validator check,
-test sub-suite, CI workflow, git hook) — lives in an optional
-**`test-spec-custom.md` overlay** next to this file (`units:` rows in the same
-fenced-yaml grammar). The parser merges the two internally, so consumers see
-ONE registry. An overlay-absent repo carries the rules alone: the coverage
-cross-check stays **inactive** until `units:` rows exist, and tooling reports
-that state by name instead of inventing findings.
+test sub-suite, CI workflow, git hook) AND the per-mode pipeline gates — lives
+in an optional **`test-spec-custom.md` overlay** next to this file (`units:`
+rows + a `gates:` array in the same fenced-yaml grammar). The parser merges the
+two internally, so consumers see ONE registry. An overlay-absent repo carries
+the rules + layers alone: the coverage cross-check stays **inactive** until
+`units:` rows exist, and tooling reports that state by name instead of inventing
+findings.
+
+## The four verification layers
+
+A change passes through up to four independent verification layers between an
+edit and a landed PR. Each layer runs at a different moment and owns a different
+kind of guarantee:
+
+| Layer | When it runs | What it owns | Disposition |
+|-------|--------------|--------------|-------------|
+| **local-hook** | at `git commit` (pre-commit hook) | the commit is structurally valid before it ever leaves your machine | hard-fail (blocks the commit) |
+| **ci** | on every PR (GitHub Actions) | the whole tree is structurally + behaviorally sound on a clean runner | hard-fail (gates the PR) |
+| **pipeline-gate** | during an orchestrated run | this run did the right thing — isolated, designed, tested, documented, honest — before it reached the PR | mixed (most halt; some advise) |
+| **ratchet** | inside ci / the orchestrator | a monotonic property never regresses (VERSION, the portability baseline, doc freshness) | advisory or hard-fail |
+
+The word **"gate"** is reserved here for a single thing: an **inline
+orchestrator halt** (a `pipeline-gate` row, declared per repo in the overlay's
+`gates:` array). The CI validator-as-a-whole is the **ci** layer (a set of
+numbered *checks*), not "the gate." A monotonic guard is a **ratchet**. Three
+words, three referents, no overload.
 
 ## The five general rules
 
@@ -601,7 +797,9 @@ Two enforcement layers stand behind the rules:
 ## Machine registry
 
 The block below is the source of truth. Keep it the only fenced `yaml` block in
-this file.
+this file. It carries `rules[]` (the five portable rules) and `layers[]` (the
+four-layer map). The repo-specific `units:` enumeration and the per-mode
+`gates:` array live in the optional `test-spec-custom.md` overlay.
 
 ```yaml
 # test-spec registry (parsed by test-spec.sh; merged with the optional
@@ -628,6 +826,27 @@ rules:
     statement: "Every live test surface resolves to exactly one declared unit (reverse coverage)."
     scope: "every live validator banner/comment, test file on disk, CI workflow, installed hook"
     enforced_by: "test-spec.sh --check-coverage reverse sweep + floor (active when units: rows exist)"
+layers:
+  - id: local-hook
+    name: "Local pre-commit hook"
+    trigger: "at git commit"
+    disposition: hard-fail
+    owns: "the commit is structurally valid before it leaves the machine"
+  - id: ci
+    name: "CI on every PR"
+    trigger: "on every PR"
+    disposition: hard-fail
+    owns: "the whole tree is structurally + behaviorally sound on a clean runner"
+  - id: pipeline-gate
+    name: "In-orchestrator gates"
+    trigger: "during an orchestrated run"
+    disposition: mixed
+    owns: "this run did the right thing before it reached the PR"
+  - id: ratchet
+    name: "Regression ratchets"
+    trigger: "inside ci / the orchestrator"
+    disposition: advisory
+    owns: "a monotonic property never regresses"
 ```
 <!-- TEST-SPEC-GENERAL:END -->
 TESTSPEC_SEED
@@ -649,6 +868,16 @@ case "${1:-}" in
     [ -n "$_UNITS" ] && printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $1}'
     exit 0
     ;;
+  --list-layers)
+    _run_registry_gates
+    [ -n "$_LAYERS" ] && printf '%s\n' "$_LAYERS" | awk -F'\t' 'NF {print $1}' | sort -u
+    exit 0
+    ;;
+  --list-gates)
+    _run_registry_gates
+    [ -n "$_GATES" ] && printf '%s\n' "$_GATES" | awk -F'\t' 'NF {print $1}' | sort -u
+    exit 0
+    ;;
   --check-coverage)
     _run_registry_gates
     _run_coverage
@@ -660,20 +889,22 @@ case "${1:-}" in
   --help|-h)
     cat <<'USAGE'
 test-spec.sh — parse + validate the two-tier test-spec registry (general rules
-+ optional test-spec-custom.md units overlay; all reads operate on the merge);
-run the coverage cross-check; emit the portable general seed.
++ layers + optional test-spec-custom.md units + gates overlay; all reads
+operate on the merge); run the coverage cross-check; emit the portable seed.
 
 Usage:
   test-spec.sh --validate        # REGISTRY=absent/exit 0 when absent; exit 0 OK when valid; halt when invalid
   test-spec.sh --list-rules      # every declared rule id (registry order)
   test-spec.sh --list-units      # every declared unit id (registry order; empty without an overlay)
+  test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
+  test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated)
   test-spec.sh --seed            # complete minimal valid general test-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--check-coverage|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--check-coverage|--seed}" >&2
     exit 2
     ;;
   *)
