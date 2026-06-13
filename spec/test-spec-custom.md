@@ -19,6 +19,82 @@ test-spec carries the four `layers:` (local-hook / ci / pipeline-gate /
 ratchet); this overlay carries the per-mode `gates:` that run in the
 `pipeline-gate` layer.
 
+## The verification surface, grouped by layer
+
+The general contract ([`test-spec.md`](test-spec.md)) names the four
+verification layers in the abstract; this section is the reader's-eye index of
+which **kinds** of tests this repo actually runs in each one. The fenced `yaml`
+registry below stays the source of truth — this grouping is derived from it
+(prose drift is caught by the advisory registered-doc requirements audit, the
+same posture as the per-row `purpose` one-liners). Each `units:` row carries a
+`layer` (`local-hook | ci`) and a `family`; the `gates:` array is the
+`pipeline-gate` layer; the `ratchet: true` flag marks the cross-cutting ratchet
+layer (a ratchet unit also runs in `ci`).
+
+### Handled by `ci` (every PR, on a clean runner — hard-fail)
+
+The bulk of the surface. Four kinds:
+
+- **Validator checks** — `scripts/validate.sh` (also run at `pre-commit`, below):
+  - *Error checks* (hard-fail, comment-anchored) — 1–11 plus 9b (12 checks):
+    catalog↔disk integrity, SKILL.md frontmatter, template existence, doc
+    triplets, dependency resolution, VERSION/semver, the Copilot bundle files,
+    manifest reconciliation.
+  - *Numbered checks* (banner-anchored) — 11, 13, 14, 15, 16, 17, 18, 19, 21, 24
+    (10 checks): rules deploy, USAGE presence + freshness, the doc-registry
+    contract, permission-policy drift, and the test-spec coverage cross-check
+    (24). ("Error check 11" and "Check 11" are two distinct live checks sharing
+    a numeral.)
+  - *Warning checks* (advisory) — orphan doc directories, orphan templates.
+  - *The portability-audit engine* (`cj-portability-audit.sh`) behind Check 18.
+- **Behavioral test suites** — `scripts/test.sh`:
+  - *Registered `tests/*.test.sh` sub-suites* (17) — the worktree init/cleanup
+    helpers, the task scaffolder, the doc-spec/test-spec parsers, the audit
+    skills, the goal-common phases, the id-claim race, doc-sync wiring, and more.
+  - *Inline `test.sh` families* (16) — the full validator re-run, the
+    harness-principle regression guards, the catalog/frontmatter smoke, the
+    handoff-gate suite, the install==clone battery, and the rest.
+- **Standalone suites** (also manually runnable; some also run on push-main or
+  nightly) — `skills-deploy` install/doctor/remove (`test-deploy`), the
+  behavioral `eval` harness (nightly), and the Windows Git-Bash `windows-smoke`.
+- **GitHub Actions workflows** — `validate.yml` (the PR gate: validator + suite +
+  shellcheck), `windows.yml` (Git Bash, on PR + push-main), `eval-nightly.yml`
+  (scheduled + manual dispatch).
+
+### Handled by `local-hook` (at `git commit`, before code leaves the machine)
+
+- **pre-commit** (hard-fail) — runs the whole validator at commit time, so a
+  structurally-invalid commit never lands. (This is why the validator rows carry
+  the `pre-commit pr-ci` trigger — the same checks, two firing points.)
+- **post-merge** (advisory, best-effort) — re-deploys skills/templates/rules into
+  the local home after a pull touches them; never blocks git.
+
+### Handled by `pipeline-gate` (during an orchestrated `CJ_goal_*` run)
+
+The `gates:` array — the inline halts a goal orchestrator runs before its PR, in
+`order`. Each mode runs its subset:
+
+| order | gate | runs in | halts on |
+|------:|------|---------|----------|
+| 10 | isolation | feature, defect, task | un-isolated / dirty checkout |
+| 20 | design-gate | feature | design not approved |
+| 25 | root-cause | defect | no populated root cause |
+| 30 | complexity | task | topic too big for a task |
+| 40 | qa | all four | failing test rows |
+| 45 | qa-audit | all four | operator declines the audit findings |
+| 50 | doc-sync | all four | doc drift can't fold into the PR |
+| 60 | portability | all four | a skill lies about its portability tier |
+| 70 | ship | all four | the human ship gate (PR-stop) |
+
+### Ratchets (cross-cutting — monotonic guards that never regress)
+
+The `ratchet: true` units (each also runs in `ci`):
+
+- **VERSION never regresses** — Error check 8.
+- **USAGE.md freshness** — Check 14 (USAGE no older than its sibling SKILL.md).
+- **The portability baseline** — Check 18 + the portability-audit engine (the
+  clean zero-findings baseline is the ratchet).
+
 ## How the registry is enforced
 
 One hard `validate.sh` loop keeps this registry honest by construction —

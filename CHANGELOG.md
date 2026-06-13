@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.69] - 2026-06-13
+
+### Added
+
+- **A reader's-eye "verification surface, grouped by layer" section in `spec/test-spec-custom.md`** (T000047). The general `spec/test-spec.md` names the four verification layers in the abstract (local-hook / ci / pipeline-gate / ratchet); the overlay now carries a prose section that maps THIS repo's actual verification units to each layer — so a reader can see at a glance what kinds of tests CI handles (the validator's error/numbered/warning checks + portability engine, the registered `tests/*.test.sh` sub-suites + inline `test.sh` families, the standalone suites, and the three GitHub Actions workflows), what `local-hook` handles (pre-commit validator + post-merge re-deploy), what `pipeline-gate` handles (a table of the nine ordered orchestrator gates), and the cross-cutting ratchets. Prose-only, above the registry `yaml` fence; the machine registry stays the source of truth (drift caught by the advisory registered-doc audit). No schema or parser change — `test-spec.sh --validate` / `--check-coverage` and `validate.sh` Check 24 are untouched.
+
 ## [6.0.68] - 2026-06-12
 
 ### Changed
