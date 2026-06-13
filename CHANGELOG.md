@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.71] - 2026-06-13
+
+### Added
+
+- **A `## Post-land recap` convention in `CLAUDE.md`** (T000048). After any land/merge succeeds — a direct `/land-and-deploy`, the `CJ_goal_defect` Step 10 land, or the `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail — the agent surfaces a concise two-part recap: **What this merge did** (the change + version + PR#/merge SHA) and **How to verify it** (the concrete commands/checks for that change). `/land-and-deploy` is upstream gstack and is never edited, so the recap lives as a workbench convention the agent reads rather than an edit to the gstack skill. It is advisory: it fires only after the merge is verified `MERGED`, never blocks, and adds no gate — the post-land mirror of the pre-build design-summary digest. Built via `/CJ_goal_feature` (office-hours → silent build → PR).
+
 ## [6.0.69] - 2026-06-13
 
 ### Added
