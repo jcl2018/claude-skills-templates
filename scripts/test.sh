@@ -536,6 +536,44 @@ else
   fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
 fi
 
+# Step 3d (T000049 / Check 25): README.md ↔ generate-readme.sh sync check.
+# THE PARALLEL test.sh EDIT the new validate.sh Check 25 needs — pre-flighted in
+# lockstep with the check add (the standing F000032/34/35 zzz-mirror blind spot,
+# defused). README.md is fully generated from skills-catalog.json by
+# scripts/generate-readme.sh; Check 25 diffs the generator's stdout against
+# README.md so a stale catalog-derived README cannot pass validation. README.md
+# is already backed up + restored by the EXIT trap above (the catalog/README/
+# VERSION/CHANGELOG backup at the top of this integration block), so mutating it
+# here is safe even on an unexpected exit. POSITIVE: on the live (in-sync) tree
+# Check 25 PASSes. NEGATIVE: append a stray line to README.md (the catalog stays
+# unchanged so the generator output diverges) → assert validate.sh exits non-zero
+# AND emits the literal Check 25 stale ERROR, then restore README.md from the
+# generator → assert validate.sh exits 0 again. Proves Check 25 actually FIRES,
+# not just defaults green.
+_C25_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
+if echo "$_C25_OUT_OK" | grep -qF "  PASS: README.md matches generate-readme.sh output"; then
+  ok "Check 25: README.md is in sync with generate-readme.sh on the live tree (PASS)"
+else
+  fail_test "Check 25: validate.sh did not emit the Check-25 PASS on the in-sync live tree; output: $_C25_OUT_OK"
+fi
+printf '\n<!-- planted drift for Check 25 negative test -->\n' >> "$REPO_ROOT/README.md"
+if _C25_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 25: validate.sh should have exited non-zero with a drifted README.md, but exited 0"
+else
+  if echo "$_C25_OUT" | grep -qF "  ERROR: README.md is stale vs generate-readme.sh"; then
+    ok "Check 25: a drifted README.md triggers the stale ERROR + non-zero exit"
+  else
+    fail_test "Check 25: validate.sh exited non-zero but missing '  ERROR: README.md is stale vs generate-readme.sh'; output: $_C25_OUT"
+  fi
+fi
+# Restore README.md from the generator (its single source of truth), then assert green.
+"$REPO_ROOT/scripts/generate-readme.sh" > "$REPO_ROOT/README.md" 2>/dev/null
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 25: validate.sh exits 0 again after README.md is regenerated"
+else
+  fail_test "Check 25: validate.sh should have exited 0 after README.md was regenerated, but exited non-zero"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then

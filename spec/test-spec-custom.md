@@ -40,11 +40,11 @@ The bulk of the surface. Four kinds:
     catalog↔disk integrity, SKILL.md frontmatter, template existence, doc
     triplets, dependency resolution, VERSION/semver, the Copilot bundle files,
     manifest reconciliation.
-  - *Numbered checks* (banner-anchored) — 11, 13, 14, 15, 16, 17, 18, 19, 21, 24
-    (10 checks): rules deploy, USAGE presence + freshness, the doc-registry
-    contract, permission-policy drift, and the test-spec coverage cross-check
-    (24). ("Error check 11" and "Check 11" are two distinct live checks sharing
-    a numeral.)
+  - *Numbered checks* (banner-anchored) — 11, 13, 14, 15, 16, 17, 18, 19, 21, 24,
+    25 (11 checks): rules deploy, USAGE presence + freshness, the doc-registry
+    contract, permission-policy drift, the test-spec coverage cross-check (24),
+    and the README↔generate-readme.sh sync check (25). ("Error check 11" and
+    "Check 11" are two distinct live checks sharing a numeral.)
   - *Warning checks* (advisory) — orphan doc directories, orphan templates.
   - *The portability-audit engine* (`cj-portability-audit.sh`) behind Check 18.
 - **Behavioral test suites** — `scripts/test.sh`:
@@ -440,6 +440,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "Validates the merged test-spec registry, then cross-checks coverage (forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens) — hard; then the advisory per-mode gate marker-drift cross-check over the gates array (absorbed from the retired Check 22); skips when the registry is absent."
+  - id: validate-check-25
+    family: validate
+    label: "Check 25 — README in sync with generate-readme.sh"
+    anchor: "=== Check 25:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "README.md byte-matches the generate-readme.sh stdout, so a stale catalog-derived README cannot pass validation; read-only (the generator writes only to stdout); skips when the generator is absent."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate

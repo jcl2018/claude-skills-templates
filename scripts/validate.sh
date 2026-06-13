@@ -1017,6 +1017,34 @@ EOF
   fi
 fi
 
+# Check 25: README.md is in sync with scripts/generate-readme.sh output (HARD).
+# README.md is fully generated from skills-catalog.json by scripts/generate-readme.sh
+# (it prints to stdout; the README is written via
+# `bash scripts/generate-readme.sh > README.md`). Without this check a stale
+# catalog-derived README — skill descriptions/versions/statuses lagging the
+# catalog — passes validation silently. generate-readme.sh is idempotent (no
+# timestamps, no run-specific metadata — see its header + the test.sh idempotency
+# assertion), so a byte diff between its live stdout and README.md is a
+# deterministic staleness signal. READ-ONLY: the generator writes only to stdout
+# here; README.md is never modified by this check.
+echo ""
+echo "=== Check 25: README.md in sync with generate-readme.sh ==="
+GENREADME="$REPO_ROOT/scripts/generate-readme.sh"
+if [ ! -f "$GENREADME" ]; then
+  echo "  SKIP: scripts/generate-readme.sh not present (non-adopting repo)"
+elif [ ! -f "$REPO_ROOT/README.md" ]; then
+  echo "  ERROR: README.md is missing — run: bash scripts/generate-readme.sh > README.md"
+  ERRORS=$((ERRORS+1))
+else
+  README_DIFF=$(diff "$REPO_ROOT/README.md" <(bash "$GENREADME" 2>/dev/null) 2>/dev/null || true)
+  if [ -z "$README_DIFF" ]; then
+    pass "README.md matches generate-readme.sh output (catalog-derived README is current)"
+  else
+    echo "  ERROR: README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md"
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="
