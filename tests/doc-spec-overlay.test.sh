@@ -19,6 +19,14 @@
 #   6. present-but-invalid overlay (bad audit_class) => --validate halts
 #   7. DOC_SPEC_PATH override stays hermetic: the overlay resolves NEXT TO the
 #      overridden general file, never the live repo's overlay
+#   8. --check-on-disk battery (the audit Stage-1 engine): clean fixture =>
+#      all 6 check lines PASS + CHECKS_RUN=6 + FINDINGS=0 + exit 0; SEVEN
+#      seeded violations (missing declared doc; orphan in docs/; orphan in
+#      spec/ — a non-self-declaring overlay; undeclared root *.md; work-item
+#      ID in a human-doc; missing front table; view-table drift) each flip
+#      EXACTLY their own `FINDING: stage1/<id>` + FINDINGS=1 + exit 1;
+#      registry-absent => REGISTRY=absent + exit 0 (probe before parse
+#      gates); invalid registry => [doc-sync-no-config] + exit 1
 #
 # Temp-dir isolated; never mutates the live tree.
 
@@ -224,6 +232,126 @@ if printf '%s\n' "$_H_LD2" | grep -qx 'SIBLING.md'; then
   ok "the overlay resolves next to the overridden general file (sibling merge)"
 else
   fail_test "sibling overlay of an overridden general file was not merged"
+fi
+
+# 8. --check-on-disk battery (the audit Stage-1 engine; F000061)
+
+# Fixture builder: a COMPLETE clean repo for the seeded general contract —
+# every declared doc present, front-table docs open with a table, generated
+# views' table blocks match fresh --render output. Echoes the fixture dir.
+mk_cod_fixture() {
+  _cf=$(mk_tmp)
+  mkdir -p "$_cf/spec" "$_cf/docs"
+  bash "$HELPER" --seed > "$_cf/spec/doc-spec.md" 2>/dev/null
+  printf '# philosophy\n\n| Principle | Summary |\n|---|---|\n| 1 | first |\n\n## Principle 1\n\nBody.\n' > "$_cf/docs/philosophy.md"
+  printf '# workflow\n\n| Workflow | Entry |\n|---|---|\n| build | /go |\n\n## Flows\n\nBody.\n' > "$_cf/docs/workflow.md"
+  printf '# architecture\n\nMachinery prose.\n' > "$_cf/docs/architecture.md"
+  printf '# readme\n\nFolder structure + getting started.\n' > "$_cf/README.md"
+  printf '# agent instructions\n' > "$_cf/CLAUDE.md"
+  printf '# changelog\n' > "$_cf/CHANGELOG.md"
+  printf '# todos\n' > "$_cf/TODOS.md"
+  printf '# test contract stub\n' > "$_cf/spec/test-spec.md"
+  { printf '<!-- view stub -->\n# general view\n\nprose\n\n'; REPO_ROOT="$_cf" bash "$HELPER" --render general 2>/dev/null; } > "$_cf/docs/doc-general.md"
+  { printf '<!-- view stub -->\n# custom view\n\nprose\n\n'; REPO_ROOT="$_cf" bash "$HELPER" --render custom 2>/dev/null; } > "$_cf/docs/doc-custom.md"
+  printf '%s' "$_cf"
+}
+
+# Runs --check-on-disk on $1; asserts FINDINGS=1 + exit 1 + EXACTLY the one
+# expected `FINDING: stage1/<id>` ($2) fires — the isolation contract.
+assert_one_finding() {
+  _af_dir="$1"; _af_id="$2"; _af_label="$3"
+  _af_out=$(REPO_ROOT="$_af_dir" bash "$HELPER" --check-on-disk 2>&1); _af_rc=$?
+  if [ "$_af_rc" -eq 1 ] \
+     && printf '%s\n' "$_af_out" | grep -qF "FINDING: stage1/$_af_id" \
+     && printf '%s\n' "$_af_out" | grep -qx 'FINDINGS=1'; then
+    ok "seeded violation ($_af_label) flips exactly FINDING: stage1/$_af_id (FINDINGS=1, exit 1)"
+  else
+    fail_test "seeded violation ($_af_label) not isolated to stage1/$_af_id (rc=$_af_rc): $_af_out"
+  fi
+}
+
+# 8a. clean fixture: all 6 PASS, CHECKS_RUN=6, FINDINGS=0, exit 0
+_CF=$(mk_cod_fixture)
+_COD=$(REPO_ROOT="$_CF" bash "$HELPER" --check-on-disk 2>&1); _COD_RC=$?
+if [ "$_COD_RC" -eq 0 ] \
+   && [ "$(printf '%s\n' "$_COD" | grep -c '^check: .* — PASS$')" -eq 6 ] \
+   && printf '%s\n' "$_COD" | grep -qx 'CHECKS_RUN=6' \
+   && printf '%s\n' "$_COD" | grep -qx 'FINDINGS=0'; then
+  ok "--check-on-disk clean fixture: 6 PASS lines + CHECKS_RUN=6 + FINDINGS=0 + exit 0"
+else
+  fail_test "--check-on-disk clean fixture not clean (rc=$_COD_RC): $_COD"
+fi
+
+# 8b. violation 1 — missing declared doc
+_V=$(mk_cod_fixture); rm -f "$_V/docs/architecture.md"
+assert_one_finding "$_V" "declared-exists" "missing declared doc"
+
+# 8c. violation 2 — orphan in docs/
+_V=$(mk_cod_fixture); printf 'stray doc\n' > "$_V/docs/extra.md"
+assert_one_finding "$_V" "orphans" "orphan in docs/"
+
+# 8d. violation 3 — orphan in spec/: a NON-SELF-DECLARING overlay (declares
+# EXTRA.md but not itself => the overlay file IS the orphan, by design). The
+# custom view is regenerated against the merged registry and EXTRA.md is
+# created, so the ONLY finding is the orphan overlay.
+_V=$(mk_cod_fixture)
+cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
+```yaml
+schema_version: 1
+docs:
+  - path: EXTRA.md
+    section: custom
+    audit_class: operational
+    purpose: "An overlay-declared extra doc."
+    requirement: "Present."
+```
+EOF
+printf 'extra doc\n' > "$_V/EXTRA.md"
+{ printf '<!-- view stub -->\n# custom view\n\nprose\n\n'; REPO_ROOT="$_V" bash "$HELPER" --render custom 2>/dev/null; } > "$_V/docs/doc-custom.md"
+_OV_OUT=$(REPO_ROOT="$_V" bash "$HELPER" --check-on-disk 2>&1); _OV_RC=$?
+if [ "$_OV_RC" -eq 1 ] \
+   && printf '%s\n' "$_OV_OUT" | grep -qF 'FINDING: stage1/orphans' \
+   && printf '%s\n' "$_OV_OUT" | grep -qF 'spec/doc-spec-custom.md' \
+   && printf '%s\n' "$_OV_OUT" | grep -qx 'FINDINGS=1'; then
+  ok "seeded violation (non-self-declaring overlay) is an orphan finding NAMING the overlay (FINDINGS=1)"
+else
+  fail_test "non-self-declaring overlay not flagged as the lone orphan (rc=$_OV_RC): $_OV_OUT"
+fi
+
+# 8e. violation 4 — undeclared root *.md
+_V=$(mk_cod_fixture); printf 'stray root\n' > "$_V/STRAY.md"
+assert_one_finding "$_V" "root-declared" "undeclared root *.md"
+
+# 8f. violation 5 — work-item ID in a human-doc
+_V=$(mk_cod_fixture); printf '\nShipped by F000999.\n' >> "$_V/docs/architecture.md"
+assert_one_finding "$_V" "human-doc-ids" "work-item ID in a human-doc"
+
+# 8g. violation 6 — missing front table on a front_table: required doc
+_V=$(mk_cod_fixture)
+printf '# philosophy\n\nNo table here.\n\n## Principle 1\n\nBody.\n' > "$_V/docs/philosophy.md"
+assert_one_finding "$_V" "front-table" "missing front table"
+
+# 8h. violation 7 — view-table drift (a hand-added row in the generated view)
+_V=$(mk_cod_fixture)
+printf '| fake.md | hand-added | drift |\n' >> "$_V/docs/doc-general.md"
+assert_one_finding "$_V" "views-render" "view-table drift"
+
+# 8i. registry-absent => REGISTRY=absent + exit 0 (probe BEFORE parse gates)
+_AB=$(mk_tmp)
+_AB_OUT=$(REPO_ROOT="$_AB" bash "$HELPER" --check-on-disk 2>&1); _AB_RC=$?
+if [ "$_AB_RC" -eq 0 ] && printf '%s\n' "$_AB_OUT" | grep -qx 'REGISTRY=absent'; then
+  ok "--check-on-disk registry-absent: REGISTRY=absent + exit 0 (no [doc-sync-no-config] halt)"
+else
+  fail_test "--check-on-disk registry-absent mis-handled (rc=$_AB_RC): $_AB_OUT"
+fi
+
+# 8j. present-but-invalid registry => [doc-sync-no-config] + exit 1
+printf 'garbage, no yaml block\n' > "$_AB/doc-spec.md"
+_IV_OUT=$(REPO_ROOT="$_AB" bash "$HELPER" --check-on-disk 2>&1); _IV_RC=$?
+if [ "$_IV_RC" -eq 1 ] && printf '%s\n' "$_IV_OUT" | grep -qF '[doc-sync-no-config]'; then
+  ok "--check-on-disk present-but-invalid registry keeps the [doc-sync-no-config] halt (exit 1)"
+else
+  fail_test "--check-on-disk invalid-registry posture broken (rc=$_IV_RC): $_IV_OUT"
 fi
 
 echo

@@ -53,8 +53,8 @@ four anchored bullets (`^- \*\*Skills`, `^- \*\*Steps`, `^- \*\*Scripts`,
 | `/CJ_goal_task "<small task>"` | Small ad-hoc task → reviewable PR (complexity gate → scaffold → implement → QA → audit checkpoint → doc-sync → ship; stops at the PR; no design, no investigation). |
 | `/CJ_goal_defect "<bug>"` | Bug description → shipped fix (root-cause → RCA → implement → QA → audit checkpoint → doc-sync → ship → land). |
 | `/CJ_goal_todo_fix [<id> \| "<frag>"]` | Drain shippable `TODOS.md` rows into PRs (single-TODO or `--max-drain N` batch). |
-| `/CJ_doc_audit` | Audit any repo's docs against its doc contract (seed-delivers `spec/doc-spec.md` when missing; reports findings). |
-| `/CJ_test_audit` | Audit any repo's tests against its test contract (seed-delivers `spec/test-spec.md` when missing; coverage cross-check + rule verdicts). |
+| `/CJ_doc_audit` | Three-stage doc audit against any repo's doc contract (seed-delivers `spec/doc-spec.md` when missing; engine conformance + judged requirement-compliance + judged implementation-drift; per-stage findings report). |
+| `/CJ_test_audit` | Three-stage test audit against any repo's test contract (seed-delivers `spec/test-spec.md` when missing; engine coverage cross-check + judged rule/unit compliance + judged surface drift; per-stage findings report). |
 | Machinery | The deterministic shared helpers the orchestrators call — worktree init/cleanup, pre-build skills-sync, version-queue preflight (see the `## Machinery` section). |
 | Utilities & phase-step skills | The single-step building blocks the chains dispatch / the operator runs directly — scaffold, implement, QA, doc-release, the validator, `/CJ_suggest`, `/CJ_system-health`. |
 | Utility audits | Standalone read-only audits — `/CJ_portability-audit`, `/CJ_doc_audit`, `/CJ_test_audit`, `/CJ_improve-queue`. |
@@ -746,20 +746,27 @@ engine `scripts/doc-spec.sh`
 **Invoke when:** you want one keystroke that answers "do this repo's docs follow
 its doc contract?" — in the workbench or any consumer repo. First run in a fresh
 repo seed-delivers the two-tier contract (`spec/doc-spec.md` from
-`doc-spec.sh --seed`, `seeded: yes`; second run `seeded: no`). Also executed
-INLINE by `/CJ_qa-work-item` Step 8.6c inside every cj_goal run, feeding the
-post-QA checkpoint.
+`doc-spec.sh --seed`, `seeded: yes`; second run `seeded: no`). Three stages:
+Stage 1 is ONE engine call (`doc-spec.sh --check-on-disk`, printed verbatim);
+Stages 2 (requirement compliance — each `requirement:` quoted, clause-checked,
+evidence cited) and 3 (implementation drift — ground truth enumerated first,
+then each contract doc cross-walked) are agent-judged and, standalone, REQUIRED
+to run in one fresh-context subagent. Also executed INLINE — all stages — by
+`/CJ_qa-work-item` Step 8.6c inside every cj_goal run (a subagent cannot spawn
+subagents), feeding the post-QA checkpoint.
 
 **Touches:**
 
 - **Scripts · tools · shell:** `scripts/doc-spec.sh` (`--seed` / `--validate` /
-  the merged list subcommands / `--render`), plus read-only `grep`/`diff` for
-  the deterministic conformance pass (front tables, orphans, work-item IDs,
-  view sync).
+  `--check-on-disk` — the Stage-1 engine — / the merged list subcommands /
+  `--render`), plus the Agent tool for the standalone fresh-context dispatch of
+  Stages 2+3.
 - **Reads / writes:** reads the merged registry (`spec/doc-spec.md` +
-  `spec/doc-spec-custom.md`) and every declared doc; its ONLY write is the
-  idempotent seed delivery of a missing `spec/doc-spec.md`. Findings ride the
-  `DOC_AUDIT:` report — never a halt.
+  `spec/doc-spec-custom.md`), every declared doc, and the live repo state
+  (catalog skills, scripts, workflows, dirs — the Stage-3 ground truth); its
+  ONLY write is the idempotent seed delivery of a missing `spec/doc-spec.md`.
+  Findings ride the per-stage `DOC_AUDIT:` report (`STAGE1/2/3_FINDINGS=` +
+  `stageN/` prefixes) — never a halt.
 
 ### /CJ_test_audit
 
@@ -775,20 +782,29 @@ aligned with its test contract?". First run in a fresh repo seed-delivers the
 general 5-rule contract (`spec/test-spec.md` from `test-spec.sh --seed`); the
 coverage cross-check activates once the repo declares `units:` rows in
 `spec/test-spec-custom.md` (a rules-only repo gets the named "coverage
-cross-check inactive" note). Also executed INLINE by `/CJ_qa-work-item` Step
-8.6d inside every cj_goal run, feeding the post-QA checkpoint.
+cross-check inactive" note). Three stages, symmetric with `/CJ_doc_audit`:
+Stage 1 is the existing engine calls (`test-spec.sh --validate` +
+`--check-coverage`, `stage1/`-prefixed findings); Stage 2 judges each rule's
+`statement` with cited evidence AND each unit's `purpose`/`label` truthfulness
+against the source at its anchor; Stage 3 enumerates the live verification
+surfaces and judges coverage-in-substance. Standalone, Stages 2+3 run in one
+fresh-context subagent (shared with `/CJ_doc_audit` when both run). Also
+executed INLINE — all stages — by `/CJ_qa-work-item` Step 8.6d inside every
+cj_goal run, feeding the post-QA checkpoint.
 
 **Touches:**
 
 - **Scripts · tools · shell:** `scripts/test-spec.sh` (`--seed` / `--validate` /
   `--list-rules` / `--list-units` / `--check-coverage` — the forward + reverse
-  + floor engine), plus the repo's declared suite runner when judging
-  `suite-green` standalone.
+  + floor engine), the repo's declared suite runner when judging `suite-green`
+  standalone, plus the Agent tool for the standalone fresh-context dispatch of
+  Stages 2+3.
 - **Reads / writes:** reads the merged registry (`spec/test-spec.md` +
   `spec/test-spec-custom.md`) and the live verification surface
-  (`scripts/validate.sh` banners, `tests/*.test.sh`, workflows, hooks); its
-  ONLY write is the idempotent seed delivery of a missing `spec/test-spec.md`.
-  Findings ride the `TEST_AUDIT:` report — never a halt.
+  (`scripts/validate.sh` banners, `tests/*.test.sh`, workflows, hooks — also
+  the Stage-3 ground truth); its ONLY write is the idempotent seed delivery of
+  a missing `spec/test-spec.md`. Findings ride the per-stage `TEST_AUDIT:`
+  report (`STAGE1/2/3_FINDINGS=` + `stageN/` prefixes) — never a halt.
 
 ## See also
 

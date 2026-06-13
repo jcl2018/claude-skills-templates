@@ -270,29 +270,39 @@ portable gate:
 ```
 
 `doc-spec.sh --validate` exits 0 (`OK schema_version=<n>`) when the registry is
-well-formed and exits 1 (`[doc-sync-no-config] <reason>`) otherwise. That is the
-single mechanical guarantee that travels: a consumer repo's CI can prove its
-`doc-spec.md` registry is schema-valid with one portable command, and
-`/CJ_document-release` runs there cold (its workbench-only `skills-catalog.json`
-read is guarded — absent ⇒ a clean skip, no `jq` noise, no stray artifact).
+well-formed and exits 1 (`[doc-sync-no-config] <reason>`) otherwise. And the
+schema check is no longer the only mechanical guarantee that travels:
+`doc-spec.sh --check-on-disk` carries the full deterministic conformance set in
+the same portable helper — the audit Stage-1 engine. It runs six checks of the
+MERGED registry against the disk state — declared-exists, orphans (`docs/*.md`
+maxdepth 1 + `spec/*.md`, each dir only when present; an undeclared overlay file
+IS an orphan), root-declared, human-doc-ids, front-table, and views-render (each
+generated view's table block vs fresh `--render` output) — emitting one
+`check: <id> — PASS` line per clean check, one `FINDING: stage1/<id> — <detail>`
+line per violation, and a `CHECKS_RUN=`/`FINDINGS=` tail (exit 0 clean / 1
+findings). It probes registry existence ITSELF before the parse gates: an absent
+registry is `REGISTRY=absent` + exit 0 (the seed-delivery step owns that case),
+while a present-but-invalid registry keeps the `[doc-sync-no-config]` halt. So a
+consumer repo's CI can carry the whole conformance gate with one portable
+command:
 
-**What does NOT travel — the honest boundary.** The schema check is portable; the
-rest of the doc contract's enforcement is workbench-local and stays in this repo's
-`scripts/validate.sh`:
+```yaml
+- name: Doc-contract conformance
+  run: "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh --check-on-disk"
+```
 
-- The **declared⇔on-disk loop** (Checks 15/15a — every declared doc exists AND no
-  undeclared `docs/*.md` orphans) lives in `validate.sh`, not in the portable
-  helper. A consumer repo gets schema validation, not the declared⇔on-disk
-  cross-check.
-- The **`front_table` discipline** (Check 20) and the **no-work-item-ID human-doc
-  lint** (Check 19) are likewise `validate.sh` checks, not portable-helper
-  subcommands.
+`/CJ_document-release` also runs there cold (its workbench-only
+`skills-catalog.json` read is guarded — absent ⇒ a clean skip, no `jq` noise, no
+stray artifact).
 
-So the portable claim is precise: a consumer repo's CI carries the registry
-*schema* gate, while the full declared⇔on-disk + front-table + no-ID enforcement
-remains a workbench-local property of `validate.sh`. (A future
-`doc-spec.sh --check-on-disk` subcommand could carry the declared⇔on-disk loop too
-— deferred for now.)
+**The workbench keeps its own copies — for now.** This repo's
+`scripts/validate.sh` Checks 15/15a (declared⇔on-disk), 17 (root declared), 19
+(no-work-item-ID human-doc lint), and 20 (`front_table` discipline) retain their
+own implementations alongside the engine — a deliberate same-PR blast-radius
+decision when `--check-on-disk` shipped. Converging those checks onto the engine
+is a tracked TODOS row; the whole-file regen-diff of the generated views remains
+Check 23 (the engine's `views-render` compares table blocks only, because view
+headers legitimately differ between workbench and consumer).
 
 ### /CJ_document-release behavior (self-heal + audit)
 
@@ -541,18 +551,33 @@ sweep proves every file on disk has a row at all.
 **What stays agent-judged.** `suite-green` and `new-code-tested` (rules the
 grep engine structurally cannot prove) are judged by `/CJ_test_audit` against
 the repo's current state, layered ABOVE the deterministic floor; semantic
-accuracy of each row's one-line `purpose` likewise stays with the advisory
-registered-doc requirements audit. The hard loop buys structural sync, not
-meaning sync.
+accuracy of each row's one-line `purpose`/`label` is likewise judged — the
+test audit's requirement-compliance stage reads the source at each unit's
+anchor and asks whether the description still tells the truth (the anchor can
+grep while the description rots). The hard loop buys structural sync; the
+judged stages buy meaning sync.
 
 **The audit verbs.** `/CJ_doc_audit` + `/CJ_test_audit` front the two
-contracts as standalone operator keystrokes in ANY repo: seed-deliver the
-general file when missing (creating `spec/`; `seeded: yes`, idempotent
-`seeded: no`), validate the merge, run the deterministic pass, layer the
-agent-judged verdicts, and report `DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=`.
-Inside a cj_goal run the same logic executes INLINE at `/CJ_qa-work-item`
-Step 8.6 (a subagent cannot spawn subagents), and every orchestrator surfaces
-the digest at its post-QA `qa-audit` checkpoint before doc-sync.
+contracts as standalone operator keystrokes in ANY repo, each running THREE
+named stages: seed-deliver the general file when missing (creating `spec/`;
+`seeded: yes`, idempotent `seeded: no`), then **Stage 1 — deterministic
+conformance (engine)**: one tested engine call per audit
+(`doc-spec.sh --check-on-disk`; `test-spec.sh --validate` +
+`--check-coverage`), printed verbatim — no executor-authored loops; **Stage 2
+— requirement compliance (agent-judged, evidence-forced)**: each declared
+doc's `requirement:` (and each test rule's `statement` + each unit's
+`purpose`) quoted, decomposed, and judged with cited evidence; **Stage 3 —
+implementation drift (agent-judged)**: ground truth enumerated from the live
+repo state first, then each contract doc / verification surface cross-walked
+against it. Standalone, Stages 2+3 run in ONE fresh-context subagent (the
+dispatch prompt carries only repo root + engine path + the Stage-1 report +
+the stage protocols — never the invoking session's beliefs). The per-stage
+report carries `DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` +
+`STAGE1/2/3_FINDINGS=` + grep-able `stageN/` finding prefixes. Inside a
+cj_goal run the same logic executes INLINE at `/CJ_qa-work-item` Step 8.6 (a
+subagent cannot spawn subagents — the honest degradation, labeled in the
+report), and every orchestrator surfaces the per-stage block at its post-QA
+`qa-audit` checkpoint before doc-sync.
 
 **Consumer-repo posture.** Where no test-spec registry exists at all, the
 parser classifies it mechanically — `REGISTRY=absent` + exit 0 — and Check 24

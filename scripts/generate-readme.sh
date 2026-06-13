@@ -26,6 +26,8 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 ├── work-copilot/        # the GitHub Copilot delivery bundle (Python-CLI deployed)
 ├── scripts/             # validate / test / deploy / helper scripts
 ├── work-items/          # the structured per-feature work tree (features, defects, tasks)
+├── tests/               # the registered test suites (see spec/test-spec-custom.md)
+├── deprecated/          # retired skills + their work-item history (kept for provenance)
 ├── rules/               # skill-routing rules deployed to ~/.claude/rules/
 ├── CLAUDE.md            # agent operating instructions (auto-loaded by Claude Code)
 ├── CONTRIBUTING.md      # contributor authoring guide

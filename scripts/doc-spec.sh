@@ -23,6 +23,20 @@
 # Subcommands (all list subcommands + --validate operate on the MERGE):
 #   --validate          exit 0 + print `OK schema_version=<n>` if the merged
 #                       registry is valid; exit 1 + halt-emit otherwise.
+#   --check-on-disk     the deterministic conformance set (the audit Stage-1
+#                       engine): six checks of the MERGED registry against the
+#                       disk state under REPO_ROOT — declared-exists, orphans
+#                       (docs/*.md maxdepth 1 + spec/*.md, each dir only when
+#                       present; an undeclared overlay file IS an orphan),
+#                       root-declared, human-doc-ids, front-table,
+#                       views-render (table-block vs fresh --render). One
+#                       `check: <id> — PASS` line per clean check, one
+#                       `FINDING: stage1/<id> — <detail>` line per violation,
+#                       then `CHECKS_RUN=<n>` + `FINDINGS=<n>`. Exit 0 clean /
+#                       1 findings. Probes registry existence ITSELF before
+#                       the parse gates: absent => `REGISTRY=absent` + exit 0
+#                       (the caller's seed-delivery step owns that case);
+#                       present-but-invalid => the [doc-sync-no-config] halt.
 #   --list-declared     echo every declared `path` (general + overlay; sorted,
 #                       unique).
 #   --list-human-docs   echo only the `audit_class: human-doc` paths (merged).
@@ -259,6 +273,146 @@ _run_registry_gates() {
   [ -z "${_DUP_PATHS% }" ] || emit_halt "duplicate path(s) across the doc-spec registry (general + overlay): ${_DUP_PATHS% }"
 }
 
+# ---- --check-on-disk: the deterministic conformance set (audit Stage 1) ----
+# Six checks of the MERGED registry against the disk state under REPO_ROOT.
+# Called AFTER _run_registry_gates (the dispatch arm runs the registry-absent
+# probe itself, BEFORE the gates — a subcommand-local carve-out, since the
+# parse gates halt on a missing registry, which is wrong for this caller).
+# Output contract: one `check: <id> — PASS` line per clean check, one
+# `FINDING: stage1/<id> — <detail>` line PER VIOLATION (a multi-violation
+# check emits one line each, no PASS line), then the machine tail
+# `CHECKS_RUN=<n>` (check ids run — 6 on a full run) + `FINDINGS=<n>`
+# (violation lines). Returns 0 clean / 1 findings. Every loop is
+# `while IFS= read -r` — the word-split defect class stays designed out
+# inside this ONE tested implementation (never re-derived by an executor).
+# The views-render check compares each view's TABLE BLOCK (its `^|` lines)
+# against fresh --render output — NOT whole-file: view headers legitimately
+# differ between workbench (generator header) and consumer (portable stub);
+# the whole-file regen-diff remains validate.sh Check 23 (workbench CI).
+_check_on_disk() {
+  _COD_FINDINGS=0
+  _COD_CHECKS=0
+  _COD_DECLARED=$(printf '%s\n' "$_ROWS" | awk -F'\t' '{print $1}' | sort -u)
+
+  # declared-exists — every declared path exists on disk.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  while IFS= read -r _p; do
+    [ -n "$_p" ] || continue
+    if [ ! -f "$REPO_ROOT_RESOLVED/$_p" ]; then
+      echo "FINDING: stage1/declared-exists — declared doc missing on disk: $_p"
+      _c=$((_c + 1))
+    fi
+  done <<EOF
+$_COD_DECLARED
+EOF
+  if [ "$_c" -eq 0 ]; then echo "check: declared-exists — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # orphans — every docs/*.md (maxdepth 1) and spec/*.md on disk is declared;
+  # each dir checked only when it exists. A non-self-declaring overlay file
+  # COUNTS as an orphan by design — an overlay MUST self-declare (this
+  # workbench's does); the finding is honest guidance for a consumer repo.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  for _dir in docs spec; do
+    [ -d "$REPO_ROOT_RESOLVED/$_dir" ] || continue
+    while IFS= read -r _f; do
+      [ -n "$_f" ] || continue
+      if ! printf '%s\n' "$_COD_DECLARED" | grep -qFx "$_f"; then
+        echo "FINDING: stage1/orphans — undeclared $_dir/*.md on disk (orphan): $_f"
+        _c=$((_c + 1))
+      fi
+    done <<EOF
+$(cd "$REPO_ROOT_RESOLVED" && find "$_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+EOF
+  done
+  if [ "$_c" -eq 0 ]; then echo "check: orphans — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # root-declared — every root *.md on disk is a declared registry path.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  while IFS= read -r _f; do
+    [ -n "$_f" ] || continue
+    if ! printf '%s\n' "$_COD_DECLARED" | grep -qFx "$_f"; then
+      echo "FINDING: stage1/root-declared — undeclared root *.md: $_f"
+      _c=$((_c + 1))
+    fi
+  done <<EOF
+$(cd "$REPO_ROOT_RESOLVED" && find . -maxdepth 1 -type f -name '*.md' 2>/dev/null | sed 's|^\./||' | sort)
+EOF
+  if [ "$_c" -eq 0 ]; then echo "check: root-declared — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # human-doc-ids — no audit_class: human-doc path contains a work-item ID
+  # ([FSTD][0-9]{6}). Absence on disk is declared-exists' finding, not this
+  # check's — skip missing files here.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  while IFS= read -r _p; do
+    [ -n "$_p" ] || continue
+    [ -f "$REPO_ROOT_RESOLVED/$_p" ] || continue
+    if grep -qE '[FSTD][0-9]{6}' "$REPO_ROOT_RESOLVED/$_p"; then
+      echo "FINDING: stage1/human-doc-ids — work-item ID ([FSTD]NNNNNN) in human-doc: $_p"
+      _c=$((_c + 1))
+    fi
+  done <<EOF
+$(printf '%s\n' "$_ROWS" | awk -F'\t' '$3=="human-doc" {print $1}' | sort -u)
+EOF
+  if [ "$_c" -eq 0 ]; then echo "check: human-doc-ids — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # front-table — every front_table: required path opens with a Markdown
+  # table (a `|` row immediately followed by a `|---|`-style delimiter row)
+  # BEFORE its first `## ` heading (the validate.sh Check 20 awk idiom).
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  while IFS= read -r _p; do
+    [ -n "$_p" ] || continue
+    [ -f "$REPO_ROOT_RESOLVED/$_p" ] || continue
+    if ! awk '
+      /^## / { exit }
+      /^\|[ :|+-]*-[ :|+-]*\|$/ {
+        if (prev ~ /^\|/) { found = 1; exit }
+      }
+      { prev = $0 }
+      END { exit !found }
+    ' "$REPO_ROOT_RESOLVED/$_p" >/dev/null 2>&1; then
+      echo "FINDING: stage1/front-table — no leading summary table before the first '## ' heading: $_p"
+      _c=$((_c + 1))
+    fi
+  done <<EOF
+$(_list_front_table_docs | sort -u)
+EOF
+  if [ "$_c" -eq 0 ]; then echo "check: front-table — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # views-render — only where a generated view exists on disk: its TABLE
+  # BLOCK (the `^|` lines) must match fresh --render output exactly.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  for _vw in general custom; do
+    _vf="$REPO_ROOT_RESOLVED/docs/doc-$_vw.md"
+    [ -f "$_vf" ] || continue
+    case "$_vw" in
+      general) _cod_fresh=$(_render_section common) ;;
+      custom)  _cod_fresh=$(_render_section custom) ;;
+    esac
+    _cod_have=$(grep '^|' "$_vf" || true)
+    if [ "$_cod_have" != "$_cod_fresh" ]; then
+      echo "FINDING: stage1/views-render — docs/doc-$_vw.md table block does not match fresh --render $_vw output (regenerate the views)"
+      _c=$((_c + 1))
+    fi
+  done
+  if [ "$_c" -eq 0 ]; then echo "check: views-render — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  echo "CHECKS_RUN=$_COD_CHECKS"
+  echo "FINDINGS=$_COD_FINDINGS"
+  [ "$_COD_FINDINGS" -eq 0 ]
+}
+
 # ---- Portable seed (a COMPLETE, minimal, VALID general doc-spec.md) ----
 # Source order: the repo-local published artifact templates/doc-spec-common.md
 # (the maintained copy a human can read/copy), else the embedded heredoc below.
@@ -480,6 +634,19 @@ case "${1:-}" in
     _run_registry_gates
     echo "OK schema_version=$SCHEMA_VERSION"
     ;;
+  --check-on-disk)
+    # Registry-existence probe BEFORE the parse gates (subcommand-local
+    # carve-out): an ABSENT registry is the caller's seed-delivery case —
+    # `REGISTRY=absent` + exit 0, never a [doc-sync-no-config] halt. A
+    # PRESENT-but-invalid registry inherits --validate's halt posture
+    # (exit 1) via the shared gates below.
+    if [ ! -f "$DOC_SPEC_PATH" ]; then
+      echo "REGISTRY=absent"
+      exit 0
+    fi
+    _run_registry_gates
+    _check_on_disk
+    ;;
   --list-declared)
     _run_registry_gates
     printf '%s\n' "$_ROWS" | awk -F'\t' '{print $1}' | sort -u
@@ -525,6 +692,10 @@ optional doc-spec-custom.md overlay; all reads operate on the merge).
 
 Usage:
   doc-spec.sh --validate          # exit 0 if the merged registry is ok
+  doc-spec.sh --check-on-disk     # deterministic conformance set (Stage-1 engine):
+                                  #   6 checks vs disk; FINDING: stage1/<id> lines +
+                                  #   CHECKS_RUN=/FINDINGS= tail; registry-absent =>
+                                  #   REGISTRY=absent + exit 0 (probe before gates)
   doc-spec.sh --list-declared     # every declared path (merged)
   doc-spec.sh --list-human-docs   # only audit_class: human-doc paths (merged)
   doc-spec.sh --list-front-table-docs  # only paths with front_table: required (merged)
@@ -536,7 +707,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-declared|--list-human-docs|--list-front-table-docs|--render general|custom|--expand-whitelist|--seed}" >&2
+    echo "Usage: $0 {--validate|--check-on-disk|--list-declared|--list-human-docs|--list-front-table-docs|--render general|custom|--expand-whitelist|--seed}" >&2
     exit 2
     ;;
   *)

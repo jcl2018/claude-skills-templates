@@ -803,16 +803,24 @@ spec-update: doc-spec-custom <added: paths | changed: paths | none>
 
 ### 8.6c — Run `/CJ_doc_audit` (inline in subagent context)
 
-Execute the doc audit per `skills/CJ_doc_audit/SKILL.md`. Capture its full
-report (the `DOC_AUDIT:` / `FINDINGS=` / `DOCS_AUDITED=` / `seeded:` /
-`FINDING:` lines + verdict block).
+Execute the doc audit per `skills/CJ_doc_audit/SKILL.md` — all three stages
+(Stage 1 is one `doc-spec.sh --check-on-disk` engine call; Stages 2+3 run
+INLINE per the skill's stage protocols — the nested-subagent wall means no
+fresh-context dispatch here; label their headers `(agent-judged, inline)`).
+Capture its full per-stage report (the `DOC_AUDIT:` / `FINDINGS=` /
+`STAGE1_FINDINGS=` / `STAGE2_FINDINGS=` / `STAGE3_FINDINGS=` /
+`DOCS_AUDITED=` / `seeded:` headline + the three `--- stage N ---` sections).
 
 ### 8.6d — Run `/CJ_test_audit` (inline in subagent context)
 
-Execute the test audit per `skills/CJ_test_audit/SKILL.md`. Capture its full
-report (the `TEST_AUDIT:` / `FINDINGS=` / `UNITS_AUDITED=` / `seeded:` /
-`FINDING:` lines + rule verdicts). For the `suite-green` rule, THIS QA run's
-own smoke/E2E results are the freshest evidence — cite them.
+Execute the test audit per `skills/CJ_test_audit/SKILL.md` — all three stages
+(Stage 1 is the existing `test-spec.sh --validate` + `--check-coverage`
+engine calls; Stages 2+3 run INLINE per the skill's stage protocols; label
+their headers `(agent-judged, inline)`). Capture its full per-stage report
+(the `TEST_AUDIT:` / `FINDINGS=` / `STAGE1_FINDINGS=` / `STAGE2_FINDINGS=` /
+`STAGE3_FINDINGS=` / `UNITS_AUDITED=` / `seeded:` headline + the three
+`--- stage N ---` sections). For the `suite-green` rule, THIS QA run's own
+smoke/E2E results are the freshest evidence — cite them.
 
 ### Extended RESULT contract
 
@@ -833,31 +841,52 @@ orchestrator prints VERBATIM at its checkpoint. This is the **full audit
 report**, not a headline digest — the operator reads the audit evidence at
 the checkpoint itself without digging into raw output (operator decision
 2026-06-12, at this gate's first live firing). It carries, in order: the two
-spec-update lines, then EACH audit's complete report — `seeded:` line, the
-deterministic core's per-check lines, `FINDING:` lines if any, the headline
-(`DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` + `DOCS_AUDITED=`/`UNITS_AUDITED=`),
-and the agent-judged verdict lines:
+spec-update lines, then EACH audit's complete PER-STAGE report — the headline
+(`DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` + the `STAGE1_FINDINGS=`/
+`STAGE2_FINDINGS=`/`STAGE3_FINDINGS=` trio + `DOCS_AUDITED=`/
+`UNITS_AUDITED=` + `seeded:`), then its three `--- stage N ---` sections (a
+skipped stage prints its header + one `skipped: <reason>` line):
 
 ````
 ```AUDIT_FINDINGS
 spec-update: test-spec-custom <added: ids | changed: ids | none — one-line why>
 spec-update: doc-spec-custom <added: paths | changed: paths | none — one-line why>
 --- doc audit ---
+DOC_AUDIT: <ok|findings>
+FINDINGS=<n>
+STAGE1_FINDINGS=<n>
+STAGE2_FINDINGS=<n>
+STAGE3_FINDINGS=<n>
+DOCS_AUDITED=<n>
 seeded: <yes|no>
-<per-check lines, one each with its outcome: registry validate; declared docs
- exist; orphans (docs/ + spec/); root *.md declared; human-doc ID lint;
- front tables; generated views>
-<FINDING: lines, verbatim, if any>
-DOC_AUDIT: <ok|findings> (FINDINGS=<n>, DOCS_AUDITED=<n>)
-<per-doc requirement verdicts: `<path> — up-to-date | stale: <why> | missing-requirement | n/a`>
+--- stage 1: deterministic conformance (engine) ---
+<the doc-spec.sh --check-on-disk output verbatim (check:/FINDING: stage1/
+ lines + CHECKS_RUN=/FINDINGS= tail); plus any stage1/engine|seed|registry
+ pre-stage FINDING lines>
+--- stage 2: requirement compliance (agent-judged, inline) ---
+<per-doc verdicts: `<path>: satisfies | missing-requirement (soft — no
+ requirement: declared) | n/a — <why> | FINDING: stage2/<path> — clause
+ '<clause>' not met: <evidence>`>
+--- stage 3: implementation drift (agent-judged, inline) ---
+<ground-truth summary line, then per-doc verdicts: `<path>: no-drift |
+ FINDING: stage3/<path> — <named delta>`>
 --- test audit ---
+TEST_AUDIT: <ok|findings>
+FINDINGS=<n>
+STAGE1_FINDINGS=<n>
+STAGE2_FINDINGS=<n>
+STAGE3_FINDINGS=<n>
+UNITS_AUDITED=<n>
 seeded: <yes|no>
-<registry validate line; the coverage summary line (rows / reverse_tokens /
- findings) or the units-inactive note>
-<FINDING: lines, verbatim, if any>
-TEST_AUDIT: <ok|findings> (FINDINGS=<n>, UNITS_AUDITED=<n>)
-<per-rule verdicts, one line each with evidence: tests-discoverable /
- suite-green / new-code-tested / units-anchored / single-owner>
+--- stage 1: deterministic conformance (engine) ---
+<the test-spec.sh --validate + --check-coverage output verbatim (or the
+ units-inactive note); plus any stage1/ pre-stage FINDING lines>
+--- stage 2: requirement compliance (agent-judged, inline) ---
+<per-rule + per-unit verdicts with cited evidence: `<id>: satisfies —
+ <evidence> | n/a — <why> | FINDING: stage2/<id> — <detail>`>
+--- stage 3: implementation drift (agent-judged, inline) ---
+<ground-truth summary line, then `<surface|unit-id>: no-drift | FINDING:
+ stage3/<id> — <named delta>`>
 ```
 ````
 
