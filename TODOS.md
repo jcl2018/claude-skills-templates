@@ -2,6 +2,12 @@
 
 ## Active work
 
+### Curate `docs/reference.md` — editorial pass on the grep-grounded reference shelf (P3, S)
+`docs/reference.md` (F000062, v6.0.67) shipped with a curated-but-mechanical v1: every entry is grounded in a demonstrable in-repo reference (a cited URL, a tool the scripts/CI invoke, a standard the conventions follow), but "what is actually *useful* to a human building this workbench" is an editorial call a grep cannot make. The list is correct, not yet opinionated.
+**Proposal:** do the editorial pass — ADD references that shaped the work but aren't literally cited in-repo (a formative blog post, talk, or paper a grep would miss), and PRUNE entries that are technically-referenced but not worth a newcomer's time. Keep the contract shape (grouped by category, a one-line why per entry, no work-item IDs) so the three-stage `/CJ_doc_audit` re-vets it `satisfies` + `no-drift`.
+**Route:** `/CJ_goal_task "curate docs/reference.md — add formative off-repo references, prune low-value entries"` — or a direct one-commit edit (human-doc, low-stakes; no pipeline needed).
+**Reference:** F000062/S000104 (v6.0.67, PR #263) — the design's "Assignment" deliberately left this editorial call to the operator; `docs/reference.md`.
+
 ### Converge validate.sh Checks 15/17/19/20 onto `doc-spec.sh --check-on-disk` (Approach B, deferred) (P3, M)
 The `--check-on-disk` Stage-1 engine (F000061) carries the full deterministic doc-conformance set — declared-exists, orphans, root-declared, human-doc-ids, front-table, views-render — in ONE tested implementation that travels to consumer repos via `_cj-shared`. `scripts/validate.sh` Checks 15/15a (declared⇔on-disk), 17 (root declared), 19 (no-work-item-ID human-doc lint), and 20 (front-table discipline) deliberately KEPT their own parallel implementations in the same PR (Approach B was rejected for blast radius: the highest-blast-radius file in the same diff as a skill restructure, plus Check-24 anchors on validate banners needing re-verification). Until converged, five doc checks live in two tested implementations that can drift.
 **Proposal:** rewire Checks 15/15a/17/19/20 to delegate to `bash scripts/doc-spec.sh --check-on-disk` (parse its `FINDING: stage1/<id>` lines back into the per-check ERROR shape, or run it once and partition findings by check id), keeping Check 23's whole-file view regen-diff separate (the engine's `views-render` is table-block-only by design). Re-verify every `spec/test-spec-custom.md` unit row anchored on the touched validate banners (Check 24 is hard).
