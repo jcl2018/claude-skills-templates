@@ -101,3 +101,13 @@ Scope (from /CJ_goal_task topic): Add a validate.sh check (plus a parallel scrip
      (decision, finding, blocker) and a Summary field. -->
 
 <!-- Source: /CJ_goal_task: Add a validate.sh check (plus a parallel scripts/test.sh integration assertion) that fails when README.md is out of sync with scripts/generate-readme.sh output, so a stale catalog-derived README cannot pass validation -->
+
+- 2026-06-13 [qa-smoke] 1 (Check 25 PASSes in-sync): green — validate.sh exit 0; Check 25 emits "PASS: README.md matches generate-readme.sh output"; RESULT: PASS (0 errors / 0 warnings)
+- 2026-06-13 [qa-smoke] 2 (Check 25 FIRES on drift): green — drifted README → validate.sh exit 1; literal "ERROR: README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md"; RESULT: FAIL
+- 2026-06-13 [qa-smoke] 3 (green after restore): green — `git checkout README.md` → validate.sh exit 0; Check 25 PASS; RESULT: PASS again
+- 2026-06-13 [qa-smoke] 4 (read-only): green — git diff on README before restore showed exactly 1 added / 0 removed (only the deliberate planted line); the check itself mutated nothing
+- 2026-06-13 [qa-smoke] 5 (Check 24 reverse-coverage clean): green — Check 24 FINDINGS=0, coverage rows=69 reverse_tokens=49 findings=0; no `validate-check-25` reverse finding; units row registered at spec/test-spec-custom.md:443
+- 2026-06-13 [qa-smoke] 6 (test.sh Step 3d assertion): green — the 3 Check-25 assertions (in-sync PASS / drift ERROR+non-zero / regenerate exits 0) all OK, ERRORS=0; block lives in the executed zzz-test-scaffold integration cycle; README left clean
+- 2026-06-13 [qa-smoke-summary] green: 6/6 non-manual rows green (0 manual rows pending)
+- 2026-06-13 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b ran inline — both overlays already current: validate-check-25 row present + anchor-matches-live, no new root/spec doc; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
+- 2026-06-13 [qa-pass] T000049 (task): green smoke from test-plan rows (6 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
