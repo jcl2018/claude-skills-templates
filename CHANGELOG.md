@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.72] - 2026-06-13
+
+### Changed
+
+- **The cj_goal post-QA audit checkpoint now decides on POST-doc-sync doc state** (F000064/S000106-108). In all four `CJ_goal_*` orchestrators the doc/test audit that feeds the post-QA `qa-audit` checkpoint now runs **after** `/CJ_document-release` doc-sync, so the operator's Continue/Halt decision reflects the docs that will actually ship in the PR rather than a soon-to-change pre-sync snapshot. Mechanism C-i: `qa.md` Step 8.6 is split — the spec-overlay writes (8.6a/8.6b) stay pre-sync, while the three-stage doc/test audits (8.6c/8.6d) become deferrable on the literal `DEFER_AUDIT: true` dispatch directive and move to the orchestrator level, running **once, read-only, as one combined fresh-context subagent** (`/CJ_doc_audit` + `/CJ_test_audit`) after doc-sync. Standalone `/CJ_qa-work-item` keeps its inline Step 8.6 audit unchanged. Each pipeline gains an explicit **idempotent pre-doc-sync commit** (which also formalizes the long-standing F000038 manual-pre-commit gotcha). The `spec/test-spec` gate order swaps so `doc-sync` (order 45) precedes `qa-audit` (order 50), the `qa-audit` backing is rewritten to name the orchestrator-level post-sync audit, and `CLAUDE.md` / `docs/workflow.md` charts / the four `SKILL.md` chains / `tests/cj-goal-doc-sync-wiring.test.sh` follow. Advisory-only posture preserved: audit findings never flip QA red, and the hard `validate.sh` gates (Checks 15/16/17/19/24) still gate at `/ship`.
+
 ## [6.0.71] - 2026-06-13
 
 ### Added

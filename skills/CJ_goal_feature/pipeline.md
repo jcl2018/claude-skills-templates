@@ -115,8 +115,8 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: would create a cj-feat-* worktree (cj-goal-common.sh --mode feature)"
   echo "DRY RUN: would run /office-hours INLINE; on Approve, record the APPROVED design doc path + HEAD SHA to $RESUME_STATE"
   echo "DRY RUN: would write a compact office-hours phase receipt to .cj-goal-feature/<branch>.office-hours.receipt and source the Step 2.7 design-summary digest FROM it (F000053/S000095)"
-  echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item as SILENT leaf Agent subagents (no AUQ)"
-  echo "DRY RUN: would run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red) to fold doc updates into the same PR"
+  echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — audit deferred to post-sync) as SILENT leaf Agent subagents (no AUQ)"
+  echo "DRY RUN: would make an idempotent pre-doc-sync commit (Step 3.5; skip on a clean tree), then run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red), then ONE combined read-only post-sync audit subagent (Step 5.6: /CJ_doc_audit + /CJ_test_audit), then the QA-audit checkpoint (Step 3.4) on that POST-sync report"
   echo "DRY RUN: would run the portability-audit gate (halt-on-red) before /ship (cj-goal-common.sh --phase portability-audit)"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR (the merge stays manual; no deploy)"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute; a verbatim re-run resumes from the recorded phase."
@@ -611,14 +611,23 @@ vouch for HEAD. (Previously this step was skipped on `LAST_PHASE ∈ {qa, ship}`
 so a resume where untracked / generated / fixture state changed could reach
 `/ship` without re-verifying — the hole S000093 closes.)
 
-Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`:
+Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`. The
+dispatch prompt carries the literal directive `DEFER_AUDIT: true` so QA defers
+its three-stage audit (qa.md Step 8.6c/8.6d) — the orchestrator runs that audit
+ONCE at the authoritative post-sync point (Step 5.6). QA still runs the overlay
+WRITES (8.6a/8.6b) inline and returns `AUDITS=deferred` with **no**
+`AUDIT_FINDINGS` block:
 
 ```
 ROLE: /CJ_qa-work-item runner for /CJ_goal_feature (silent — no AUQ).
-TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. Return the
-RESULT line verbatim — including the AUDITS= field — plus the fenced
-AUDIT_FINDINGS block immediately after it:
-RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=doc:<...>,test:<...>,spec_updates:<...>
+DEFER_AUDIT: true
+TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. The literal
+DEFER_AUDIT: true directive above tells QA to run its Step 8.6a/8.6b overlay
+writes inline but DEFER the 8.6c/8.6d three-stage audit (the orchestrator runs
+the post-sync audit itself at Step 5.6). Return the RESULT line verbatim —
+including the AUDITS= field (it will read AUDITS=deferred,spec_updates:<...>);
+do NOT expect an AUDIT_FINDINGS block on the deferred path:
+RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates:<...>
 <inputs>WORK_ITEM_DIR: <absolute $WORK_ITEM_DIR></inputs>
 ```
 
@@ -626,67 +635,50 @@ If QA returns red: **HALT** with `[qa-red]` (re-use the existing CJ_qa-work-item
 halt marker — do NOT mint a new one), end_state `halted_at_qa`, `pr_url=N/A`,
 `raw_output_path=$RAW_DIR/qa-raw.txt`, + the 3-line block + telemetry.
 
-On green: record the qa boundary, then continue to Step 3.4 (the QA-audit
-checkpoint), then Step 5.5 (Doc-sync), then Step 4 (/ship).
+On green: record the qa boundary, then continue to Step 3.5 (the pre-doc-sync
+commit), then Step 5.5 (Doc-sync), then Step 5.6 (the post-sync audit), then
+Step 3.4 (the QA-audit checkpoint, fed by the post-sync audit), then Step 5.7
+(portability), then Step 4 (/ship).
 
-### Step 3.4: QA-audit findings checkpoint (ALWAYS — the one AUQ past the design gate)
+### Step 3.5: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
 
-Immediately after the QA phase returns green, parse the RESULT's `AUDITS=`
-field and the fenced `AUDIT_FINDINGS` block (the four Step 8.6 step reports:
-the two spec-overlay updates + the doc audit + the test audit). Then surface
-an AskUserQuestion **ALWAYS** — findings or not (the operator explicitly sees
-the four outcomes before the run spends ship budget; a green digest is a
-one-glance Continue):
+The implement + QA leaf subagents WRITE the QA-green code and the qa.md
+8.6a/8.6b spec-overlay refreshes but do NOT commit them; `/ship` (the committer)
+runs after doc-sync. `/CJ_document-release` (Step 5.5) hard-refuses on an
+uncommitted NON-DOC change (`[doc-sync-red]`). Historically the feature pipeline
+only avoided that halt via the operator manually committing (the F000038 gotcha,
+PR #195). This NEW step formalizes the commit so doc-sync never hits the
+uncommitted-non-doc refusal during an autonomous build.
 
-> QA-audit checkpoint for {WORK_ITEM_ID} — AUDITS=doc:<...>,test:<...>,spec_updates:<...>
->
-> {AUDIT_FINDINGS block, verbatim}
->
-> Options:
-> - Continue — proceed to doc-sync + /ship
-> - Halt — stop the run here; I want to act on these findings first
-
-**On Continue:** if either audit reported findings (`doc:findings:n` or
-`test:findings:n` with n>0), append the auditable waiver line to the
-work-item tracker journal BEFORE proceeding:
-
-```
-- $TS [qa-audit-waived] operator continued past audit findings at the post-QA checkpoint: AUDITS=doc:<...>,test:<...>,spec_updates:<...>
-```
-
-(on a fully-green digest no waiver line is written — there is nothing to
-waive). Continue to Step 5.5.
-
-**On Halt:** append the decline + the family-contract fields to
-`$RESUME_DIR/.resume.log`, write telemetry, and exit:
+The commit is **idempotent**: it skips when the tree is already clean at HEAD, so
+a resume after the commit already ran does NOT double-commit. It records NO new
+`last_completed_phase` boundary — it is gated on the live tree state, not on
+resume state, so a resume re-enters it harmlessly (clean tree ⇒ skip):
 
 ```bash
-TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-cat >> "$RESUME_DIR/.resume.log" <<EOF
-- $TS [qa-audit-declined] operator halted at the post-QA audit checkpoint. AUDITS digest preserved in the QA RESULT.
-  next_action=Act on the audit findings (fix docs / units rows / stale requirements), then resume; QA re-runs per the always-re-dispatch rule and the checkpoint re-fires.
-  resume_cmd=/CJ_goal_feature "$TOPIC"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/qa-raw.txt
-EOF
-jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_qa_audit" \
-  --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
-  >> "$TELEMETRY" 2>/dev/null || true
-exit 1
+if git -C "$_REPO_ROOT" diff --quiet && git -C "$_REPO_ROOT" diff --cached --quiet; then
+  echo "[pre-doc-sync-commit] tree already clean at HEAD — nothing to commit (idempotent skip)."
+else
+  _SUBJ=$(printf '%s' "${WORK_ITEM_ID:-$TOPIC}" | tr '\n' ' ' | cut -c1-60)
+  git -C "$_REPO_ROOT" add -A
+  git -C "$_REPO_ROOT" commit -m "feat: $_SUBJ (QA-green; pre-doc-sync commit)" >/dev/null
+  echo "[pre-doc-sync-commit] committed the QA-green code + 8.6a/8.6b overlay writes (clean tree for doc-sync)."
+fi
 ```
 
-The checkpoint is a **pure read** of the QA RESULT (it records NO phase
-boundary): a resume after `[qa-audit-declined]` re-dispatches QA (the
-existing always-re-dispatch rule) and the checkpoint re-fires on the fresh
-audit digest. Canonical gate row: `qa-audit` (order 45) in
-`spec/test-spec-custom.md`.
+(`/ship` at Step 4 adds the VERSION/CHANGELOG bump as a follow-on commit; the
+squash-merge subject is reconciled at land time per the repo's merge
+convention.) Only after a clean tree is established does control proceed to
+Step 5.5 (doc-sync).
 
 ### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
 
-Doc-sync runs INLINE between the QA-green boundary and `/ship`, so any doc
-updates fold into the SAME code PR as the implementation. There is no
-post-merge doc-drift window for orchestrator-driven paths: the doc update
-ships in the same PR as the code.
+Doc-sync runs INLINE between the pre-doc-sync commit and the post-sync audit, so
+any doc updates fold into the SAME code PR as the implementation. There is no
+post-merge doc-drift window for orchestrator-driven paths: the doc update ships
+in the same PR as the code. Doc-sync now runs **before** the post-sync audit + the
+QA-audit checkpoint (F000064 reorder), so the checkpoint decides on the docs that
+will actually ship.
 
 Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
 (v1 orchestrator wiring runs a full audit; the per-doc subset flag is for
@@ -757,8 +749,102 @@ EOF
 esac
 ```
 
-Only on green or green-noop does control proceed to the portability gate, then
+Only on green or green-noop does control proceed to Step 5.6 (the post-sync
+audit), then Step 3.4 (the QA-audit checkpoint), then the portability gate, then
 Step 4 (/ship).
+
+### Step 5.6: Post-sync doc/test audit (NEW — ONE combined read-only subagent)
+
+Now that doc-sync has folded its doc updates into the PR, run the three-stage
+doc/test audit ONCE, at the authoritative **post-sync** point. This is the audit
+QA deferred (via `DEFER_AUDIT: true`, Step 3.3) — the orchestrator runs it itself
+here so the Step 3.4 checkpoint decides on the docs that will actually ship.
+
+Dispatch ONE combined depth-2 fresh-context subagent via the **Agent** tool
+(`subagent_type: general-purpose`) that runs BOTH `/CJ_doc_audit` and
+`/CJ_test_audit` over the post-sync tree. It is **READ-ONLY** — it reports, it
+writes NO overlay/doc fixes (that preserves the "everything in the PR is
+post-sync-clean" invariant; a needed fix surfaces at the checkpoint, where the
+operator Halts and re-runs so the fix lands pre-sync on the next pass). Dispatch
+ONE subagent, not two — the audit skills' standalone contract lets one
+fresh-context subagent judge both audits, and two would double the cost this
+mechanism exists to avoid:
+
+```
+ROLE: combined post-sync doc/test auditor for /CJ_goal_feature (READ-ONLY — report, do not fix).
+TASK: Run /CJ_doc_audit and then /CJ_test_audit over the CURRENT (post-doc-sync)
+repo tree, standalone (all three stages each). Do NOT write any doc/overlay
+fixes — this is a read-only report. Return BOTH skills' full per-stage reports
+verbatim: the DOC_AUDIT: headline (FINDINGS= + STAGE1/2/3_FINDINGS= +
+DOCS_AUDITED= + seeded: + the three --- stage N --- sections) and the
+TEST_AUDIT: headline (FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= +
+seeded: + the three --- stage N --- sections), then emit a single fenced
+AUDIT_FINDINGS block combining both for the checkpoint to print verbatim.
+<inputs>REPO_ROOT: <absolute $_REPO_ROOT></inputs>
+```
+
+Capture the subagent's output to `$RAW_DIR/post-sync-audit-raw.txt`. Parse the
+two `FINDINGS=` lines into a compact `AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>`
+digest and capture the fenced `AUDIT_FINDINGS` block for the checkpoint.
+
+This step is a **pure read** (it records NO phase boundary and writes no fixes),
+so a resume re-runs it. If the audit subagent crashes (no parseable report),
+treat it as `AUDITS=doc:audit-error,test:audit-error` and surface the raw output
+at the checkpoint — do NOT halt here (the checkpoint owns the decision).
+
+### Step 3.4: QA-audit findings checkpoint (ALWAYS — the one AUQ past the design gate; consumes the POST-sync audit)
+
+Immediately after the Step 5.6 post-sync audit returns, surface the checkpoint
+on its report (NOT a pre-sync audit). The `AUDITS=` digest + the fenced
+`AUDIT_FINDINGS` block come from Step 5.6's combined post-sync subagent (the two
+spec-overlay updates rode the QA RESULT at 8.6a/8.6b; the doc audit + test audit
+are now the post-sync results). Surface an AskUserQuestion **ALWAYS** — findings
+or not (the operator explicitly sees the post-sync outcome before the run spends
+ship budget; a green digest is a one-glance Continue):
+
+> QA-audit checkpoint for {WORK_ITEM_ID} — AUDITS=doc:<...>,test:<...> (post-sync)
+>
+> {AUDIT_FINDINGS block, verbatim}
+>
+> Options:
+> - Continue — proceed to the portability gate + /ship
+> - Halt — stop the run here; I want to act on these findings first
+
+**On Continue:** if either audit reported findings (`doc:findings:n` or
+`test:findings:n` with n>0), append the auditable waiver line to the
+work-item tracker journal BEFORE proceeding:
+
+```
+- $TS [qa-audit-waived] operator continued past audit findings at the post-QA (post-sync) checkpoint: AUDITS=doc:<...>,test:<...>
+```
+
+(on a fully-green digest no waiver line is written — there is nothing to
+waive). Continue to Step 5.7 (portability).
+
+**On Halt:** append the decline + the family-contract fields to
+`$RESUME_DIR/.resume.log`, write telemetry, and exit:
+
+```bash
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+cat >> "$RESUME_DIR/.resume.log" <<EOF
+- $TS [qa-audit-declined] operator halted at the post-QA (post-sync) audit checkpoint. AUDITS digest preserved at $RAW_DIR/post-sync-audit-raw.txt.
+  next_action=Act on the audit findings (fix docs / units rows / stale requirements), then resume; QA re-runs per the always-re-dispatch rule, doc-sync + the post-sync audit re-run, and the checkpoint re-fires.
+  resume_cmd=/CJ_goal_feature "$TOPIC"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/post-sync-audit-raw.txt
+EOF
+jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_qa_audit" \
+  --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
+  >> "$TELEMETRY" 2>/dev/null || true
+exit 1
+```
+
+The checkpoint is a **pure read** of the post-sync audit (it records NO phase
+boundary): a resume after `[qa-audit-declined]` re-dispatches QA (the existing
+always-re-dispatch rule), re-runs the pre-doc-sync commit (idempotent),
+doc-sync, and the post-sync audit, and the checkpoint re-fires on the fresh
+post-sync digest. Canonical gate row: `qa-audit` (order 45) in
+`spec/test-spec-custom.md`.
 
 ### Step 5.7: Portability gate (INLINE — halt-on-red before /ship; F000051)
 
@@ -1078,10 +1164,11 @@ table.
   amended), plus one checkpoint.** office-hours is the interactive design phase;
   Step 2.7 then shows a design summary + a single go/no-go gate before the build
   budget is spent. Past that gate the build is silent except for ONE checkpoint
-  AUQ — the Step 3.4 QA-audit findings checkpoint (ALWAYS fired after QA green) —
-  and `/ship` runs with its diff-review AUQ suppressed (the PR is the review).
-  The human touchpoints are: the office-hours Approve, the Step 2.7
-  design-summary gate, the Step 3.4 QA-audit checkpoint, and the PR.
+  AUQ — the Step 3.4 QA-audit findings checkpoint, now fed by the POST-sync audit
+  (it fires ALWAYS, after QA green → pre-doc-sync commit → doc-sync → the
+  post-sync audit) — and `/ship` runs with its diff-review AUQ suppressed (the PR
+  is the review). The human touchpoints are: the office-hours Approve, the Step
+  2.7 design-summary gate, the Step 3.4 QA-audit checkpoint, and the PR.
 - **No automatic rollback.** Halts write entries with `next_action=`,
   `resume_cmd=`, and `pr_url=` — the operator drives recovery.
 - **Halt-on-red end-to-end.** Any red status from office-hours, scaffold,

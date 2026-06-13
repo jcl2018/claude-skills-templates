@@ -3,7 +3,7 @@ skill-name: "CJ_goal_feature"
 version: 0.1.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-13T04:02:12Z"
+last-updated: "2026-06-13T08:50:59Z"
 ---
 
 # Skill Usage: CJ_goal_feature
@@ -40,15 +40,20 @@ before `git worktree add` so the build branches off current trunk (Fork 1, in
 / guard refusal all proceed with a one-line `[sync]` / `note` advisory.
 
 Then: one interactive phase (`/office-hours` inline, emits APPROVED design doc),
-silent leaf subagents (scaffold → implement → QA; QA runs the doc/test audits
-inline at its Step 8.6), the QA-audit checkpoint AUQ (Step 3.4 — fires ALWAYS
-after QA green with the AUDIT_FINDINGS digest; Continue past findings journals
-`[qa-audit-waived]`, Halt journals `[qa-audit-declined]` / `halted_at_qa_audit`
-— the one AUQ past the design gate), `/CJ_document-release`
-(Step 5.5 doc-sync) inline, a pre-ship portability gate (Step 5.7,
-`cj-goal-common.sh --phase portability-audit`, run STRICT) that HALTs on a
-dishonest skill portability declaration BEFORE any PR is opened, then `/ship`
-inline (with diff-review AUQ suppressed) → STOPS at the open PR. The PR is the
+silent leaf subagents (scaffold → implement → QA, with the audits DEFERRED — the
+orchestrator passes a literal `DEFER_AUDIT: true` directive so QA skips its
+Step 8.6c/8.6d doc/test audits and returns `AUDITS=deferred`, while still running
+the 8.6a/8.6b spec-overlay writes), an idempotent pre-doc-sync commit,
+`/CJ_document-release` (Step 5.5 doc-sync) inline, then ONE combined READ-ONLY
+post-sync doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`, dispatched by the
+orchestrator on the POST-sync tree), the QA-audit checkpoint AUQ (Step 3.4 —
+fires ALWAYS on that POST-sync audit report with the AUDIT_FINDINGS digest;
+Continue past findings journals `[qa-audit-waived]`, Halt journals
+`[qa-audit-declined]` / `halted_at_qa_audit` — the one AUQ past the design gate),
+a pre-ship portability gate (Step 5.7, `cj-goal-common.sh --phase
+portability-audit`, run STRICT) that HALTs on a dishonest skill portability
+declaration BEFORE any PR is opened, then `/ship` inline (with diff-review AUQ
+suppressed) → STOPS at the open PR. The PR is the
 architecture gate (human review). Worktree-on-main creates `cj-feat-*` worktree
 automatically. Halt taxonomy: `green_pr_opened`, `halted_at_*` (including
 `halted_at_qa_audit` + `halted_at_portability`), `already_shipped` with
@@ -79,8 +84,11 @@ automatically. Halt taxonomy: `green_pr_opened`, `halted_at_*` (including
 - `/office-hours` (upstream gstack) — the one interactive phase
 - `/CJ_scaffold-work-item` — silent leaf subagent (Phase 3.1)
 - `/CJ_implement-from-spec` — silent leaf subagent (Phase 3.2)
-- `/CJ_qa-work-item` — silent leaf subagent (Phase 3.3); its Step 8.6 runs
-  `/CJ_doc_audit` + `/CJ_test_audit` inline and feeds the Step 3.4 checkpoint
+- `/CJ_qa-work-item` — silent leaf subagent (Phase 3.3); when orchestrator-driven
+  it DEFERS its Step 8.6c/8.6d audits (`DEFER_AUDIT: true`), and the orchestrator
+  runs ONE combined read-only post-sync `/CJ_doc_audit` + `/CJ_test_audit` AFTER
+  doc-sync, which feeds the Step 3.4 checkpoint (standalone `/CJ_qa-work-item`
+  still runs them inline)
 - `/ship` (upstream gstack) — inline final step; opens PR with diff-review AUQ
 - `/CJ_goal_defect` — sibling top-level verb for bug-from-description
 - `/CJ_goal_todo_fix` — sibling top-level verb for TODOS.md drains
