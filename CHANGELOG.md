@@ -3,6 +3,21 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.66] - 2026-06-12
+
+### Added
+
+- **Stage 1 of the doc audit is now a tested engine call: `doc-spec.sh --check-on-disk`** (F000061/S000103). Six deterministic conformance checks against the merged two-tier registry — declared-exists, orphans (`docs/` + `spec/`, an undeclared overlay file counts), root-declared, human-doc IDs, front-table, views-render (table-block vs fresh `--render`, so workbench and consumer headers both work) — with a registry-absent probe BEFORE the parse gates (`REGISTRY=absent` + exit 0; present-but-invalid keeps the `[doc-sync-no-config]` halt). All iteration is `while IFS= read -r` inside the engine: the word-split bug class the same-day dogfood hit can no longer be re-derived by an executor. Consumer repos gain a real CI-able conformance check (closes the F000055 deferred follow-up).
+- **Both audit skills (`/CJ_doc_audit`, `/CJ_test_audit` v0.2.0) restructured into three named stages with per-stage findings reports.** Stage 1 = deterministic (engine); Stage 2 = requirement compliance, judged clause-by-clause against each entry's quoted `requirement:` with cited evidence (`satisfies` / `missing-requirement (soft)` / `n/a` / `FINDING: stage2/<path> — clause '…' not met: <evidence>`; the old `up-to-date`/`stale` wording is retired); Stage 3 (NEW) = implementation drift — enumerate ground truth first (routable skills, scripts, workflows, spec family, top-level dirs), then cross-walk each contract doc against it (`no-drift` / `FINDING: stage3/<path> — <named delta>`). Reports carry `STAGE1/2/3_FINDINGS=` + three `--- stage N ---` sections with `stageN/` grep prefixes; pre-stage failures count as stage 1; skipped stages print `skipped: <reason>`.
+- **Fresh-context judging is REQUIRED standalone**: top-level audit runs dispatch Stages 2+3 to a fresh general-purpose subagent (prompt = repo root + engine path + Stage-1 report + protocols — not the session's beliefs); both skills' `allowed-tools` + catalog `depends.tools` gain `Agent`. Inside QA the stages execute inline (the nested-subagent wall), documented honestly.
+- **Stage 3's first live catch landed with its fix**: this feature's own QA dogfood found README's generated Repository-layout tree omitted `tests/` and `deprecated/` — fixed in `scripts/generate-readme.sh`'s heredoc at the operator checkpoint, README regenerated.
+
+### Changed
+
+- `/CJ_qa-work-item`'s `AUDIT_FINDINGS` block template adopts the per-stage shape for both audits (the four cj_goal pipelines needed ZERO edits — they print the block verbatim).
+- Extended (no new suites): `tests/doc-spec-overlay.test.sh` gains the 10-case `--check-on-disk` battery (7 isolated seeded violations + absent/invalid registry); `tests/cj-audit-skills.test.sh` gains the per-stage contract assertions + a planted-drift Stage-3 drill; `spec/test-spec-custom.md` purpose rows refreshed (anchors unchanged).
+- Docs sweep: `docs/architecture.md`'s "future `--check-on-disk` — deferred" passage rewritten for the shipped subcommand; CLAUDE.md + workflow.md + both USAGE.mds + catalog descriptions current; TODOS row tracks the deferred validate.sh Checks 15/17/19/20 → engine convergence (Approach B).
+
 ## [6.0.65] - 2026-06-12
 
 ### Added
