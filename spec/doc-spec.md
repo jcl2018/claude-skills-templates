@@ -17,7 +17,7 @@ tooling has to change.
 
 ## The doc contract
 
-Every repo that adopts this contract carries eleven **general docs** — the
+Every repo that adopts this contract carries twelve **general docs** — the
 `section: common` tier, sub-grouped below.
 
 **Human docs** — what a person (not just an agent) reads to understand the
@@ -28,6 +28,7 @@ project:
 | `docs/philosophy.md` | The major design logic — one `## Principle N` section per idea. States the repo's first principle(s). |
 | `docs/workflow.md` | The major workflows from a human's point of view; names the major entry points. ASCII flowcharts preferred. |
 | `docs/architecture.md` | The meaningful machinery under the hood — deeper than `workflow.md`. ASCII diagrams preferred. |
+| `docs/reference.md` | Curated external references for building the workbench — repos, docs, blogs, articles, grouped by category. |
 | `README.md` | The landing page: folder structure + how to get started. |
 
 **Operational docs** — agent- and ops-facing, so they may reference work items:
@@ -153,6 +154,11 @@ docs:
     audit_class: human-doc
     purpose: "Meaningful infra under the hood, deeper than workflow.md."
     requirement: "Explains the load-bearing machinery deeper than workflow.md; ASCII diagrams preferred; no work-item IDs."
+  - path: docs/reference.md
+    section: common
+    audit_class: human-doc
+    purpose: "Curated external references for building this workbench — repos, docs, blogs, articles — grouped by category."
+    requirement: "Lists useful external references (repos / links / blogs / articles) relevant to building this workbench, grouped by category, each with a one-line note on why it is relevant; human-readable; no work-item IDs."
   - path: README.md
     section: common
     audit_class: human-doc
