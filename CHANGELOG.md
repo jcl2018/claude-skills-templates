@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.67] - 2026-06-12
+
+### Added
+
+- **`docs/reference.md` — a required general-tier "useful references" doc** (F000062/S000104). A curated shelf of the external repos, docs, standards, and tools this workbench demonstrably leans on (Claude Code / Anthropic docs, gstack, Keep a Changelog, Semantic Versioning, `gh`, ShellCheck, `jq`, GitHub Actions, Git-for-Windows, Copilot, Python 3) — grouped by category, each with a one-line note on why it matters here. Every entry is grounded in an actual in-repo reference (a cited URL, a tool the scripts/CI invoke, or a standard the conventions follow), not an aspirational reading list; the operator curates further. It is the 12th `section: common` doc, so every adopting repo carries one (stub-scaffolded by `/CJ_document-release` where missing).
+
+### Changed
+
+- The doc-spec seed grows 11 → **12 general docs**: the `docs/reference.md` registry row + a Human-docs prose-table row + the `eleven`→`twelve` count landed byte-identically in all three seed copies (`scripts/doc-spec.sh --seed` heredoc, `templates/doc-spec-common.md`, `spec/doc-spec.md`); the count was also swept in `spec/doc-spec-custom.md` and the `CLAUDE.md` human-docs parenthetical. `docs/doc-general.md` regenerated to list 12 (Check 23 green). `validate.sh` is untouched — its registry-reading checks (15/15a/17/19/20) auto-cover the new declared doc, and Check 19's no-work-item-ID lint applies (reference.md is a human-doc).
+- `docs/reference.md` was **born under the F000061 hardened three-stage audit**: its QA `/CJ_doc_audit` reported `satisfies` (Stage 2, requirement compliance) + `no-drift` (Stage 3 — all 12 entries grep-verified demonstrable in the tree), FINDINGS=0 — the first doc vetted end-to-end by the new audit. Test edits are additive: `tests/cj-document-release-config.test.sh`'s growth-safe 8b assertion gains a `docs/reference.md` include-check; `tests/doc-spec-overlay.test.sh`'s `--check-on-disk` clean fixture creates the newly-declared doc.
+
 ## [6.0.66] - 2026-06-12
 
 ### Added
