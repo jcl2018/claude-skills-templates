@@ -52,6 +52,28 @@
 #   --expand-whitelist  echo the doc-only auto-commit whitelist: every declared
 #                       path (merged) + the contract files + every
 #                       docs/**/*.md on disk (sorted, unique).
+#   --classify          (F000065) READ-ONLY generation detector. Emits
+#                       GENERATION=<canonical|legacy|absent|malformed>,
+#                       POSITIONS=<comma-list of on-disk positions>,
+#                       DUPLICATE=<0|1> (both spec/ + root present),
+#                       CANONICAL_PATH=spec/doc-spec.md. `legacy` is reported
+#                       ONLY when the active file has NO canonical table AND
+#                       matches the old-generation signature (fenced ```yaml +
+#                       schema_version: + docs:); a no-table no-signature file
+#                       is `malformed` (the caller keeps the halt semantics).
+#                       Never writes; no registry gates (works on legacy/absent).
+#   --reconcile         (F000065) The ONLY new WRITE path; opt-in. canonical =>
+#                       clean no-op (RECONCILE: already canonical). legacy =>
+#                       migrate the active file legacy yaml -> canonical 3-col
+#                       Markdown table PRESERVING every declared row (path->Doc,
+#                       purpose->Purpose, requirement->Requirement; drop
+#                       section/audit_class/front_table), written atomically
+#                       (temp -> --validate-clean -> mv) with a <path>.bak + a
+#                       migration report + the audit_class asymmetry guard
+#                       (RECONCILE-WARN). malformed => the [doc-sync-no-config]
+#                       halt (a hand-broken canonical file is never clobbered).
+#                       duplicate => reconcile the canonical copy + report the
+#                       redundant one (no auto-delete; OQ1 deferred).
 #   --seed              echo a COMPLETE, minimal, VALID general doc-spec.md for
 #                       self-bootstrap of a MISSING doc-spec.md.
 #                       Does NOT require doc-spec.md to exist (that is the whole
@@ -328,6 +350,273 @@ EOF
   [ "$_COD_FINDINGS" -eq 0 ]
 }
 
+# ---- --classify / --reconcile: contract-file generation detection + migration ----
+# (F000065/S000109) The audits own the canonical contract-file format (the
+# 3-column Markdown table) + position (spec/, root accepted). --classify is a
+# READ-ONLY machine block telling a caller whether the registry is canonical,
+# legacy (an OLD-generation on-disk format), duplicated across both positions,
+# or absent. --reconcile is the ONLY new WRITE path (opt-in): it migrates a
+# legacy file -> canonical preserving every declared row, atomically, with a
+# .bak and a migration report. Idempotent (canonical => clean no-op).
+#
+# OLD-generation signature (doc-spec legacy): a fenced ```yaml block carrying
+# `schema_version:` + `docs:` (the pre-F000063 generated-registry format —
+# recoverable from git: `git show 716a537:doc-spec.md`). `legacy` is reported
+# ONLY when (a) the CURRENT parser finds NO canonical Markdown registry table
+# AND (b) this signature matches. A no-table no-signature file is NOT legacy —
+# it stays the [doc-sync-no-config] halt (a hand-broken canonical file must
+# never be clobbered).
+
+# Does file $1 carry a parseable canonical Markdown registry table?
+# (exit 0 = yes). Uses the same extractor the rest of the script trusts.
+_has_canonical_table() {
+  [ -f "$1" ] || return 1
+  _ct=$(_extract_table_file "$1")
+  [ -n "$_ct" ]
+}
+
+# Does file $1 match the OLD-generation doc-spec signature? (exit 0 = yes)
+# A single fenced ```yaml block containing both `schema_version:` and a
+# top-level `docs:` key.
+_has_legacy_doc_signature() {
+  [ -f "$1" ] || return 1
+  _ly=$(awk '
+    /^```yaml/ { if (!seen) { f=1; seen=1; next } }
+    /^```/     { if (f) { f=0 } }
+    f          { print }
+  ' "$1")
+  [ -n "$_ly" ] || return 1
+  printf '%s\n' "$_ly" | grep -qE '^schema_version:' || return 1
+  printf '%s\n' "$_ly" | grep -qE '^docs:' || return 1
+  return 0
+}
+
+# Classify the generation of the doc-spec contract file(s) without writing.
+# Emits four machine lines:
+#   GENERATION=<canonical|legacy|absent>
+#   POSITIONS=<comma-list of on-disk contract positions: spec/doc-spec.md, doc-spec.md>
+#   DUPLICATE=<0|1>   (1 when BOTH spec/ and root copies exist)
+#   CANONICAL_PATH=<the spec/-position canonical target path>
+# Resolution mirrors the rest of the script (spec/-then-root); a genuinely
+# malformed canonical file (no table, no legacy signature) classifies as
+# GENERATION=malformed so the caller keeps the [doc-sync-no-config] halt
+# semantics rather than treating it as legacy.
+_classify() {
+  _CL_SPEC="$REPO_ROOT_RESOLVED/spec/doc-spec.md"
+  _CL_ROOT="$REPO_ROOT_RESOLVED/doc-spec.md"
+  _CL_POSITIONS=""
+  [ -f "$_CL_SPEC" ] && _CL_POSITIONS="spec/doc-spec.md"
+  if [ -f "$_CL_ROOT" ]; then
+    [ -n "$_CL_POSITIONS" ] && _CL_POSITIONS="$_CL_POSITIONS,doc-spec.md" || _CL_POSITIONS="doc-spec.md"
+  fi
+  _CL_DUP=0
+  [ -f "$_CL_SPEC" ] && [ -f "$_CL_ROOT" ] && _CL_DUP=1
+
+  # The canonical target is always the spec/ position.
+  echo "CANONICAL_PATH=spec/doc-spec.md"
+
+  if [ -z "$_CL_POSITIONS" ]; then
+    echo "GENERATION=absent"
+    echo "POSITIONS="
+    echo "DUPLICATE=0"
+    return 0
+  fi
+
+  # The active file (the one the rest of the script resolves) drives the
+  # generation verdict. DOC_SPEC_PATH already resolved spec/-then-root.
+  _CL_ACTIVE="$DOC_SPEC_PATH"
+  if _has_canonical_table "$_CL_ACTIVE"; then
+    echo "GENERATION=canonical"
+  elif _has_legacy_doc_signature "$_CL_ACTIVE"; then
+    echo "GENERATION=legacy"
+  else
+    # No canonical table AND no legacy signature: a genuinely malformed
+    # canonical file. NOT legacy — preserve the halt semantics.
+    echo "GENERATION=malformed"
+  fi
+  echo "POSITIONS=$_CL_POSITIONS"
+  echo "DUPLICATE=$_CL_DUP"
+  return 0
+}
+
+# Parse the OLD-generation doc-spec yaml `docs:` list into TSV rows:
+#   path<TAB>purpose<TAB>requirement
+# Drops the old section/audit_class/front_table fields (audit_class is
+# re-derived from the path in the canonical model). awk only — the same
+# fenced-yaml extraction the legacy generation used.
+_parse_legacy_doc_entries() {
+  awk '
+    /^```yaml/ { if (!seen) { f=1; seen=1; next } }
+    /^```/     { if (f) { f=0 } }
+    !f         { next }
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    # strip a `  - key: "value"` list-item line (the leading `- ` dash + key).
+    function strip_listkey(line,   v) {
+      v=line
+      sub(/^[[:space:]]*-[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function flush() {
+      if (cur_path != "") {
+        printf "%s\t%s\t%s\n", cur_path, cur_purpose, cur_req
+      }
+      cur_path=""; cur_purpose=""; cur_req=""
+    }
+    /^[[:space:]]*-[[:space:]]*path:/ { flush(); cur_path=strip_listkey($0); next }
+    /^[[:space:]]*purpose:/           { cur_purpose=strip($0); next }
+    /^[[:space:]]*requirement:/       { cur_req=strip($0); next }
+    END { flush() }
+  ' "$1"
+}
+
+# Reconcile the doc-spec contract file. The ONLY new write path; opt-in.
+#   - canonical  => clean no-op (RECONCILE: already canonical), exit 0.
+#   - legacy     => migrate the active file legacy->canonical preserving every
+#                   declared row (path->Doc, purpose->Purpose,
+#                   requirement->Requirement; drop section/audit_class/
+#                   front_table), written atomically (temp -> --validate-clean
+#                   -> mv) with a <path>.bak, a migration report, and a
+#                   RECONCILE-WARN audit_class asymmetry guard line for any old
+#                   row declared audit_class: operational whose path derives
+#                   human-doc.
+#   - duplicate  => reconcile the canonical (spec/) position + report the
+#                   redundant root copy (do NOT auto-delete; OQ1 deferred).
+#   - malformed  => the [doc-sync-no-config] halt (never clobbered).
+#   - absent     => nothing to reconcile (RECONCILE: absent — run the audit to
+#                   seed), exit 0.
+_reconcile() {
+  _RC_GEN=$(_classify | awk -F= '/^GENERATION=/{print $2}')
+  _RC_DUP=$(_classify | awk -F= '/^DUPLICATE=/{print $2}')
+  _RC_SPEC="$REPO_ROOT_RESOLVED/spec/doc-spec.md"
+  _RC_ROOT="$REPO_ROOT_RESOLVED/doc-spec.md"
+
+  case "$_RC_GEN" in
+    absent)
+      echo "RECONCILE: absent — no contract file to reconcile (run /CJ_doc_audit to seed the canonical contract)"
+      return 0
+      ;;
+    malformed)
+      emit_halt "doc-spec.md is present but has neither a canonical registry table nor a recognized legacy signature — refusing to reconcile a possibly hand-broken canonical file (fix the table by hand): $DOC_SPEC_PATH"
+      ;;
+    canonical)
+      echo "RECONCILE: already canonical — no migration needed ($DOC_SPEC_PATH)"
+      if [ "$_RC_DUP" = "1" ]; then
+        echo "RECONCILE-WARN: a redundant doc-spec copy exists at the root position (doc-spec.md) alongside the canonical spec/doc-spec.md — remove it by hand (auto-delete is deferred, OQ1)"
+      fi
+      return 0
+      ;;
+    legacy)
+      : # fall through to migrate
+      ;;
+    *)
+      emit_halt "internal: unexpected GENERATION='$_RC_GEN' from _classify"
+      ;;
+  esac
+
+  # Migrate the ACTIVE file (DOC_SPEC_PATH resolved spec/-then-root). Always
+  # write the canonical output to the SAME position as the active legacy file
+  # so a root-only legacy file reconciles in place (root is an accepted
+  # position; relocation to spec/ is OQ2, deferred).
+  _RC_TARGET="$DOC_SPEC_PATH"
+
+  _RC_ENTRIES=$(_parse_legacy_doc_entries "$_RC_TARGET")
+  if [ -z "$_RC_ENTRIES" ]; then
+    emit_halt "doc-spec.md matched the legacy signature but its docs: list parsed to zero rows (cannot migrate): $_RC_TARGET"
+  fi
+  _RC_NROWS=$(printf '%s\n' "$_RC_ENTRIES" | grep -c . || true)
+
+  # Build the canonical Markdown table file in a temp, then validate, then mv.
+  _RC_TMP=$(mktemp -d -t doc-spec-reconcile.XXXXXX)
+  _RC_OUT="$_RC_TMP/doc-spec.md"
+  {
+    echo "<!-- DOC-SPEC-COMMON:BEGIN (portable — keep byte-identical across adopting repos) -->"
+    echo "# doc-spec.md — what docs this repo carries"
+    echo ""
+    echo "This file is the doc contract: **what documents does this repo carry, and"
+    echo "what is each one for?** The Markdown table at the end IS the machine source"
+    echo "of truth — \`scripts/doc-spec.sh\` parses it directly. (Migrated from the"
+    echo "legacy yaml generation by \`doc-spec.sh --reconcile\`.)"
+    echo ""
+    echo "## The registry (machine source of truth)"
+    echo ""
+    echo "Three columns — **Doc** (the repo-relative path), **Purpose** (what the doc"
+    echo "is for), and **Requirement** (what makes the doc current). A path under"
+    echo "\`docs/\` or the root \`README.md\` is a human-doc (no work-item IDs);"
+    echo "everything else is operational. Cells may not contain a literal \`|\`."
+    echo ""
+    echo "| Doc | Purpose | Requirement |"
+    echo "|-----|---------|-------------|"
+    printf '%s\n' "$_RC_ENTRIES" | while IFS="$(printf '\t')" read -r _p _pu _rq; do
+      [ -n "$_p" ] || continue
+      echo "| \`$_p\` | $_pu | $_rq |"
+    done
+    echo "<!-- DOC-SPEC-COMMON:END -->"
+  } > "$_RC_OUT"
+
+  # Atomic guard: the migrated file must parse clean before it replaces the
+  # original. A failed validate leaves the legacy file untouched.
+  if ! DOC_SPEC_PATH="$_RC_OUT" DOC_SPEC_CUSTOM_PATH="$_RC_TMP/nonexistent-custom.md" bash "$0" --validate >/dev/null 2>&1; then
+    rm -rf "$_RC_TMP"
+    emit_halt "the migrated doc-spec.md did not validate clean — leaving the legacy file untouched ($_RC_TARGET)"
+  fi
+
+  cp "$_RC_TARGET" "$_RC_TARGET.bak"
+  mv "$_RC_OUT" "$_RC_TARGET"
+  rm -rf "$_RC_TMP"
+
+  echo "RECONCILE: migrated $_RC_NROWS rows (legacy yaml -> canonical Markdown table) at $_RC_TARGET"
+  echo "RECONCILE: backup written: $_RC_TARGET.bak"
+  echo "RECONCILE: dropped fields: section, audit_class, front_table (audit_class is now path-derived)"
+
+  # audit_class asymmetry guard: an OLD row declared audit_class: operational
+  # whose path derives human-doc would silently change class in the canonical
+  # model. Re-scan the ORIGINAL (now .bak) for `audit_class: operational` rows
+  # whose path derives human-doc and warn (the operator verifies no work-item
+  # IDs before the next hard Check 19).
+  _scan_asymmetry "$_RC_TARGET.bak"
+
+  if [ "$_RC_DUP" = "1" ]; then
+    echo "RECONCILE-WARN: a redundant doc-spec copy exists at the other position alongside $_RC_TARGET — remove it by hand (auto-delete is deferred, OQ1)"
+  fi
+  return 0
+}
+
+# Scan a legacy doc-spec file ($1) for the audit_class asymmetry: a `path:`
+# whose declared `audit_class: operational` conflicts with the path-derived
+# class (human-doc). awk pairs each path with its following audit_class.
+_scan_asymmetry() {
+  [ -f "$1" ] || return 0
+  _AS_PAIRS=$(awk '
+    /^```yaml/ { if (!seen) { f=1; seen=1; next } }
+    /^```/     { if (f) { f=0 } }
+    !f         { next }
+    function strip(line,   v) {
+      v=line; sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v); sub(/"[[:space:]]*$/, "", v); return v
+    }
+    function strip_listkey(line,   v) {
+      v=line; sub(/^[[:space:]]*-[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v); sub(/"[[:space:]]*$/, "", v); return v
+    }
+    function flush() { if (cur_path != "") printf "%s\t%s\n", cur_path, cur_ac; cur_path=""; cur_ac="" }
+    /^[[:space:]]*-[[:space:]]*path:/ { flush(); cur_path=strip_listkey($0); next }
+    /^[[:space:]]*audit_class:/       { cur_ac=strip($0); next }
+    END { flush() }
+  ' "$1")
+  printf '%s\n' "$_AS_PAIRS" | while IFS="$(printf '\t')" read -r _p _ac; do
+    [ -n "$_p" ] || continue
+    [ "$_ac" = "operational" ] || continue
+    _derived=$(_audit_class_for "$_p")
+    if [ "$_derived" = "human-doc" ]; then
+      echo "RECONCILE-WARN: $_p audit_class was 'operational' but path derives 'human-doc' — verify no work-item IDs before the next hard Check 19"
+    fi
+  done
+}
+
 # ---- Portable seed (a COMPLETE, minimal, VALID general doc-spec.md) ----
 # Source order: the repo-local published artifact templates/doc-spec-common.md
 # (the maintained copy a human can read/copy), else the embedded heredoc below.
@@ -399,6 +688,29 @@ Two consumers parse the merged table (this file + the overlay):
   `Requirement`; and it derives the doc-only auto-commit whitelist from the
   registry (every declared path + the contract files + `docs/**/*.md`).
 
+## The canonical contract-file template
+
+The audit verbs (`/CJ_doc_audit`, `/CJ_test_audit`) own this contract's
+canonical shape — what files are required, where they live, and their format:
+
+- **Required** — the general file of each pair: `spec/doc-spec.md` (this file)
+  and `spec/test-spec.md`. Each is delivered verbatim by its engine's `--seed`
+  and must exist in an adopting repo (the audit seed-delivers a missing one).
+- **Optional** — the `*-custom.md` overlay next to each general file
+  (`spec/doc-spec-custom.md`, `spec/test-spec-custom.md`): the repo's chosen
+  additions, merged in by the parser. A repo without an overlay carries the
+  general contract alone.
+- **Position** — `spec/` is canonical; the repo root is an accepted fallback
+  (`doc-spec.md` / `test-spec.md`) for root-style consumers. The engine
+  resolves `spec/`-then-root.
+- **Format** — a 3-column Markdown table (`| Doc | Purpose | Requirement |`)
+  for doc-spec; a single fenced `yaml` registry for test-spec. The table /
+  block IS the source of truth, parsed directly.
+
+`doc-spec.sh --classify` reports a file's generation (canonical / legacy /
+absent / duplicated); `doc-spec.sh --reconcile` migrates a legacy file to this
+canonical shape preserving every declared row.
+
 ## The registry (machine source of truth)
 
 The table below is the source of truth. It has three columns —
@@ -465,6 +777,17 @@ case "${1:-}" in
       fi
     } | sort -u | grep -v '^$' || true
     ;;
+  --classify)
+    # READ-ONLY. No registry gates (classification works on absent/legacy/
+    # malformed files too — the whole point is to tell the caller which it is).
+    _classify
+    ;;
+  --reconcile)
+    # The ONLY new WRITE path (opt-in). Migrates legacy->canonical preserving
+    # every declared row; clean no-op on a canonical file; halts on a
+    # malformed (non-signature, no-table) file rather than clobbering it.
+    _reconcile
+    ;;
   --seed)
     # NO registry gates — --seed bootstraps a MISSING doc-spec.md.
     _emit_seed
@@ -485,12 +808,18 @@ Usage:
   doc-spec.sh --list-declared     # every declared path (merged)
   doc-spec.sh --list-human-docs   # only path-derived human-doc paths (merged)
   doc-spec.sh --expand-whitelist  # doc-only auto-commit whitelist (merged)
+  doc-spec.sh --classify          # READ-ONLY generation detector: emits
+                                  #   GENERATION=<canonical|legacy|absent|malformed>
+                                  #   POSITIONS=<comma-list>/DUPLICATE=<0|1>/CANONICAL_PATH=
+  doc-spec.sh --reconcile         # opt-in WRITE: migrate a legacy yaml doc-spec.md ->
+                                  #   canonical 3-col Markdown table preserving every row
+                                  #   (atomic + .bak + report); clean no-op on canonical
   doc-spec.sh --seed              # complete minimal valid general doc-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--check-on-disk|--list-declared|--list-human-docs|--expand-whitelist|--seed}" >&2
+    echo "Usage: $0 {--validate|--check-on-disk|--list-declared|--list-human-docs|--expand-whitelist|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

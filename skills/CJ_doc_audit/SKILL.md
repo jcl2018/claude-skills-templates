@@ -1,7 +1,7 @@
 ---
 name: CJ_doc_audit
-description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract exists (creates spec/ and seed-delivers spec/doc-spec.md via doc-spec.sh --seed when missing, reporting seeded: yes; idempotent seeded: no on re-run). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids vs the MERGED registry — four checks), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
-version: 0.2.0
+description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract is CANONICAL via doc-spec.sh --classify: absent → seed-deliver spec/doc-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; legacy/duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_doc_audit --reconcile to migrate a legacy yaml registry to the canonical 3-column Markdown table preserving every row). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids vs the MERGED registry — four checks), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings (and the RECONCILE directive) never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
+version: 0.3.0
 allowed-tools:
   - Bash
   - Read
@@ -46,8 +46,14 @@ named stages**, split exactly along the deterministic/judged boundary:
   cross-walked against it; every drift finding names the delta.
 
 Findings never crash the audit and never halt a caller: a broken contract IS
-the report. The audit is read-mostly — its ONLY write is the seed delivery
-(Step 2), which is idempotent.
+the report. The audit is read-mostly — on a plain run its ONLY write is the
+idempotent seed delivery (Step 2). A non-canonical contract (a legacy-generation
+or duplicated file) is detected by `doc-spec.sh --classify` and surfaced as an
+advisory `RECONCILE:` directive in the Stage-1 report (no write); the migration
+runs ONLY under the opt-in standalone `--reconcile` flag, which forwards to the
+engine's `--reconcile` (the only new write path). The in-QA path never passes
+`--reconcile`, and the directive — like a `REMEDIATION:` line — never crashes
+the audit or flips QA red.
 
 **Judge context (load-bearing).** Standalone (operator keystroke at top
 level): Stages 2+3 are REQUIRED to run in ONE fresh-context general-purpose
@@ -83,33 +89,89 @@ can run; emit the per-stage report (Step 6) with `STAGE1_FINDINGS=1`, Stages
 2+3 each printing their header + `skipped: engine unreachable — nothing to
 judge against`, and `DOC_AUDIT: findings`.
 
-## Step 2: Ensure the contract exists (seed delivery)
+## Step 2: Ensure the contract is canonical (classify → seed | ok | reconcile)
 
-If NEITHER `spec/doc-spec.md` NOR a root `doc-spec.md` exists, create `spec/`
-and deliver the seed. Write to a temp file, verify non-empty AND
-`--validate`-clean, THEN move into place (the corruption guard — a `--seed`
-failure must never redirect a halt string into the new file). Report
-`seeded: yes`; when the contract already exists report `seeded: no` (the
-idempotence contract — a second run never re-seeds):
+This step generalizes the former "seed if missing" into a **classify-driven
+reconcile** (F000065). Run `doc-spec.sh --classify` (READ-ONLY) and route on
+`GENERATION`:
+
+- **`absent`** → seed-deliver the canonical contract (today's behavior,
+  unchanged): create `spec/`, write the seed to a temp file, verify non-empty
+  AND `--validate`-clean, THEN move into place (the corruption guard — a
+  `--seed` failure must never redirect a halt string into the new file). Report
+  `seeded: yes`.
+- **`canonical`** → nothing to do (`seeded: no`); the contract is already in
+  the canonical shape. NO `RECONCILE:` line is emitted (a canonical repo stays
+  silent — the read-mostly, zero-noise contract).
+- **`legacy`** or **`duplicate`** (`DUPLICATE=1`) → the contract exists in a
+  non-canonical shape. Emit an **advisory `RECONCILE:` directive** into the
+  Stage-1 report naming the issue + the remedy, and **DO NOT write** on a plain
+  run. This directive is advisory exactly like a `REMEDIATION:` line — it never
+  crashes the audit, never flips a caller red, and the in-QA path never acts on
+  it. ONLY when the operator passed the audit `--reconcile` flag (standalone —
+  Step 0 below) does the skill forward to `doc-spec.sh --reconcile` and print
+  its migration report.
+- **`malformed`** → a present-but-broken canonical file. This is the
+  `[doc-sync-no-config]` halt path surfaced by Stage 1's engine call (Step 3) —
+  NOT a reconcile target (a hand-broken canonical file is never auto-clobbered).
+  Do not seed and do not reconcile; let Step 3 surface the `stage1/registry`
+  finding.
 
 ```bash
 SEEDED=no
-if [ ! -f "$_DA_ROOT/spec/doc-spec.md" ] && [ ! -f "$_DA_ROOT/doc-spec.md" ]; then
-  _DA_TMP=$(mktemp -d)
-  if bash "$_DA_ENGINE" --seed > "$_DA_TMP/doc-spec.md" 2>/dev/null \
-     && [ -s "$_DA_TMP/doc-spec.md" ] \
-     && DOC_SPEC_PATH="$_DA_TMP/doc-spec.md" bash "$_DA_ENGINE" --validate >/dev/null 2>&1; then
-    mkdir -p "$_DA_ROOT/spec"
-    mv "$_DA_TMP/doc-spec.md" "$_DA_ROOT/spec/doc-spec.md"
-    SEEDED=yes
-  fi
-  rm -rf "$_DA_TMP"
-fi
+RECONCILE_DIRECTIVE=""
+_DA_GEN=$(bash "$_DA_ENGINE" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')
+_DA_DUP=$(bash "$_DA_ENGINE" --classify 2>/dev/null | awk -F= '/^DUPLICATE=/{print $2}')
+case "$_DA_GEN" in
+  absent)
+    _DA_TMP=$(mktemp -d)
+    if bash "$_DA_ENGINE" --seed > "$_DA_TMP/doc-spec.md" 2>/dev/null \
+       && [ -s "$_DA_TMP/doc-spec.md" ] \
+       && DOC_SPEC_PATH="$_DA_TMP/doc-spec.md" bash "$_DA_ENGINE" --validate >/dev/null 2>&1; then
+      mkdir -p "$_DA_ROOT/spec"
+      mv "$_DA_TMP/doc-spec.md" "$_DA_ROOT/spec/doc-spec.md"
+      SEEDED=yes
+    fi
+    rm -rf "$_DA_TMP"
+    ;;
+  legacy)
+    RECONCILE_DIRECTIVE="RECONCILE: doc-spec.md is on the legacy yaml generation — run /CJ_doc_audit --reconcile to migrate it to the canonical 3-column Markdown table (preserves every declared row; writes a .bak)"
+    ;;
+  canonical)
+    if [ "$_DA_DUP" = "1" ]; then
+      RECONCILE_DIRECTIVE="RECONCILE: a duplicate doc-spec contract file exists at both spec/ and root — run /CJ_doc_audit --reconcile (reconciles the canonical spec/ copy and reports the redundant one; does not auto-delete)"
+    fi
+    ;;
+  malformed) : ;;  # Stage 1's engine call surfaces the stage1/registry halt.
+  *) : ;;
+esac
 echo "seeded: $SEEDED"
+[ -n "$RECONCILE_DIRECTIVE" ] && echo "$RECONCILE_DIRECTIVE"
 ```
 
-A failed seed delivery (the `if` falls through) is a STAGE-1 finding:
-`FINDING: stage1/seed — doc-spec.sh --seed did not emit a valid doc-spec.md`.
+A failed seed delivery (the `absent` branch falls through) is a STAGE-1
+finding: `FINDING: stage1/seed — doc-spec.sh --seed did not emit a valid
+doc-spec.md`.
+
+### Step 0: `--reconcile` flag (standalone only — opt-in write)
+
+Parse the skill's arguments for `--reconcile`. When present AND running
+standalone (NOT inside `/CJ_qa-work-item` — the in-QA path NEVER passes it),
+and when Step 2's classify reported `legacy` or `duplicate`, forward to the
+engine's opt-in write path and print its migration report verbatim in the
+Stage-1 section:
+
+```bash
+if [ "$DOC_AUDIT_RECONCILE" = "1" ] && { [ "$_DA_GEN" = "legacy" ] || [ "$_DA_DUP" = "1" ]; }; then
+  bash "$_DA_ENGINE" --reconcile
+fi
+```
+
+The audit `--reconcile` flag is the ONLY way the audit writes the contract (the
+engine's `--reconcile` is the ONLY new write path). A plain (no-flag) run is
+read-mostly: its only write stays the idempotent `absent` → seed delivery. The
+RECONCILE directive on a plain run is ADVISORY — it points at the remedy and
+writes nothing.
 
 ## Step 3: Stage 1 — deterministic conformance (engine)
 
@@ -244,8 +306,10 @@ STAGE3_FINDINGS=<n>
 DOCS_AUDITED=<n>          # the merged --list-declared count
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
-<the --check-on-disk output verbatim; plus any stage1/engine, stage1/seed,
- stage1/registry pre-stage FINDING lines>
+<any advisory RECONCILE: directive from Step 2 (legacy/duplicate — NOT a finding);
+ the --check-on-disk output verbatim; plus any stage1/engine, stage1/seed,
+ stage1/registry pre-stage FINDING lines; and, under the standalone --reconcile
+ flag, the engine's migration report (RECONCILE: migrated N rows / ...)>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
 <per-doc verdict lines + FINDING: stage2/... lines>
 --- stage 3: implementation drift (agent-judged, fresh-context) ---
@@ -276,5 +340,6 @@ The report shape never collapses on the error path.
 | Engine unreachable | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `DOC_AUDIT: findings` |
 | Seed delivery fails | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
 | Registry present-but-invalid | ONE `FINDING: stage1/registry` quoting `[doc-sync-no-config]` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: registry invalid — nothing to judge against` |
+| Legacy / duplicate contract file | advisory `RECONCILE:` directive — NOT a finding, counts toward NO stage | Plain run points at the remedy + writes nothing; `--reconcile` (standalone) forwards to the engine migration |
 | Stage-1 engine findings | `FINDING: stage1/<check-id>` lines → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the disk just disagrees) |
 | Any findings | counted in their stage | reported, exit clean — findings are the product, not a crash |
