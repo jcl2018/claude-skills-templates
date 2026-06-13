@@ -1,12 +1,13 @@
 ---
 name: CJ_doc_audit
-description: "Audit a repo's docs against its doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract exists (creates spec/ and seed-delivers spec/doc-spec.md via doc-spec.sh --seed when missing, reporting seeded: yes; idempotent seeded: no on re-run), validates the MERGED registry (general + optional spec/doc-spec-custom.md overlay), runs the deterministic conformance checks (declared docs exist; no orphan docs/*.md / spec/*.md; root *.md declared; no work-item IDs in human-docs; front_table docs open with a summary table; generated views in sync where the repo-local generator exists), layers the agent-judged per-requirement alignment verdicts on top (up-to-date / stale / missing-requirement / n/a), and emits a findings report: DOC_AUDIT: <ok|findings> + FINDINGS=<n> + DOCS_AUDITED=<n> + per-finding lines + the verdict block. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Dual posture: standalone invocations may use the Skill tool; inside a QA subagent (qa.md Step 8.6c) the logic executes INLINE by the agent reading this file (a subagent cannot spawn subagents). Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
-version: 0.1.0
+description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract exists (creates spec/ and seed-delivers spec/doc-spec.md via doc-spec.sh --seed when missing, reporting seeded: yes; idempotent seeded: no on re-run). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids, front-table, views-render vs the MERGED registry), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
   - Glob
   - Grep
+  - Agent
 ---
 
 ## Preamble
@@ -32,29 +33,36 @@ If `NOT_A_GIT_REPO`: tell the user "Error: /CJ_doc_audit requires a git reposito
 its doc contract?** The contract is the two-tier doc-spec registry — the
 portable general file (`spec/doc-spec.md`, byte-identical to
 `doc-spec.sh --seed`) plus an optional repo-specific overlay
-(`spec/doc-spec-custom.md`) the parser merges in. The audit:
+(`spec/doc-spec-custom.md`) the parser merges in. The audit runs in **three
+named stages**, split exactly along the deterministic/judged boundary:
 
-1. **Seed-delivers** the contract when missing (creating `spec/` if needed).
-2. **Validates** the merged registry.
-3. Runs the **deterministic conformance** checks.
-4. Layers the **agent-judged alignment** verdicts (the registered-doc audit
-   shape) on top.
-5. Emits a grep-able **findings report**.
+- **Stage 1 — deterministic conformance (engine):** ONE tested engine call,
+  `doc-spec.sh --check-on-disk`, printed verbatim. No executor-authored loops.
+- **Stage 2 — requirement compliance (agent-judged, evidence-forced):** each
+  declared doc judged clause-by-clause against its quoted `requirement:`
+  string, every verdict citing decisive evidence.
+- **Stage 3 — implementation drift (agent-judged, evidence-forced):** ground
+  truth enumerated FIRST from the live repo state, then each contract doc
+  cross-walked against it; every drift finding names the delta.
 
 Findings never crash the audit and never halt a caller: a broken contract IS
 the report. The audit is read-mostly — its ONLY write is the seed delivery
-(step 1), which is idempotent.
+(Step 2), which is idempotent.
 
-**Dual posture.** Standalone (operator keystroke in any repo): invoke this
-skill directly — it may be dispatched via the Skill tool. Inside a QA subagent
-(`/CJ_qa-work-item` qa.md Step 8.6c, inside a cj_goal run): a subagent cannot
-spawn subagents (the nested-subagent wall), so the QA agent executes this
-file's steps INLINE by reading it. Both postures produce the identical report
-shape.
+**Judge context (load-bearing).** Standalone (operator keystroke at top
+level): Stages 2+3 are REQUIRED to run in ONE fresh-context general-purpose
+subagent (the Agent tool) — see "Fresh-context dispatch" below. Inside a QA
+subagent (`/CJ_qa-work-item` qa.md Step 8.6c, inside a cj_goal run): a
+subagent cannot spawn subagents (the nested-subagent wall), so the QA agent
+executes ALL stages — including 2+3 — INLINE by reading this file, following
+the same stage protocols. This inline posture is an honest degradation: the
+in-QA judge carries more resident context than a standalone fresh-context
+judge; the standalone dogfood is the fresh-context proof. Both postures
+produce the identical per-stage report shape.
 
 ## Step 1: Resolve the engine
 
-The deterministic half runs on `doc-spec.sh`. Resolve it repo-local first,
+The deterministic stage runs on `doc-spec.sh`. Resolve it repo-local first,
 then the deployed shared home:
 
 ```bash
@@ -65,14 +73,15 @@ if [ -x "$_DA_ROOT/scripts/doc-spec.sh" ]; then
 elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh" ]; then
   _DA_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh"
 fi
-if [ -z "$_DA_ENGINE" ]; then
-  echo "DOC_AUDIT: findings"
-  echo "FINDINGS=1"
-  echo "DOCS_AUDITED=0"
-  echo "FINDING: engine — doc-spec.sh unreachable (repo-local scripts/ + deployed _cj-shared both absent); run 'skills-deploy install'"
-  # stop here — nothing else can run without the engine
-fi
+[ -n "$_DA_ENGINE" ] || echo "ENGINE_UNREACHABLE"
 ```
+
+If `ENGINE_UNREACHABLE`: this is a STAGE-1 finding —
+`FINDING: stage1/engine — doc-spec.sh unreachable (repo-local scripts/ +
+deployed _cj-shared both absent); run 'skills-deploy install'`. Nothing else
+can run; emit the per-stage report (Step 6) with `STAGE1_FINDINGS=1`, Stages
+2+3 each printing their header + `skipped: engine unreachable — nothing to
+judge against`, and `DOC_AUDIT: findings`.
 
 ## Step 2: Ensure the contract exists (seed delivery)
 
@@ -99,81 +108,178 @@ fi
 echo "seeded: $SEEDED"
 ```
 
-A failed seed delivery (the `if` falls through) is a finding:
-`FINDING: seed — doc-spec.sh --seed did not emit a valid doc-spec.md`.
+A failed seed delivery (the `if` falls through) is a STAGE-1 finding:
+`FINDING: stage1/seed — doc-spec.sh --seed did not emit a valid doc-spec.md`.
 
-## Step 3: Validate the merged registry
+## Step 3: Stage 1 — deterministic conformance (engine)
+
+ONE engine call. Print its output VERBATIM as the stage-1 section of the
+report — no executor-authored conformance loops exist in this skill:
 
 ```bash
-bash "$_DA_ENGINE" --validate
+bash "$_DA_ENGINE" --check-on-disk
 ```
 
-The engine merges `spec/doc-spec.md` + `spec/doc-spec-custom.md`-if-present
-(overlay-absent repos: nothing to merge, no finding). A non-zero exit
-(present-but-invalid registry, duplicate path across the two files, invalid
-overlay) is ONE finding quoting the engine's `[doc-sync-no-config]` reason;
-skip Steps 4–5 (their inputs are unparseable) and go to Step 6 with the
-verdict block replaced by `n/a — registry invalid`.
+The engine probes registry existence itself (absent ⇒ `REGISTRY=absent` +
+exit 0 — cannot normally occur here, Step 2 just delivered the seed; if it
+does, the `stage1/seed` finding above already covers it), validates the
+MERGED registry (`spec/doc-spec.md` + `spec/doc-spec-custom.md`-if-present),
+then runs the six conformance checks — declared-exists, orphans (docs/*.md
+maxdepth 1 + spec/*.md), root-declared, human-doc-ids, front-table,
+views-render (table-block vs fresh `--render`) — emitting `check: <id> — PASS`
+/ `FINDING: stage1/<id> — <detail>` lines plus the `CHECKS_RUN=`/`FINDINGS=`
+tail. Its `FINDINGS=` count IS the engine-check portion of `STAGE1_FINDINGS`.
 
-## Step 4: Deterministic conformance
+A present-but-invalid registry makes the engine exit 1 with
+`[doc-sync-no-config] <reason>`: count ONE STAGE-1 finding —
+`FINDING: stage1/registry — <the engine's reason, quoted>` — and skip Stages
+2+3 (their inputs are unparseable; each still prints its section header +
+`skipped: registry invalid — nothing to judge against` + `STAGE*_FINDINGS=0`).
 
-All driven from the engine's merged lists. Count each failed assertion as one
-finding with a `FINDING: <area> — <detail>` line:
+Capture `DOCS_AUDITED` as the merged `--list-declared` count.
 
-- **declared-exists** — every `--list-declared` path exists on disk.
-- **no orphans** — every `docs/*.md` on disk (maxdepth 1) is declared; every
-  `spec/*.md` on disk is declared (only when those dirs exist).
-- **root declared** — every root `*.md` on disk is a declared registry path.
-- **no work-item IDs in human-docs** — no `--list-human-docs` path contains
-  `[FSTD][0-9]{6}`.
-- **front_table** — every `--list-front-table-docs` path opens with a Markdown
-  table (a `|`-row immediately followed by a `|---|`-style delimiter row)
-  BEFORE its first `## ` heading.
-- **views in sync** — ONLY when the repo-local generator exists (the Check 23
-  guard, verbatim: `[ -f "$_DA_ROOT/scripts/generate-doc-views.sh" ]` and the
-  views are present): regenerate into a temp dir and diff
-  `docs/doc-general.md` + `docs/doc-custom.md`; drift is a finding. Where the
-  generator is absent (consumer posture), diff each view's table against fresh
-  `--render general|custom` output instead; a mismatch is a finding.
+## Fresh-context dispatch (standalone posture — REQUIRED)
 
-## Step 5: Agent-judged alignment (the registered-doc audit shape)
+At top level (standalone), Stages 2+3 MUST be executed by ONE fresh
+general-purpose subagent via the Agent tool. The dispatch prompt carries
+ONLY:
 
-For each declared doc, read its registry `requirement:` string and judge the
-doc against it — one verdict per doc:
+1. the repo root path,
+2. the engine path (`$_DA_ENGINE`),
+3. the Stage-1 report (the verbatim `--check-on-disk` output + `seeded:`),
+4. the Stage-2 and Stage-3 protocols below (copy them into the prompt),
 
-- `up-to-date` — satisfies its requirement.
-- `stale: <one-line why>` — no longer satisfies it. Counts as one finding.
-- `missing-requirement` — the entry has no `requirement:`. SOFT — reported,
-  never counted as a finding.
-- `n/a` — out of scope for this run's judgment (say why).
+and explicitly NOT the invoking session's beliefs about the docs — no "we
+just updated X", no summaries of recent work. The subagent reads the docs and
+the repo cold, judges per the protocols, and returns the two stage sections
+VERBATIM (the per-doc verdict lines + FINDING lines, under the two section
+headers). The invoking skill splices them into the report unchanged.
 
-This layer sits ABOVE the deterministic floor, never replaces it: a doc can be
-structurally present (Step 4 green) and still `stale` here (e.g. a workflow
-doc that no longer lists a live entry point).
+When the operator runs `/CJ_doc_audit` and `/CJ_test_audit` together, the
+same single subagent MAY judge both audits' Stages 2+3 in one dispatch (one
+fresh context is the point; two dispatches are not required).
 
-## Step 6: Emit the findings report
+**In-QA degradation (honest, documented).** Inside `/CJ_qa-work-item` Step
+8.6c the QA agent is ALREADY a subagent and cannot spawn subagents (the
+nested-subagent wall) — it executes Stages 2+3 INLINE per the same protocols.
+No pretend-dispatch: the report is identical in shape, and the standalone
+fresh-context run is the independence proof.
+
+## Step 4: Stage 2 — requirement compliance (agent-judged, evidence-forced)
+
+For EACH declared doc in the merged registry (enumerate via
+`--list-declared`; read each entry's `requirement:` string from the registry
+yaml):
+
+1. **Quote** the doc's `requirement:` string.
+2. **Decompose** it into clauses (e.g. "Arranged by principle" / "states the
+   repo's first principle(s)" / "no work-item IDs" / "opens with a summary
+   table").
+3. **Check each clause** against the doc's ACTUAL content (read the doc).
+4. **Emit exactly one verdict line** per doc, citing the decisive evidence:
+
+```
+<path>: satisfies
+<path>: missing-requirement (soft — no requirement: declared)
+<path>: n/a — <why out of scope for this run's judgment>
+FINDING: stage2/<path> — clause '<clause>' not met: <evidence>
+```
+
+Only `FINDING:` lines count toward `STAGE2_FINDINGS` (`missing-requirement`
+and `n/a` are non-counting). A doc failing multiple clauses emits one FINDING
+line per failed clause. Clauses already proven deterministically by Stage 1
+(e.g. "opens with a summary table" = the `front-table` check; "no work-item
+IDs" = `human-doc-ids`) are CITED from Stage 1's output ("front-table: PASS
+per Stage 1"), never re-derived. Generated views' requirement ("kept matching
+the merged registry") is likewise Stage 1's `views-render` evidence.
+
+## Step 5: Stage 3 — implementation drift (agent-judged, evidence-forced)
+
+Ground truth FIRST, judgment second. Never judge a doc's claims from memory —
+enumerate the live repo state, then cross-walk.
+
+**5.1 — Enumerate ground truth** (emit one summary line opening the stage-3
+section, e.g. `ground truth: 23 routable skills, 31 scripts/*.sh, 4
+workflows, 4 spec-registry files, 9 top-level dirs`):
+
+- Routable skills: `jq -r '.[] | select(.status != "deprecated") |
+  select((.files | length) > 0) | .name' skills-catalog.json` — ONLY when
+  `skills-catalog.json` exists. In a no-catalog consumer repo, skip the
+  catalog-dependent cross-walks with a named note (the guard pattern:
+  `note: no skills-catalog.json — catalog cross-walks skipped`); the
+  script/dir cross-walks still run.
+- Scripts on disk: `scripts/*.sh` (when the dir exists).
+- CI workflows: `.github/workflows/*` (when present).
+- The spec-registry family: `spec/*.md` on disk.
+- Top-level directories: `ls -d */`.
+
+**5.2 — Cross-walk each contract doc** per the doc-type playbook (apply the
+rows that exist in THIS repo; generated views are EXCLUDED — generated
+content cannot drift by hand, Stage 1's `views-render` owns it):
+
+| Doc | Cross-walk |
+|---|---|
+| `docs/workflow.md` | Names every routable skill; mentions NO retired/nonexistent skill. |
+| `docs/philosophy.md` | Its decision tree covers every ACTIVE routable skill. |
+| `docs/architecture.md` | Every named piece of machinery (scripts, registries, checks, helpers) exists on disk. |
+| `README.md` | Its folder-structure section matches the actual tree. |
+| `CLAUDE.md` | Every scripts-reference row points at an existing script. |
+| Other declared docs | Named files/dirs/commands they reference exist; spec-registry docs' named parsers exist. |
+
+**5.3 — Verdict per doc** (one line each):
+
+```
+<path>: no-drift
+FINDING: stage3/<path> — <named delta, e.g. "mentions retired scripts/test-pipeline.sh" / "routable skill CJ_x absent from the workflow list">
+```
+
+Only `FINDING:` lines count toward `STAGE3_FINDINGS`. Every finding NAMES the
+delta against the enumerated ground truth — never "seems stale".
+
+## Step 6: Emit the per-stage report
 
 Always emit, in this order (the grep-able contract callers parse):
 
 ```
 DOC_AUDIT: <ok|findings>
-FINDINGS=<n>
+FINDINGS=<n>              # total = stage1 + stage2 + stage3
+STAGE1_FINDINGS=<n>
+STAGE2_FINDINGS=<n>
+STAGE3_FINDINGS=<n>
 DOCS_AUDITED=<n>          # the merged --list-declared count
 seeded: <yes|no>
-FINDING: <area> — <detail>     # one line per finding, omitted when none
-### Registered-doc verdicts
-<path>: <verdict>              # one line per declared doc
+--- stage 1: deterministic conformance (engine) ---
+<the --check-on-disk output verbatim; plus any stage1/engine, stage1/seed,
+ stage1/registry pre-stage FINDING lines>
+--- stage 2: requirement compliance (agent-judged, fresh-context) ---
+<per-doc verdict lines + FINDING: stage2/... lines>
+--- stage 3: implementation drift (agent-judged, fresh-context) ---
+<ground-truth summary line + per-doc verdict lines + FINDING: stage3/... lines>
 ```
 
-`DOC_AUDIT: ok` requires FINDINGS=0 (every deterministic check green AND no
-`stale:` verdict). `missing-requirement` verdicts do not block `ok`.
+In-QA (inline) runs label the stage-2/3 headers `(agent-judged, inline)`
+instead of `(agent-judged, fresh-context)` — the posture is part of the
+report, never hidden. `DOC_AUDIT: ok` REQUIRES all three stage counts = 0;
+`FINDINGS` always equals their sum. The `stage1/` / `stage2/` / `stage3/`
+finding prefixes keep stages grep-able even when a consumer flattens the
+report.
 
-## Error handling
+**Pre-stage findings and skipped stages (the error-path grammar).** The
+engine-unreachable (Step 1), seed-delivery-failure (Step 2), and
+registry-invalid (Step 3) findings are deterministic — they count toward
+`STAGE1_FINDINGS` and print inside the stage-1 section with prefixes
+`stage1/engine`, `stage1/seed`, `stage1/registry`. When a pre-stage failure
+makes later stages unjudgeable, each skipped stage still prints its section
+header with ONE line — `skipped: <reason>` — and its `STAGE*_FINDINGS=0`.
+The report shape never collapses on the error path.
 
-| Condition | Behavior |
-|---|---|
-| Not a git repo | "Error: /CJ_doc_audit requires a git repository." — stop |
-| Engine unreachable | `DOC_AUDIT: findings` + the engine finding (Step 1) |
-| Seed delivery fails | finding; audit continues on whatever exists |
-| Registry present-but-invalid | ONE finding quoting `[doc-sync-no-config]`; Steps 4–5 skipped |
-| Findings | reported, exit clean — findings are the product, not a crash |
+## Error handling (stage terms)
+
+| Condition | Stage accounting | Behavior |
+|---|---|---|
+| Not a git repo | (pre-audit) | "Error: /CJ_doc_audit requires a git repository." — stop |
+| Engine unreachable | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `DOC_AUDIT: findings` |
+| Seed delivery fails | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
+| Registry present-but-invalid | ONE `FINDING: stage1/registry` quoting `[doc-sync-no-config]` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: registry invalid — nothing to judge against` |
+| Stage-1 engine findings | `FINDING: stage1/<check-id>` lines → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the disk just disagrees) |
+| Any findings | counted in their stage | reported, exit clean — findings are the product, not a crash |

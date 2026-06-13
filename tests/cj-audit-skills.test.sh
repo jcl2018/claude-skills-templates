@@ -10,18 +10,28 @@
 # Asserts:
 #   1. skill structure: both SKILL.md + USAGE.md exist; frontmatter names are
 #      EXACTLY CJ_doc_audit / CJ_test_audit; the dual-posture contract + the
-#      report literals (DOC_AUDIT:/TEST_AUDIT:, FINDINGS=, DOCS_AUDITED=/
-#      UNITS_AUDITED=, seeded:) are documented; catalog entries + routing
-#      lines present; qa.md Step 8.6a-d wired with the extended RESULT +
-#      AUDIT_FINDINGS block
+#      PER-STAGE report literals (DOC_AUDIT:/TEST_AUDIT:, FINDINGS=,
+#      STAGE1/2/3_FINDINGS=, DOCS_AUDITED=/UNITS_AUDITED=, seeded:, the three
+#      `--- stage N ---` section delimiters, the stage2 verdict grammar, the
+#      retired up-to-date/stale wording ABSENT, Agent in frontmatter
+#      allowed-tools + catalog depends.tools, the fresh-context dispatch) are
+#      documented; catalog entries + routing lines present; qa.md Step 8.6a-d
+#      wired with the extended RESULT + per-stage AUDIT_FINDINGS block
 #   2. bare-repo seed delivery: first run creates spec/ + BOTH contract files
 #      (seeded: yes semantics — files born valid, byte-identical to --seed);
 #      second run is idempotent (seeded: no — no re-seed, no mutation)
-#   3. seeded violations produce findings: an orphan root doc + a work-item ID
-#      planted in a human doc surface as conformance findings; an unregistered
+#   3. seeded violations produce findings: the Stage-1 ENGINE
+#      (doc-spec.sh --check-on-disk) flags an orphan root doc + a work-item ID
+#      planted in a human doc with `stage1/` prefixed findings; an unregistered
 #      test file in a units-declaring repo flips the coverage check
-#   4. the clean workbench run is green: doc-spec --validate OK +
+#   4. the clean workbench run is green: doc-spec --check-on-disk FINDINGS=0 +
 #      test-spec --validate OK + --check-coverage findings=0 on the live tree
+#   5. planted-drift stage3 drill: a fixture whose workflow doc omits a
+#      catalog skill is mechanically detectable via the documented stage-3
+#      cross-walk (jq ground truth vs doc grep names the missing skill), and
+#      the SKILL.md documents the stage3 playbook + FINDING: stage3/ grammar
+#      (agent stages cannot run in a test; the deterministic surface + the
+#      documented contract text are the assertable halves)
 #
 # Temp-dir isolated; never mutates the live tree.
 
@@ -101,6 +111,64 @@ else
   fail_test "CJ_test_audit: report shape literals missing"
 fi
 
+# 1b. the per-stage report contract (F000061) on BOTH skills
+for _sk in CJ_doc_audit CJ_test_audit; do
+  _MD="$REPO_ROOT/skills/$_sk/SKILL.md"
+  if grep -qF 'STAGE1_FINDINGS=' "$_MD" && grep -qF 'STAGE2_FINDINGS=' "$_MD" \
+     && grep -qF 'STAGE3_FINDINGS=' "$_MD"; then
+    ok "$_sk: per-stage counts (STAGE1/2/3_FINDINGS=) documented"
+  else
+    fail_test "$_sk: STAGE1/2/3_FINDINGS= missing from the report contract"
+  fi
+  if grep -qF -- '--- stage 1: deterministic conformance (engine) ---' "$_MD" \
+     && grep -qF -- '--- stage 2: requirement compliance (agent-judged, fresh-context) ---' "$_MD" \
+     && grep -qF -- '--- stage 3: implementation drift (agent-judged, fresh-context) ---' "$_MD"; then
+    ok "$_sk: the three stage section delimiters documented"
+  else
+    fail_test "$_sk: stage section delimiters missing"
+  fi
+  if grep -qF 'stage1/' "$_MD" && grep -qF 'FINDING: stage2/' "$_MD" \
+     && grep -qF 'FINDING: stage3/' "$_MD"; then
+    ok "$_sk: stageN/ finding prefixes documented"
+  else
+    fail_test "$_sk: stageN/ finding prefixes missing"
+  fi
+  if grep -qE '^  - Agent$' "$_MD"; then
+    ok "$_sk: frontmatter allowed-tools carries Agent (fresh-context dispatch)"
+  else
+    fail_test "$_sk: Agent missing from frontmatter allowed-tools"
+  fi
+  if jq -e --arg n "$_sk" '.[] | select(.name == $n) | .depends.tools | index("Agent")' \
+       "$REPO_ROOT/skills-catalog.json" >/dev/null 2>&1; then
+    ok "$_sk: catalog depends.tools carries Agent"
+  else
+    fail_test "$_sk: Agent missing from catalog depends.tools"
+  fi
+  if grep -qiF 'fresh-context' "$_MD" && grep -qF 'skipped: <reason>' "$_MD"; then
+    ok "$_sk: fresh-context dispatch + skipped-stage error grammar documented"
+  else
+    fail_test "$_sk: fresh-context dispatch / skipped-stage grammar missing"
+  fi
+  if grep -qF 'up-to-date' "$_MD"; then
+    fail_test "$_sk: retired up-to-date/stale verdict wording still present"
+  else
+    ok "$_sk: retired up-to-date/stale verdict wording absent"
+  fi
+done
+# Stage-2 verdict grammar + the single-engine-call Stage 1 (doc audit)
+if grep -qF 'missing-requirement (soft' "$REPO_ROOT/skills/CJ_doc_audit/SKILL.md" \
+   && grep -qF ': satisfies' "$REPO_ROOT/skills/CJ_doc_audit/SKILL.md" \
+   && grep -qF ': no-drift' "$REPO_ROOT/skills/CJ_doc_audit/SKILL.md"; then
+  ok "CJ_doc_audit: stage2/stage3 verdict grammar (satisfies / missing-requirement (soft) / no-drift) documented"
+else
+  fail_test "CJ_doc_audit: stage2/stage3 verdict grammar missing"
+fi
+if grep -qF -- '--check-on-disk' "$REPO_ROOT/skills/CJ_doc_audit/SKILL.md"; then
+  ok "CJ_doc_audit: Stage 1 is the --check-on-disk engine call"
+else
+  fail_test "CJ_doc_audit: --check-on-disk engine call missing from Stage 1"
+fi
+
 # qa.md Step 8.6 wiring (the QA fixture assertions)
 _QA="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
 if grep -qF '## Step 8.6:' "$_QA" \
@@ -115,6 +183,13 @@ if grep -qF 'AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>,spec_updates:<summa
   ok "qa.md: extended RESULT (AUDITS= field) + fenced AUDIT_FINDINGS block documented"
 else
   fail_test "qa.md: extended RESULT / AUDIT_FINDINGS contract missing"
+fi
+if grep -qF 'STAGE1_FINDINGS=' "$_QA" && grep -qF 'STAGE3_FINDINGS=' "$_QA" \
+   && grep -qF -- '--- stage 1: deterministic conformance (engine) ---' "$_QA" \
+   && grep -qF '(agent-judged, inline)' "$_QA"; then
+  ok "qa.md: AUDIT_FINDINGS block template carries the per-stage shape (STAGE*_FINDINGS= + stage sections, inline-labeled)"
+else
+  fail_test "qa.md: AUDIT_FINDINGS block template missing the per-stage shape"
 fi
 if grep -qF '[qa-audit-waived]' "$_QA" && grep -qF '[qa-audit-declined]' "$_QA"; then
   ok "qa.md: waiver/decline journal-line contract documented"
@@ -205,35 +280,26 @@ else
 fi
 
 # 3. seeded violations produce findings.
-# 3a. doc conformance: an undeclared root doc + a work-item ID in a human doc.
-#     (Replicates the CJ_doc_audit Step 4 root-declared + no-ID checks.)
+# 3a. doc conformance via the Stage-1 ENGINE (doc-spec.sh --check-on-disk —
+#     the F000061 single tested implementation; no executor-authored loops):
+#     an undeclared root doc + a work-item ID in a human doc both surface as
+#     `stage1/` prefixed findings in ONE engine call.
 echo "stray" > "$_BR/STRAY.md"
 mkdir -p "$_BR/docs"
 printf '# stub\n\nShipped by F000999.\n' > "$_BR/docs/philosophy.md"
-_DECL=$(REPO_ROOT="$_BR" bash "$DOC_ENGINE" --list-declared 2>/dev/null)
-_F_COUNT=0
-for _root_md in "$_BR"/*.md; do
-  [ -e "$_root_md" ] || continue
-  _b=$(basename "$_root_md")
-  printf '%s\n' "$_DECL" | grep -qFx "$_b" || _F_COUNT=$((_F_COUNT + 1))
-done
-if [ "$_F_COUNT" -ge 1 ]; then
-  ok "seeded violation: an undeclared root doc surfaces as a conformance finding (root-declared check)"
+_COD_OUT=$(REPO_ROOT="$_BR" bash "$DOC_ENGINE" --check-on-disk 2>&1); _COD_RC=$?
+if [ "$_COD_RC" -eq 1 ] \
+   && printf '%s\n' "$_COD_OUT" | grep -qF 'FINDING: stage1/root-declared' \
+   && printf '%s\n' "$_COD_OUT" | grep -qF 'STRAY.md'; then
+  ok "seeded violation: the engine flags the undeclared root doc (FINDING: stage1/root-declared)"
 else
-  fail_test "seeded violation: undeclared root doc NOT caught"
+  fail_test "seeded violation: undeclared root doc NOT caught by --check-on-disk (rc=$_COD_RC): $_COD_OUT"
 fi
-_ID_HITS=0
-while IFS= read -r _hd; do
-  [ -n "$_hd" ] || continue
-  [ -f "$_BR/$_hd" ] || continue
-  grep -qE '[FSTD][0-9]{6}' "$_BR/$_hd" && _ID_HITS=$((_ID_HITS + 1))
-done <<EOF
-$(REPO_ROOT="$_BR" bash "$DOC_ENGINE" --list-human-docs 2>/dev/null)
-EOF
-if [ "$_ID_HITS" -ge 1 ]; then
-  ok "seeded violation: a work-item ID planted in a human doc surfaces as a finding (no-ID lint)"
+if printf '%s\n' "$_COD_OUT" | grep -qF 'FINDING: stage1/human-doc-ids' \
+   && printf '%s\n' "$_COD_OUT" | grep -qF 'docs/philosophy.md'; then
+  ok "seeded violation: the engine flags the work-item ID in a human doc (FINDING: stage1/human-doc-ids)"
 else
-  fail_test "seeded violation: work-item ID in human doc NOT caught"
+  fail_test "seeded violation: work-item ID in human doc NOT caught by --check-on-disk: $_COD_OUT"
 fi
 
 # 3b. test coverage: declare a unit whose anchored runner is absent ->
@@ -270,11 +336,53 @@ if bash "$DOC_ENGINE" --validate >/dev/null 2>&1; then
 else
   fail_test "workbench baseline: doc-spec --validate failed"
 fi
+_WB_COD=$(bash "$DOC_ENGINE" --check-on-disk 2>&1); _WB_COD_RC=$?
+if [ "$_WB_COD_RC" -eq 0 ] && printf '%s' "$_WB_COD" | grep -qx 'FINDINGS=0'; then
+  ok "workbench baseline: doc-spec --check-on-disk clean (Stage-1 engine, FINDINGS=0)"
+else
+  fail_test "workbench baseline: --check-on-disk not clean (rc=$_WB_COD_RC): $_WB_COD"
+fi
 _WB=$(bash "$TEST_ENGINE" --check-coverage 2>&1); _WB_RC=$?
 if [ "$_WB_RC" -eq 0 ] && printf '%s' "$_WB" | grep -qF 'findings=0'; then
   ok "workbench baseline: test-spec coverage cross-check clean (findings=0)"
 else
   fail_test "workbench baseline: coverage not clean (rc=$_WB_RC): $_WB"
+fi
+
+# 5. planted-drift stage3 drill. Agent stages cannot execute inside a test, so
+# the drill asserts the two halves that CAN be: (a) the drift is mechanically
+# detectable by the documented stage-3 cross-walk — enumerate ground truth via
+# jq over the fixture catalog, grep the fixture workflow doc, name the missing
+# skill; (b) the SKILL.md documents the stage-3 playbook + finding grammar the
+# judge executes.
+_DR=$(mk_tmp)
+mkdir -p "$_DR/docs"
+cat > "$_DR/skills-catalog.json" <<'EOF'
+[
+  {"name": "CJ_alpha", "status": "active", "files": ["skills/CJ_alpha/SKILL.md"]},
+  {"name": "CJ_omitted", "status": "active", "files": ["skills/CJ_omitted/SKILL.md"]}
+]
+EOF
+printf '# workflow\n\nEntry points: /CJ_alpha does things.\n' > "$_DR/docs/workflow.md"
+_MISSING=""
+while IFS= read -r _skl; do
+  [ -n "$_skl" ] || continue
+  grep -qF "$_skl" "$_DR/docs/workflow.md" || _MISSING="$_MISSING $_skl"
+done <<EOF
+$(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' "$_DR/skills-catalog.json" 2>/dev/null)
+EOF
+if [ "${_MISSING# }" = "CJ_omitted" ]; then
+  ok "stage3 drill: the documented cross-walk mechanically NAMES the omitted skill (CJ_omitted) from catalog ground truth"
+else
+  fail_test "stage3 drill: cross-walk did not isolate the omitted skill (got: '${_MISSING# }')"
+fi
+_DA_MD="$REPO_ROOT/skills/CJ_doc_audit/SKILL.md"
+if grep -qF 'Names every routable skill' "$_DA_MD" \
+   && grep -qF 'ground truth' "$_DA_MD" \
+   && grep -qF 'FINDING: stage3/' "$_DA_MD"; then
+  ok "stage3 drill: SKILL.md documents the workflow-doc cross-walk playbook + FINDING: stage3/ grammar"
+else
+  fail_test "stage3 drill: stage-3 playbook / grammar missing from CJ_doc_audit SKILL.md"
 fi
 
 echo

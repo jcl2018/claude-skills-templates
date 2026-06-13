@@ -518,7 +518,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and render-custom from the overlay."
+    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, render-custom from the overlay, and the --check-on-disk Stage-1 battery (clean fixture; seven seeded violations each isolated to its own stage1/<id> finding; registry-absent REGISTRY=absent; invalid-registry halt)."
   - id: test-test-spec
     family: test
     label: "test-spec suite — two-tier registry parser + coverage drills"
@@ -536,7 +536,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, seeded-violation findings, and the clean workbench baseline."
+    purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, engine-flagged seeded-violation findings (stage1/ prefixes), the per-stage report contract on both SKILL.mds plus qa.md's block template, the planted-drift stage3 cross-walk drill, and the clean workbench baseline."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
