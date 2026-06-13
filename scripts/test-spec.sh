@@ -50,6 +50,18 @@
 #                      default) prints a named "coverage cross-check inactive"
 #                      note + exits 0 instead of inventing extraction findings.
 #                      Findings print as `FINDING: ...` lines; exit 1 on any.
+#   --classify         (F000065) READ-ONLY generation detector, symmetric with
+#                      doc-spec.sh --classify. Emits GENERATION=<canonical|
+#                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
+#                      CANONICAL_PATH=spec/test-spec.md. Never emits `legacy`:
+#                      test-spec's fenced-yaml format never diverged (confirmed
+#                      from git history), so there is no old on-disk format to
+#                      detect. A no-registry no-format file is `malformed`.
+#   --reconcile        (F000065) Opt-in; for test-spec this is a dedup / no-op
+#                      (canonical => clean no-op; duplicate => report the
+#                      redundant copy, no auto-delete; malformed => the
+#                      [test-spec-no-config] halt; absent => "run the audit to
+#                      seed"). There is NO legacy-format migration for test-spec.
 #   --seed             echo a COMPLETE, minimal, VALID general test-spec.md for
 #                      self-bootstrap of a MISSING test-spec.md. Does NOT
 #                      require the registry to exist; emits ONLY seed content.
@@ -722,6 +734,111 @@ EOF
   return 0
 }
 
+# ---- --classify / --reconcile: contract-file generation detection + migration ----
+# (F000065/S000109) The SYMMETRIC partner of doc-spec.sh's classify/reconcile.
+#
+# IMPORTANT — confirmed from git history: test-spec.md has ALWAYS been the
+# fenced ```yaml format (introduced at ce7af57 under spec/test-spec.md, the same
+# schema_version: + rules: shape this engine parses today). It NEVER had a
+# divergent on-disk legacy format the way doc-spec did (doc-spec went from a
+# generated yaml registry to a 3-column Markdown table; test-spec's canonical
+# format was the yaml block from day one). So for test-spec there is no
+# legacy-yaml-to-something migration to perform. --classify therefore reduces to
+# {canonical, absent, duplicate, malformed} (no `legacy` branch will ever fire),
+# and --reconcile is a dedup / no-op: a canonical file is a clean no-op, a
+# duplicated file reports the redundant copy (no auto-delete; OQ1), an absent
+# file says "run the audit to seed", a malformed file halts. The subcommands are
+# implemented symmetrically with doc-spec.sh so both contracts present one
+# self-healing surface; the reduced legacy branch is documented, not hidden.
+
+# Does file $1 carry a parseable canonical test-spec yaml registry?
+# (exit 0 = yes). Canonical = exactly one fenced ```yaml block carrying both
+# schema_version: and a top-level rules: key.
+_has_canonical_yaml() {
+  [ -f "$1" ] || return 1
+  _cy=$(_extract_yaml_file "$1")
+  [ -n "$_cy" ] || return 1
+  printf '%s\n' "$_cy" | grep -qE '^schema_version:' || return 1
+  printf '%s\n' "$_cy" | grep -qE '^rules:' || return 1
+  return 0
+}
+
+# Classify the generation of the test-spec contract file(s) without writing.
+# Symmetric machine block with doc-spec.sh --classify:
+#   GENERATION=<canonical|absent|malformed>   (never `legacy` — see the note above)
+#   POSITIONS=<comma-list of on-disk positions: spec/test-spec.md, test-spec.md>
+#   DUPLICATE=<0|1>
+#   CANONICAL_PATH=spec/test-spec.md
+_classify() {
+  _CL_SPEC="$REPO_ROOT_RESOLVED/spec/test-spec.md"
+  _CL_ROOT="$REPO_ROOT_RESOLVED/test-spec.md"
+  _CL_POSITIONS=""
+  [ -f "$_CL_SPEC" ] && _CL_POSITIONS="spec/test-spec.md"
+  if [ -f "$_CL_ROOT" ]; then
+    [ -n "$_CL_POSITIONS" ] && _CL_POSITIONS="$_CL_POSITIONS,test-spec.md" || _CL_POSITIONS="test-spec.md"
+  fi
+  _CL_DUP=0
+  [ -f "$_CL_SPEC" ] && [ -f "$_CL_ROOT" ] && _CL_DUP=1
+
+  echo "CANONICAL_PATH=spec/test-spec.md"
+
+  if [ -z "$_CL_POSITIONS" ]; then
+    echo "GENERATION=absent"
+    echo "POSITIONS="
+    echo "DUPLICATE=0"
+    return 0
+  fi
+
+  _CL_ACTIVE="$TEST_SPEC_PATH"
+  if _has_canonical_yaml "$_CL_ACTIVE"; then
+    echo "GENERATION=canonical"
+  else
+    # No parseable canonical yaml registry, and (by construction) test-spec has
+    # no recognized legacy on-disk format — so this is a malformed canonical
+    # file. NOT legacy; preserve the [test-spec-no-config] halt semantics.
+    echo "GENERATION=malformed"
+  fi
+  echo "POSITIONS=$_CL_POSITIONS"
+  echo "DUPLICATE=$_CL_DUP"
+  return 0
+}
+
+# Reconcile the test-spec contract file. Symmetric with doc-spec.sh --reconcile
+# but with the reduced (no-legacy-migration) branch:
+#   - canonical  => clean no-op (RECONCILE: already canonical). If duplicated,
+#                   report the redundant copy.
+#   - duplicate  => (a canonical-and-duplicate file) report the redundant copy;
+#                   no auto-delete (OQ1).
+#   - malformed  => the [test-spec-no-config] halt (never clobbered).
+#   - absent     => RECONCILE: absent — run the audit to seed.
+# There is NO legacy migration path for test-spec (the format never diverged).
+_reconcile() {
+  _RC_OUT=$(_classify)
+  _RC_GEN=$(printf '%s\n' "$_RC_OUT" | awk -F= '/^GENERATION=/{print $2}')
+  _RC_DUP=$(printf '%s\n' "$_RC_OUT" | awk -F= '/^DUPLICATE=/{print $2}')
+
+  case "$_RC_GEN" in
+    absent)
+      echo "RECONCILE: absent — no contract file to reconcile (run /CJ_test_audit to seed the canonical contract)"
+      return 0
+      ;;
+    malformed)
+      emit_halt "test-spec.md is present but carries no parseable canonical yaml registry — refusing to reconcile a possibly hand-broken file (fix the registry by hand): $TEST_SPEC_PATH"
+      ;;
+    canonical)
+      echo "RECONCILE: already canonical — no migration needed ($TEST_SPEC_PATH)"
+      echo "RECONCILE: test-spec has no divergent legacy on-disk format (the yaml registry has been canonical from introduction) — reconcile is a dedup/no-op"
+      if [ "$_RC_DUP" = "1" ]; then
+        echo "RECONCILE-WARN: a redundant test-spec copy exists at the root position (test-spec.md) alongside the canonical spec/test-spec.md — remove it by hand (auto-delete is deferred, OQ1)"
+      fi
+      return 0
+      ;;
+    *)
+      emit_halt "internal: unexpected GENERATION='$_RC_GEN' from _classify"
+      ;;
+  esac
+}
+
 # ---- Portable seed (a COMPLETE, minimal, VALID general test-spec.md) ----
 # The embedded heredoc makes --seed self-contained so a CONSUMER repo — where
 # only the deployed scripts/test-spec.sh is present — can self-bootstrap. The
@@ -793,6 +910,32 @@ Two enforcement layers stand behind the rules:
   repo's current state by the test audit (a red suite or behavior-adding code
   without covering test rows is a finding), layered ABOVE the deterministic
   floor, never replacing it.
+
+## The canonical contract-file template
+
+The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
+canonical shape — what files are required, where they live, and their format:
+
+- **Required** — the general file of each pair: `spec/test-spec.md` (this file)
+  and `spec/doc-spec.md`. Each is delivered verbatim by its engine's `--seed`
+  and must exist in an adopting repo (the audit seed-delivers a missing one).
+- **Optional** — the `*-custom.md` overlay next to each general file
+  (`spec/test-spec-custom.md`, `spec/doc-spec-custom.md`): the repo's chosen
+  additions (here, the `units:` enumeration + the per-mode `gates:` array),
+  merged in by the parser. A repo without an overlay carries the general
+  contract alone.
+- **Position** — `spec/` is canonical; the repo root is an accepted fallback
+  (`test-spec.md` / `doc-spec.md`) for root-style consumers. The engine resolves
+  `spec/`-then-root.
+- **Format** — a single fenced `yaml` registry for test-spec; a 3-column
+  Markdown table (`| Doc | Purpose | Requirement |`) for doc-spec. The block /
+  table IS the source of truth, parsed directly.
+
+`test-spec.sh --classify` reports a file's generation (canonical / absent /
+duplicated). For test-spec, `--reconcile` is a dedup / no-op: the fenced-yaml
+format has been canonical since introduction, so there is no legacy on-disk
+format to migrate (unlike doc-spec, which migrates a legacy yaml registry to its
+canonical Markdown table).
 
 ## Machine registry
 
@@ -882,6 +1025,18 @@ case "${1:-}" in
     _run_registry_gates
     _run_coverage
     ;;
+  --classify)
+    # READ-ONLY. No registry gates (classification works on absent/malformed
+    # files too). Symmetric with doc-spec.sh --classify; never emits `legacy`
+    # (test-spec's yaml format never diverged — see the _classify note).
+    _classify
+    ;;
+  --reconcile)
+    # Opt-in. For test-spec this is a dedup / no-op: a canonical file is a clean
+    # no-op, a duplicate reports the redundant copy, a malformed file halts.
+    # There is NO legacy migration (the format never diverged).
+    _reconcile
+    ;;
   --seed)
     # NO registry gates — --seed bootstraps a MISSING test-spec.md.
     _emit_seed
@@ -899,12 +1054,18 @@ Usage:
   test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated)
+  test-spec.sh --classify        # READ-ONLY generation detector: emits
+                                 #   GENERATION=<canonical|absent|malformed> (never legacy —
+                                 #   test-spec's yaml format never diverged)/POSITIONS=/
+                                 #   DUPLICATE=<0|1>/CANONICAL_PATH=
+  test-spec.sh --reconcile       # opt-in: dedup/no-op for test-spec (canonical => clean no-op;
+                                 #   duplicate => report the redundant copy; no legacy migration)
   test-spec.sh --seed            # complete minimal valid general test-spec.md (self-bootstrap)
 USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--check-coverage|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--check-coverage|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

@@ -608,6 +608,24 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, engine-flagged seeded-violation findings (stage1/ prefixes), the per-stage report contract on both SKILL.mds plus qa.md's block template, the planted-drift stage3 cross-walk drill, and the clean workbench baseline."
+  - id: test-doc-spec-reconcile
+    family: test
+    label: "doc-spec reconcile suite — classify + legacy->canonical migration"
+    anchor: "tests/doc-spec-reconcile.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "doc-spec.sh --classify labeling the four generations (absent/canonical/legacy/duplicate, plus malformed-not-legacy), --reconcile migrating a 40+-row legacy YAML fixture to the canonical Markdown table preserving every row (atomic + .bak + idempotent), the audit_class asymmetry guard (RECONCILE-WARN), the malformed-file no-clobber halt, and the live-workbench canonical-no-reconcile-noise baseline."
+  - id: test-test-spec-reconcile
+    family: test
+    label: "test-spec reconcile suite — symmetric classify + dedup/no-op"
+    anchor: "tests/test-spec-reconcile.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "test-spec.sh --classify labeling absent/canonical/duplicate/malformed (never legacy — the fenced-yaml format never diverged), --reconcile as a dedup/no-op (canonical clean no-op, duplicate reports the redundant copy with no auto-delete, malformed halts), and the live-workbench canonical-no-reconcile-noise baseline."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test

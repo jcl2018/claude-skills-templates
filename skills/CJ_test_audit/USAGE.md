@@ -1,9 +1,38 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-06-12T00:00:00Z"
+last-updated: "2026-06-13T00:00:00Z"
 ---
 
 # Using /CJ_test_audit
+
+## The canonical contract-file template
+
+The audit owns the canonical shape of the test contract — what files are
+required, where they live, and their format:
+
+- **Required** — the general file `spec/test-spec.md` (delivered verbatim by
+  `test-spec.sh --seed`; the audit seed-delivers it when absent). The
+  doc-contract partner `spec/doc-spec.md` is required symmetrically by
+  `/CJ_doc_audit`.
+- **Optional** — the overlay `spec/test-spec-custom.md` next to the general
+  file (the repo's `units:` enumeration + per-mode `gates:` array, merged in by
+  the parser). A repo without an overlay carries the general rules + layers
+  alone (the coverage cross-check stays "inactive" until `units:` rows exist).
+- **Position** — `spec/` is canonical; the repo root (`test-spec.md`) is an
+  accepted fallback. The engine resolves `spec/`-then-root.
+- **Format** — a single fenced `yaml` registry (`schema_version` + `rules:` +
+  `layers:`; the overlay adds `units:` + `gates:`). The block IS the source of
+  truth, parsed directly.
+
+A first run in a repo with no contract seeds this general file.
+`test-spec.sh --classify` reports the contract's generation
+(`canonical`/`absent`/`duplicate`). Unlike doc-spec, **test-spec has no legacy
+on-disk format** — its fenced-yaml shape has been canonical since introduction
+(confirmed from git history) — so `/CJ_test_audit --reconcile` is a **dedup /
+no-op**: a canonical contract is a clean no-op, and a duplicated contract
+(present at both `spec/` and root) is surfaced as an advisory `RECONCILE:`
+directive (reconcile reports the redundant copy; it does not auto-delete and
+never migrates a format).
 
 ## When to use
 
@@ -53,6 +82,14 @@ judged for truthfulness against the source at its anchor. **Stage 3
 then coverage-in-substance is judged — where Stage 1 proves a mapping EXISTS,
 Stage 3 judges whether it is still TRUE, and a NEW surface class the rules
 don't contemplate is drift.
+
+Before the three stages, **Step 2 ensures the contract is canonical** via
+`test-spec.sh --classify`: `absent` → seed-deliver (as before); `canonical` →
+ok; `duplicate` → an advisory `RECONCILE:` directive into the Stage-1 report
+(NO auto-write on a plain run; there is no `legacy` branch — test-spec's format
+never diverged). The directive is advisory like a `REMEDIATION:` line. The
+dedup runs ONLY under the opt-in standalone `--reconcile` flag (the in-QA path
+never passes it).
 
 Standalone, Stages 2+3 are REQUIRED to run in ONE fresh-context subagent
 (prompt = repo root + engine path + Stage-1 report + protocols only; when

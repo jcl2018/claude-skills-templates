@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.73] - 2026-06-13
+
+### Added
+
+- **Self-healing contract-file reconcile for `/CJ_doc_audit` + `/CJ_test_audit`** (F000065/S000109). The audit engines gain two symmetric subcommands. `scripts/doc-spec.sh --classify` / `scripts/test-spec.sh --classify` (read-only) emit `GENERATION=<canonical|legacy|absent|malformed>` + `POSITIONS=` + `DUPLICATE=` + `CANONICAL_PATH=`, classifying an existing contract file by generation rather than only present/absent. `--reconcile` (opt-in, the only new write path) migrates a **legacy** YAML-generation `doc-spec.md` to the canonical 3-column Markdown table **preserving every declared row** — atomic temp→`--validate`→`mv`, a `.bak` of the original, a migration report, and a `RECONCILE-WARN` asymmetry guard (an old `audit_class: operational` row whose path now derives `human-doc`); it is an idempotent no-op on a canonical file and halts on a genuinely malformed one rather than clobbering. test-spec's fenced-yaml format never diverged on disk, so its `--classify` never reports `legacy` and `--reconcile` is a dedup/no-op (documented). Both audit skills generalize their Step 2 "seed if missing" into a classify-driven step: absent → seed (unchanged); canonical → ok; legacy/duplicate → an **advisory** `RECONCILE:` directive in the Stage-1 report (read-mostly — no auto-write; the directive never crashes the audit or flips QA red), plus a standalone-only `--reconcile` flag. The canonical contract-file template (required = the general `spec/doc-spec.md` / `spec/test-spec.md`; optional = the `*-custom.md` overlays; position = `spec/`, root accepted) is documented in the seeds + USAGE. Regression-tested in `tests/doc-spec-reconcile.test.sh` (incl. a 40+-row legacy migration with every-row preservation) + `tests/test-spec-reconcile.test.sh`, both registered in `scripts/test.sh` + `spec/test-spec-custom.md`. All existing subcommands are unchanged (additive only).
+
 ## [6.0.72] - 2026-06-13
 
 ### Changed

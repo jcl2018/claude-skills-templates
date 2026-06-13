@@ -1827,6 +1827,40 @@ else
   fail_test "tests/cj-audit-skills.test.sh failed (rc=$_cas_rc) — run \`bash tests/cj-audit-skills.test.sh\` directly to see"
 fi
 
+# Regression test (F000065): the doc-spec self-healing reconcile — the read-only
+# --classify generation detector (absent/canonical/legacy/duplicate/malformed)
+# and the opt-in --reconcile write path (a 40+-row legacy YAML fixture migrated
+# to the canonical Markdown table preserving every row, atomic + .bak +
+# idempotent; the audit_class asymmetry guard; the malformed-no-clobber halt;
+# the live-workbench canonical-no-noise baseline). Temp-dir isolated; never
+# mutates the live tree. MANDATORY — scripts/test.sh discovery is hand-wired,
+# NOT glob-based.
+echo ""
+echo "Running tests/doc-spec-reconcile.test.sh (F000065 doc-spec classify + legacy->canonical reconcile)..."
+if bash "$REPO_ROOT/tests/doc-spec-reconcile.test.sh" >/dev/null 2>&1; then
+  ok "tests/doc-spec-reconcile.test.sh: classify four generations + 40+-row legacy migration (every row preserved) + asymmetry guard + malformed-no-clobber + live-canonical-no-noise all pass"
+else
+  _dsr_rc=$?
+  fail_test "tests/doc-spec-reconcile.test.sh failed (rc=$_dsr_rc) — run \`bash tests/doc-spec-reconcile.test.sh\` directly to see"
+fi
+
+# Regression test (F000065): the test-spec self-healing reconcile — the
+# SYMMETRIC but REDUCED partner of the doc-spec engine. test-spec's fenced-yaml
+# format never diverged on disk, so --classify labels {canonical, absent,
+# duplicate, malformed} (never legacy) and --reconcile is a dedup/no-op
+# (canonical clean no-op; duplicate reports the redundant copy with no
+# auto-delete; malformed halts; live-workbench canonical-no-noise). Temp-dir
+# isolated; never mutates the live tree. MANDATORY registration — Check 24's
+# reverse sweep hard-fails any unregistered tests/*.test.sh.
+echo ""
+echo "Running tests/test-spec-reconcile.test.sh (F000065 test-spec classify + dedup/no-op reconcile)..."
+if bash "$REPO_ROOT/tests/test-spec-reconcile.test.sh" >/dev/null 2>&1; then
+  ok "tests/test-spec-reconcile.test.sh: classify (never legacy) + canonical no-op + duplicate-reported-no-delete + malformed-halt + live-canonical-no-noise all pass"
+else
+  _tsr_rc=$?
+  fail_test "tests/test-spec-reconcile.test.sh failed (rc=$_tsr_rc) — run \`bash tests/test-spec-reconcile.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.
