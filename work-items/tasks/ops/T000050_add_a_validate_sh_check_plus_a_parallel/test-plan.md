@@ -1,6 +1,6 @@
 ---
 type: test-plan
-parent: T000049
+parent: T000050
 title: "Add a validate.sh check (plus a parallel scripts/test.sh integration assertion) that fails when README.md is out of sync with scripts/generate-readme.sh output, so a stale catalog-derived README cannot pass validation — Test Plan"
 date: 2026-06-13
 author: Charlie

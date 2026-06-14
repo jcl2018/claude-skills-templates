@@ -440,7 +440,7 @@ USAGEEOF
 # Step 2: add catalog entry
 jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
 
-# Step 2b (T000049 / Check 25): the catalog mutation above drives
+# Step 2b (T000050 / Check 25): the catalog mutation above drives
 # generate-readme.sh output away from the committed README. The new validate.sh
 # Check 25 (README <-> generate-readme.sh sync) would then fire for the REST of
 # this block — falsely failing the exit-0 assertions in Steps 3/3b/3b'/3c, which
@@ -545,7 +545,7 @@ else
   fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
 fi
 
-# Step 3d (T000049 / Check 25): README.md ↔ generate-readme.sh sync check.
+# Step 3d (T000050 / Check 25): README.md ↔ generate-readme.sh sync check.
 # THE PARALLEL test.sh EDIT the new validate.sh Check 25 needs — pre-flighted in
 # lockstep with the check add (the standing F000032/34/35 zzz-mirror blind spot,
 # defused). README.md is fully generated from skills-catalog.json by

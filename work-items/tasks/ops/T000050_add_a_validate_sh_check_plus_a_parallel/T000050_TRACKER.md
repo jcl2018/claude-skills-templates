@@ -1,7 +1,7 @@
 ---
 name: "Add a validate.sh check (plus a parallel scripts/test.sh integration assertion) that fails when README.md is out of sync with scripts/generate-readme.sh output, so a stale catalog-derived README cannot pass validation"
 type: task
-id: "T000049"
+id: "T000050"
 status: active
 created: "2026-06-13"
 updated: "2026-06-13"
@@ -110,4 +110,4 @@ Scope (from /CJ_goal_task topic): Add a validate.sh check (plus a parallel scrip
 - 2026-06-13 [qa-smoke] 6 (test.sh Step 3d assertion): green — the 3 Check-25 assertions (in-sync PASS / drift ERROR+non-zero / regenerate exits 0) all OK, ERRORS=0; block lives in the executed zzz-test-scaffold integration cycle; README left clean
 - 2026-06-13 [qa-smoke-summary] green: 6/6 non-manual rows green (0 manual rows pending)
 - 2026-06-13 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b ran inline — both overlays already current: validate-check-25 row present + anchor-matches-live, no new root/spec doc; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
-- 2026-06-13 [qa-pass] T000049 (task): green smoke from test-plan rows (6 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+- 2026-06-13 [qa-pass] T000050 (task): green smoke from test-plan rows (6 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.

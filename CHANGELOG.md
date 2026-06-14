@@ -3,11 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.75] - 2026-06-13
+## [6.0.76] - 2026-06-13
 
 ### Added
 
-- **`validate.sh` Check 25 — README.md in sync with `generate-readme.sh`** (T000049). README.md is fully generated from `skills-catalog.json` by `scripts/generate-readme.sh` (which prints to stdout; the README is `generate-readme.sh > README.md`), but nothing verified the committed README matched the generator — so a stale catalog-derived README (skill descriptions/versions lagging the catalog after a bump) passed `validate.sh` AND the doc-audit's Stage-3 cross-walk silently (observed on F000065/PR #271, where the audit-skill rows were stale until manually regenerated). New Check 25 diffs `bash scripts/generate-readme.sh` stdout against `README.md` and ERRORs on any difference (`README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md`) — a deterministic, read-only hard regression ratchet (the generator is idempotent; SKIPs cleanly when the generator/README is absent). Parallel `scripts/test.sh` integration assertion (Step 3d: in-sync PASS + planted-drift ERROR + restore) registered the hand-wired way, plus a `validate-check-25` units row in `spec/test-spec-custom.md` (Check 24 reverse-coverage requires it). The existing zzz-test-scaffold integration block regenerates README after its catalog mutation so Check 25 stays paired with the mutated catalog (the EXIT trap restores the original).
+- **`validate.sh` Check 25 — README.md in sync with `generate-readme.sh`** (T000050). README.md is fully generated from `skills-catalog.json` by `scripts/generate-readme.sh` (which prints to stdout; the README is `generate-readme.sh > README.md`), but nothing verified the committed README matched the generator — so a stale catalog-derived README (skill descriptions/versions lagging the catalog after a bump) passed `validate.sh` AND the doc-audit's Stage-3 cross-walk silently (observed on F000065/PR #271, where the audit-skill rows were stale until manually regenerated). New Check 25 diffs `bash scripts/generate-readme.sh` stdout against `README.md` and ERRORs on any difference (`README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md`) — a deterministic, read-only hard regression ratchet (the generator is idempotent; SKIPs cleanly when the generator/README is absent). Parallel `scripts/test.sh` integration assertion (Step 3d: in-sync PASS + planted-drift ERROR + restore) registered the hand-wired way, plus a `validate-check-25` units row in `spec/test-spec-custom.md` (Check 24 reverse-coverage requires it). The existing zzz-test-scaffold integration block regenerates README after its catalog mutation so Check 25 stays paired with the mutated catalog (the EXIT trap restores the original).
+
+## [6.0.75] - 2026-06-13
+
+### Changed
+
+- **The `## The verification surface, grouped by layer` section of `spec/test-spec-custom.md` now renders each layer group as a human-readable table** (T000049). The inline comma-separated check/unit lists are replaced with per-group markdown tables — `Check / Unit` ⇄ `What it asserts` — one row per unit, each explanation a condensation of the matching `units:` registry row's `purpose`. So a reader sees at a glance what Check 11, 13, …, every behavioral test suite, standalone suite, workflow, hook, and ratchet actually is. Covers all 68 units (validate 25, test 35, standalone 3, ci 3, hook 2) plus the 4 ratchets; the `pipeline-gate` gates table is kept in sync with the registry (its `doc-sync` order 45 / `qa-audit` order 50 follows the F000064 reorder). Prose-only above the registry `yaml` fence — the machine registry stays the source of truth, no schema/parser change.
 
 ## [6.0.73] - 2026-06-13
 
