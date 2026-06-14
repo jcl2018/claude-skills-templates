@@ -62,6 +62,32 @@ Two enforcement layers stand behind the rules:
   without covering test rows is a finding), layered ABOVE the deterministic
   floor, never replacing it.
 
+## The canonical contract-file template
+
+The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
+canonical shape — what files are required, where they live, and their format:
+
+- **Required** — the general file of each pair: `spec/test-spec.md` (this file)
+  and `spec/doc-spec.md`. Each is delivered verbatim by its engine's `--seed`
+  and must exist in an adopting repo (the audit seed-delivers a missing one).
+- **Optional** — the `*-custom.md` overlay next to each general file
+  (`spec/test-spec-custom.md`, `spec/doc-spec-custom.md`): the repo's chosen
+  additions (here, the `units:` enumeration + the per-mode `gates:` array),
+  merged in by the parser. A repo without an overlay carries the general
+  contract alone.
+- **Position** — `spec/` is canonical; the repo root is an accepted fallback
+  (`test-spec.md` / `doc-spec.md`) for root-style consumers. The engine resolves
+  `spec/`-then-root.
+- **Format** — a single fenced `yaml` registry for test-spec; a 3-column
+  Markdown table (`| Doc | Purpose | Requirement |`) for doc-spec. The block /
+  table IS the source of truth, parsed directly.
+
+`test-spec.sh --classify` reports a file's generation (canonical / absent /
+duplicated). For test-spec, `--reconcile` is a dedup / no-op: the fenced-yaml
+format has been canonical since introduction, so there is no legacy on-disk
+format to migrate (unlike doc-spec, which migrates a legacy yaml registry to its
+canonical Markdown table).
+
 ## Machine registry
 
 The block below is the source of truth. Keep it the only fenced `yaml` block in

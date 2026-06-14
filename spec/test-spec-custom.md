@@ -19,6 +19,153 @@ test-spec carries the four `layers:` (local-hook / ci / pipeline-gate /
 ratchet); this overlay carries the per-mode `gates:` that run in the
 `pipeline-gate` layer.
 
+## The verification surface, grouped by layer
+
+The general contract ([`test-spec.md`](test-spec.md)) names the four
+verification layers in the abstract; this section is the reader's-eye index of
+which **kinds** of tests this repo actually runs in each one. The fenced `yaml`
+registry below stays the source of truth — this grouping is derived from it
+(prose drift is caught by the advisory registered-doc requirements audit, the
+same posture as the per-row `purpose` one-liners). Each `units:` row carries a
+`layer` (`local-hook | ci`) and a `family`; the `gates:` array is the
+`pipeline-gate` layer; the `ratchet: true` flag marks the cross-cutting ratchet
+layer (a ratchet unit also runs in `ci`).
+
+### Handled by `ci` (every PR, on a clean runner — hard-fail)
+
+The bulk of the surface. Four kinds, each its own table below.
+
+**Validator checks** — `scripts/validate.sh` (also run at `pre-commit`, below).
+The *Error checks* are hard-fail and comment-anchored; the *numbered Checks* are
+banner-anchored; the two *Warning checks* are advisory; the *portability-audit
+engine* runs behind Check 18. ("Error check 11" and "Check 11" are two distinct
+live checks sharing a numeral.)
+
+| Check / Unit | What it asserts |
+|---|---|
+| Error check 1 — catalog entries have SKILL.md on disk | Every catalog entry's declared SKILL.md exists (templates-only exempt). |
+| Error check 2 — SKILL.md frontmatter required fields | Every SKILL.md carries name + description in its frontmatter. |
+| Error check 3 — declared templates exist on disk | Every catalog template resolves to a file, honoring source overrides. |
+| Error check 4 — no orphan skill directories | Every skill directory on disk is claimed by a catalog entry. |
+| Error check 5 — doc triplets complete with type frontmatter | Each per-skill doc dir carries all three design docs, typed. |
+| Error check 6 — skill dependencies resolve | Every declared skill dependency names another catalog entry. |
+| Error check 7 — VERSION file valid semver | The VERSION file exists and parses as semver. |
+| Error check 8 — VERSION never regresses | VERSION is at least the latest collection v-tag (ratchet). |
+| Error check 9 — catalog skill versions valid semver | Every catalog entry's version field parses as semver. |
+| Error check 9b — catalog status closed enum | Every status is active, experimental or deprecated; typos fail. |
+| Error check 10 — Copilot bundle file existence | Every required Copilot bundle file is present on disk. |
+| Error check 11 — manifest reconciliation | Work-item dirs carry every artifact their manifest requires per type. |
+| Check 11 — rules deploy health | Every rules file is deployed locally; warn-degrades when target absent. |
+| Check 13 — USAGE.md present with required sections | Every routable skill has a USAGE.md with five required headings. |
+| Check 14 — USAGE.md content freshness | USAGE.md no older than its sibling SKILL.md (ratchet). |
+| Check 15 — doc registry declared matches on-disk + workflow doc completeness | Declared docs exist, no orphans, and workflow doc charts each orchestrator. |
+| Check 16 — doc registry schema | The doc registry parses: schema version, required keys, closed enums. |
+| Check 17 — root-doc placement allowlist | Every root markdown doc is a declared registry path. |
+| Check 18 — skill portability audit | Each skill's declared portability matches its actual dependencies (ratchet baseline). |
+| Check 19 — no work-item refs in human docs | No registry human-doc contains an internal work-item ID. |
+| Check 21 — permission-policy drift | The permission policy parses and every orchestrator references it. |
+| Check 24 — test-spec coverage cross-check + gate marker drift | The test-spec registry validates and coverage cross-checks (forward + reverse). |
+| Check 25 — README.md in sync with generate-readme.sh | The committed README byte-matches the generator's output, so a catalog-derived README cannot drift. |
+| Warning check — orphan doc directories | Flags per-skill doc directories with no matching catalog entry. |
+| Warning check 3 — orphan template files | Flags template files not referenced by any catalog entry. |
+| portability audit — declared-vs-actual skill dependency lint | The engine behind Check 18 and the strict pre-ship gate. |
+
+**Behavioral test suites** — `scripts/test.sh`. The *registered `tests/*.test.sh`
+sub-suites* and the *inline `test.sh` families*:
+
+| Check / Unit | What it asserts |
+|---|---|
+| cj-worktree-init suite — worktree creation helper | Caller prefixes, dirty-checkout guard and base-freshness of worktree-init. |
+| cj-worktree-cleanup suite — post-run worktree janitor | PR-state-gated sweep, orphan-dir removal and guard refusals of the janitor. |
+| cj-task-scaffold suite — task complexity gate + scaffold | Complexity-gate refusals, dry-run, live scaffold and idempotency of the scaffolder. |
+| setup-hooks suite — git hook installer | The post-merge hook re-deploys skills without mutating trackers; clobber-safe. |
+| drain-one-todo suite — deployed-path resolution | A deployed drain helper resolves the worktree-init helper via manifest source. |
+| drain-one-todo suite — unreachable-helper fail-loud | The drain halts loudly when the worktree helper is unreachable. |
+| cj-document-release suite — doc-release skill structure | Doc-release skill structure, frontmatter, halt markers and config-helper assertions. |
+| doc-release config suite — doc registry + helper + seed | Doc registry table shape, every doc-spec subcommand, no-config gates, embedded seed. |
+| goal doc-sync wiring suite — symmetric step wiring | Doc-sync step and halt-taxonomy rows present and ordered in orchestrators. |
+| post-land-sync suite — post-merge local sync helper | Sync-helper guards refuse a bad source; dry-run previews without mutating. |
+| goal-common sync suite — pre-build skills-sync phase | Dry-run, opt-out, guard-refusal and real-run paths emit the four-key schema. |
+| goal-common portability suite — pre-ship portability gate | Clean catalog passes, dry-run runs nothing, dishonest declaration yields findings. |
+| cj-id-claim suite — atomic work-item ID claim | Concurrent-race uniqueness, both reap modes, prefix isolation and reuse. |
+| feature-path smoke suite — worktree entry + common phases | Feature worktree entry, the shared helper's phases, and leaf dispatch targets. |
+| doc-spec overlay suite — two-tier merge semantics | Overlay merge, duplicate-path guard, seed byte identity, the Stage-1 battery. |
+| test-spec suite — two-tier registry parser + coverage drills | Parser round-trip, absent-vs-invalid split, the floor note, coverage drift drills. |
+| audit-skills suite — seed delivery + audit engines | Seed delivery, idempotence, seeded-violation findings, per-stage report contract. |
+| doc-spec reconcile suite — classify + legacy→canonical migration | `doc-spec.sh --classify` the four generations + `--reconcile` a legacy YAML registry to the canonical table (atomic, idempotent). |
+| test-spec reconcile suite — symmetric classify + dedup/no-op | `test-spec.sh --classify` absent/canonical/duplicate/malformed + `--reconcile` as a dedup/no-op (never legacy). |
+| Inline — full validator re-run | Runs the whole validator inside the suite so every check gates it. |
+| Inline — harness-principle regression guards | Static guards that the trajectory-QA, permission and receipt fixes stay. |
+| Inline — catalog + frontmatter + doc-triplet smoke | No duplicate names; frontmatter parses; doc triplets carry required sections. |
+| Inline — advisory-script crash + generator idempotency | Doctor, lint and deps run without crashing; the README generator is idempotent. |
+| Inline — manual skill-creation integration cycle | A scaffolded temp skill stays green; plant-and-restore negatives fire. |
+| Inline — goal-common phase integration | Sync, portability-audit and task-worktree phases end-to-end and hermetic. |
+| Inline — template content + validator portability + orphan negatives | Tracker templates carry sections; validator stands alone; orphan detection fires. |
+| Inline — defect and story regression battery | Shipped defect and story fixes stay fixed (CRLF, merge guard, copy-mode). |
+| Inline — Copilot bundle coverage + round-trip | Bundle completeness, the instructions size budget and the deploy round-trip. |
+| Inline — backlog append POSIX-clean guard | The improve-queue append path keeps the backlog file POSIX-clean. |
+| Inline — version-queue preflight smoke | The version-queue preflight runs read-only and degrades cleanly offline. |
+| Inline — handoff-gate deterministic suite | Denylist hits, size caps, rename/symlink detection and the QA predicate. |
+| Inline — static wiring checks | POSIX idioms, registered-doc audit wiring, tracker promotion, Touches blocks. |
+| Inline — portability-engine hermetic fixture | The portability-audit engine's verdicts against a controlled fixture catalog. |
+| Inline — install equals clone integration battery | Shared-script self-containment, bundle install and the install-equals-clone contract. |
+| Inline — test-spec registry + coverage guards | The parser validates the merged registry and coverage passes on the live tree. |
+
+**Standalone suites** (also manually runnable; some also run on push-main or
+nightly):
+
+| Check / Unit | What it asserts |
+|---|---|
+| skills-deploy suite — install/doctor/remove in isolation | Template ownership, drift overwrite, copy-mode and doctor verdicts in temp homes. |
+| behavioral eval harness — headless skill evals | Spawns the headless CLI per eval case with JSON-schema output, budget-capped. |
+| Windows smoke — CRLF + portable date + copy-mode | Git Bash assertions: CRLF tolerance, portable date math, copy-mode install stamp. |
+
+**GitHub Actions workflows**:
+
+| Check / Unit | What it asserts |
+|---|---|
+| validate workflow — PR gate | Runs the validator, full test suite and shellcheck on every PR. |
+| windows workflow — Git Bash gate | Runs the Windows smoke and skills-deploy suite under Git Bash on PR + push-main. |
+| eval-nightly workflow — scheduled evals | Runs the behavioral eval harness daily, with a manual dispatch trigger. |
+
+### Handled by `local-hook` (at `git commit`, before code leaves the machine)
+
+The git hooks installed by `scripts/setup-hooks.sh`. (The validator rows carry
+the `pre-commit pr-ci` trigger — the same checks, two firing points.)
+
+| Check / Unit | What it asserts |
+|---|---|
+| pre-commit hook — validator at commit time | Runs the validator before every local commit; a failing check blocks it. |
+| post-merge hook — auto re-deploy | Re-deploys skills, templates and rules after pulls; best-effort, never blocks git. |
+
+### Handled by `pipeline-gate` (during an orchestrated `CJ_goal_*` run)
+
+The `gates:` array — the inline halts a goal orchestrator runs before its PR, in
+`order`. Each mode runs its subset:
+
+| order | gate | runs in | halts on |
+|------:|------|---------|----------|
+| 10 | isolation | feature, defect, task | un-isolated / dirty checkout |
+| 20 | design-gate | feature | design not approved |
+| 25 | root-cause | defect | no populated root cause |
+| 30 | complexity | task | topic too big for a task |
+| 40 | qa | all four | failing test rows |
+| 45 | doc-sync | all four | doc drift can't fold into the PR |
+| 50 | qa-audit | all four | operator declines the post-sync audit findings |
+| 60 | portability | all four | a skill lies about its portability tier |
+| 70 | ship | all four | the human ship gate (PR-stop) |
+
+### Ratchets (cross-cutting — monotonic guards that never regress)
+
+The `ratchet: true` units (each also runs in `ci`):
+
+| Check / Unit | What it asserts |
+|---|---|
+| Error check 8 — VERSION never regresses | VERSION is at least the latest collection v-tag; a regression fails. |
+| Check 14 — USAGE.md content freshness | USAGE.md is no older than its sibling SKILL.md. |
+| Check 18 — skill portability audit | The clean zero-findings portability baseline never regresses. |
+| portability audit — declared-vs-actual skill dependency lint | The portability engine's clean baseline behind Check 18 is the ratchet. |
+
 ## How the registry is enforced
 
 One hard `validate.sh` loop keeps this registry honest by construction —
@@ -364,6 +511,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "Validates the merged test-spec registry, then cross-checks coverage (forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens) — hard; then the advisory per-mode gate marker-drift cross-check over the gates array (absorbed from the retired Check 22); skips when the registry is absent."
+  - id: validate-check-25
+    family: validate
+    label: "Check 25 — README in sync with generate-readme.sh"
+    anchor: "=== Check 25:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "README.md byte-matches the generate-readme.sh stdout, so a stale catalog-derived README cannot pass validation; read-only (the generator writes only to stdout); skips when the generator is absent."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -532,6 +689,24 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, engine-flagged seeded-violation findings (stage1/ prefixes), the per-stage report contract on both SKILL.mds plus qa.md's block template, the planted-drift stage3 cross-walk drill, and the clean workbench baseline."
+  - id: test-doc-spec-reconcile
+    family: test
+    label: "doc-spec reconcile suite — classify + legacy->canonical migration"
+    anchor: "tests/doc-spec-reconcile.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "doc-spec.sh --classify labeling the four generations (absent/canonical/legacy/duplicate, plus malformed-not-legacy), --reconcile migrating a 40+-row legacy YAML fixture to the canonical Markdown table preserving every row (atomic + .bak + idempotent), the audit_class asymmetry guard (RECONCILE-WARN), the malformed-file no-clobber halt, and the live-workbench canonical-no-reconcile-noise baseline."
+  - id: test-test-spec-reconcile
+    family: test
+    label: "test-spec reconcile suite — symmetric classify + dedup/no-op"
+    anchor: "tests/test-spec-reconcile.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "test-spec.sh --classify labeling absent/canonical/duplicate/malformed (never legacy — the fenced-yaml format never diverged), --reconcile as a dedup/no-op (canonical clean no-op, duplicate reports the redundant copy with no auto-delete, malformed halts), and the live-workbench canonical-no-reconcile-noise baseline."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
@@ -817,22 +992,11 @@ gates:
     disposition: halt
     backing: "/CJ_qa-work-item leaf subagent"
     checks: "the work-item's test rows pass"
-  # --- universal, same marker in all four: the post-QA audit-findings checkpoint ---
-  - id: qa-audit
-    layer: pipeline-gate
-    order: 45
-    markers:
-      feature: "[qa-audit-declined]"
-      defect:  "[qa-audit-declined]"
-      task:    "[qa-audit-declined]"
-      todo:    "[qa-audit-declined]"
-    disposition: halt
-    backing: "/CJ_qa-work-item Step 8.6 audit block + orchestrator checkpoint AUQ"
-    checks: "the operator saw the doc/test audit findings before the PR budget was spent"
-  # --- universal, same marker in all four: the case enforced literally ---
+  # --- universal, same marker in all four: doc-sync runs BEFORE the qa-audit
+  #     checkpoint (F000064 reorder), so the checkpoint decides on post-sync docs ---
   - id: doc-sync
     layer: pipeline-gate
-    order: 50
+    order: 45
     markers:
       feature: "[doc-sync-red]"
       defect:  "[doc-sync-red]"
@@ -841,6 +1005,18 @@ gates:
     disposition: halt
     backing: "/CJ_document-release (Step 5.5 doc-sync)"
     checks: "doc drift is folded into the same PR (registry parses; declared docs current)"
+  # --- universal, same marker in all four: the post-sync audit-findings checkpoint ---
+  - id: qa-audit
+    layer: pipeline-gate
+    order: 50
+    markers:
+      feature: "[qa-audit-declined]"
+      defect:  "[qa-audit-declined]"
+      task:    "[qa-audit-declined]"
+      todo:    "[qa-audit-declined]"
+    disposition: halt
+    backing: "orchestrator-level post-sync /CJ_doc_audit + /CJ_test_audit (one combined read-only subagent, run AFTER doc-sync) + the checkpoint AUQ"
+    checks: "the operator saw the post-sync doc/test audit findings before the PR budget was spent"
   # --- universal, same marker in all four ---
   - id: portability
     layer: pipeline-gate

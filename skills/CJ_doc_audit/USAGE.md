@@ -1,9 +1,36 @@
 ---
 skill: CJ_doc_audit
-last-updated: "2026-06-13T07:33:53Z"
+last-updated: "2026-06-14T16:11:40Z"
 ---
 
 # Using /CJ_doc_audit
+
+## The canonical contract-file template
+
+The audit owns the canonical shape of the doc contract — what files are
+required, where they live, and their format:
+
+- **Required** — the general file `spec/doc-spec.md` (delivered verbatim by
+  `doc-spec.sh --seed`; the audit seed-delivers it when absent). The
+  test-contract partner `spec/test-spec.md` is required symmetrically by
+  `/CJ_test_audit`.
+- **Optional** — the overlay `spec/doc-spec-custom.md` next to the general file
+  (the repo's chosen additions, merged in by the parser). A repo without an
+  overlay carries the general contract alone.
+- **Position** — `spec/` is canonical; the repo root (`doc-spec.md`) is an
+  accepted fallback for root-style consumers. The engine resolves
+  `spec/`-then-root.
+- **Format** — a 3-column Markdown table (`| Doc | Purpose | Requirement |`).
+  The table IS the source of truth, parsed directly.
+
+A first run in a repo that has no contract seeds this general file. A repo
+whose contract is still on the **legacy yaml generation** is detected by
+`doc-spec.sh --classify` (`GENERATION=legacy`); a plain run surfaces an advisory
+`RECONCILE:` directive and writes nothing, and `/CJ_doc_audit --reconcile`
+(standalone) migrates it to the canonical table preserving every declared row
+(writes a `.bak`). A **duplicated** contract (present at both `spec/` and root)
+is likewise surfaced advisory; reconcile reconciles the canonical copy and
+reports the redundant one (it does not auto-delete).
 
 ## When to use
 
@@ -52,6 +79,15 @@ verdicts `satisfies` / `missing-requirement (soft)` / `n/a` /
 ground truth first (enumerate catalog skills, scripts, workflows, dirs), then
 each contract doc is cross-walked against it — verdicts `no-drift` /
 `FINDING: stage3/<path> — <named delta>`.
+
+Before the three stages, **Step 2 ensures the contract is canonical** via
+`doc-spec.sh --classify`: `absent` → seed-deliver (as before); `canonical` →
+ok; `legacy`/`duplicate` → an advisory `RECONCILE:` directive into the Stage-1
+report (NO auto-write on a plain run). The directive is advisory like a
+`REMEDIATION:` line — it never crashes the audit or flips QA red. The migration
+runs ONLY under the opt-in standalone `--reconcile` flag (the in-QA path never
+passes it), which forwards to the engine's `--reconcile` — the only new write
+path.
 
 Standalone, Stages 2+3 are REQUIRED to run in ONE fresh-context subagent
 whose prompt carries only repo root + engine path + the Stage-1 report + the

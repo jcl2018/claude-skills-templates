@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_todo_fix
-description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item + the QA-audit checkpoint + /ship + /land-and-deploy. The post-QA checkpoint surfaces the qa.md Step 8.6 doc/test audit digest per drained TODO: interactive runs AUQ ALWAYS (Continue past findings journals [qa-audit-waived]; Halt journals [qa-audit-declined] / halted_at_qa_audit); --quiet auto-continues on doc:ok,test:ok and halts on any findings. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
+description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item (DEFER_AUDIT: true) + a pre-doc-sync commit + /CJ_document-release + a post-sync doc/test audit + the QA-audit checkpoint + /ship + /land-and-deploy. The post-QA checkpoint surfaces the POST-sync doc/test audit digest (ONE combined read-only subagent run AFTER doc-sync) per drained TODO: interactive runs AUQ ALWAYS (Continue past findings journals [qa-audit-waived]; Halt journals [qa-audit-declined] / halted_at_qa_audit); --quiet auto-continues on doc:ok,test:ok and halts on any findings. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
 version: 2.2.0
 allowed-tools:
   - Bash
@@ -82,9 +82,11 @@ Per-TODO chain (both modes share this):
 
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
-   → /CJ_implement-from-spec → /CJ_qa-work-item (leaf Agent subagents, halt-on-red between)
-   → QA-audit checkpoint (interactive: AUQ ALWAYS; --quiet: auto-continue on doc:ok,test:ok, halt [qa-audit-declined] on findings)
+   → /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — audit deferred to post-sync] (leaf Agent subagents, halt-on-red between)
+   → pre-doc-sync commit (Step 5.4 — NEW; idempotent: commit QA-green fix + 8.6a/8.6b overlays, skip on clean tree)
    → /CJ_document-release (Step 5.5 doc-sync)
+   → post-sync audit (Step 5.5b — NEW; ONE combined READ-ONLY subagent: /CJ_doc_audit + /CJ_test_audit over the post-sync tree)
+   → QA-audit checkpoint (interactive: AUQ ALWAYS on the POST-sync report; --quiet: auto-continue on doc:ok,test:ok, halt [qa-audit-declined] on findings)
    → portability gate (Step 5.7 — cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship)
    → /ship Gate #2
    → Step 5.6: surface registered-doc + portability verdicts → PR body (post-/ship gh pr edit "$PR_URL"; best-effort)
@@ -105,25 +107,31 @@ The T-task scaffold runs in pure bash (`todo_fix.sh:608-693` — ID picker +
 `/CJ_implement-from-spec` → `/CJ_qa-work-item` (the `/CJ_goal_feature` Steps
 3.2-3.3 pattern, minus the scaffold step). Both run as depth-≤2 leaf Agent
 subagents (silent / no-AUQ); a non-green RESULT from either HALTs the chain
-(`halted_at_impl` / `halted_at_qa`). Immediately after QA returns green, the
-orchestrator runs the **QA-audit checkpoint** (below) on the QA RESULT's
-`AUDITS=` field + fenced `AUDIT_FINDINGS` block before continuing to doc-sync.
+(`halted_at_impl` / `halted_at_qa`). QA is dispatched with `DEFER_AUDIT: true`, so
+it defers the three-stage audit; the orchestrator then runs the pre-doc-sync
+commit (pipeline.md Step 5.4), doc-sync (Step 5.5), and the post-sync audit
+(Step 5.5b) BEFORE running the **QA-audit checkpoint** (below) on that POST-sync
+report.
 
-## QA-audit findings checkpoint (per drained TODO — between QA and Step 5.5 doc-sync)
+## QA-audit findings checkpoint (per drained TODO — AFTER Step 5.5 doc-sync + the Step 5.5b post-sync audit)
 
 Identical contract to `/CJ_goal_feature` Step 3.4 (canonical gate row:
-`qa-audit`, order 45, in `spec/test-spec-custom.md`). The QA leaf subagent's RESULT
-carries `AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>,spec_updates:<...>`
-plus the fenced `AUDIT_FINDINGS` block (qa.md Step 8.6: the two spec-overlay
-updates + `/CJ_doc_audit` + `/CJ_test_audit`, run inline by the QA agent).
+`qa-audit`, order 45, in `spec/test-spec-custom.md`). The checkpoint consumes the
+**post-sync** audit (pipeline.md Step 5.5b), NOT a pre-sync QA RESULT field: that
+combined read-only subagent emits
+`AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>` plus the fenced `AUDIT_FINDINGS`
+block (`/CJ_doc_audit` + `/CJ_test_audit` over the post-doc-sync tree). The two
+spec-overlay updates rode the QA RESULT inline at qa.md 8.6a/8.6b (they shipped in
+the pre-doc-sync commit).
 
 - **Interactive runs (no `--quiet`):** surface an AskUserQuestion **ALWAYS**
-  — findings or not — showing the `AUDITS=` digest + the `AUDIT_FINDINGS`
-  block, options **Continue** (→ doc-sync; if findings>0 append
+  — findings or not — showing the post-sync `AUDITS=` digest + the `AUDIT_FINDINGS`
+  block, options **Continue** (→ portability gate + /ship; if findings>0 append
   `- $TS [qa-audit-waived] operator continued past audit findings at the
-  post-QA checkpoint: AUDITS=...` to the T-task tracker journal) / **Halt**
-  (append `- $TS [qa-audit-declined] operator halted at the post-QA audit
-  checkpoint.` + the family fields `next_action=` / `resume_cmd=` /
+  post-QA (post-sync) checkpoint: AUDITS=...` to the T-task tracker journal, then
+  commit that tracker line so the tree stays clean) / **Halt**
+  (append `- $TS [qa-audit-declined] operator halted at the post-QA (post-sync)
+  audit checkpoint.` + the family fields `next_action=` / `resume_cmd=` /
   `pr_url=N/A` / `raw_output_path=`; telemetry `end_state=halted_at_qa_audit`;
   STOP the chain).
 - **`--quiet` runs (cron / `/schedule`):** NO AUQ. Auto-continue when the
@@ -131,8 +139,9 @@ updates + `/CJ_doc_audit` + `/CJ_test_audit`, run inline by the QA agent).
   `[qa-audit-declined]` + `end_state=halted_at_qa_audit` (no waiver is ever
   auto-written — a waiver requires a human).
 
-The checkpoint is a pure read of the QA RESULT (no phase boundary recorded);
-a resume re-runs QA and the checkpoint re-fires on the fresh digest.
+The checkpoint is a pure read of the post-sync audit (no phase boundary recorded);
+a resume re-runs QA → pre-doc-sync commit (idempotent) → doc-sync → the post-sync
+audit, and the checkpoint re-fires on the fresh post-sync digest.
 
 Net new logic vs the upstream phase skills: pre-flight gate stack, TODOS.md
 parser (handles both `## Active work` and domain-grouped shapes), T-task
@@ -183,7 +192,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item (leaf subagents, halt-on-red) → QA-audit checkpoint (AUQ / --quiet auto-decide) → /CJ_document-release → portability gate (Step 5.7; halt-on-red) → /ship → /land-and-deploy
+      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true] (leaf subagents, halt-on-red) → pre-doc-sync commit (Step 5.4) → /CJ_document-release (Step 5.5) → post-sync audit (Step 5.5b; ONE combined read-only subagent) → QA-audit checkpoint on the POST-sync report (AUQ / --quiet auto-decide) → portability gate (Step 5.7; halt-on-red) → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."
@@ -240,7 +249,8 @@ workbench `CLAUDE.md` Schedule-friendly drain section.
 
 ## Step 5.7: Portability gate (per drained TODO — halt-on-red before /ship; F000051)
 
-Between the Step 5.5 doc-sync dispatch and `/ship`, the orchestrator runs a
+After the Step 5.5b post-sync audit + the QA-audit checkpoint (which followed
+Step 5.5 doc-sync) and before `/ship`, the orchestrator runs a
 shared portability gate for EACH drained TODO (single-TODO AND drain mode — the
 gate is orchestrator-layer; `scripts/drain-one-todo.sh` is NOT modified). It
 calls `cj-goal-common.sh --phase portability-audit --mode feature` (the same

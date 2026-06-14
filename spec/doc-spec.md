@@ -54,6 +54,29 @@ Two consumers parse the merged table (this file + the overlay):
   `Requirement`; and it derives the doc-only auto-commit whitelist from the
   registry (every declared path + the contract files + `docs/**/*.md`).
 
+## The canonical contract-file template
+
+The audit verbs (`/CJ_doc_audit`, `/CJ_test_audit`) own this contract's
+canonical shape — what files are required, where they live, and their format:
+
+- **Required** — the general file of each pair: `spec/doc-spec.md` (this file)
+  and `spec/test-spec.md`. Each is delivered verbatim by its engine's `--seed`
+  and must exist in an adopting repo (the audit seed-delivers a missing one).
+- **Optional** — the `*-custom.md` overlay next to each general file
+  (`spec/doc-spec-custom.md`, `spec/test-spec-custom.md`): the repo's chosen
+  additions, merged in by the parser. A repo without an overlay carries the
+  general contract alone.
+- **Position** — `spec/` is canonical; the repo root is an accepted fallback
+  (`doc-spec.md` / `test-spec.md`) for root-style consumers. The engine
+  resolves `spec/`-then-root.
+- **Format** — a 3-column Markdown table (`| Doc | Purpose | Requirement |`)
+  for doc-spec; a single fenced `yaml` registry for test-spec. The table /
+  block IS the source of truth, parsed directly.
+
+`doc-spec.sh --classify` reports a file's generation (canonical / legacy /
+absent / duplicated); `doc-spec.sh --reconcile` migrates a legacy file to this
+canonical shape preserving every declared row.
+
 ## The registry (machine source of truth)
 
 The table below is the source of truth. It has three columns —

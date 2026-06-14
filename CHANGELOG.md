@@ -3,11 +3,47 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.70] - 2026-06-13
+## [6.0.77] - 2026-06-14
 
 ### Fixed
 
 - **`/CJ_doc_audit` now names the remedy for missing required docs** (D000034). When Stage 1 (`scripts/doc-spec.sh --check-on-disk`) finds declared docs missing on disk (e.g. running in a consumer repo where `docs/workflow.md` doesn't exist yet), the engine emits a trailing `REMEDIATION: stage1/declared-exists — …` advisory line pointing at `/CJ_document-release` (the verb that stub-scaffolds declared-but-missing docs, reading this same registry). Previously the audit force-regenerated the *contract* itself (`spec/doc-spec.md` via `--seed`) but surfaced the docs it *declares* as bare `declared-exists` findings with no next step — a dead-end list. The remediation line is advisory only: it does NOT count toward `FINDINGS=`/`STAGE1_FINDINGS`, appears only when docs are missing, and the audit stays read-mostly (it names the fix, it does not scaffold). Documented in `skills/CJ_doc_audit/SKILL.md` (Step 3 + Step 6) + `USAGE.md`; regression-tested in `tests/doc-spec-overlay.test.sh` (8a-2 clean ⇒ no line, 8b-2 missing ⇒ pointer).
+
+## [6.0.76] - 2026-06-13
+
+### Added
+
+- **`validate.sh` Check 25 — README.md in sync with `generate-readme.sh`** (T000050). README.md is fully generated from `skills-catalog.json` by `scripts/generate-readme.sh` (which prints to stdout; the README is `generate-readme.sh > README.md`), but nothing verified the committed README matched the generator — so a stale catalog-derived README (skill descriptions/versions lagging the catalog after a bump) passed `validate.sh` AND the doc-audit's Stage-3 cross-walk silently (observed on F000065/PR #271, where the audit-skill rows were stale until manually regenerated). New Check 25 diffs `bash scripts/generate-readme.sh` stdout against `README.md` and ERRORs on any difference (`README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md`) — a deterministic, read-only hard regression ratchet (the generator is idempotent; SKIPs cleanly when the generator/README is absent). Parallel `scripts/test.sh` integration assertion (Step 3d: in-sync PASS + planted-drift ERROR + restore) registered the hand-wired way, plus a `validate-check-25` units row in `spec/test-spec-custom.md` (Check 24 reverse-coverage requires it). The existing zzz-test-scaffold integration block regenerates README after its catalog mutation so Check 25 stays paired with the mutated catalog (the EXIT trap restores the original).
+
+## [6.0.75] - 2026-06-13
+
+### Changed
+
+- **The `## The verification surface, grouped by layer` section of `spec/test-spec-custom.md` now renders each layer group as a human-readable table** (T000049). The inline comma-separated check/unit lists are replaced with per-group markdown tables — `Check / Unit` ⇄ `What it asserts` — one row per unit, each explanation a condensation of the matching `units:` registry row's `purpose`. So a reader sees at a glance what Check 11, 13, …, every behavioral test suite, standalone suite, workflow, hook, and ratchet actually is. Covers all 68 units (validate 25, test 35, standalone 3, ci 3, hook 2) plus the 4 ratchets; the `pipeline-gate` gates table is kept in sync with the registry (its `doc-sync` order 45 / `qa-audit` order 50 follows the F000064 reorder). Prose-only above the registry `yaml` fence — the machine registry stays the source of truth, no schema/parser change.
+
+## [6.0.73] - 2026-06-13
+
+### Added
+
+- **Self-healing contract-file reconcile for `/CJ_doc_audit` + `/CJ_test_audit`** (F000065/S000109). The audit engines gain two symmetric subcommands. `scripts/doc-spec.sh --classify` / `scripts/test-spec.sh --classify` (read-only) emit `GENERATION=<canonical|legacy|absent|malformed>` + `POSITIONS=` + `DUPLICATE=` + `CANONICAL_PATH=`, classifying an existing contract file by generation rather than only present/absent. `--reconcile` (opt-in, the only new write path) migrates a **legacy** YAML-generation `doc-spec.md` to the canonical 3-column Markdown table **preserving every declared row** — atomic temp→`--validate`→`mv`, a `.bak` of the original, a migration report, and a `RECONCILE-WARN` asymmetry guard (an old `audit_class: operational` row whose path now derives `human-doc`); it is an idempotent no-op on a canonical file and halts on a genuinely malformed one rather than clobbering. test-spec's fenced-yaml format never diverged on disk, so its `--classify` never reports `legacy` and `--reconcile` is a dedup/no-op (documented). Both audit skills generalize their Step 2 "seed if missing" into a classify-driven step: absent → seed (unchanged); canonical → ok; legacy/duplicate → an **advisory** `RECONCILE:` directive in the Stage-1 report (read-mostly — no auto-write; the directive never crashes the audit or flips QA red), plus a standalone-only `--reconcile` flag. The canonical contract-file template (required = the general `spec/doc-spec.md` / `spec/test-spec.md`; optional = the `*-custom.md` overlays; position = `spec/`, root accepted) is documented in the seeds + USAGE. Regression-tested in `tests/doc-spec-reconcile.test.sh` (incl. a 40+-row legacy migration with every-row preservation) + `tests/test-spec-reconcile.test.sh`, both registered in `scripts/test.sh` + `spec/test-spec-custom.md`. All existing subcommands are unchanged (additive only).
+
+## [6.0.72] - 2026-06-13
+
+### Changed
+
+- **The cj_goal post-QA audit checkpoint now decides on POST-doc-sync doc state** (F000064/S000106-108). In all four `CJ_goal_*` orchestrators the doc/test audit that feeds the post-QA `qa-audit` checkpoint now runs **after** `/CJ_document-release` doc-sync, so the operator's Continue/Halt decision reflects the docs that will actually ship in the PR rather than a soon-to-change pre-sync snapshot. Mechanism C-i: `qa.md` Step 8.6 is split — the spec-overlay writes (8.6a/8.6b) stay pre-sync, while the three-stage doc/test audits (8.6c/8.6d) become deferrable on the literal `DEFER_AUDIT: true` dispatch directive and move to the orchestrator level, running **once, read-only, as one combined fresh-context subagent** (`/CJ_doc_audit` + `/CJ_test_audit`) after doc-sync. Standalone `/CJ_qa-work-item` keeps its inline Step 8.6 audit unchanged. Each pipeline gains an explicit **idempotent pre-doc-sync commit** (which also formalizes the long-standing F000038 manual-pre-commit gotcha). The `spec/test-spec` gate order swaps so `doc-sync` (order 45) precedes `qa-audit` (order 50), the `qa-audit` backing is rewritten to name the orchestrator-level post-sync audit, and `CLAUDE.md` / `docs/workflow.md` charts / the four `SKILL.md` chains / `tests/cj-goal-doc-sync-wiring.test.sh` follow. Advisory-only posture preserved: audit findings never flip QA red, and the hard `validate.sh` gates (Checks 15/16/17/19/24) still gate at `/ship`.
+
+## [6.0.71] - 2026-06-13
+
+### Added
+
+- **A `## Post-land recap` convention in `CLAUDE.md`** (T000048). After any land/merge succeeds — a direct `/land-and-deploy`, the `CJ_goal_defect` Step 10 land, or the `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail — the agent surfaces a concise two-part recap: **What this merge did** (the change + version + PR#/merge SHA) and **How to verify it** (the concrete commands/checks for that change). `/land-and-deploy` is upstream gstack and is never edited, so the recap lives as a workbench convention the agent reads rather than an edit to the gstack skill. It is advisory: it fires only after the merge is verified `MERGED`, never blocks, and adds no gate — the post-land mirror of the pre-build design-summary digest. Built via `/CJ_goal_feature` (office-hours → silent build → PR).
+
+## [6.0.69] - 2026-06-13
+
+### Added
+
+- **A reader's-eye "verification surface, grouped by layer" section in `spec/test-spec-custom.md`** (T000047). The general `spec/test-spec.md` names the four verification layers in the abstract (local-hook / ci / pipeline-gate / ratchet); the overlay now carries a prose section that maps THIS repo's actual verification units to each layer — so a reader can see at a glance what kinds of tests CI handles (the validator's error/numbered/warning checks + portability engine, the registered `tests/*.test.sh` sub-suites + inline `test.sh` families, the standalone suites, and the three GitHub Actions workflows), what `local-hook` handles (pre-commit validator + post-merge re-deploy), what `pipeline-gate` handles (a table of the nine ordered orchestrator gates), and the cross-cutting ratchets. Prose-only, above the registry `yaml` fence; the machine registry stays the source of truth (drift caught by the advisory registered-doc audit). No schema or parser change — `test-spec.sh --validate` / `--check-coverage` and `validate.sh` Check 24 are untouched.
 
 ## [6.0.68] - 2026-06-12
 

@@ -75,10 +75,14 @@ Stages 2+3 are dispatched to ONE fresh-context subagent (the Agent tool);
 inside `/CJ_qa-work-item` Step 8.6 they run INLINE (the nested-subagent
 wall). Reports are per-stage (`DOC_AUDIT:` / `TEST_AUDIT:` + `FINDINGS=` +
 `STAGE1/2/3_FINDINGS=` + `stageN/`-prefixed findings), feeding the post-QA
-checkpoint AUQ every cj_goal pipeline surfaces before doc-sync.
+checkpoint AUQ every cj_goal pipeline surfaces. On orchestrator paths the
+three-stage audit is DEFERRED inside QA (`DEFER_AUDIT: true`) and re-run ONCE by
+the orchestrator AFTER doc-sync, so the checkpoint decides on the docs that will
+actually ship (F000064 post-sync-authoritative-audit reorder; standalone
+`/CJ_qa-work-item` keeps the audit inline).
 /CJ_document-release is the inline doc-sync wrapper invoked at
-Step 5.5 of every cj_goal orchestrator (between the QA pass + checkpoint and
-`/ship`) — folds
+Step 5.5 of every cj_goal orchestrator (between the QA pass and the post-sync
+doc/test audit + the QA-audit checkpoint, all ahead of `/ship`) — folds
 doc updates into the same code PR rather than chasing them post-merge. It is also
 a keeper of the doc contract: it reads the merged doc-spec registry,
 self-bootstraps a missing `spec/doc-spec.md` from the portable seed, and
@@ -131,7 +135,8 @@ Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out o
 
 **Pre-ship portability gate (F000051 / S000091):** a 6th `cj-goal-common.sh`
 phase — `--phase portability-audit` — that the three CJ_goal_* orchestrators run
-**after the Step 5.5 doc-sync handler and immediately before `/ship`** (feature
+**after the Step 5.5 doc-sync handler + the post-sync doc/test audit + the
+QA-audit checkpoint, and immediately before `/ship`** (feature
 `pipeline.md` / defect `pipeline.md` Step 5.7; todo `SKILL.md` Step 5.7, called
 with `--mode feature` like its `--phase sync`). It resolves the engine via
 `resolve_portability_engine()` (sibling-in-scriptdir → manifest `.source`, the
@@ -252,6 +257,39 @@ state — gstack-next-version is an upstream feature not currently deployed here
 
 See `work-items/defects/D000008_*` for the full root cause and the planned upstream fix
 to gstack.
+
+## Post-land recap
+
+After **any** land/merge succeeds, surface a short two-part recap to the operator
+so they are not left guessing what just shipped or how to confirm it. This fires
+on every land path:
+
+- a direct `/land-and-deploy` invocation,
+- the `CJ_goal_defect` land step (`skills/CJ_goal_defect/pipeline.md` Step 10), and
+- the `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail (per drained TODO).
+
+`/land-and-deploy` is an upstream gstack skill this workbench never edits (the
+same rule that makes `/CJ_document-release` wrap `/document-release`), so the
+recap lives here as a convention the agent reads — not as an edit to the gstack
+skill.
+
+Emit the recap **only after** the merge is verified `MERGED` (the
+verify-before-cleanup step in `## CI/CD merge convention`), as two labelled parts:
+
+1. **What this merge did** — 1–3 lines: the change in plain terms, the version it
+   bumped to, and the PR number + squash-merge SHA (e.g. "v6.0.69 — added the
+   layer-grouped verification-surface section to `spec/test-spec-custom.md`; PR
+   #267, `cdc684c`").
+2. **How to verify it** — the concrete commands or checks for *this* change, not a
+   generic checklist (e.g. `scripts/test-spec.sh --check-coverage`, `git show
+   origin/main:<file>`, or "open PR #N and read section X"). Name the one or two
+   checks that actually prove the change is live and correct.
+
+It is **advisory**: it never blocks, never changes the land outcome, and adds no
+gate — it is the post-land mirror of the pre-build design-summary digest, a
+courtesy recap so the operator can review or verify at a glance. Like the other
+convention sections here, it is prose guidance; there is no `validate.sh` check
+that asserts it fired.
 
 ## Work item templates
 
@@ -472,7 +510,9 @@ Doc-sync now runs INLINE on every common main-moving path:
 
 - **Orchestrator paths** — each `cj_goal` orchestrator (`/CJ_goal_feature`,
   `/CJ_goal_defect`, `/CJ_goal_todo_fix`) folds doc updates into the same code PR
-  at **Step 5.5** (`/CJ_document-release`, between QA pass and `/ship`).
+  at **Step 5.5** (`/CJ_document-release`, after an idempotent pre-doc-sync commit
+  and BEFORE the post-sync doc/test audit + the QA-audit checkpoint, all ahead of
+  `/ship`; F000064 reorder).
 - **`/ship` paths** — `/ship` Step 18 dispatches `/document-release` on every
   invocation, after the push and before the PR exists, so a manual `/ship` still
   lands doc updates in the PR.
@@ -518,14 +558,15 @@ skip; both reverse + floor are units-gated so a rules-only consumer repo reports
 "inactive", never findings) PLUS the ADVISORY per-mode gate marker-drift
 cross-check (absorbed from the retired Check 22). The four layers: **local-hook**
 (pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
-inline orchestrator halts — isolation / design / QA / qa-audit / doc-sync /
+inline orchestrator halts — isolation / design / QA / doc-sync / qa-audit /
 portability / ship), and **ratchet** (VERSION / portability-baseline /
 USAGE-freshness). "Gate"
 means a `pipeline-gate` row; `validate.sh`-as-a-whole is the **ci** layer (a set
 of *checks*), never "the gate." Check 24's advisory marker-drift portion
 cross-checks every declared literal marker against the four `CJ_goal_*` pipelines
-(the `qa-audit` row, order 45, declares the literal `[qa-audit-declined]` in ALL
-FOUR modes — the post-QA audit-findings checkpoint). Each
+(the `qa-audit` row, order 50, declares the literal `[qa-audit-declined]` in ALL
+FOUR modes — the post-sync audit-findings checkpoint, which runs AFTER the
+`doc-sync` gate, order 45; F000064 reorder). Each
 pipeline's halt-taxonomy names `spec/test-spec.md` as the canonical gate sequence.
 
 ## Doc contract (doc-spec.md)

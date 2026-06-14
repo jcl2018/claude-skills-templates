@@ -1,7 +1,7 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract exists (seed-delivers spec/test-spec.md via test-spec.sh --seed when missing, creating spec/ if needed, reporting seeded: yes; idempotent seeded: no on re-run). Stage 1 (deterministic — engine, unchanged mechanics): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), AND each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch). Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
-version: 0.2.0
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine, unchanged mechanics): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), AND each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch). Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+version: 0.3.0
 allowed-tools:
   - Bash
   - Read
@@ -51,8 +51,16 @@ named stages**, symmetric with `/CJ_doc_audit` (one shape, both audits):
   TRUE.
 
 Findings never crash the audit and never halt a caller: a broken contract IS
-the report. The audit is read-mostly — its ONLY write is the seed delivery
-(Step 2), which is idempotent.
+the report. The audit is read-mostly — on a plain run its ONLY write is the
+idempotent seed delivery (Step 2). A non-canonical contract (a duplicated file)
+is detected by `test-spec.sh --classify` and surfaced as an advisory
+`RECONCILE:` directive in the Stage-1 report (no write); the dedup runs ONLY
+under the opt-in standalone `--reconcile` flag, which forwards to the engine's
+`--reconcile`. NOTE — symmetric with `/CJ_doc_audit` but reduced: test-spec's
+fenced-yaml format never diverged (confirmed from git history), so there is no
+legacy-to-canonical migration; `--reconcile` is a dedup / no-op. The in-QA path
+never passes `--reconcile`, and the directive — like a `REMEDIATION:` line —
+never crashes the audit or flips QA red.
 
 **Judge context (load-bearing).** Standalone (operator keystroke at top
 level): Stages 2+3 are REQUIRED to run in ONE fresh-context general-purpose
@@ -87,32 +95,75 @@ can run; emit the per-stage report (Step 6) with `STAGE1_FINDINGS=1`, Stages
 2+3 each printing their header + `skipped: engine unreachable — nothing to
 judge against`, and `TEST_AUDIT: findings`.
 
-## Step 2: Ensure the contract exists (seed delivery)
+## Step 2: Ensure the contract is canonical (classify → seed | ok | reconcile)
 
-If NEITHER `spec/test-spec.md` NOR a root `test-spec.md` exists, create
-`spec/` and deliver the seed. Write to a temp file, verify non-empty AND
-`--validate`-clean, THEN move into place (the corruption guard). Report
-`seeded: yes`; when the contract already exists report `seeded: no` (the
-idempotence contract — a second run never re-seeds):
+This step generalizes the former "seed if missing" into a **classify-driven
+reconcile** (F000065), symmetric with `/CJ_doc_audit` Step 2. Run
+`test-spec.sh --classify` (READ-ONLY) and route on `GENERATION`:
+
+- **`absent`** → seed-deliver (today's behavior, unchanged): create `spec/`,
+  write the seed to a temp file, verify non-empty AND `--validate`-clean, THEN
+  move into place (the corruption guard). Report `seeded: yes`.
+- **`canonical`** → nothing to do (`seeded: no`); NO `RECONCILE:` line (the
+  canonical repo stays silent).
+- **`duplicate`** (`DUPLICATE=1`) → a redundant copy at both `spec/` and root.
+  Emit an advisory `RECONCILE:` directive naming the issue + remedy, write
+  NOTHING on a plain run. (There is NO `legacy` branch for test-spec — its
+  fenced-yaml format never diverged, so `--reconcile` is a dedup / no-op.)
+- **`malformed`** → a present-but-broken registry; the `[test-spec-no-config]`
+  halt surfaced by Stage 1's `--validate` call (Step 3) — not a reconcile
+  target.
 
 ```bash
 SEEDED=no
-if [ ! -f "$_TA_ROOT/spec/test-spec.md" ] && [ ! -f "$_TA_ROOT/test-spec.md" ]; then
-  _TA_TMP=$(mktemp -d)
-  if bash "$_TA_ENGINE" --seed > "$_TA_TMP/test-spec.md" 2>/dev/null \
-     && [ -s "$_TA_TMP/test-spec.md" ] \
-     && TEST_SPEC_PATH="$_TA_TMP/test-spec.md" bash "$_TA_ENGINE" --validate >/dev/null 2>&1; then
-    mkdir -p "$_TA_ROOT/spec"
-    mv "$_TA_TMP/test-spec.md" "$_TA_ROOT/spec/test-spec.md"
-    SEEDED=yes
-  fi
-  rm -rf "$_TA_TMP"
-fi
+RECONCILE_DIRECTIVE=""
+_TA_GEN=$(bash "$_TA_ENGINE" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')
+_TA_DUP=$(bash "$_TA_ENGINE" --classify 2>/dev/null | awk -F= '/^DUPLICATE=/{print $2}')
+case "$_TA_GEN" in
+  absent)
+    _TA_TMP=$(mktemp -d)
+    if bash "$_TA_ENGINE" --seed > "$_TA_TMP/test-spec.md" 2>/dev/null \
+       && [ -s "$_TA_TMP/test-spec.md" ] \
+       && TEST_SPEC_PATH="$_TA_TMP/test-spec.md" bash "$_TA_ENGINE" --validate >/dev/null 2>&1; then
+      mkdir -p "$_TA_ROOT/spec"
+      mv "$_TA_TMP/test-spec.md" "$_TA_ROOT/spec/test-spec.md"
+      SEEDED=yes
+    fi
+    rm -rf "$_TA_TMP"
+    ;;
+  canonical)
+    if [ "$_TA_DUP" = "1" ]; then
+      RECONCILE_DIRECTIVE="RECONCILE: a duplicate test-spec contract file exists at both spec/ and root — run /CJ_test_audit --reconcile (reports the redundant copy; does not auto-delete; test-spec has no legacy migration)"
+    fi
+    ;;
+  malformed) : ;;  # Stage 1's --validate surfaces the stage1/registry halt.
+  *) : ;;
+esac
 echo "seeded: $SEEDED"
+[ -n "$RECONCILE_DIRECTIVE" ] && echo "$RECONCILE_DIRECTIVE"
 ```
 
-A failed seed delivery (the `if` falls through) is a STAGE-1 finding:
-`FINDING: stage1/seed — test-spec.sh --seed did not emit a valid test-spec.md`.
+A failed seed delivery (the `absent` branch falls through) is a STAGE-1
+finding: `FINDING: stage1/seed — test-spec.sh --seed did not emit a valid
+test-spec.md`.
+
+### Step 0: `--reconcile` flag (standalone only — opt-in)
+
+Parse the skill's arguments for `--reconcile`. When present AND running
+standalone (NOT inside `/CJ_qa-work-item` — the in-QA path NEVER passes it),
+and when Step 2's classify reported `duplicate`, forward to the engine's opt-in
+path and print its report verbatim in the Stage-1 section:
+
+```bash
+if [ "$TEST_AUDIT_RECONCILE" = "1" ] && [ "$_TA_DUP" = "1" ]; then
+  bash "$_TA_ENGINE" --reconcile
+fi
+```
+
+For test-spec the engine's `--reconcile` is a dedup / no-op (it reports the
+redundant copy; it never migrates a format, because the format never diverged).
+A plain (no-flag) run is read-mostly: its only write stays the idempotent
+`absent` → seed delivery.
 
 ## Step 3: Stage 1 — deterministic conformance (engine, unchanged mechanics)
 
@@ -266,8 +317,10 @@ STAGE3_FINDINGS=<n>
 UNITS_AUDITED=<n>         # --list-units count post-validate (0 = rules-only)
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
-<the --validate + --check-coverage output verbatim; plus any stage1/engine,
- stage1/seed, stage1/registry pre-stage FINDING lines>
+<any advisory RECONCILE: directive from Step 2 (duplicate — NOT a finding);
+ the --validate + --check-coverage output verbatim; plus any stage1/engine,
+ stage1/seed, stage1/registry pre-stage FINDING lines; and, under the standalone
+ --reconcile flag, the engine's dedup report>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
 <per-rule + per-unit verdict lines + FINDING: stage2/... lines>
 --- stage 3: implementation drift (agent-judged, fresh-context) ---
@@ -298,6 +351,7 @@ section header with ONE line — `skipped: <reason>` — and its
 | Engine unreachable | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `TEST_AUDIT: findings` |
 | Seed delivery fails | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
 | Registry present-but-invalid | ONE `FINDING: stage1/registry` quoting `[test-spec-no-config]` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: registry invalid — nothing to judge against` |
+| Duplicate contract file | advisory `RECONCILE:` directive — NOT a finding, counts toward NO stage | Plain run points at the remedy + writes nothing; `--reconcile` (standalone) forwards to the engine dedup (test-spec has no legacy migration) |
 | Coverage findings | `FINDING: stage1/coverage — <engine line>` → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the surface just disagrees) |
 | No units declared | the named inactive note — never a finding | `UNITS_AUDITED=0`; Stage 2's unit half is vacuous, the rule half still runs |
 | Any findings | counted in their stage | reported, exit clean — findings are the product, not a crash |
