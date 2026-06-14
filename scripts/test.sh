@@ -440,6 +440,15 @@ USAGEEOF
 # Step 2: add catalog entry
 jq '. + [{"name":"zzz-test-scaffold","version":"0.1.0","description":"Test skill for integration testing.","source":"local","depends":{"skills":[],"tools":[]},"portability":"standalone","files":["skills/zzz-test-scaffold/SKILL.md"],"templates":[],"status":"experimental"}]' "$CATALOG" > "/tmp/catalog-new-$$" && mv "/tmp/catalog-new-$$" "$CATALOG"
 
+# Step 2b (T000049 / Check 25): the catalog mutation above drives
+# generate-readme.sh output away from the committed README. The new validate.sh
+# Check 25 (README <-> generate-readme.sh sync) would then fire for the REST of
+# this block — falsely failing the exit-0 assertions in Steps 3/3b/3b'/3c, which
+# test OTHER checks and assume validate is otherwise green. Regenerate README
+# from the mutated catalog so Check 25 stays GREEN throughout; the EXIT trap
+# above already backs up + restores the original README.
+"$REPO_ROOT/scripts/generate-readme.sh" > "$REPO_ROOT/README.md" 2>/dev/null
+
 # Step 3: validate passes with the new skill
 if "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1; then
   ok "validate.sh passes with manually created skill"
