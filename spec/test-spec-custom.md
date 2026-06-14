@@ -65,6 +65,7 @@ live checks sharing a numeral.)
 | Check 19 — no work-item refs in human docs | No registry human-doc contains an internal work-item ID. |
 | Check 21 — permission-policy drift | The permission policy parses and every orchestrator references it. |
 | Check 24 — test-spec coverage cross-check + gate marker drift | The test-spec registry validates and coverage cross-checks (forward + reverse). |
+| Check 25 — README.md in sync with generate-readme.sh | The committed README byte-matches the generator's output, so a catalog-derived README cannot drift. |
 | Warning check — orphan doc directories | Flags per-skill doc directories with no matching catalog entry. |
 | Warning check 3 — orphan template files | Flags template files not referenced by any catalog entry. |
 | portability audit — declared-vs-actual skill dependency lint | The engine behind Check 18 and the strict pre-ship gate. |
@@ -510,6 +511,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "Validates the merged test-spec registry, then cross-checks coverage (forward, every unit anchor matches live in its declared source; reverse, every live validate banner and comment, test file on disk, workflow, and hook resolves to exactly one unit, with a floor of twenty reverse tokens) — hard; then the advisory per-mode gate marker-drift cross-check over the gates array (absorbed from the retired Check 22); skips when the registry is absent."
+  - id: validate-check-25
+    family: validate
+    label: "Check 25 — README in sync with generate-readme.sh"
+    anchor: "=== Check 25:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "README.md byte-matches the generate-readme.sh stdout, so a stale catalog-derived README cannot pass validation; read-only (the generator writes only to stdout); skips when the generator is absent."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
