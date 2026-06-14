@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.75] - 2026-06-13
+
+### Changed
+
+- **The `## The verification surface, grouped by layer` section of `spec/test-spec-custom.md` now renders each layer group as a human-readable table** (T000049). The inline comma-separated check/unit lists are replaced with per-group markdown tables — `Check / Unit` ⇄ `What it asserts` — one row per unit, each explanation a condensation of the matching `units:` registry row's `purpose`. So a reader sees at a glance what Check 11, 13, …, every behavioral test suite, standalone suite, workflow, hook, and ratchet actually is. Covers all 68 units (validate 25, test 35, standalone 3, ci 3, hook 2) plus the 4 ratchets; the `pipeline-gate` gates table is kept in sync with the registry (its `doc-sync` order 45 / `qa-audit` order 50 follows the F000064 reorder). Prose-only above the registry `yaml` fence — the machine registry stays the source of truth, no schema/parser change.
+
 ## [6.0.73] - 2026-06-13
 
 ### Added
