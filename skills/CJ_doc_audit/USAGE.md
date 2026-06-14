@@ -1,6 +1,6 @@
 ---
 skill: CJ_doc_audit
-last-updated: "2026-06-13T00:00:00Z"
+last-updated: "2026-06-14T16:11:40Z"
 ---
 
 # Using /CJ_doc_audit
@@ -68,7 +68,10 @@ Three stages, split exactly along the deterministic/judged boundary. **Stage 1
 four conformance checks (declared⇔on-disk, orphans, root-declared, ID-free
 human docs) live inside a tested script, so no
 executor can re-derive the loops wrong (the word-split defect class is
-designed out). **Stage 2 (requirement compliance — agent-judged,
+designed out). When declared docs are missing, Stage 1 also prints a trailing
+`REMEDIATION:` pointer to `/CJ_document-release` (the scaffolder) — the audit
+names the fix for a dead-end "doc missing" list, but stays read-mostly and
+never scaffolds the docs itself. **Stage 2 (requirement compliance — agent-judged,
 evidence-forced):** each declared doc's `Requirement` cell is quoted,
 decomposed into clauses, and judged clause-by-clause with cited evidence —
 verdicts `satisfies` / `missing-requirement (soft)` / `n/a` /

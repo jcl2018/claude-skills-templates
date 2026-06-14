@@ -192,6 +192,15 @@ maxdepth 1 + spec/*.md), root-declared, human-doc-ids — emitting
 `CHECKS_RUN=`/`FINDINGS=` tail. Its `FINDINGS=` count IS the engine-check
 portion of `STAGE1_FINDINGS`.
 
+When `declared-exists` finds required docs missing on disk, the engine also
+emits a trailing `REMEDIATION: stage1/declared-exists — …` advisory line that
+names `/CJ_document-release` as the scaffolder (it reads this same merged
+registry and stub-scaffolds the missing docs). The remediation line is NOT a
+finding — it does not change `FINDINGS=` or `STAGE1_FINDINGS`. It exists so a
+standalone / consumer-repo run is actionable rather than a dead-end list of
+missing docs: the audit stays read-mostly and never scaffolds them itself, but
+it points at the verb that does.
+
 A present-but-invalid registry makes the engine exit 1 with
 `[doc-sync-no-config] <reason>`: count ONE STAGE-1 finding —
 `FINDING: stage1/registry — <the engine's reason, quoted>` — and skip Stages
@@ -307,9 +316,12 @@ DOCS_AUDITED=<n>          # the merged --list-declared count
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
 <any advisory RECONCILE: directive from Step 2 (legacy/duplicate — NOT a finding);
- the --check-on-disk output verbatim; plus any stage1/engine, stage1/seed,
- stage1/registry pre-stage FINDING lines; and, under the standalone --reconcile
- flag, the engine's migration report (RECONCILE: migrated N rows / ...)>
+ the --check-on-disk output verbatim — check:/FINDING: lines, the
+ CHECKS_RUN=/FINDINGS= tail, and (when declared docs are missing) the trailing
+ REMEDIATION: stage1/declared-exists line naming /CJ_document-release; plus any
+ stage1/engine, stage1/seed, stage1/registry pre-stage FINDING lines; and, under
+ the standalone --reconcile flag, the engine's migration report (RECONCILE:
+ migrated N rows / ...)>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
 <per-doc verdict lines + FINDING: stage2/... lines>
 --- stage 3: implementation drift (agent-judged, fresh-context) ---

@@ -239,9 +239,29 @@ else
   fail_test "--check-on-disk clean fixture not clean (rc=$_COD_RC): $_COD"
 fi
 
+# 8a-2. clean fixture emits NO remediation line — the pointer is scoped to the
+# missing-doc case, never noise on a green run.
+if printf '%s\n' "$_COD" | grep -qF 'REMEDIATION:'; then
+  fail_test "--check-on-disk clean fixture wrongly emitted a REMEDIATION line: $_COD"
+else
+  ok "--check-on-disk clean fixture emits no REMEDIATION line (pointer scoped to missing-doc case)"
+fi
+
 # 8b. violation 1 — missing declared doc
 _V=$(mk_cod_fixture); rm -f "$_V/docs/architecture.md"
 assert_one_finding "$_V" "declared-exists" "missing declared doc"
+
+# 8b-2. a declared-exists finding ALSO emits the read-mostly REMEDIATION pointer
+# naming /CJ_document-release (the scaffolder) — so a standalone / consumer-repo
+# run is actionable, not a dead-end "doc missing" list. The line is advisory:
+# NOT a FINDING (FINDINGS stayed 1, asserted by assert_one_finding above).
+_RM_OUT=$(REPO_ROOT="$_V" bash "$HELPER" --check-on-disk 2>&1)
+if printf '%s\n' "$_RM_OUT" | grep -qF 'REMEDIATION: stage1/declared-exists' \
+   && printf '%s\n' "$_RM_OUT" | grep -qF '/CJ_document-release'; then
+  ok "missing declared doc emits the REMEDIATION pointer naming /CJ_document-release (advisory, not a finding)"
+else
+  fail_test "missing declared doc did NOT emit the /CJ_document-release REMEDIATION pointer: $_RM_OUT"
+fi
 
 # 8c. violation 2 — orphan in docs/
 _V=$(mk_cod_fixture); printf 'stray doc\n' > "$_V/docs/extra.md"

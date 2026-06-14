@@ -269,11 +269,16 @@ _run_registry_gates() {
 # `FINDING: stage1/<id> — <detail>` line PER VIOLATION (a multi-violation
 # check emits one line each, no PASS line), then the machine tail
 # `CHECKS_RUN=<n>` (check ids run — 4 on a full run) + `FINDINGS=<n>`
-# (violation lines). Returns 0 clean / 1 findings. Every loop is
-# `while IFS= read -r` — the word-split defect class stays designed out.
+# (violation lines). When declared-exists finds missing docs, a trailing
+# `REMEDIATION: stage1/declared-exists — …` advisory line (NOT a finding; does
+# NOT change FINDINGS=) names /CJ_document-release as the scaffolder, so a
+# standalone/consumer run is actionable rather than a dead-end list. Returns 0
+# clean / 1 findings. Every loop is `while IFS= read -r` — the word-split
+# defect class stays designed out.
 _check_on_disk() {
   _COD_FINDINGS=0
   _COD_CHECKS=0
+  _COD_MISSING=0
   _COD_DECLARED=$(printf '%s\n' "$_ROWS" | awk -F'\t' '{print $1}' | sort -u)
 
   # declared-exists — every declared path exists on disk.
@@ -290,6 +295,7 @@ $_COD_DECLARED
 EOF
   if [ "$_c" -eq 0 ]; then echo "check: declared-exists — PASS"; fi
   _COD_FINDINGS=$((_COD_FINDINGS + _c))
+  _COD_MISSING=$_c
 
   # orphans — every docs/*.md (maxdepth 1) and spec/*.md on disk is declared;
   # each dir checked only when it exists. A non-self-declaring overlay file
@@ -347,6 +353,15 @@ EOF
 
   echo "CHECKS_RUN=$_COD_CHECKS"
   echo "FINDINGS=$_COD_FINDINGS"
+  # Remediation pointer (advisory — NOT a finding; does NOT change FINDINGS=).
+  # declared-exists reports docs the contract REQUIRES but that are absent on
+  # disk; this audit is read-mostly and never scaffolds them. Without a pointer,
+  # a standalone / consumer-repo run is a dead-end list ("workflow.md missing"
+  # with no next step). Name the remedy: /CJ_document-release reads this SAME
+  # merged registry and stub-scaffolds every declared-but-missing doc.
+  if [ "${_COD_MISSING:-0}" -gt 0 ]; then
+    echo "REMEDIATION: stage1/declared-exists — $_COD_MISSING required doc(s) declared but missing; run /CJ_document-release to stub-scaffold them (it reads this same doc-spec registry). This audit reports, it does not scaffold."
+  fi
   [ "$_COD_FINDINGS" -eq 0 ]
 }
 
