@@ -364,7 +364,7 @@ Templates live in `templates/`:
 `skills-deploy install` copies per-skill templates to `~/.claude/templates/{skill-name}/` (global).
 Templates resolve from the catalog: `$REPO_ROOT/templates/{skill-name}/` for active skills, or `$REPO_ROOT/{templates_source}/` when the catalog entry sets `templates_source`. Then fall back to `~/.claude/templates/{skill-name}/`.
 - Drifted templates and rules are overwritten by default (`skills-deploy install` is treated as a sync from workbench source → `~/.claude/`); pass `--no-overwrite` to preserve deployed copies that differ from source. `--overwrite` is accepted as a no-op for backwards compatibility with pre-v1.6 callers (D000013's post-merge hook, etc.).
-- `skills-deploy doctor` reports template health (missing, drifted, orphaned)
+- `skills-deploy doctor` reports template health (missing, drifted, orphaned) plus a `--- Shared scripts ---` section reporting deployed `_cj-shared/scripts/*` health (ORPHAN/FAIL/WARN/OK)
 - `skills-deploy remove` cleans up templates when no installed skill needs them
 - Templates are tracked in the manifest with SHA256 checksums and per-skill ownership
 
@@ -443,7 +443,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | Script | What it does | When to run |
 |--------|-------------|-------------|
 | `setup.sh` | Bootstrap: clones-or-updates the repo and deploys all skills | First-time install on a new machine |
-| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` (also deploys `rules/*.md` → `~/.claude/rules/`) | After pulling the workbench, or to sync drift |
+| `skills-deploy` | Install/remove/relink/doctor skills from this repo into `~/.claude/` (also deploys `rules/*.md` → `~/.claude/rules/`). On `install`, ownership-safely PRUNES orphaned `_cj-shared/scripts/*` shared scripts — manifest-keyed, so a deployed+tracked script whose source counterpart was deleted (e.g. `test-pipeline.sh`/`gate-spec.sh`) is removed + de-tracked, while a hand-placed untracked file is never touched; the summary reports `Pruned: N`. `doctor` surfaces the same orphans (T000051). | After pulling the workbench, or to sync drift |
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
 | `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |
