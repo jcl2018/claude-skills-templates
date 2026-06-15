@@ -664,7 +664,7 @@ do_install() {
   # Copy-mode + SHA256 drift tracking, like templates. Deposited as a SET so the
   # scripts' dirname-relative sibling resolution (BASH_SOURCE) keeps every
   # transitive helper co-located in one dir.
-  local shared_installed=0 shared_skipped=0
+  local shared_installed=0 shared_skipped=0 shared_pruned=0
   if [ -d "$SHARED_SCRIPTS_SRC" ]; then
     mkdir -p "$SHARED_SCRIPTS_TARGET"
     for sh_src in "$SHARED_SCRIPTS_SRC"/*.sh "$SHARED_SCRIPTS_SRC/skills-update-check"; do
@@ -697,6 +697,36 @@ do_install() {
       manifest=$(echo "$manifest" | jq --arg k "$sh_base" --arg sum "$sh_src_sum" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.shared_scripts[$k] = {source_checksum: $sum, installed_at: $ts}')
     done
+
+    # Prune orphaned shared scripts (T000051). A prior install deposits each
+    # shared script + manifest-tracks it in `.shared_scripts`, but a script
+    # later DELETED from source was never removed from the deployed home or the
+    # manifest — leaving stale orphans (e.g. test-pipeline.sh, gate-spec.sh).
+    # Key the prune off the MANIFEST keys, NOT a raw scandir of the target, so
+    # only scripts a prior install deployed+tracked are eligible — a hand-placed
+    # file the install never recorded is never touched (ownership safety). This
+    # block is INSIDE the `-d "$SHARED_SCRIPTS_SRC"` guard so an unreadable
+    # source dir never triggers a wipe of the deployed set.
+    # `|| true`: the loop's final `[ -f ]` can exit non-zero (e.g. when
+    # skills-update-check is absent in a fixture), and under `set -e` that
+    # non-zero from the command substitution would abort the whole install at
+    # the assignment. An empty source set is the correct non-fatal outcome.
+    local shared_source_set
+    shared_source_set=$(
+      for sh_src in "$SHARED_SCRIPTS_SRC"/*.sh "$SHARED_SCRIPTS_SRC/skills-update-check"; do
+        [ -f "$sh_src" ] && basename "$sh_src"
+      done
+    ) || true
+    local pruned_key
+    while IFS= read -r pruned_key; do
+      [ -n "$pruned_key" ] || continue
+      if ! printf '%s\n' "$shared_source_set" | grep -qxF "$pruned_key"; then
+        rm -f "$SHARED_SCRIPTS_TARGET/$pruned_key"
+        manifest=$(echo "$manifest" | jq --arg k "$pruned_key" 'del(.shared_scripts[$k])')
+        echo "  SHARED: pruned $pruned_key (no source counterpart)"
+        shared_pruned=$((shared_pruned + 1))
+      fi
+    done < <(echo "$manifest" | jq -r '.shared_scripts // {} | keys[]')
   fi
 
   # Resolve the manifest `source` to the MAIN repo toplevel (T000025).
@@ -763,8 +793,8 @@ do_install() {
   if [ "$rules_installed" -gt 0 ]; then
     echo "Rules — Installed: $rules_installed"
   fi
-  if [ "$shared_installed" -gt 0 ] || [ "$shared_skipped" -gt 0 ]; then
-    echo "Shared scripts — Installed: $shared_installed  Skipped: $shared_skipped"
+  if [ "$shared_installed" -gt 0 ] || [ "$shared_skipped" -gt 0 ] || [ "$shared_pruned" -gt 0 ]; then
+    echo "Shared scripts — Installed: $shared_installed  Skipped: $shared_skipped  Pruned: $shared_pruned"
   fi
 }
 
@@ -1339,6 +1369,39 @@ do_doctor() {
           echo "  WARN: $rule_name — deployed copy differs from source (run 'skills-deploy install' to sync)"
           warnings=$((warnings + 1))
           rules_drift=$((rules_drift + 1))
+        fi
+      fi
+    done
+    echo ""
+  fi
+
+  # Check deployed shared scripts (_cj-shared/scripts/). Mirrors the Templates +
+  # Rules sections: report ORPHAN (deployed + tracked but no source counterpart —
+  # the prune target), FAIL (manifest-tracked but missing on disk), WARN (content
+  # drift), else OK. Keyed off the manifest `.shared_scripts` (basenames, no
+  # spaces), so the simple `for k in $(jq ...)` idiom is safe.
+  local shared_count
+  shared_count=$(echo "$manifest" | jq '.shared_scripts // {} | length')
+  if [ "$shared_count" -gt 0 ]; then
+    echo "--- Shared scripts ---"
+    for k in $(echo "$manifest" | jq -r '.shared_scripts // {} | keys[]'); do
+      local shared_target="$SHARED_SCRIPTS_TARGET/$k"
+      local shared_src="$SHARED_SCRIPTS_SRC/$k"
+      if [ ! -f "$shared_src" ]; then
+        echo "  ORPHAN: $k — deployed but no source counterpart (run 'skills-deploy install' to prune)"
+        warnings=$((warnings + 1))
+      elif [ ! -f "$shared_target" ]; then
+        echo "  FAIL: $k — file missing at $shared_target (run 'skills-deploy install' to restore)"
+        errors=$((errors + 1))
+      else
+        local shared_expected shared_actual
+        shared_expected=$(echo "$manifest" | jq -r --arg t "$k" '.shared_scripts[$t].source_checksum // ""')
+        shared_actual=$(file_checksum "$shared_target")
+        if [ -n "$shared_expected" ] && [ "$shared_expected" != "$shared_actual" ] && [ "$shared_expected" != "unknown" ]; then
+          echo "  WARN: $k — content differs from source (local changes or outdated)"
+          warnings=$((warnings + 1))
+        else
+          echo "  OK: $k"
         fi
       fi
     done
