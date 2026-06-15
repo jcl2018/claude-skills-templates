@@ -109,3 +109,7 @@ blocked_by: ""
      (decision, finding, blocker) and a Summary field. -->
 
 <!-- Source: TODOS.md ### `skills-deploy install` never prunes shared scripts deleted from source — orphaned `_cj-shared/scripts/*` accumulate (P3, S) -->
+- 2026-06-15 [qa-smoke] S1 (test-plan row 1): green — `scripts/test-deploy.sh` 86 OK / 0 FAIL; new case `T000051: install prunes orphaned shared scripts (ownership-safe)` passes (orphan pruned from file + manifest, hand-placed untracked file survived, real tracked script kept).
+- 2026-06-15 [qa-smoke-summary] green: 1/1 non-manual rows green (0 manual rows pending)
+- 2026-06-15 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom~suite-test-deploy purpose amended,doc-spec-custom:none (Step 8.6a/8.6b ran inline; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
+- 2026-06-15 [qa-pass] T000051 (task): green smoke from test-plan rows (1 row). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
