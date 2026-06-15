@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.78] - 2026-06-15
+
+### Fixed
+
+- **`test-spec.sh --check-coverage` reverse-sweep floors no longer misfire in non-workbench consumer repos** (D000035). The per-namespace zero-token floors (and the global `<20`-token floor) in `scripts/test-spec.sh` `_run_coverage()` fired unconditionally on a zero/low token count, with no check for whether that namespace's surface is part of the repo's verification contract. A consumer repo that adopts the contract against its own surface (e.g. vitest `*.test.ts` + a GitHub workflow, with no `scripts/validate.sh` / `tests/*.test.sh` / `scripts/setup-hooks.sh`) legitimately yields zero tokens in the absent shell namespaces — so the floors fired up to 4 false findings and flipped `--check-coverage` to a permanent false-red (surfacing as `TEST_AUDIT: findings` via `validate.sh` Check 24 / `/CJ_test_audit` Stage 1 / `/CJ_qa-work-item` Step 8.6d). The fix gates each floor on **effective surface presence** = the surface path exists on disk AND the merged registry declares ≥1 unit row in that namespace's family (`validate`/`test`/`ci`/`hook`) — the rows are what make us *expect* live tokens. The global floor fires only when all four namespaces are effectively present (the full workbench shape it is calibrated to); a partial/consumer set relies on the per-namespace floors. This also closes a reserved-path collision — a consumer with a husky-style `scripts/setup-hooks.sh` or its own `scripts/validate.sh` in a non-workbench grammar no longer false-fires — **without** weakening the workbench: a contracted-but-zero-token namespace (genuine extraction-grammar rot) still fires, and the workbench's own coverage is unchanged (`OK coverage rows=69 reverse_tokens=49 findings=0`). The forward anchor-grep, reverse single-owner sweep, units-gating, and the `--seed` heredoc are untouched. Regression cases (a/b/c/d) added to `tests/test-spec.test.sh`; RCA + test-plan in `work-items/defects/uncategorized/D000035_*`.
+
 ## [6.0.77] - 2026-06-14
 
 ### Fixed

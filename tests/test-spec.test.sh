@@ -476,6 +476,159 @@ else
   fail_test "drill (j) floor assert not alive (rc=$_J_RC): $_J_OUT"
 fi
 
+# 8. surface-existence gating of the reverse floors (D000035). A consumer repo
+# that adopts the contract against ITS OWN surface (vitest *.test.ts + a
+# workflow, with NO scripts/validate.sh / tests/*.test.sh / scripts/setup-hooks.sh)
+# legitimately yields zero tokens in the absent namespaces — the floors must
+# treat an absent surface as N/A, never a finding. The fix is surface-existence
+# GATING, not floor removal: a present-but-zero-token namespace still fires.
+
+# Case (a) — consumer-shaped fixture: units against a vitest *.test.ts + a
+# GitHub workflow; NO shell validate/test-files/hooks surfaces on disk.
+# --check-coverage must exit 0, print "OK coverage", and emit NO floor findings.
+_CONS=$(mk_tmp)
+mkdir -p "$_CONS/spec" "$_CONS/tests" "$_CONS/.github/workflows"
+bash "$HELPER" --seed > "$_CONS/spec/test-spec.md" 2>/dev/null
+cat > "$_CONS/tests/foo.test.ts" <<'CONS_TS'
+import { describe, it, expect } from 'vitest';
+describe('consumer suite', () => {
+  it('CONSUMER_ANCHOR_TOKEN does the thing', () => { expect(1 + 1).toBe(2); });
+});
+CONS_TS
+cat > "$_CONS/.github/workflows/ci.yml" <<'CONS_WF'
+name: Consumer CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm test
+CONS_WF
+cat > "$_CONS/spec/test-spec-custom.md" <<'CONS_OVL'
+# test-spec-custom.md — consumer overlay
+
+```yaml
+schema_version: 1
+units:
+  - id: consumer-foo-suite
+    family: ci
+    label: "Consumer foo suite — the vitest unit suite"
+    anchor: "CONSUMER_ANCHOR_TOKEN"
+    source: tests/foo.test.ts
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The consumer's vitest suite asserts the core unit behaves."
+  - id: consumer-ci-workflow
+    family: ci
+    label: "Consumer CI workflow — the PR gate"
+    anchor: "name: Consumer CI"
+    source: .github/workflows/ci.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The consumer's GitHub Actions workflow runs the suite on every PR."
+```
+CONS_OVL
+_CONS_OUT=$(REPO_ROOT="$_CONS" TEST_SPEC_PATH="$_CONS/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CONS/spec/test-spec-custom.md" bash "$HELPER" --check-coverage 2>&1); _CONS_RC=$?
+if [ "$_CONS_RC" -eq 0 ] \
+   && printf '%s' "$_CONS_OUT" | grep -qF 'OK coverage' \
+   && ! printf '%s' "$_CONS_OUT" | grep -qF 'FINDING: floor'; then
+  ok "case (a): consumer surface (no shell validate/test-files/hooks) -> OK coverage, exit 0, NO floor findings (surface-gated)"
+else
+  fail_test "case (a) floor false-fired on a consumer surface (rc=$_CONS_RC): $_CONS_OUT"
+fi
+
+# Case (b) — workbench-shaped regression guard: ALL FOUR surfaces present, but
+# ONE namespace (hooks) is present-yet-yields-zero-tokens (setup-hooks.sh
+# exists with NO `if install_hook` lines). The per-namespace floor for that
+# namespace must STILL fire — proving the fix is surface-existence GATING, not
+# floor removal. (The global floor stays calibrated: dropping the 2 hook
+# tokens still leaves the full-surface fixture above the 20-token floor.)
+_rebuild_fixture
+: > "$_FIX/scripts/setup-hooks.sh"   # surface PRESENT but emits zero hook tokens
+_HZ_OUT=$(REPO_ROOT="$_FIX" bash "$HELPER" --check-coverage 2>&1); _HZ_RC=$?
+if [ "$_HZ_RC" -ne 0 ] \
+   && printf '%s' "$_HZ_OUT" | grep -qF "ZERO live tokens in the 'hooks' namespace"; then
+  ok "case (b): hooks surface present but zero tokens -> the per-namespace floor STILL fires (gating, not removal)"
+else
+  fail_test "case (b) present-but-zero-token namespace floor did not fire (rc=$_HZ_RC): $_HZ_OUT"
+fi
+_rebuild_fixture
+
+# Case (c) — rules-only registry (no units: rows): the whole coverage
+# cross-check is inactive (units-gated), so neither the reverse sweep nor any
+# floor runs. "coverage cross-check inactive", exit 0 — unchanged behavior.
+_RO2=$(mk_tmp)
+mkdir -p "$_RO2/spec"
+bash "$HELPER" --seed > "$_RO2/spec/test-spec.md" 2>/dev/null
+_RO2_OUT=$(REPO_ROOT="$_RO2" TEST_SPEC_PATH="$_RO2/spec/test-spec.md" bash "$HELPER" --check-coverage 2>&1); _RO2_RC=$?
+if [ "$_RO2_RC" -eq 0 ] \
+   && printf '%s' "$_RO2_OUT" | grep -qF 'coverage cross-check inactive' \
+   && ! printf '%s' "$_RO2_OUT" | grep -qF 'FINDING: floor'; then
+  ok "case (c): rules-only registry -> coverage cross-check inactive, exit 0, no floor findings (unchanged)"
+else
+  fail_test "case (c) rules-only registry mis-handled (rc=$_RO2_RC): $_RO2_OUT"
+fi
+
+# Case (d) — reserved-path collision (D000035 strengthening). A non-workbench
+# consumer declares ONLY a ci-family unit (a workflow) but ALSO happens to have a
+# file at a reserved shell-surface path in a DIFFERENT grammar: a husky-style
+# scripts/setup-hooks.sh (no `if install_hook` lines) and its own scripts/validate.sh
+# (no `=== Check N:` banners). Path-existence ALONE would false-fire the 'validate'
+# and 'hooks' zero-token floors; gating each floor on "path present AND the registry
+# declares rows in that namespace's family" closes that residual. Expect: exit 0,
+# "OK coverage", NO floor findings (the consumer declares no validate/hook rows).
+_COL=$(mk_tmp)
+mkdir -p "$_COL/spec" "$_COL/scripts" "$_COL/.github/workflows"
+bash "$HELPER" --seed > "$_COL/spec/test-spec.md" 2>/dev/null
+cat > "$_COL/.github/workflows/ci.yml" <<'COL_WF'
+name: Consumer CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm test
+COL_WF
+# A husky-style installer at the reserved hooks path — NO `if install_hook` lines.
+cat > "$_COL/scripts/setup-hooks.sh" <<'COL_HK'
+#!/usr/bin/env bash
+# Consumer's own hook installer (husky-style) — not the workbench grammar.
+npx husky install
+COL_HK
+# The consumer's own preflight at the reserved validate path — NO `=== Check N:` banners.
+cat > "$_COL/scripts/validate.sh" <<'COL_VAL'
+#!/usr/bin/env bash
+# Consumer's own preflight — not the workbench check-banner grammar.
+npm run lint && npm run typecheck
+COL_VAL
+cat > "$_COL/spec/test-spec-custom.md" <<'COL_OVL'
+# test-spec-custom.md — consumer overlay (ci-family only)
+
+```yaml
+schema_version: 1
+units:
+  - id: consumer-ci-workflow
+    family: ci
+    label: "Consumer CI workflow — the PR gate"
+    anchor: "name: Consumer CI"
+    source: .github/workflows/ci.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The consumer's GitHub Actions workflow runs the suite on every PR."
+```
+COL_OVL
+_COL_OUT=$(REPO_ROOT="$_COL" TEST_SPEC_PATH="$_COL/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_COL/spec/test-spec-custom.md" bash "$HELPER" --check-coverage 2>&1); _COL_RC=$?
+if [ "$_COL_RC" -eq 0 ] \
+   && printf '%s' "$_COL_OUT" | grep -qF 'OK coverage' \
+   && ! printf '%s' "$_COL_OUT" | grep -qF 'FINDING: floor'; then
+  ok "case (d): reserved-path file in a non-workbench grammar (no rows in that family) -> NO floor false-fire (family-row gating)"
+else
+  fail_test "case (d) reserved-path collision false-fired a floor (rc=$_COL_RC): $_COL_OUT"
+fi
+
 echo
 if [ "$ERRORS" -eq 0 ]; then
   echo "PASS: test-spec"
