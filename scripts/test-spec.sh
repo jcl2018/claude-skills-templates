@@ -714,14 +714,47 @@ EOF
   # adopting repos via TEST_SPEC_REVERSE_FLOOR); the per-namespace floors
   # catch single-namespace rot the aggregate would mask (e.g. setup-hooks.sh
   # refactoring away the `if install_hook` shape loses only 2 of ~49 tokens).
+  #
+  # Surface-existence gating (D000035): a namespace's zero-token floor is a
+  # grammar-rot signal ONLY when that namespace's surface EXISTS on disk. A
+  # consumer repo that adopts the contract against its own surface (vitest
+  # *.test.ts + a workflow, with NO scripts/validate.sh / tests/*.test.sh /
+  # scripts/setup-hooks.sh) legitimately yields zero tokens in the absent
+  # namespaces — that is N/A, not rot. The global floor is calibrated to the
+  # FULL workbench shape, so it applies only when ALL FOUR surfaces are present;
+  # a partial/consumer surface set legitimately yields few tokens and relies on
+  # the surface-gated per-namespace floors instead. (Same `for ...; do [ -e
+  # "$x" ] && { ...; break; }; done` existence idiom the reverse sweep uses.)
+  _SURF_VALIDATE=0; [ -f "$REPO_ROOT_RESOLVED/scripts/validate.sh" ] && _SURF_VALIDATE=1
+  _SURF_TESTS=0
+  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+    [ -e "$_t" ] && { _SURF_TESTS=1; break; }
+  done
+  _SURF_WF=0
+  for _w in "$REPO_ROOT_RESOLVED"/.github/workflows/*.yml "$REPO_ROOT_RESOLVED"/.github/workflows/*.yaml; do
+    [ -e "$_w" ] && { _SURF_WF=1; break; }
+  done
+  _SURF_HOOKS=0; [ -f "$REPO_ROOT_RESOLVED/scripts/setup-hooks.sh" ] && _SURF_HOOKS=1
+  _SURFACES_PRESENT=$(( _SURF_VALIDATE + _SURF_TESTS + _SURF_WF + _SURF_HOOKS ))
+
   _FLOOR="${TEST_SPEC_REVERSE_FLOOR:-20}"
-  if [ "$_TOKENS" -lt "$_FLOOR" ]; then
+  # Global floor: fires only when the full workbench surface set is present (the
+  # floor value is calibrated to that shape; a partial set legitimately yields
+  # few tokens, so a flat global floor would false-fire there).
+  if [ "$_SURFACES_PRESENT" -eq 4 ] && [ "$_TOKENS" -lt "$_FLOOR" ]; then
     echo "FINDING: floor — reverse extraction yielded only $_TOKENS live token(s) (< $_FLOOR); the extraction grammar no longer matches the live surface"
     _FINDINGS=$((_FINDINGS + 1))
   fi
-  for _ns in "validate:$_NS_VALIDATE" "test-files:$_NS_TESTS" "workflows:$_NS_WF" "hooks:$_NS_HOOKS"; do
-    if [ "${_ns#*:}" -eq 0 ]; then
-      echo "FINDING: floor — reverse extraction yielded ZERO live tokens in the '${_ns%%:*}' namespace; that namespace's extraction grammar no longer matches the live surface"
+  # Per-namespace floors: fire on a PRESENT-but-zero-token namespace (genuine
+  # grammar rot); skip an ABSENT-surface namespace (consumer repo — N/A).
+  for _ns in "validate:$_NS_VALIDATE:$_SURF_VALIDATE" \
+             "test-files:$_NS_TESTS:$_SURF_TESTS" \
+             "workflows:$_NS_WF:$_SURF_WF" \
+             "hooks:$_NS_HOOKS:$_SURF_HOOKS"; do
+    _ns_name="${_ns%%:*}"; _ns_rest="${_ns#*:}"
+    _ns_count="${_ns_rest%%:*}"; _ns_surf="${_ns_rest#*:}"
+    if [ "$_ns_surf" -eq 1 ] && [ "$_ns_count" -eq 0 ]; then
+      echo "FINDING: floor — reverse extraction yielded ZERO live tokens in the '$_ns_name' namespace; that namespace's extraction grammar no longer matches the live surface"
       _FINDINGS=$((_FINDINGS + 1))
     fi
   done
