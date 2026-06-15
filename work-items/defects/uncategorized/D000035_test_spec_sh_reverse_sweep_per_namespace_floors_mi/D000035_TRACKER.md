@@ -79,3 +79,8 @@ test-spec.sh reverse-sweep per-namespace floors misfire in non-workbench consume
 
 ## Journal
 - 2026-06-15T16:54:49Z [auto-scaffolded] /CJ_goal_defect captured the bug as draft .inbox/test_spec_sh_reverse_sweep_per_namespace_floors_mi, then promoted to D000035 after /investigate populated the root cause.
+- 2026-06-15 [qa-smoke] 1 (regression cases a/b/c): green — `bash tests/test-spec.test.sh` printed "PASS: test-spec", exit 0; covers test-plan rows 1-3 (consumer-surface no-misfire, present-but-zero-token namespace still-fires, rules-only unchanged).
+- 2026-06-15 [qa-smoke] 4 (workbench coverage): green — `bash scripts/test-spec.sh --check-coverage` printed "OK coverage rows=69 reverse_tokens=49 findings=0", exit 0; no workbench regression.
+- 2026-06-15 [qa-smoke-summary] green: 2/2 non-manual rows green (0 manual rows pending)
+- 2026-06-15 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b ran inline; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
+- 2026-06-15 [qa-pass] D000035 (defect): green smoke from test-plan rows (2 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
