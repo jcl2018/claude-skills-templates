@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.79] - 2026-06-15
+
+### Added
+
+- **`skills-deploy install` now prunes orphaned `_cj-shared/scripts/*` shared scripts** (T000051). `install` deposits every source shared script (`scripts/*.sh` + `skills-update-check`) into `~/.claude/_cj-shared/scripts/` and manifest-tracks each under `.shared_scripts`, but a script later DELETED from source was never removed from the deployed home or the manifest — leaving dead orphans across reinstalls (observed: `test-pipeline.sh` retired by F000060; `gate-spec.sh` + `generate-doc-views.sh` by F000063; `cj-document-release-config.sh`). `do_install` now reconciles the deployed set against source after the deploy loop: each manifest-tracked `.shared_scripts` key with no source counterpart is removed from BOTH the deployed dir and the manifest, and the summary reports `Pruned: N`. The prune is keyed off the **manifest** (not a raw target scandir), so a hand-placed file the install never recorded is never touched (ownership safety), and it runs INSIDE the `[ -d "$SHARED_SCRIPTS_SRC" ]` guard so an unreadable source dir never wipes the deployed set. `skills-deploy doctor` gains a `--- Shared scripts ---` health section (ORPHAN / FAIL / WARN / OK) mirroring the Templates + Rules sections. Ownership-safe regression case — including a `doctor`-section assertion — added to `scripts/test-deploy.sh`; the `suite-test-deploy` purpose in `spec/test-spec-custom.md` and the CLAUDE.md Scripts-reference rows updated to match.
+
 ## [6.0.78] - 2026-06-15
 
 ### Fixed
