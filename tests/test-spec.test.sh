@@ -571,6 +571,64 @@ else
   fail_test "case (c) rules-only registry mis-handled (rc=$_RO2_RC): $_RO2_OUT"
 fi
 
+# Case (d) — reserved-path collision (D000035 strengthening). A non-workbench
+# consumer declares ONLY a ci-family unit (a workflow) but ALSO happens to have a
+# file at a reserved shell-surface path in a DIFFERENT grammar: a husky-style
+# scripts/setup-hooks.sh (no `if install_hook` lines) and its own scripts/validate.sh
+# (no `=== Check N:` banners). Path-existence ALONE would false-fire the 'validate'
+# and 'hooks' zero-token floors; gating each floor on "path present AND the registry
+# declares rows in that namespace's family" closes that residual. Expect: exit 0,
+# "OK coverage", NO floor findings (the consumer declares no validate/hook rows).
+_COL=$(mk_tmp)
+mkdir -p "$_COL/spec" "$_COL/scripts" "$_COL/.github/workflows"
+bash "$HELPER" --seed > "$_COL/spec/test-spec.md" 2>/dev/null
+cat > "$_COL/.github/workflows/ci.yml" <<'COL_WF'
+name: Consumer CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm test
+COL_WF
+# A husky-style installer at the reserved hooks path — NO `if install_hook` lines.
+cat > "$_COL/scripts/setup-hooks.sh" <<'COL_HK'
+#!/usr/bin/env bash
+# Consumer's own hook installer (husky-style) — not the workbench grammar.
+npx husky install
+COL_HK
+# The consumer's own preflight at the reserved validate path — NO `=== Check N:` banners.
+cat > "$_COL/scripts/validate.sh" <<'COL_VAL'
+#!/usr/bin/env bash
+# Consumer's own preflight — not the workbench check-banner grammar.
+npm run lint && npm run typecheck
+COL_VAL
+cat > "$_COL/spec/test-spec-custom.md" <<'COL_OVL'
+# test-spec-custom.md — consumer overlay (ci-family only)
+
+```yaml
+schema_version: 1
+units:
+  - id: consumer-ci-workflow
+    family: ci
+    label: "Consumer CI workflow — the PR gate"
+    anchor: "name: Consumer CI"
+    source: .github/workflows/ci.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The consumer's GitHub Actions workflow runs the suite on every PR."
+```
+COL_OVL
+_COL_OUT=$(REPO_ROOT="$_COL" TEST_SPEC_PATH="$_COL/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_COL/spec/test-spec-custom.md" bash "$HELPER" --check-coverage 2>&1); _COL_RC=$?
+if [ "$_COL_RC" -eq 0 ] \
+   && printf '%s' "$_COL_OUT" | grep -qF 'OK coverage' \
+   && ! printf '%s' "$_COL_OUT" | grep -qF 'FINDING: floor'; then
+  ok "case (d): reserved-path file in a non-workbench grammar (no rows in that family) -> NO floor false-fire (family-row gating)"
+else
+  fail_test "case (d) reserved-path collision false-fired a floor (rc=$_COL_RC): $_COL_OUT"
+fi
+
 echo
 if [ "$ERRORS" -eq 0 ]; then
   echo "PASS: test-spec"

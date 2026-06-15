@@ -716,15 +716,36 @@ EOF
   # refactoring away the `if install_hook` shape loses only 2 of ~49 tokens).
   #
   # Surface-existence gating (D000035): a namespace's zero-token floor is a
-  # grammar-rot signal ONLY when that namespace's surface EXISTS on disk. A
-  # consumer repo that adopts the contract against its own surface (vitest
-  # *.test.ts + a workflow, with NO scripts/validate.sh / tests/*.test.sh /
-  # scripts/setup-hooks.sh) legitimately yields zero tokens in the absent
-  # namespaces — that is N/A, not rot. The global floor is calibrated to the
-  # FULL workbench shape, so it applies only when ALL FOUR surfaces are present;
-  # a partial/consumer surface set legitimately yields few tokens and relies on
-  # the surface-gated per-namespace floors instead. (Same `for ...; do [ -e
-  # "$x" ] && { ...; break; }; done` existence idiom the reverse sweep uses.)
+  # grammar-rot signal ONLY when that namespace's surface is part of THIS repo's
+  # verification contract. A consumer repo that adopts the contract against its
+  # own surface (vitest *.test.ts + a workflow, with NO scripts/validate.sh /
+  # tests/*.test.sh / scripts/setup-hooks.sh) legitimately yields zero tokens in
+  # the namespaces it does not use — that is N/A, not rot.
+  #
+  # A namespace's surface counts as PRESENT for the floors only when BOTH hold:
+  #   (1) the surface file/dir exists on disk at the workbench's reserved path
+  #       (scripts/validate.sh / tests/*.test.sh / .github/workflows/ /
+  #       scripts/setup-hooks.sh), AND
+  #   (2) the merged registry declares >=1 unit row in that namespace's family
+  #       (validate / test / ci / hook) — the rows are what make us EXPECT live
+  #       tokens, so they are the direct signal that this repo contracts to
+  #       verify the namespace.
+  # Path-existence alone is too coarse: a non-workbench consumer that declares
+  # units AND happens to have a file at a reserved path in a DIFFERENT grammar
+  # (a husky-style scripts/setup-hooks.sh with no `if install_hook` lines, or its
+  # own scripts/validate.sh with no `=== Check N:` banners) would otherwise
+  # false-fire a zero-token floor it can only escape by renaming its file — the
+  # exact "misfire in a consumer repo" class this defect closes. Composing
+  # path-presence with family-row-presence closes that residual WITHOUT weakening
+  # the workbench (which declares rows in all four families): a present-yet-empty
+  # surface that the registry DOES claim (genuine grammar rot) still fires.
+  #
+  # The global <20-token floor is calibrated to the FULL workbench shape, so it
+  # applies only when ALL FOUR namespaces are present (path + rows); a
+  # partial/consumer set legitimately yields few tokens and relies on the
+  # surface-gated per-namespace floors instead. (Same `for ...; do [ -e "$x" ] &&
+  # { ...; break; }; done` existence idiom the reverse sweep uses; family-row
+  # counts via the same `awk -F'\t' '$2==<family>'` shape as the reverse sweep.)
   _SURF_VALIDATE=0; [ -f "$REPO_ROOT_RESOLVED/scripts/validate.sh" ] && _SURF_VALIDATE=1
   _SURF_TESTS=0
   for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
@@ -735,25 +756,39 @@ EOF
     [ -e "$_w" ] && { _SURF_WF=1; break; }
   done
   _SURF_HOOKS=0; [ -f "$REPO_ROOT_RESOLVED/scripts/setup-hooks.sh" ] && _SURF_HOOKS=1
-  _SURFACES_PRESENT=$(( _SURF_VALIDATE + _SURF_TESTS + _SURF_WF + _SURF_HOOKS ))
+
+  # Family-row counts: does the registry declare any unit in this namespace's family?
+  _FAM_VALIDATE=$(printf '%s\n' "$_UNITS" | awk -F'\t' '$2=="validate"{n++} END{print n+0}')
+  _FAM_TEST=$(printf '%s\n' "$_UNITS" | awk -F'\t' '$2=="test"{n++} END{print n+0}')
+  _FAM_CI=$(printf '%s\n' "$_UNITS" | awk -F'\t' '$2=="ci"{n++} END{print n+0}')
+  _FAM_HOOK=$(printf '%s\n' "$_UNITS" | awk -F'\t' '$2=="hook"{n++} END{print n+0}')
+
+  # Effective presence = path present AND the contract claims the namespace (rows).
+  _EFF_VALIDATE=0; [ "$_SURF_VALIDATE" -eq 1 ] && [ "$_FAM_VALIDATE" -ge 1 ] && _EFF_VALIDATE=1
+  _EFF_TESTS=0;    [ "$_SURF_TESTS" -eq 1 ]    && [ "$_FAM_TEST" -ge 1 ]    && _EFF_TESTS=1
+  _EFF_WF=0;       [ "$_SURF_WF" -eq 1 ]       && [ "$_FAM_CI" -ge 1 ]      && _EFF_WF=1
+  _EFF_HOOKS=0;    [ "$_SURF_HOOKS" -eq 1 ]    && [ "$_FAM_HOOK" -ge 1 ]    && _EFF_HOOKS=1
+  _SURFACES_PRESENT=$(( _EFF_VALIDATE + _EFF_TESTS + _EFF_WF + _EFF_HOOKS ))
 
   _FLOOR="${TEST_SPEC_REVERSE_FLOOR:-20}"
-  # Global floor: fires only when the full workbench surface set is present (the
-  # floor value is calibrated to that shape; a partial set legitimately yields
-  # few tokens, so a flat global floor would false-fire there).
+  # Global floor: fires only when the full workbench surface set is present (path
+  # + rows for all four; the floor value is calibrated to that shape — a partial
+  # set legitimately yields few tokens, so a flat global floor would false-fire).
   if [ "$_SURFACES_PRESENT" -eq 4 ] && [ "$_TOKENS" -lt "$_FLOOR" ]; then
     echo "FINDING: floor — reverse extraction yielded only $_TOKENS live token(s) (< $_FLOOR); the extraction grammar no longer matches the live surface"
     _FINDINGS=$((_FINDINGS + 1))
   fi
   # Per-namespace floors: fire on a PRESENT-but-zero-token namespace (genuine
-  # grammar rot); skip an ABSENT-surface namespace (consumer repo — N/A).
-  for _ns in "validate:$_NS_VALIDATE:$_SURF_VALIDATE" \
-             "test-files:$_NS_TESTS:$_SURF_TESTS" \
-             "workflows:$_NS_WF:$_SURF_WF" \
-             "hooks:$_NS_HOOKS:$_SURF_HOOKS"; do
+  # grammar rot — path present AND the registry claims it); skip a namespace the
+  # contract does not claim (surface absent, OR a reserved-path file the registry
+  # declares no rows for — a consumer's own unrelated script; N/A, not rot).
+  for _ns in "validate:$_NS_VALIDATE:$_EFF_VALIDATE" \
+             "test-files:$_NS_TESTS:$_EFF_TESTS" \
+             "workflows:$_NS_WF:$_EFF_WF" \
+             "hooks:$_NS_HOOKS:$_EFF_HOOKS"; do
     _ns_name="${_ns%%:*}"; _ns_rest="${_ns#*:}"
-    _ns_count="${_ns_rest%%:*}"; _ns_surf="${_ns_rest#*:}"
-    if [ "$_ns_surf" -eq 1 ] && [ "$_ns_count" -eq 0 ]; then
+    _ns_count="${_ns_rest%%:*}"; _ns_eff="${_ns_rest#*:}"
+    if [ "$_ns_eff" -eq 1 ] && [ "$_ns_count" -eq 0 ]; then
       echo "FINDING: floor — reverse extraction yielded ZERO live tokens in the '$_ns_name' namespace; that namespace's extraction grammar no longer matches the live surface"
       _FINDINGS=$((_FINDINGS + 1))
     fi

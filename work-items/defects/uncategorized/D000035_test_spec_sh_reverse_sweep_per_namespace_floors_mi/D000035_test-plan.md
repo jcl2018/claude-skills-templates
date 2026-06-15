@@ -21,6 +21,7 @@ Surface-existence-gate the reverse-sweep floor block in `_run_coverage()`
 | 2 | Present-but-zero-token namespace still fires | Full-surface fixture, `setup-hooks.sh` present but with no `if install_hook` lines. `--check-coverage` | exit 1, `FINDING: floor — ... ZERO live tokens in the 'hooks' namespace` | Pass |
 | 3 | Rules-only registry unchanged | Fixture with no `units:` rows. `--check-coverage` | exit 0, `coverage cross-check inactive`, no floor findings | Pass |
 | 4 | Workbench own coverage (no regression) | `bash scripts/test-spec.sh --check-coverage` in the workbench | `OK coverage rows=69 reverse_tokens=49 findings=0`, exit 0 | Pass |
+| 5 | Reserved-path collision (family-row gating) | Consumer declares only a `ci` row but has a husky `scripts/setup-hooks.sh` + own `scripts/validate.sh` (non-workbench grammar). `--check-coverage` | exit 0, `OK coverage`, NO floor findings (no rows in those families) | Pass |
 
 ## Verification Steps
 
