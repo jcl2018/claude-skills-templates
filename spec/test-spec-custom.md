@@ -861,7 +861,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci push-main manual"
-    purpose: "Template ownership, drift overwrite, copy-mode fallback and doctor verdicts in isolated temp homes; runs inside the test suite, in the Windows workflow, and by hand."
+    purpose: "Template ownership, drift overwrite, copy-mode fallback, shared-script orphan pruning (manifest-keyed, ownership-safe), and doctor verdicts (incl. the shared-scripts health section) in isolated temp homes; runs inside the test suite, in the Windows workflow, and by hand."
   - id: suite-eval
     family: eval
     label: "behavioral eval harness — headless skill evals"

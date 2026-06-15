@@ -1221,6 +1221,76 @@ else
 fi
 teardown_env
 
+# Test T000051: install prunes orphaned shared scripts (ownership-safe)
+# A prior install deposits each source shared script into _cj-shared/scripts/ and
+# manifest-tracks it under .shared_scripts. A script later DELETED from source was
+# never removed from the deployed home or the manifest. This case asserts a re-run
+# install prunes a manifest-tracked orphan (gone from source) from BOTH the target
+# and the manifest, leaves a real tracked script alone, and — critically — does NOT
+# touch a hand-placed file the install never recorded (ownership safety).
+echo "Test T000051: install prunes orphaned shared scripts (ownership-safe)"
+setup_env
+# Isolate the shared-scripts home to a temp dir so the real ~/.claude/_cj-shared/
+# is never touched (setup_env does not export this — set it here, restore after).
+SHARED_TARGET="$SKILLS_DEPLOY_TARGET/_cj-shared/scripts"
+export SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$SHARED_TARGET"
+"$DEPLOY" install >/dev/null 2>&1
+# A real source script must have deployed + been manifest-tracked.
+real_present_before=no
+[ -f "$SHARED_TARGET/cj-goal-common.sh" ] && \
+  jq -e '.shared_scripts["cj-goal-common.sh"]' "$SKILLS_DEPLOY_MANIFEST" >/dev/null 2>&1 && \
+  real_present_before=yes
+# Inject a manifest-TRACKED orphan (deployed file + manifest entry, no source).
+printf '#!/usr/bin/env bash\n# orphan\n' > "$SHARED_TARGET/zzz-orphan.sh"
+tmp_manifest=$(mktemp)
+jq '.shared_scripts["zzz-orphan.sh"] = {source_checksum: "deadbeef", installed_at: "2026-01-01T00:00:00Z"}' \
+  "$SKILLS_DEPLOY_MANIFEST" > "$tmp_manifest" && mv "$tmp_manifest" "$SKILLS_DEPLOY_MANIFEST"
+# Inject a hand-placed UNTRACKED file (NOT in the manifest) — must survive.
+printf '#!/usr/bin/env bash\n# handplaced\n' > "$SHARED_TARGET/zzz-handplaced.sh"
+t51_ok=yes
+# Before the prune: `skills-deploy doctor` must FLAG the manifest-tracked orphan
+# in its new `--- Shared scripts ---` health section (T000051 doctor coverage).
+# `|| true`: test-deploy runs under `set -e` and doctor may exit non-zero on
+# warnings — capture stdout without aborting the suite.
+doctor_before=$("$DEPLOY" doctor 2>&1) || true
+if ! printf '%s\n' "$doctor_before" | grep -q '^--- Shared scripts ---'; then
+  fail_test "doctor has no '--- Shared scripts ---' health section"; t51_ok=no
+fi
+if ! printf '%s\n' "$doctor_before" | grep -q 'ORPHAN: zzz-orphan.sh'; then
+  fail_test "doctor did not flag zzz-orphan.sh as ORPHAN before prune"; t51_ok=no
+fi
+# Re-run install — the prune fires.
+"$DEPLOY" install >/dev/null 2>&1
+if [ -f "$SHARED_TARGET/zzz-orphan.sh" ]; then
+  fail_test "orphan zzz-orphan.sh still on disk after prune"; t51_ok=no
+fi
+if jq -e '.shared_scripts["zzz-orphan.sh"]' "$SKILLS_DEPLOY_MANIFEST" >/dev/null 2>&1; then
+  fail_test "orphan zzz-orphan.sh still in manifest after prune"; t51_ok=no
+fi
+if [ ! -f "$SHARED_TARGET/zzz-handplaced.sh" ]; then
+  fail_test "hand-placed zzz-handplaced.sh was pruned (ownership safety violated)"; t51_ok=no
+fi
+if [ "$real_present_before" = yes ]; then
+  if [ ! -f "$SHARED_TARGET/cj-goal-common.sh" ] || \
+     ! jq -e '.shared_scripts["cj-goal-common.sh"]' "$SKILLS_DEPLOY_MANIFEST" >/dev/null 2>&1; then
+    fail_test "real tracked script cj-goal-common.sh was pruned"; t51_ok=no
+  fi
+fi
+# After the prune: doctor must NO LONGER flag the orphan, and must report the
+# surviving tracked script healthy (OK) in the shared-scripts health section.
+doctor_after=$("$DEPLOY" doctor 2>&1) || true
+if printf '%s\n' "$doctor_after" | grep -q 'ORPHAN: zzz-orphan.sh'; then
+  fail_test "doctor still flags zzz-orphan.sh as ORPHAN after prune"; t51_ok=no
+fi
+if [ "$real_present_before" = yes ] && ! printf '%s\n' "$doctor_after" | grep -q 'OK: cj-goal-common.sh'; then
+  fail_test "doctor did not report OK for the surviving tracked script after prune"; t51_ok=no
+fi
+if [ "$t51_ok" = yes ]; then
+  ok "orphan pruned (file + manifest), hand-placed survived, real script kept; doctor flagged ORPHAN before + cleared it after"
+fi
+unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
+teardown_env
+
 echo ""
 if [ "$ERRORS" -eq 0 ]; then
   echo "All tests passed."
