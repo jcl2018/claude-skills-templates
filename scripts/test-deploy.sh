@@ -1247,9 +1247,20 @@ jq '.shared_scripts["zzz-orphan.sh"] = {source_checksum: "deadbeef", installed_a
   "$SKILLS_DEPLOY_MANIFEST" > "$tmp_manifest" && mv "$tmp_manifest" "$SKILLS_DEPLOY_MANIFEST"
 # Inject a hand-placed UNTRACKED file (NOT in the manifest) — must survive.
 printf '#!/usr/bin/env bash\n# handplaced\n' > "$SHARED_TARGET/zzz-handplaced.sh"
+t51_ok=yes
+# Before the prune: `skills-deploy doctor` must FLAG the manifest-tracked orphan
+# in its new `--- Shared scripts ---` health section (T000051 doctor coverage).
+# `|| true`: test-deploy runs under `set -e` and doctor may exit non-zero on
+# warnings — capture stdout without aborting the suite.
+doctor_before=$("$DEPLOY" doctor 2>&1) || true
+if ! printf '%s\n' "$doctor_before" | grep -q '^--- Shared scripts ---'; then
+  fail_test "doctor has no '--- Shared scripts ---' health section"; t51_ok=no
+fi
+if ! printf '%s\n' "$doctor_before" | grep -q 'ORPHAN: zzz-orphan.sh'; then
+  fail_test "doctor did not flag zzz-orphan.sh as ORPHAN before prune"; t51_ok=no
+fi
 # Re-run install — the prune fires.
 "$DEPLOY" install >/dev/null 2>&1
-t51_ok=yes
 if [ -f "$SHARED_TARGET/zzz-orphan.sh" ]; then
   fail_test "orphan zzz-orphan.sh still on disk after prune"; t51_ok=no
 fi
@@ -1265,8 +1276,17 @@ if [ "$real_present_before" = yes ]; then
     fail_test "real tracked script cj-goal-common.sh was pruned"; t51_ok=no
   fi
 fi
+# After the prune: doctor must NO LONGER flag the orphan, and must report the
+# surviving tracked script healthy (OK) in the shared-scripts health section.
+doctor_after=$("$DEPLOY" doctor 2>&1) || true
+if printf '%s\n' "$doctor_after" | grep -q 'ORPHAN: zzz-orphan.sh'; then
+  fail_test "doctor still flags zzz-orphan.sh as ORPHAN after prune"; t51_ok=no
+fi
+if [ "$real_present_before" = yes ] && ! printf '%s\n' "$doctor_after" | grep -q 'OK: cj-goal-common.sh'; then
+  fail_test "doctor did not report OK for the surviving tracked script after prune"; t51_ok=no
+fi
 if [ "$t51_ok" = yes ]; then
-  ok "orphan pruned (file + manifest), hand-placed file survived, real script kept"
+  ok "orphan pruned (file + manifest), hand-placed survived, real script kept; doctor flagged ORPHAN before + cleared it after"
 fi
 unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
 teardown_env
