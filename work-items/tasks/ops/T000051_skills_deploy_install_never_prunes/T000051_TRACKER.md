@@ -76,6 +76,7 @@ blocked_by: ""
      what happened, not what should happen. -->
 
 - 2026-06-15: Created. Auto-scaffolded by /CJ_goal_todo_fix from TODOS.md ### `skills-deploy install` never prunes shared scripts deleted from source — orphaned `_cj-shared/scripts/*` accumulate (P3, S)
+- 2026-06-15: Implemented (commit `5348a5d`). `skills-deploy install` now prunes manifest-tracked `_cj-shared/scripts/*` orphans with no source counterpart (file + manifest), keyed off `.shared_scripts` keys so hand-placed untracked files are never touched; `doctor` gains a `--- Shared scripts ---` health section (ORPHAN/FAIL/WARN/OK). New regression case in `scripts/test-deploy.sh`. Verified: test-deploy + validate + full test.sh green, shellcheck clean. Orphans expected to clear on the next real install: `test-pipeline.sh`, `gate-spec.sh`, `generate-doc-views.sh`, `cj-document-release-config.sh`.
 
 ## PRs
 
