@@ -246,7 +246,29 @@ S60_BAD_FIXTURE
     fail_test "F000060: present-but-invalid registry did not fail closed with the no-config halt"
   fi
   rm -rf "$_S60_BAD"
-  ok "F000060 test-spec registry + coverage guards"
+  # F000066: the behavior-coverage axis. Live-tree positives — the dogfood
+  # behaviors[] + behavior_coverage[] in spec/test-spec-custom.md enumerate via
+  # the new --list-behaviors / --list-behavior-coverage subcommands and resolve
+  # clean (no behavior findings). The 6 deterministic checks (positive +
+  # negatives) live in tests/test-spec.test.sh §9; this block asserts the live
+  # dogfood is green + the new subcommands exist (the parallel-edit blind spot,
+  # defused: a new --check-coverage axis ships with its test.sh assertions).
+  _S60_NB=$(bash "$_S60_TS" --list-behaviors 2>/dev/null | { grep -c . || true; })
+  [ "${_S60_NB:-0}" -ge 8 ] || fail_test "F000066: --list-behaviors expected >= 8 dogfood behaviors, got ${_S60_NB:-0}"
+  _S60_NBC=$(bash "$_S60_TS" --list-behavior-coverage 2>/dev/null | { grep -c . || true; })
+  [ "${_S60_NBC:-0}" -ge 8 ] || fail_test "F000066: --list-behavior-coverage expected >= 8 covers, got ${_S60_NBC:-0}"
+  # The live dogfood resolves with no behavior findings (real anchored covers).
+  _S60_BCOV=$(bash "$_S60_TS" --check-coverage 2>&1)
+  printf '%s\n' "$_S60_BCOV" | grep -qF 'FINDING: behavior-coverage' \
+    && fail_test "F000066: live dogfood behaviors have a behavior-coverage finding: $_S60_BCOV"
+  # A units-only registry (the seed has no behaviors) reports the inactive note.
+  _S60_RO=$(mktemp -d)
+  bash "$_S60_TS" --seed > "$_S60_RO/test-spec.md" 2>/dev/null
+  _S60_BINACT=$(TEST_SPEC_PATH="$_S60_RO/test-spec.md" REPO_ROOT="$_S60_RO" bash "$_S60_TS" --check-coverage 2>&1)
+  printf '%s\n' "$_S60_BINACT" | grep -qF 'behavior coverage inactive' \
+    || fail_test "F000066: a no-behaviors registry did not report 'behavior coverage inactive'"
+  rm -rf "$_S60_RO"
+  ok "F000060 test-spec registry + coverage guards (+ F000066 behavior-coverage axis)"
 fi
 
 # Test: No duplicate skill names in catalog

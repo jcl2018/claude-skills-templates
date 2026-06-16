@@ -366,8 +366,12 @@ verification surface, check by check** — every validator check (both ID
 namespaces plus the warning checks), every registered test sub-suite and inline
 test family, the standalone suites, the CI workflows, and the git hooks — as
 `units:` rows, PLUS the per-mode pipeline-gate halts as a top-level `gates:`
-array. `scripts/test-spec.sh` merges everything internally; consumers see ONE
-verification contract.
+array, PLUS a behavior-coverage axis: `behaviors:` rows (open-world
+statements of WHAT the software must prove, each with a first-class `level` from
+the closed enum `{unit, integration, contract, workflow, property}`) and
+`behavior_coverage:` rows (each behavior linked to a test-bearing `units:` row
+plus a semantic-evidence source/anchor). `scripts/test-spec.sh` merges everything
+internally; consumers see ONE verification contract.
 
 **One contract, folded from two.** The former `spec/gate-spec.md`
 member (the LAYER map + the per-mode `gates[]`) and its `scripts/gate-spec.sh`
@@ -430,8 +434,11 @@ waivers journal as `[qa-audit-waived]`).
         | --list-units      |    |   (forward + reverse +      |
         | --list-layers     |    |    floor — HARD), then the  |
         | --list-gates      |    |   per-mode gate marker      |
-        | --check-coverage  |    |   drift cross-check         |
-        | --seed            |    |   (ADVISORY)                |
+        | --list-behaviors  |    |   drift cross-check         |
+        | --list-behavior-  |    |   (ADVISORY); + behavior-   |
+        |   coverage        |    |   coverage 6 checks when    |
+        | --check-coverage  |    |   behaviors: exist          |
+        | --seed            |    |                             |
         +---------+---------+    +-----------------------------+
                   |
                   v              /CJ_test_audit  (seed-deliver -> validate ->

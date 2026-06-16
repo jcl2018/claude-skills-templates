@@ -919,7 +919,13 @@ fi
 #             grammar rot can never make the check vacuously pass. The reverse
 #             sweep + floor are units-gated: a rules-only registry (a seeded
 #             consumer repo with no overlay) reports "coverage cross-check
-#             inactive" and passes — never a misleading finding.
+#             inactive" and passes — never a misleading finding;
+#   behavior — (F000066) when the overlay declares behaviors:, every
+#             behavior_coverage link resolves to one behavior + one test-bearing
+#             unit, every anchor greps live (grep -F), and every behavior has
+#             >= 1 covering row. Behaviors-gated INDEPENDENT of the units: gate;
+#             a no-behaviors repo reports "behavior coverage inactive". A
+#             behavior finding fails the SAME hard loop as a coverage finding.
 # THEN the ADVISORY gate marker-drift cross-check (was Check 22): for every gate
 # in the gates: array, for every mode key in its `markers` map, a literal
 # "[marker]" must appear in at least one of that mode's files
