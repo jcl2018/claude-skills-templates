@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.80] - 2026-06-15
+
+### Changed
+
+- **TODOS.md hygiene: struck through the `skills-deploy install` shared-script-prune row** (closed by T000051 / v6.0.79 / PR #275). A backlog-accuracy follow-up — the T000051 work shipped via a manual repo-faithful `/ship` (no `[via /CJ_goal_todo_fix]` auto-mark marker), so the row was left un-struck on `main`; this marks it DONE so `/CJ_suggest` no longer ranks it active. Docs-only.
+
 ## [6.0.79] - 2026-06-15
 
 ### Added
