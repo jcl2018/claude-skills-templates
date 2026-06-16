@@ -949,13 +949,15 @@ STAGE1_FINDINGS=<n>
 STAGE2_FINDINGS=<n>
 STAGE3_FINDINGS=<n>
 UNITS_AUDITED=<n>
+BEHAVIORS_AUDITED=<n>
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
 <the test-spec.sh --validate + --check-coverage output verbatim (or the
- units-inactive note); plus any stage1/ pre-stage FINDING lines>
+ units-inactive / behavior-inactive notes); plus any stage1/ pre-stage FINDING lines>
 --- stage 2: requirement compliance (agent-judged, inline) ---
-<per-rule + per-unit verdicts with cited evidence: `<id>: satisfies —
- <evidence> | n/a — <why> | FINDING: stage2/<id> — <detail>`>
+<per-rule + per-unit + per-behavior verdicts with cited evidence: `<id>: satisfies —
+ <evidence> | behavior:<id>: faithful — <evidence> | n/a — <why> |
+ FINDING: stage2/<id> — <detail> | FINDING: stage2/behavior:<id> — <detail>`>
 --- stage 3: implementation drift (agent-judged, inline) ---
 <ground-truth summary line, then `<surface|unit-id>: no-drift | FINDING:
  stage3/<id> — <named delta>`>

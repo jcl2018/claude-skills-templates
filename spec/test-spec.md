@@ -62,6 +62,46 @@ Two enforcement layers stand behind the rules:
   without covering test rows is a finding), layered ABOVE the deterministic
   floor, never replacing it.
 
+## The behavior-coverage axis (optional, overlay-only)
+
+The `rules:` + `layers:` + `units:` axes model the verification *plumbing*:
+where verification fires, whether the test inventory is honest, and one row per
+verification *mechanism*. None of them captures **what behavior the software
+must be proven to do** — the contract is *closed-world over existing tests*, so
+a behavior that *should* have a test but doesn't is structurally invisible.
+
+An adopting repo MAY add a third, orthogonal axis in its
+`test-spec-custom.md` overlay (these arrays are **optional-on-schema-1** and
+live overlay-only — the machine block in this general file is unchanged):
+
+- **`behaviors:`** — one row per *required behavior*: a stable `id`, a
+  one-line `statement` (specific enough to fail), a first-class `level`, and an
+  optional `area` / `purpose`. The `level` is the closed enum
+  `unit | integration | contract | workflow | property` — it lives on the
+  *obligation* (the behavior), NOT on a `units:` row, because one mechanism can
+  legitimately prove several levels.
+- **`behavior_coverage:`** — a many-to-many relation linking each behavior to a
+  test-bearing `unit` (family `test | test-deploy | eval | windows-smoke` —
+  never `validate | ci | hook`) plus a `source`/`anchor` pair pointing at the
+  *semantic evidence* (the behavior named in the test/spec text, not merely the
+  runner path).
+
+`test-spec.sh --check-coverage` mechanizes the **structure** of this axis when
+`behaviors:` rows exist (independent of the `units:` gate): every coverage link
+resolves to exactly one behavior and one test-bearing unit, every `anchor`
+greps live in its `source`, and every behavior has at least one covering row —
+so a declared-but-uncovered behavior becomes a detectable gap instead of
+silence. A repo with no `behaviors:` rows reports "behavior coverage inactive"
+and stays green.
+
+**Deterministic checks verify structure, not completeness.** The engine proves
+the links resolve and the anchor greps live; it does NOT prove the linked test
+*actually proves* the behavior (vs merely mentioning it), that the `level` is
+correct, or that one broad test isn't over-claimed against many behaviors. That
+substance judgment is the agent-judged test audit's job (`/CJ_test_audit`
+Stage 2) — load-bearing, because the deterministic half alone merely relocates
+the blind spot from untested code to vague behavior prose.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's

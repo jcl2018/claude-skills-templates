@@ -249,10 +249,12 @@ Row-granularity conventions the extraction grammar honors:
 `purpose` and `label` are single-line double-quoted strings (no YAML
 folding). The parser is `scripts/test-spec.sh`
 (`--validate | --list-rules | --list-units | --list-layers | --list-gates |
---check-coverage | --seed`), an awk-only reader; it resolves the general
+--list-behaviors | --list-behavior-coverage | --check-coverage | --seed`), an
+awk-only reader; it resolves the general
 registry `spec/test-spec.md` first, then a root `test-spec.md` fallback, and
 this overlay next to it. `--validate` additionally lints every `label` +
-`purpose` for the work-item-ID pattern, so an ID slip fails at the registry.
+`purpose` for the work-item-ID pattern (and every behavior's `statement` +
+`purpose`), so an ID slip fails at the registry.
 
 ### The `gates:` array (per-mode pipeline-gate rows)
 
@@ -274,12 +276,51 @@ A `gates[]` entry declares one pipeline-gate halt:
 - `backing` — free text: the live enforcement point.
 - `checks` — free text: what the gate proves.
 
+### The `behaviors:` and `behavior_coverage:` arrays (the behavior-coverage axis)
+
+Two more overlay-only arrays (optional-on-schema-1; the general file's machine
+block is unchanged) declare **what this repo's software must be proven to do**,
+orthogonal to the `units:` mechanism inventory. They dogfood the axis on
+`test-spec` itself.
+
+A `behaviors[]` entry declares one required behavior:
+
+- `id` — stable slug, unique across the merged registry, `[a-z0-9-]+`.
+- `statement` — a one-line required behavior, specific enough to fail.
+  **Work-item-ID-free** (the rendered-field lint covers `statement` + `purpose`).
+- `level` — the closed enum `unit | integration | contract | workflow |
+  property`; lives on the obligation, not the mechanism.
+- `area` — optional free-text bucket; PARSED-AND-IGNORED in v1 (no check or
+  consumer reads it; per-`area` reporting is the deferred Approach B).
+- `purpose` — optional, single-line, work-item-ID-free.
+
+A `behavior_coverage[]` entry is a many-to-many link (no `id`; rows key on
+`- behavior:`, the first field):
+
+- `behavior` — a `behaviors[].id`; must resolve to exactly one behavior.
+- `unit` — a `units[].id` whose `family` is test-bearing (`test | test-deploy |
+  eval | windows-smoke`); `validate | ci | hook` proofs are rejected.
+- `source` — the repo-relative file carrying the semantic evidence (the
+  behavior named in the test/spec text — not merely the runner path).
+- `anchor` — a literal grep string locating that evidence; matched LIVE via
+  fixed-string `grep -F` (NOT the family-shaped `_fwd_match` dispatcher). No
+  double quotes or tabs (parser constraint).
+
+`test-spec.sh --check-coverage` mechanizes the structure (links resolve, anchors
+grep live, every behavior has ≥1 cover) when `behaviors:` rows exist; a
+no-behaviors repo reports "behavior coverage inactive" and stays green.
+**Deterministic checks verify structure, not completeness** — whether the
+linked test *actually proves* the behavior (vs mentions it), whether the `level`
+is right, and whether one broad test over-claims many behaviors is the
+agent-judged `/CJ_test_audit` Stage-2 sub-check's job (findings prefixed
+`stage2/behavior:<id>`).
+
 ## Machine registry (overlay)
 
 ```yaml
-# test-spec custom overlay (units + gates merged into spec/test-spec.md by
-# scripts/test-spec.sh; consumed by validate.sh Check 24 --check-coverage +
-# the advisory per-mode marker-drift cross-check)
+# test-spec custom overlay (units + gates + behaviors + behavior_coverage merged
+# into spec/test-spec.md by scripts/test-spec.sh; consumed by validate.sh
+# Check 24 --check-coverage + the advisory per-mode marker-drift cross-check)
 schema_version: 1
 units:
   # ---- validate family: scripts/validate.sh error checks (comment-anchored) ----
@@ -1041,4 +1082,82 @@ gates:
     disposition: halt
     backing: "/ship Gate #2 (always human)"
     checks: "the change reaches a human before it merges (PR-stop + human merge)"
+behaviors:
+  # ---- the behavior-coverage axis, dogfooded on test-spec itself (F000066) ----
+  # WHAT the test-spec machinery must be proven to do. Each behavior links to a
+  # test-bearing unit (here the `test-spec suite` / `test-spec reconcile suite`
+  # rows) via a behavior_coverage row whose anchor greps live in the test file.
+  - id: seed-byte-identical
+    statement: "The general spec/test-spec.md is byte-identical to test-spec.sh --seed output."
+    level: contract
+    area: registry-integrity
+    purpose: "A drifted seed would break every consumer's self-bootstrap; the suite proves byte identity."
+  - id: absent-registry-is-distinct
+    statement: "An absent test-spec registry classifies as REGISTRY=absent + exit 0 (a machine-classifiable skip, never a halt)."
+    level: contract
+    area: consumer-parity
+    purpose: "Distinguishes a non-adopting repo from a broken one so callers skip rather than fail."
+  - id: present-invalid-registry-halts
+    statement: "A present-but-invalid registry fails closed with [test-spec-no-config] and a non-zero exit."
+    level: contract
+    area: registry-integrity
+    purpose: "A malformed registry must halt loudly, never silently degrade to a vacuous pass."
+  - id: overlay-merge-produces-one-registry
+    statement: "The general rules + the custom units overlay merge into one registry with unique ids across both tiers."
+    level: integration
+    area: two-tier-merge
+    purpose: "Consumers see ONE registry; a duplicate id across tiers is a guarded error."
+  - id: coverage-inactive-without-units
+    statement: "A rules-only registry (no units: rows) reports coverage cross-check inactive and stays green — no fabricated findings."
+    level: contract
+    area: consumer-parity
+    purpose: "A seeded consumer with no overlay must not see invented extraction-grammar findings."
+  - id: forward-anchor-drift-detected
+    statement: "A units: row whose anchor no longer greps live in its declared source is flagged by the forward check, naming the row and its source."
+    level: unit
+    area: coverage-cross-check
+    purpose: "A removed/renamed check or a de-wired test file orphans its row and is caught forward."
+  - id: reverse-orphan-test-surface-detected
+    statement: "A tests/*.test.sh file on disk with no registry row is flagged by the reverse sweep (single-owner)."
+    level: unit
+    area: coverage-cross-check
+    purpose: "An unregistered test file silently never runs; the reverse sweep makes it a hard finding."
+  - id: reverse-floor-prevents-vacuous-pass
+    statement: "An absurd TEST_SPEC_REVERSE_FLOOR makes the otherwise-clean reverse sweep fail loudly, proving the floor assert is alive and overridable."
+    level: property
+    area: coverage-cross-check
+    purpose: "Grammar rot can never make the reverse sweep vacuously pass while the token floor holds."
+behavior_coverage:
+  - behavior: seed-byte-identical
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "--seed == spec/test-spec.md byte-for-byte (the general file IS the seed)"
+  - behavior: absent-registry-is-distinct
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "absent registry: --validate prints REGISTRY=absent + exits 0 (machine-classifiable skip)"
+  - behavior: present-invalid-registry-halts
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "fails closed with [test-spec-no-config]"
+  - behavior: overlay-merge-produces-one-registry
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "overlay units, all ids unique"
+  - behavior: coverage-inactive-without-units
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "no units declared — coverage cross-check inactive"
+  - behavior: forward-anchor-drift-detected
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "forward check names the row + its source"
+  - behavior: reverse-orphan-test-surface-detected
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "reverse sweep flags it (no registry row)"
+  - behavior: reverse-floor-prevents-vacuous-pass
+    unit: test-test-spec
+    source: tests/test-spec.test.sh
+    anchor: "the floor finding fires (alive + overridable)"
 ```

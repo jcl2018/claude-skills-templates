@@ -1,6 +1,6 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine, unchanged mechanics): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), AND each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch). Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine, unchanged mechanics): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
 version: 0.3.0
 allowed-tools:
   - Bash
@@ -259,12 +259,44 @@ Stage 2's unique catch. Read the source at the anchor for any unit whose
 description looks doubtful; spot-coverage of every unit is not required, but
 every unit touched by the current change MUST be checked.
 
-Verdict grammar (one line per rule + one per judged unit):
+**4.3 — Per declared BEHAVIOR** (F000066; enumerate via `--list-behaviors`,
+present only when the overlay declares the behavior-coverage axis — skip this
+half cleanly with a one-line note when `--list-behaviors` is empty). This is
+the load-bearing substance half (premise P5): Stage 1's deterministic
+behavior-coverage checks only prove the links resolve and the `anchor` greps
+live — they CANNOT tell whether the linked test genuinely proves the behavior
+or merely mentions it. For each behavior, read its `statement` + `level` and
+the linked test at each `behavior_coverage` row's `source`/`anchor`, then judge
+(evidence-forced):
+
+- **Falsifiable / specific?** Is the `statement` specific enough that a real
+  regression would make it fail, or is it vague prose ("mutations work") that
+  could pass against almost anything? A statement so broad that no test could
+  disprove it is a finding.
+- **`level` correct?** Does the declared `level` (`unit | integration |
+  contract | workflow | property`) match what the linked test actually
+  exercises? A behavior marked `unit` but proven only by a broad end-to-end
+  smoke (or vice-versa) is a mis-level finding.
+- **Proves vs mentions?** Does the test at the anchor actually ASSERT the
+  behavior, or does the anchor merely appear in a comment / log string / unrelated
+  line? A `grep -F`-passing-but-semantically-empty anchor (the deterministic
+  check's blind spot) is the prime finding here.
+- **Over-claimed?** Is ONE broad test linked as the proof for MANY behaviors
+  such that it cannot really prove each? A single suite cited across several
+  distinct behaviors, none of which it specifically asserts, is over-claim
+  drift.
+
+Every behavior touched by the current change MUST be checked; spot-coverage of
+the rest is acceptable but call out any obviously vague/over-claimed row.
+
+Verdict grammar (one line per rule + one per judged unit + one per judged behavior):
 
 ```
 <rule-id|unit-id>: satisfies — <evidence cited>
 <rule-id|unit-id>: n/a — <why out of scope>
+behavior:<id>: faithful — <level + proves-the-statement evidence cited>
 FINDING: stage2/<rule-id|unit-id> — <clause/description not met: evidence>
+FINDING: stage2/behavior:<id> — <vague | mis-leveled | mentions-not-proves | over-claimed: evidence>
 ```
 
 Only `FINDING:` lines count toward `STAGE2_FINDINGS`.
@@ -315,6 +347,7 @@ STAGE1_FINDINGS=<n>
 STAGE2_FINDINGS=<n>
 STAGE3_FINDINGS=<n>
 UNITS_AUDITED=<n>         # --list-units count post-validate (0 = rules-only)
+BEHAVIORS_AUDITED=<n>     # --list-behaviors count (0 = no behavior-coverage axis)
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
 <any advisory RECONCILE: directive from Step 2 (duplicate — NOT a finding);
@@ -322,7 +355,7 @@ seeded: <yes|no>
  stage1/seed, stage1/registry pre-stage FINDING lines; and, under the standalone
  --reconcile flag, the engine's dedup report>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
-<per-rule + per-unit verdict lines + FINDING: stage2/... lines>
+<per-rule + per-unit + per-behavior verdict lines + FINDING: stage2/... lines>
 --- stage 3: implementation drift (agent-judged, fresh-context) ---
 <ground-truth summary line + verdict lines + FINDING: stage3/... lines>
 ```
@@ -354,4 +387,5 @@ section header with ONE line — `skipped: <reason>` — and its
 | Duplicate contract file | advisory `RECONCILE:` directive — NOT a finding, counts toward NO stage | Plain run points at the remedy + writes nothing; `--reconcile` (standalone) forwards to the engine dedup (test-spec has no legacy migration) |
 | Coverage findings | `FINDING: stage1/coverage — <engine line>` → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the surface just disagrees) |
 | No units declared | the named inactive note — never a finding | `UNITS_AUDITED=0`; Stage 2's unit half is vacuous, the rule half still runs |
+| No behaviors declared | the named "behavior coverage inactive" note — never a finding | `BEHAVIORS_AUDITED=0`; Stage 2's behavior half (4.3) is skipped cleanly with a one-line note |
 | Any findings | counted in their stage | reported, exit clean — findings are the product, not a crash |

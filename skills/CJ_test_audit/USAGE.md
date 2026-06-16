@@ -75,8 +75,13 @@ inactive" by name where they don't; findings carry the `stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence
 (`suite-green` names the freshest full-suite run; `new-code-tested` names the
-diff-vs-units comparison), AND each overlay UNIT's `purpose`/`label` is
-judged for truthfulness against the source at its anchor. **Stage 3
+diff-vs-units comparison), each overlay UNIT's `purpose`/`label` is
+judged for truthfulness against the source at its anchor, AND — when the overlay
+declares the behavior-coverage axis — each declared BEHAVIOR is judged for the
+substance the deterministic check can't reach (statement falsifiable/specific?
+`level` correct? the linked test proves vs merely mentions the behavior? one
+broad test over-claimed against many behaviors?), findings prefixed
+`stage2/behavior:<id>`. **Stage 3
 (implementation drift — agent-judged):** the live verification surfaces
 (tests on disk, validate banners, workflows, hooks) are enumerated first,
 then coverage-in-substance is judged — where Stage 1 proves a mapping EXISTS,

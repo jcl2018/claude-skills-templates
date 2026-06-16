@@ -338,6 +338,12 @@ _rebuild_fixture() {
     [ -e "$_tf" ] || continue
     : > "$_FIX/tests/$(basename "$_tf")"
   done
+  # The dogfood behaviors[] (F000066) anchor their semantic evidence in
+  # tests/test-spec.test.sh; the reverse sweep only needs each test file to
+  # EXIST (it greps scripts/test.sh for the runner path, not the file body), so
+  # copying the real test-spec.test.sh content keeps the fixture's behavior
+  # coverage clean WITHOUT affecting the units reverse sweep.
+  cp "$REPO_ROOT/tests/test-spec.test.sh" "$_FIX/tests/test-spec.test.sh"
   cp "$GENERAL" "$_FIX/spec/test-spec.md"
   cp "$OVERLAY" "$_FIX/spec/test-spec-custom.md"
 }
@@ -627,6 +633,278 @@ if [ "$_COL_RC" -eq 0 ] \
   ok "case (d): reserved-path file in a non-workbench grammar (no rows in that family) -> NO floor false-fire (family-row gating)"
 else
   fail_test "case (d) reserved-path collision false-fired a floor (rc=$_COL_RC): $_COL_OUT"
+fi
+
+# 9. the behavior-coverage axis (F000066): parser round-trip + the 6
+# deterministic checks (positive + negatives), temp-dir isolated. Checks 1-2
+# (schema/enum/id-unique) live in the shared registry gate; Checks 3-6
+# (link/family/anchor/>=1-cover) live in _run_coverage gated on behaviors:.
+echo
+echo "=== behavior-coverage axis (F000066) ==="
+
+# 9.0 — live dogfood: the workbench overlay declares behaviors that resolve.
+_LB=$(bash "$HELPER" --list-behaviors 2>/dev/null)
+_NLB=$(printf '%s\n' "$_LB" | grep -c . || true)
+if [ "${_NLB:-0}" -ge 8 ] \
+   && printf '%s\n' "$_LB" | grep -qx 'seed-byte-identical' \
+   && printf '%s\n' "$_LB" | grep -qx 'reverse-floor-prevents-vacuous-pass'; then
+  ok "--list-behaviors enumerates the $_NLB dogfood behaviors (>= 8)"
+else
+  fail_test "--list-behaviors wrong (n=$_NLB; got: $(printf '%s' "$_LB" | tr '\n' ' '))"
+fi
+_LBC=$(bash "$HELPER" --list-behavior-coverage 2>/dev/null)
+if [ "$(printf '%s\n' "$_LBC" | grep -c . || true)" -eq "$_NLB" ]; then
+  ok "--list-behavior-coverage enumerates one cover per dogfood behavior"
+else
+  fail_test "--list-behavior-coverage wrong ($(printf '%s' "$_LBC" | tr '\n' ' '))"
+fi
+# The live dogfood is coverage-clean (no behavior findings on the real tree).
+_BLIVE=$(bash "$HELPER" --check-coverage 2>&1)
+if printf '%s' "$_BLIVE" | grep -qF 'findings=0' \
+   && ! printf '%s' "$_BLIVE" | grep -qF 'FINDING: behavior-coverage'; then
+  ok "live dogfood behaviors resolve to real anchored test-bearing covers (no behavior findings)"
+else
+  fail_test "live dogfood behaviors have findings: $_BLIVE"
+fi
+
+# 9.1 — a hermetic behavior fixture: one test unit + one behavior with a good
+# cover. The test file carries the live-anchor token. Units coverage is clean
+# (only a test-family row + scripts/test.sh wiring; no validate/hook surfaces).
+_BFX=$(mk_tmp)
+mkdir -p "$_BFX/spec" "$_BFX/tests" "$_BFX/scripts"
+bash "$HELPER" --seed > "$_BFX/spec/test-spec.md" 2>/dev/null
+printf '#!/usr/bin/env bash\n# tests/foo.test.sh\nok "BEHAVIOR_EVIDENCE_TOKEN proves the thing"\n' > "$_BFX/tests/foo.test.sh"
+printf '#!/usr/bin/env bash\nbash tests/foo.test.sh\n' > "$_BFX/scripts/test.sh"
+_bfx_overlay() { cat > "$_BFX/spec/test-spec-custom.md"; }
+_bfx_run() {
+  REPO_ROOT="$_BFX" TEST_SPEC_PATH="$_BFX/spec/test-spec.md" \
+    TEST_SPEC_CUSTOM_PATH="$_BFX/spec/test-spec-custom.md" bash "$HELPER" "$@" 2>&1
+}
+_BFX_UNIT='units:
+  - id: test-foo
+    family: test
+    label: "Foo suite"
+    anchor: "tests/foo.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "Foo behavior."'
+
+# 9.1a — positive: a good behavior + cover is coverage-clean.
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: unit
+behavior_coverage:
+  - behavior: good-behavior
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_POS=$(_bfx_run --check-coverage); _B_POS_RC=$?
+if [ "$_B_POS_RC" -eq 0 ] && printf '%s' "$_B_POS" | grep -qF 'findings=0' \
+   && ! printf '%s' "$_B_POS" | grep -qF 'FINDING: behavior-coverage'; then
+  ok "behavior positive: a good behavior + anchored test-bearing cover is coverage-clean"
+else
+  fail_test "behavior positive not clean (rc=$_B_POS_RC): $_B_POS"
+fi
+
+# 9.1b — Check 2 negative: a bad level halts --validate with [test-spec-no-config].
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: e2e
+behavior_coverage:
+  - behavior: good-behavior
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_LVL=$(_bfx_run --validate); _B_LVL_RC=$?
+if [ "$_B_LVL_RC" -ne 0 ] && printf '%s' "$_B_LVL" | grep -qF '[test-spec-no-config]' \
+   && printf '%s' "$_B_LVL" | grep -qF 'level'; then
+  ok "behavior Check 2: a level outside the enum halts --validate with [test-spec-no-config]"
+else
+  fail_test "behavior bad-level did not halt (rc=$_B_LVL_RC): $_B_LVL"
+fi
+
+# 9.1b' — Check 1 negative: a duplicate behavior id halts --validate.
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: dup-behavior
+    statement: "One."
+    level: unit
+  - id: dup-behavior
+    statement: "Two."
+    level: unit
+behavior_coverage:
+  - behavior: dup-behavior
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_DUP=$(_bfx_run --validate); _B_DUP_RC=$?
+if [ "$_B_DUP_RC" -ne 0 ] && printf '%s' "$_B_DUP" | grep -qF 'duplicate behavior id'; then
+  ok "behavior Check 1: a duplicate behavior id halts --validate"
+else
+  fail_test "behavior dup-id did not halt (rc=$_B_DUP_RC): $_B_DUP"
+fi
+
+# 9.1c — Check 3 negative: a dangling behavior ref (typo) is a finding.
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: unit
+behavior_coverage:
+  - behavior: good-behaviorr
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_DANG=$(_bfx_run --check-coverage); _B_DANG_RC=$?
+if [ "$_B_DANG_RC" -ne 0 ] && printf '%s' "$_B_DANG" | grep -qF "behavior 'good-behaviorr' resolves to 0 behaviors"; then
+  ok "behavior Check 3: a dangling behavior ref (typo) is a finding"
+else
+  fail_test "behavior dangling-ref not flagged (rc=$_B_DANG_RC): $_B_DANG"
+fi
+
+# 9.1d — Check 4 negative: a non-test-bearing (ci-family) proof unit is a finding.
+mkdir -p "$_BFX/.github/workflows"
+printf 'name: Drill CI\non: [push]\n' > "$_BFX/.github/workflows/ci.yml"
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+  - id: ci-drill
+    family: ci
+    label: "Drill CI workflow"
+    anchor: "name: Drill CI"
+    source: .github/workflows/ci.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "CI."
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: unit
+behavior_coverage:
+  - behavior: good-behavior
+    unit: ci-drill
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_FAM=$(_bfx_run --check-coverage); _B_FAM_RC=$?
+if [ "$_B_FAM_RC" -ne 0 ] && printf '%s' "$_B_FAM" | grep -qF "has family 'ci' (not test-bearing)"; then
+  ok "behavior Check 4: a non-test-bearing (ci) proof unit is a finding"
+else
+  fail_test "behavior non-test-bearing-family not flagged (rc=$_B_FAM_RC): $_B_FAM"
+fi
+rm -f "$_BFX/.github/workflows/ci.yml"
+
+# 9.1e — Check 5 negative: an anchor that does not grep live (grep -F miss).
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: unit
+behavior_coverage:
+  - behavior: good-behavior
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "TOKEN_NOT_PRESENT_IN_THE_FILE"
+\`\`\`
+EOF
+_B_ANC=$(_bfx_run --check-coverage); _B_ANC_RC=$?
+if [ "$_B_ANC_RC" -ne 0 ] && printf '%s' "$_B_ANC" | grep -qF 'anchor not found LIVE (grep -F)'; then
+  ok "behavior Check 5: an anchor that does not grep live is a finding"
+else
+  fail_test "behavior dead-anchor not flagged (rc=$_B_ANC_RC): $_B_ANC"
+fi
+
+# 9.1f — Check 6 negative: a behavior with zero coverage rows is a finding.
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+behaviors:
+  - id: good-behavior
+    statement: "Foo does the thing."
+    level: unit
+  - id: orphan-behavior
+    statement: "Nothing proves this."
+    level: unit
+behavior_coverage:
+  - behavior: good-behavior
+    unit: test-foo
+    source: tests/foo.test.sh
+    anchor: "BEHAVIOR_EVIDENCE_TOKEN proves the thing"
+\`\`\`
+EOF
+_B_ORPH=$(_bfx_run --check-coverage); _B_ORPH_RC=$?
+if [ "$_B_ORPH_RC" -ne 0 ] && printf '%s' "$_B_ORPH" | grep -qF "behavior 'orphan-behavior' has no behavior_coverage row"; then
+  ok "behavior Check 6: a behavior with zero coverage rows is a finding"
+else
+  fail_test "behavior uncovered not flagged (rc=$_B_ORPH_RC): $_B_ORPH"
+fi
+
+# 9.2 — behaviors-gated inactivity: a units-only registry (no behaviors:) reports
+# "behavior coverage inactive" and stays green (parity with units-gated reverse).
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+$_BFX_UNIT
+\`\`\`
+EOF
+_B_INACT=$(_bfx_run --check-coverage); _B_INACT_RC=$?
+if [ "$_B_INACT_RC" -eq 0 ] && printf '%s' "$_B_INACT" | grep -qF 'behavior coverage inactive'; then
+  ok "behaviors-gated: a units-only registry reports 'behavior coverage inactive' + exit 0"
+else
+  fail_test "behaviors inactivity note missing on a units-only registry (rc=$_B_INACT_RC): $_B_INACT"
+fi
+
+# 9.3 — independent gate: a registry with behaviors but NO units still runs the
+# behavior checks (a declared-but-uncovered behavior is the open-world gap).
+_bfx_overlay <<EOF
+\`\`\`yaml
+schema_version: 1
+behaviors:
+  - id: lonely-behavior
+    statement: "Proven by nothing."
+    level: unit
+\`\`\`
+EOF
+_B_INDEP=$(_bfx_run --check-coverage); _B_INDEP_RC=$?
+if [ "$_B_INDEP_RC" -ne 0 ] \
+   && printf '%s' "$_B_INDEP" | grep -qF 'coverage cross-check inactive' \
+   && printf '%s' "$_B_INDEP" | grep -qF "behavior 'lonely-behavior' has no behavior_coverage row"; then
+  ok "independent gate: behaviors with no units still run (uncovered behavior flagged despite no units)"
+else
+  fail_test "behavior gate not independent of units (rc=$_B_INDEP_RC): $_B_INDEP"
 fi
 
 echo

@@ -36,6 +36,10 @@
 #   --list-layers      echo every declared layer id (general layers[]; sorted).
 #   --list-gates       echo every declared gate id (overlay gates[]; sorted;
 #                      empty when no overlay declares gates).
+#   --list-behaviors   echo every declared behavior id (overlay behaviors[];
+#                      registry order; empty when no overlay declares behaviors).
+#   --list-behavior-coverage  echo every behavior_coverage row's `behavior` key
+#                      (registry order; empty when no overlay declares any).
 #   --check-coverage   the Check 24 engine. Forward: every unit's `anchor`
 #                      must match LIVE in its declared `source` file. Reverse:
 #                      every live `=== Check N:` banner / `# Error check N:` /
@@ -49,7 +53,17 @@
 #                      rows exist — a rules-only registry (the seeded consumer
 #                      default) prints a named "coverage cross-check inactive"
 #                      note + exits 0 instead of inventing extraction findings.
-#                      Findings print as `FINDING: ...` lines; exit 1 on any.
+#                      Also runs the behavior-coverage conformance (F000066)
+#                      when behaviors: rows exist (gated INDEPENDENT of units:):
+#                      every behavior_coverage.behavior resolves to one
+#                      behaviors row; every .unit resolves to one test-bearing
+#                      units row (family in {test, test-deploy, eval,
+#                      windows-smoke}); .source exists + .anchor greps LIVE
+#                      (fixed-string grep -F); every behaviors row has >=1
+#                      coverage row. No behaviors: => "behavior coverage
+#                      inactive" + exit 0 (behaviors do NOT participate in the
+#                      reverse floor). Findings print as `FINDING: ...` lines;
+#                      exit 1 on any.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -153,7 +167,7 @@ _parse_rules_file() {
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
     /^rules:/                  { in_rules=1; next }
-    /^(units|layers|gates):/   { flush(); in_rules=0; next }
+    /^(units|layers|gates|behaviors|behavior_coverage):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -210,7 +224,7 @@ _parse_units_file() {
       cur_purpose=""
     }
     /^units:/                  { in_units=1; next }
-    /^(rules|layers|gates):/   { flush(); in_units=0; next }
+    /^(rules|layers|gates|behaviors|behavior_coverage):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -251,7 +265,7 @@ _parse_layers_file() {
       cur_id=""; cur_name=""; cur_disp=""
     }
     /^layers:/                 { in_layers=1; next }
-    /^(rules|units|gates):/    { flush(); in_layers=0; next }
+    /^(rules|units|gates|behaviors|behavior_coverage):/    { flush(); in_layers=0; next }
     !in_layers                 { next }
     /^[[:space:]]*#/           { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -289,7 +303,7 @@ _parse_gates_file() {
       cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
     }
     /^gates:/                  { in_gates=1; next }
-    /^(rules|units|layers):/   { flush(); in_gates=0; next }
+    /^(rules|units|layers|behaviors|behavior_coverage):/   { flush(); in_gates=0; next }
     !in_gates                  { next }
     # A new gate entry.
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
@@ -339,6 +353,98 @@ EOF
   true
 }
 
+# Parse one file's behaviors[] block into TSV rows (5 columns):
+#   id, statement, level, area, purpose
+# Flag-based, key-anchored — keys on `- id:` like rules/units (a behavior HAS
+# an id). statement/purpose are quoted single-line values stripped of the
+# `key: "…"` wrapper; level/area are bare tokens. The optional area/purpose
+# use the same nz()/`-` empty-field placeholder discipline as the units parser
+# (tab-IFS collapses empty fields and shifts columns otherwise).
+_parse_behaviors_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_id != "") {
+        printf "%s\t%s\t%s\t%s\t%s\n", nz(cur_id), nz(cur_stmt), nz(cur_level), nz(cur_area), nz(cur_purpose)
+      }
+      cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""
+    }
+    /^behaviors:/                                                { in_b=1; next }
+    /^(rules|units|layers|gates|behavior_coverage):/             { flush(); in_b=0; next }
+    !in_b              { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
+    /^[[:space:]]*statement:/ { cur_stmt=strip($0); next }
+    /^[[:space:]]*level:/     { cur_level=$2; next }
+    /^[[:space:]]*area:/      { cur_area=strip($0); next }
+    /^[[:space:]]*purpose:/   { cur_purpose=strip($0); next }
+    END { if (in_b) flush() }
+  '
+}
+
+# Merged behaviors TSV across general + overlay (in practice only the overlay
+# carries behaviors — the general seed is rules: + layers: only).
+_parse_behaviors() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_behaviors_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's behavior_coverage[] block into TSV rows (4 columns):
+#   behavior, unit, source, anchor
+# Flag-based, key-anchored — UNLIKE every other block, behavior_coverage rows
+# carry NO id; the per-row flush keys on the FIRST field, `- behavior:`
+# (mirroring how rules/units key on `- id:`). anchor is a quoted single-line
+# value stripped of the wrapper; behavior/unit/source are bare tokens.
+_parse_behavior_coverage_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_b != "") {
+        printf "%s\t%s\t%s\t%s\n", nz(cur_b), nz(cur_unit), nz(cur_src), nz(cur_anchor)
+      }
+      cur_b=""; cur_unit=""; cur_src=""; cur_anchor=""
+    }
+    /^behavior_coverage:/                              { in_bc=1; next }
+    /^(rules|units|layers|gates|behaviors):/           { flush(); in_bc=0; next }
+    !in_bc             { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*behavior:/ { flush(); cur_b=$3; next }
+    /^[[:space:]]*unit:/   { cur_unit=$2; next }
+    /^[[:space:]]*source:/ { cur_src=$2; next }
+    /^[[:space:]]*anchor:/ { cur_anchor=strip($0); next }
+    END { if (in_bc) flush() }
+  '
+}
+
+# Merged behavior_coverage TSV across general + overlay (overlay-only in
+# practice).
+_parse_behavior_coverage() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_behavior_coverage_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
 # ---- Validation gates (run for every registry-reading subcommand) ----
 _run_registry_gates() {
   [ -f "$TEST_SPEC_PATH" ] || _emit_absent_and_exit
@@ -370,6 +476,8 @@ EOF
   _UNITS=$(_parse_units)
   _LAYERS=$(_parse_layers)
   _GATES=$(_parse_gates)
+  _BEHAVIORS=$(_parse_behaviors)
+  _BEHAVIOR_COVERAGE=$(_parse_behavior_coverage)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -385,6 +493,11 @@ EOF
     _N_G=$(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_GU=$(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_G" -eq "$_N_GU" ] || emit_halt "duplicate gate id(s): $(printf '%s\n' "$_GATES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_BEHAVIORS" ]; then
+    _N_B=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_BU=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_B" -eq "$_N_BU" ] || emit_halt "duplicate behavior id(s): $(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -456,6 +569,37 @@ EOF
       done
     done <<EOF
 $_GATES
+EOF
+  fi
+
+  # Per-behavior required keys + the closed level enum + the rendered-field
+  # work-item-ID lint (behaviors[] Checks 1-2; in the SHARED gate so a malformed
+  # behaviors block halts --validate / --list-* / --check-coverage alike). Runs
+  # INDEPENDENT of the units: gate — a repo may declare behaviors with no units.
+  if [ -n "$_BEHAVIORS" ]; then
+    while IFS="$(printf '\t')" read -r _bid _bstmt _blevel _barea _bpurpose; do
+      [ -n "$_bid" ] || continue
+      # Normalize the `-` empty-field placeholders back to "".
+      [ "$_bstmt" = "-" ] && _bstmt=""
+      [ "$_blevel" = "-" ] && _blevel=""
+      [ "$_barea" = "-" ] && _barea=""
+      [ "$_bpurpose" = "-" ] && _bpurpose=""
+      case "$_bid" in
+        *[!a-z0-9-]*) emit_halt "behavior id '$_bid' is not a slug ([a-z0-9-]+ only)" ;;
+      esac
+      [ -n "$_bstmt" ]  || emit_halt "behavior '$_bid' is missing 'statement'"
+      [ -n "$_blevel" ] || emit_halt "behavior '$_bid' is missing 'level'"
+      case "$_blevel" in
+        unit|integration|contract|workflow|property) : ;;
+        *) emit_halt "behavior '$_bid' has level '$_blevel' outside the closed enum {unit, integration, contract, workflow, property}" ;;
+      esac
+      # Rendered-field work-item-ID lint: statement + purpose are the rendered
+      # fields (like a unit's label/purpose); they must be ID-free.
+      if printf '%s %s' "$_bstmt" "$_bpurpose" | grep -qE '[FSTD][0-9]{6}'; then
+        emit_halt "behavior '$_bid' carries a work-item ID in a rendered field (statement/purpose must be ID-free)"
+      fi
+    done <<EOF
+$_BEHAVIORS
 EOF
   fi
 
@@ -535,15 +679,98 @@ $_UNITS
 EOF
 }
 
+# ---- Behavior coverage conformance (Checks 3-6; gated on behaviors: existing,
+# INDEPENDENT of the units: gate). Behaviors declare WHAT the software must
+# prove (open-world); behavior_coverage[] links each to a test-bearing unit +
+# a semantic-evidence source/anchor. The four checks:
+#   (3) every behavior_coverage.behavior resolves to EXACTLY ONE behaviors row;
+#   (4) every behavior_coverage.unit resolves to one units row whose family is
+#       test-bearing {test, test-deploy, eval, windows-smoke} (reject
+#       validate|ci|hook — those are not behavior proofs);
+#   (5) behavior_coverage.source exists AND anchor matches LIVE via FIXED-STRING
+#       grep -F (behavior anchors are arbitrary semantic-evidence prose, NOT the
+#       family-shaped `=== Check N` / runner-path shapes _fwd_match dispatches);
+#   (6) every behaviors row has >=1 behavior_coverage row.
+# Behaviors do NOT participate in the >=20-token reverse floor (no reverse
+# sweep). Increments the shared _FINDINGS counter set by the caller.
+_run_behavior_coverage() {
+  # (3) + (4) + (5): per behavior_coverage row.
+  while IFS="$(printf '\t')" read -r _cb _cunit _csrc _canchor; do
+    [ -n "$_cb" ] || continue
+    [ "$_csrc" = "-" ] && _csrc=""
+    [ "$_canchor" = "-" ] && _canchor=""
+    # (3) behavior resolves to exactly one behaviors row.
+    _c=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' -v want="$_cb" '$1 == want' | grep -c . || true)
+    if [ "$_c" -ne 1 ]; then
+      echo "FINDING: behavior-coverage — coverage row behavior '$_cb' resolves to $_c behaviors[] row(s); want exactly one (a dangling typo = 0, a duplicate = 2+)"
+      _FINDINGS=$((_FINDINGS + 1))
+    fi
+    # (4) unit resolves to exactly one units row in a test-bearing family.
+    _uc=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_cunit" '$1 == want' | grep -c . || true)
+    if [ "$_uc" -ne 1 ]; then
+      echo "FINDING: behavior-coverage — behavior '$_cb' proof unit '$_cunit' resolves to $_uc units[] row(s); want exactly one"
+      _FINDINGS=$((_FINDINGS + 1))
+    else
+      _ufam=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_cunit" '$1 == want {print $2; exit}')
+      case "$_ufam" in
+        test|test-deploy|eval|windows-smoke) : ;;
+        *)
+          echo "FINDING: behavior-coverage — behavior '$_cb' proof unit '$_cunit' has family '$_ufam' (not test-bearing); a behavior proof must point at a {test, test-deploy, eval, windows-smoke} unit, never validate|ci|hook"
+          _FINDINGS=$((_FINDINGS + 1))
+          ;;
+      esac
+    fi
+    # (5) source exists AND anchor greps LIVE via fixed-string grep -F.
+    _csrc_abs="$REPO_ROOT_RESOLVED/$_csrc"
+    if [ -z "$_csrc" ] || [ ! -f "$_csrc_abs" ]; then
+      echo "FINDING: behavior-coverage — behavior '$_cb' coverage source '$_csrc' does not exist"
+      _FINDINGS=$((_FINDINGS + 1))
+    elif ! grep -qF -- "$_canchor" "$_csrc_abs"; then
+      echo "FINDING: behavior-coverage — behavior '$_cb' anchor not found LIVE (grep -F) in $_csrc (the behavior is not named in the test/spec text there): $_canchor"
+      _FINDINGS=$((_FINDINGS + 1))
+    fi
+  done <<EOF
+$_BEHAVIOR_COVERAGE
+EOF
+
+  # (6) every behaviors row has >=1 behavior_coverage row.
+  while IFS="$(printf '\t')" read -r _bid _rest; do
+    [ -n "$_bid" ] || continue
+    _cc=$(printf '%s\n' "$_BEHAVIOR_COVERAGE" | awk -F'\t' -v want="$_bid" '$1 == want' | grep -c . || true)
+    if [ "$_cc" -lt 1 ]; then
+      echo "FINDING: behavior-coverage — behavior '$_bid' has no behavior_coverage row (a declared behavior with zero covering test is the open-world gap this axis exists to catch)"
+      _FINDINGS=$((_FINDINGS + 1))
+    fi
+  done <<EOF
+$_BEHAVIORS
+EOF
+}
+
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
 # Forward + reverse + floor. Findings print as `FINDING: ...`; the summary line
 # is the last line either way. Exit 1 on any finding. The reverse sweep + floor
 # apply ONLY when units: rows exist (the units-gated contract): a rules-only
 # registry — the seeded consumer default — prints a named inactive note + exits
-# 0 instead of misleading extraction-grammar findings.
+# 0 instead of misleading extraction-grammar findings. The behavior-coverage
+# conformance (Checks 3-6) is gated on behaviors: existing, INDEPENDENT of the
+# units: gate: a no-behaviors repo prints "behavior coverage inactive" + exit 0.
 _run_coverage() {
   if [ -z "$_UNITS" ]; then
     echo "no units declared — coverage cross-check inactive; declare units in spec/test-spec-custom.md to activate"
+    # The behavior axis is independent of units: a repo could declare behaviors
+    # with no units overlay. Run the behavior conformance even on the no-units
+    # path so a declared behavior is never silently unverified.
+    if [ -n "$_BEHAVIORS" ]; then
+      _FINDINGS=0
+      _run_behavior_coverage
+      if [ "$_FINDINGS" -gt 0 ]; then
+        echo "BEHAVIOR-COVERAGE: findings=$_FINDINGS"
+        return 1
+      fi
+      echo "OK behavior-coverage findings=0"
+    else
+      echo "no behaviors declared — behavior coverage inactive; declare behaviors in spec/test-spec-custom.md to activate"
+    fi
     return 0
   fi
 
@@ -794,6 +1021,16 @@ EOF
     fi
   done
 
+  # Behavior coverage (Checks 3-6), gated on behaviors: existing. Runs in the
+  # SAME hard loop — its findings add to _FINDINGS so a bad behavior link fails
+  # the gate alongside a units coverage finding. A no-behaviors repo emits the
+  # named inactive note (parity with the units-gated reverse-sweep inactivity).
+  if [ -n "$_BEHAVIORS" ]; then
+    _run_behavior_coverage
+  else
+    echo "no behaviors declared — behavior coverage inactive; declare behaviors in spec/test-spec-custom.md to activate"
+  fi
+
   if [ "$_FINDINGS" -gt 0 ]; then
     echo "COVERAGE: findings=$_FINDINGS (rows=$_ROWCOUNT reverse_tokens=$_TOKENS)"
     return 1
@@ -979,6 +1216,46 @@ Two enforcement layers stand behind the rules:
   without covering test rows is a finding), layered ABOVE the deterministic
   floor, never replacing it.
 
+## The behavior-coverage axis (optional, overlay-only)
+
+The `rules:` + `layers:` + `units:` axes model the verification *plumbing*:
+where verification fires, whether the test inventory is honest, and one row per
+verification *mechanism*. None of them captures **what behavior the software
+must be proven to do** — the contract is *closed-world over existing tests*, so
+a behavior that *should* have a test but doesn't is structurally invisible.
+
+An adopting repo MAY add a third, orthogonal axis in its
+`test-spec-custom.md` overlay (these arrays are **optional-on-schema-1** and
+live overlay-only — the machine block in this general file is unchanged):
+
+- **`behaviors:`** — one row per *required behavior*: a stable `id`, a
+  one-line `statement` (specific enough to fail), a first-class `level`, and an
+  optional `area` / `purpose`. The `level` is the closed enum
+  `unit | integration | contract | workflow | property` — it lives on the
+  *obligation* (the behavior), NOT on a `units:` row, because one mechanism can
+  legitimately prove several levels.
+- **`behavior_coverage:`** — a many-to-many relation linking each behavior to a
+  test-bearing `unit` (family `test | test-deploy | eval | windows-smoke` —
+  never `validate | ci | hook`) plus a `source`/`anchor` pair pointing at the
+  *semantic evidence* (the behavior named in the test/spec text, not merely the
+  runner path).
+
+`test-spec.sh --check-coverage` mechanizes the **structure** of this axis when
+`behaviors:` rows exist (independent of the `units:` gate): every coverage link
+resolves to exactly one behavior and one test-bearing unit, every `anchor`
+greps live in its `source`, and every behavior has at least one covering row —
+so a declared-but-uncovered behavior becomes a detectable gap instead of
+silence. A repo with no `behaviors:` rows reports "behavior coverage inactive"
+and stays green.
+
+**Deterministic checks verify structure, not completeness.** The engine proves
+the links resolve and the anchor greps live; it does NOT prove the linked test
+*actually proves* the behavior (vs merely mentioning it), that the `level` is
+correct, or that one broad test isn't over-claimed against many behaviors. That
+substance judgment is the agent-judged test audit's job (`/CJ_test_audit`
+Stage 2) — load-bearing, because the deterministic half alone merely relocates
+the blind spot from untested code to vague behavior prose.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
@@ -1089,6 +1366,16 @@ case "${1:-}" in
     [ -n "$_GATES" ] && printf '%s\n' "$_GATES" | awk -F'\t' 'NF {print $1}' | sort -u
     exit 0
     ;;
+  --list-behaviors)
+    _run_registry_gates
+    [ -n "$_BEHAVIORS" ] && printf '%s\n' "$_BEHAVIORS" | awk -F'\t' 'NF {print $1}'
+    exit 0
+    ;;
+  --list-behavior-coverage)
+    _run_registry_gates
+    [ -n "$_BEHAVIOR_COVERAGE" ] && printf '%s\n' "$_BEHAVIOR_COVERAGE" | awk -F'\t' 'NF {print $1}'
+    exit 0
+    ;;
   --check-coverage)
     _run_registry_gates
     _run_coverage
@@ -1121,7 +1408,9 @@ Usage:
   test-spec.sh --list-units      # every declared unit id (registry order; empty without an overlay)
   test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
-  test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated)
+  test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
+  test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
+  test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --classify        # READ-ONLY generation detector: emits
                                  #   GENERATION=<canonical|absent|malformed> (never legacy —
                                  #   test-spec's yaml format never diverged)/POSITIONS=/
@@ -1133,7 +1422,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--check-coverage|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)
