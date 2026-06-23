@@ -619,9 +619,11 @@ the PR. The merge + deploy are separate human steps.
 
 ## Step 6.6: Surface registered-doc + portability verdicts into the PR body (best-effort; NEVER halts)
 
-Identical to `/CJ_goal_feature` Step 4.6. The Step 5.5 doc-sync wrapper wrote the
-registered-doc verdict block to `.cj-goal-task/registered-doc-verdicts.md` and the
-Step 5.7 gate wrote `.cj-goal-task/portability-verdict.md`. Read both scratch
+Identical to `/CJ_goal_feature` Step 4.6. The Step 5.5 doc-sync wrapper (the
+shared `/CJ_document-release` Step 6.7 producer) wrote the registered-doc verdict
+block to the LITERAL `.cj-goal-feature/registered-doc-verdicts.md` — the producer
+hardcodes that path, it is NOT verb-renamed (T000044) — and the Step 5.7 gate
+wrote `.cj-goal-task/portability-verdict.md`. Read both scratch
 files and `gh pr edit <PR#>` to insert-or-replace a `### Registered-doc
 requirements` + `### Portability` subsection under the PR body's `##
 Documentation` section. Best-effort: a failed `gh pr edit` (or a missing scratch
@@ -629,7 +631,10 @@ file) logs a one-line note and control proceeds to Step 7. There is NO upstream
 `/ship` modification.
 
 ```bash
-_VERDICT_FILE="$_REPO_ROOT/.cj-goal-task/registered-doc-verdicts.md"
+# The shared /CJ_document-release producer writes registered-doc verdicts to the
+# LITERAL .cj-goal-feature/ path (not verb-renamed), so read from there (T000044).
+# The portability verdict is written by THIS pipeline's Step 5.7 to .cj-goal-task/.
+_VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
 _PORT_VERDICT_FILE="$_REPO_ROOT/.cj-goal-task/portability-verdict.md"
 if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE" ]; }; then
   _BODY=$(gh pr view "$PR_NUMBER" --json body -q .body 2>/dev/null || echo "")
@@ -640,24 +645,39 @@ if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE
   else
     _INSERT="${_VERDICTS}${_PORT}"
   fi
-  _NEW_BODY=$(printf '%s\n' "$_BODY" | awk '
+  # Idempotent splice composed in temp files + applied via `gh pr edit
+  # --body-file` — NEVER `awk -v v="$_INSERT"` with a multi-line payload: BSD/macOS
+  # awk rejects a newline in a -v value ("newline in string"), which empties the
+  # substitution and lets the edit WIPE the PR body (PR #259; fixed by T000053).
+  _STRIPPED_FILE=$(mktemp); _INSERT_FILE=$(mktemp); _BODY_FILE=$(mktemp)
+  printf '%s\n' "$_BODY" | awk '
     /^### Registered-doc requirements/ {skip=1; next}
     /^### Portability/ {skip=1; next}
     skip && /^#{2,3} / {skip=0}
     !skip {print}
-  ')
-  if printf '%s\n' "$_NEW_BODY" | grep -q '^## Documentation'; then
-    _NEW_BODY=$(printf '%s\n' "$_NEW_BODY" | awk -v v="$_INSERT" '
+  ' > "$_STRIPPED_FILE"
+  printf '%s\n' "$_INSERT" > "$_INSERT_FILE"
+  if grep -q '^## Documentation' "$_STRIPPED_FILE"; then
+    # The only -v is a newline-free FILENAME; the payload is read from the file.
+    awk -v insert_file="$_INSERT_FILE" '
       {print}
-      /^## Documentation/ && !done {print ""; print v; done=1}
-    ')
+      /^## Documentation/ && !done {print ""; while ((getline line < insert_file) > 0) print line; done=1}
+    ' "$_STRIPPED_FILE" > "$_BODY_FILE"
   else
-    _NEW_BODY=$(printf '%s\n\n## Documentation\n\n%s\n' "$_NEW_BODY" "$_INSERT")
+    { cat "$_STRIPPED_FILE"; printf '\n## Documentation\n\n'; cat "$_INSERT_FILE"; } > "$_BODY_FILE"
   fi
-  if gh pr edit "$PR_NUMBER" --body "$_NEW_BODY" 2>/dev/null; then
+  _FLOOR=$(awk 'END{print (NR>3)?NR-3:1}' "$_BODY_FILE")
+  _SPLICED=0
+  for _attempt in 1 2; do
+    gh pr edit "$PR_NUMBER" --body-file "$_BODY_FILE" 2>/dev/null || true
+    _CHECK_LINES=$(gh pr view "$PR_NUMBER" --json body -q .body 2>/dev/null | awk 'END{print NR}')
+    [ "${_CHECK_LINES:-0}" -ge "$_FLOOR" ] && { _SPLICED=1; break; }
+  done
+  rm -f "$_STRIPPED_FILE" "$_INSERT_FILE" "$_BODY_FILE"
+  if [ "$_SPLICED" = "1" ]; then
     echo "[registered-doc] surfaced verdicts into PR #$PR_NUMBER body"
   else
-    echo "[registered-doc] gh pr edit failed for PR #$PR_NUMBER — verdicts remain in the run output + scratch files (best-effort)"
+    echo "[registered-doc] PR-body splice did not verify after retry — verdicts remain in the run output + scratch files (best-effort)"
   fi
 else
   echo "[registered-doc] no verdict scratch file (or no PR#) — skipping PR-body surfacing (best-effort)"
