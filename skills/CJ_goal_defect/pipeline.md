@@ -1105,28 +1105,45 @@ if [ -n "$PR_URL" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE" ]
 
   # Idempotent splice (replace-if-present): strip any existing
   # '### Registered-doc requirements' OR '### Portability' block (each up to the
-  # next '###'/'##' or EOF), then append the fresh blocks under the
-  # '## Documentation' heading. If no '## Documentation' section exists in the
-  # body, append one at the end.
-  _NEW_BODY=$(printf '%s\n' "$_BODY" | awk '
+  # next '###'/'##' or EOF), then insert the fresh blocks under the
+  # '## Documentation' heading (appending the section if absent). Composed in
+  # temp files + applied via `gh pr edit --body-file` — NEVER `awk -v v="$_INSERT"`
+  # with a multi-line payload: BSD/macOS awk rejects a newline in a -v value
+  # ("newline in string"), which empties the substitution and lets the edit WIPE
+  # the PR body (hit live on PR #259; fixed by T000053).
+  _STRIPPED_FILE=$(mktemp); _INSERT_FILE=$(mktemp); _BODY_FILE=$(mktemp)
+  printf '%s\n' "$_BODY" | awk '
     /^### Registered-doc requirements/ {skip=1; next}
     /^### Portability/ {skip=1; next}
     skip && /^#{2,3} / {skip=0}
     !skip {print}
-  ')
-  if printf '%s\n' "$_NEW_BODY" | grep -q '^## Documentation'; then
-    _NEW_BODY=$(printf '%s\n' "$_NEW_BODY" | awk -v v="$_INSERT" '
+  ' > "$_STRIPPED_FILE"
+  printf '%s\n' "$_INSERT" > "$_INSERT_FILE"
+  if grep -q '^## Documentation' "$_STRIPPED_FILE"; then
+    # The only -v is a newline-free FILENAME, so BSD awk is happy; the multi-line
+    # payload is read from the file, never carried through -v.
+    awk -v insert_file="$_INSERT_FILE" '
       {print}
-      /^## Documentation/ && !done {print ""; print v; done=1}
-    ')
+      /^## Documentation/ && !done {print ""; while ((getline line < insert_file) > 0) print line; done=1}
+    ' "$_STRIPPED_FILE" > "$_BODY_FILE"
   else
-    _NEW_BODY=$(printf '%s\n\n## Documentation\n\n%s\n' "$_NEW_BODY" "$_INSERT")
+    { cat "$_STRIPPED_FILE"; printf '\n## Documentation\n\n'; cat "$_INSERT_FILE"; } > "$_BODY_FILE"
   fi
 
-  if gh pr edit "$PR_URL" --body "$_NEW_BODY" 2>/dev/null; then
+  # Apply via --body-file + a post-edit sanity assert: re-fetch the body and
+  # require a line-count floor (catch a wipe), retry once, stay best-effort.
+  _FLOOR=$(awk 'END{print (NR>3)?NR-3:1}' "$_BODY_FILE")
+  _SPLICED=0
+  for _attempt in 1 2; do
+    gh pr edit "$PR_URL" --body-file "$_BODY_FILE" 2>/dev/null || true
+    _CHECK_LINES=$(gh pr view "$PR_URL" --json body -q .body 2>/dev/null | awk 'END{print NR}')
+    [ "${_CHECK_LINES:-0}" -ge "$_FLOOR" ] && { _SPLICED=1; break; }
+  done
+  rm -f "$_STRIPPED_FILE" "$_INSERT_FILE" "$_BODY_FILE"
+  if [ "$_SPLICED" = "1" ]; then
     echo "[registered-doc] surfaced verdicts into PR $PR_URL body (## Documentation → ### Registered-doc requirements + ### Portability)"
   else
-    echo "[registered-doc] gh pr edit failed for PR $PR_URL — verdicts remain in the run output + the scratch files (best-effort, not halting)"
+    echo "[registered-doc] PR-body splice did not verify after retry — verdicts remain in the run output + the scratch files (best-effort, not halting)"
   fi
 else
   echo "[registered-doc] no verdict scratch file (or no PR URL) — skipping PR-body surfacing (best-effort, not halting)"

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.82] - 2026-06-22
+
+### Fixed
+
+- **cj_goal PR-body verdict splice no longer wipes the PR body on macOS** (T000053). All four `CJ_goal_*` `pipeline.md` files surfaced the registered-doc + portability verdicts into the PR body via `awk -v v="$_INSERT"` (or `v="$_VERDICTS"`) with a MULTI-LINE payload. BSD/macOS awk rejects a newline in a `-v` value (`newline in string`), so the command substitution yielded an empty/partial body and the subsequent `gh pr edit --body "$_NEW_BODY"` REPLACED the PR body with it — a wipe (hit live on PR #259). Replaced with temp-file composition (the strip-existing `awk` takes NO `-v`; the multi-line payload is read from a file via a newline-free FILENAME `-v`) + `gh pr edit --body-file` + a post-edit line-count floor + retry-once (best-effort, never-halt), in `CJ_goal_feature` (Step 4.6), `CJ_goal_defect` (Step 9.5), `CJ_goal_task` (Step 6.6), and `CJ_goal_todo_fix` (Step 5.6). Also reconciled the `CJ_goal_task` registered-doc read path to the shared `/CJ_document-release` producer's literal `.cj-goal-feature/registered-doc-verdicts.md` (T000044) — the task pipeline read `.cj-goal-task/`, where the producer never writes, so registered-doc verdicts never surfaced into a task PR. Markdown skill surfaces only; no scripts change. Verified: shellcheck-clean ×4, a functional splice regression (insert / no-wipe / idempotent / append), `validate.sh` (0/0), `scripts/test.sh` (0 failures).
+
 ## [6.0.81] - 2026-06-15
 
 ### Added
