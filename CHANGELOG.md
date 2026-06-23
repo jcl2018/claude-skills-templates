@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.83] - 2026-06-22
+
+### Changed
+
+- **TODOS.md hygiene: struck through the cj_goal `awk -v` PR-body-splice row** (closed by T000053 / v6.0.82 / PR #279). The fix shipped via a manual repo-faithful `/ship` (no `[via /CJ_goal_todo_fix]` auto-mark marker in the shipping PR), so the row was left un-struck on `main`; this marks it DONE so `/CJ_suggest` no longer ranks it active. Docs-only.
+
 ## [6.0.82] - 2026-06-22
 
 ### Fixed
