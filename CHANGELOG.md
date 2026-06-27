@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.84] - 2026-06-27
+
+### Added
+
+- **TODOS.md: two `/retro` 2026-06-27 follow-up rows.** (1) *Regression-guard the cj_goal PR-body splice (P2, S)* — T000053 (v6.0.82, PR #279) fixed the `awk -v` multi-line PR-body wipe doc-only across the four `CJ_goal_*` `pipeline.md` files, with nothing asserting the wiper idiom cannot creep back into one of the four copies; the row proposes a deterministic grep guard + a `spec/test-spec-custom.md` overlay row. (2) *TODOS.md hygiene sweep (P3, S)* — backlog is at 89 active rows / 69 struck; the row proposes striking already-shipped-but-un-struck rows so `/CJ_suggest` stops re-ranking them. Docs-only.
+
 ## [6.0.83] - 2026-06-22
 
 ### Changed
