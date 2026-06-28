@@ -21,10 +21,17 @@ in the registry table below — sub-grouped here for the reader.
 
 **Human docs** — what a person (not just an agent) reads to understand the
 project: `docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`,
-`README.md`. A declared doc whose path is under `docs/`, or the root
-`README.md`, is treated as a **human doc**: it must exist and must carry **no
-work-item IDs** (a reference of the shape `<F|S|T|D>` followed by six digits is
-internal-tracker noise; this is a hard CI lint, not a guideline).
+`README.md`, plus every per-workflow file under `docs/workflows/`. A declared
+doc whose path is under `docs/`, or the root `README.md`, is treated as a
+**human doc**: it must exist and must carry **no work-item IDs** (a reference of
+the shape `<F|S|T|D>` followed by six digits is internal-tracker noise; this is
+a hard CI lint, not a guideline).
+
+`docs/workflow.md` is an **overview/index**: it names + links every major
+workflow, and the deep per-workflow detail (flowcharts, touches, steps) lives
+one level down under `docs/workflows/<name>.md`. In an adopting repo
+`docs/workflows/` is **required and non-empty**, and every `docs/workflows/*.md`
+is a human doc that must be declared in the (merged) registry.
 
 **Operational docs** — agent- and ops-facing, so they may reference work
 items: `spec/doc-spec.md` (this file), `spec/test-spec.md`, `CLAUDE.md`,
@@ -46,8 +53,9 @@ Two rules make these docs trustworthy:
 Two consumers parse the merged table (this file + the overlay):
 
 - **A CI validator** asserts that every declared doc exists, that every doc on
-  disk under `docs/` (and `spec/`) is declared (no orphans), that every root
-  `*.md` is declared, and that no human-doc contains a work-item ID.
+  disk under `docs/` (recursively — including `docs/workflows/`) and `spec/` is
+  declared (no orphans), that `docs/workflows/` exists and is non-empty, that
+  every root `*.md` is declared, and that no human-doc contains a work-item ID.
 - **A doc-release skill** reads the registry to self-heal the contract: if
   `doc-spec.md` is missing it recreates it from the portable seed; if a
   declared doc is missing it scaffolds a stub; it audits each doc against its
@@ -88,7 +96,7 @@ everything else is operational. Cells may not contain a literal `|`.
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `docs/philosophy.md` | Major design logic, one '## Principle N' section each. | Arranged by principle; states the repo's first principle(s); human-readable; no work-item IDs. |
-| `docs/workflow.md` | The major workflows from a human's perspective; names the major entry points. | Lists every major workflow/entry point a human would invoke; ASCII flowcharts preferred; no work-item IDs. |
+| `docs/workflow.md` | Overview/index that names + links every major workflow; per-workflow detail lives under docs/workflows/. | Overview/index that names + links every major workflow a human would invoke; per-workflow detail (flowcharts, touches, steps) lives under docs/workflows/<name>.md; no work-item IDs. |
 | `docs/architecture.md` | Meaningful infra under the hood, deeper than workflow.md. | Explains the load-bearing machinery deeper than workflow.md; ASCII diagrams preferred; no work-item IDs. |
 | `README.md` | Repo landing page: folder structure + how to get started. | Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs. |
 | `docs/reference.md` | Curated external references for building this workbench — repos, docs, blogs, articles — grouped by category. | Lists useful external references (repos / links / blogs / articles) relevant to building this workbench, grouped by category, each with a one-line note on why it is relevant; human-readable; no work-item IDs. |

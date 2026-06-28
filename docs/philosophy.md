@@ -368,5 +368,6 @@ map for *using* it. Every `CJ_` front door converges on the same downstream chai
 
 Internal phase-step skills are dispatched transitively by the orchestrators — do
 not route to them directly: `/CJ_scaffold-work-item`, `/CJ_implement-from-spec`,
-`/CJ_qa-work-item`, `/CJ_document-release`, `/CJ_personal-workflow`. The full
-per-skill roster + ASCII workflow charts live in [workflow.md](workflow.md).
+`/CJ_qa-work-item`, `/CJ_document-release`, `/CJ_personal-workflow`. The
+[workflow.md](workflow.md) index links the full per-skill roster + the
+per-workflow ASCII charts, which live one level down under `docs/workflows/`.

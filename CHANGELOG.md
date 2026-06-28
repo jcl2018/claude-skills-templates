@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.85] - 2026-06-27
+
+### Added
+
+- **`docs/workflows/` per-workflow subfolder + `docs/workflow.md` as a pure index** (F000067). `docs/workflow.md` had grown to 863 lines / 56KB, mixing a human-readable overview with deep per-workflow reference detail. The four `CJ_goal_*` orchestrator sections plus the machinery/utilities and utility-audits sections now live one level down as their own files under `docs/workflows/` (`CJ_goal_feature.md`, `CJ_goal_defect.md`, `CJ_goal_task.md`, `CJ_goal_todo_fix.md`, `utilities-and-phase-steps.md`, `utility-audits.md`), each carrying the moved-verbatim content; `docs/workflow.md` is reduced to a 64-line index that names + links every workflow. The two-level structure is baked into the **portable doc contract** as a hard, registry-gated mandate (edited byte-identically across the 3-way seed: `spec/doc-spec.md` + `templates/doc-spec-common.md` + `scripts/doc-spec.sh --seed`): `doc-spec.sh --check-on-disk` recurses the orphan scan into `docs/workflows/` and adds a `workflows-subfolder` check (registry-present ⇒ `docs/workflows/` must exist + be non-empty; registry-absent ⇒ skips). `validate.sh` Check 15a recurses, Check 15b retargets the per-orchestrator chart + 4-bullet Touches enforcement to `docs/workflows/<name>.md`, and new Check 15c is the no-vanish guard (the `docs/workflow.md` index must link each `CJ_goal_*` orchestrator). Six `docs/workflows/*.md` rows added to `spec/doc-spec-custom.md` (human-docs — no work-item IDs); `spec/test-spec-custom.md` units + `tests/{doc-spec-overlay,cj-document-release}.test.sh` + the `scripts/test.sh` integration fixture updated; prose synced across `CLAUDE.md`, `docs/architecture.md`, `docs/philosophy.md`, `README.md` (regenerated), and `templates/doc-WORKFLOWS-section.md`.
+
 ## [6.0.84] - 2026-06-27
 
 ### Added
@@ -44,7 +50,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - **`test-spec.sh --check-coverage` reverse-sweep floors no longer misfire in non-workbench consumer repos** (D000035). The per-namespace zero-token floors (and the global `<20`-token floor) in `scripts/test-spec.sh` `_run_coverage()` fired unconditionally on a zero/low token count, with no check for whether that namespace's surface is part of the repo's verification contract. A consumer repo that adopts the contract against its own surface (e.g. vitest `*.test.ts` + a GitHub workflow, with no `scripts/validate.sh` / `tests/*.test.sh` / `scripts/setup-hooks.sh`) legitimately yields zero tokens in the absent shell namespaces — so the floors fired up to 4 false findings and flipped `--check-coverage` to a permanent false-red (surfacing as `TEST_AUDIT: findings` via `validate.sh` Check 24 / `/CJ_test_audit` Stage 1 / `/CJ_qa-work-item` Step 8.6d). The fix gates each floor on **effective surface presence** = the surface path exists on disk AND the merged registry declares ≥1 unit row in that namespace's family (`validate`/`test`/`ci`/`hook`) — the rows are what make us *expect* live tokens. The global floor fires only when all four namespaces are effectively present (the full workbench shape it is calibrated to); a partial/consumer set relies on the per-namespace floors. This also closes a reserved-path collision — a consumer with a husky-style `scripts/setup-hooks.sh` or its own `scripts/validate.sh` in a non-workbench grammar no longer false-fires — **without** weakening the workbench: a contracted-but-zero-token namespace (genuine extraction-grammar rot) still fires, and the workbench's own coverage is unchanged (`OK coverage rows=69 reverse_tokens=49 findings=0`). The forward anchor-grep, reverse single-owner sweep, units-gating, and the `--seed` heredoc are untouched. Regression cases (a/b/c/d) added to `tests/test-spec.test.sh`; RCA + test-plan in `work-items/defects/uncategorized/D000035_*`.
-
 ## [6.0.77] - 2026-06-14
 
 ### Fixed

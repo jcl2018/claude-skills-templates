@@ -1,32 +1,42 @@
 <!--
-  Per-workflow section template for docs/workflow.md (F000034 / T000037).
+  Per-workflow file template (F000034 / T000037 / F000067).
 
-  Copy this fragment into docs/workflow.md under `## Orchestrators` and fill in
-  every placeholder. Frontmatter is intentionally absent — this is a fragment,
-  not a standalone doc.
+  Create docs/workflows/{workflow-name}.md from this fragment and fill in every
+  placeholder. As of F000067 each CJ_goal_* orchestrator gets its OWN file under
+  docs/workflows/ (the per-workflow detail was split out of the docs/workflow.md
+  index, which is now a pure overview that LINKS each docs/workflows/<name>.md).
+  Frontmatter is intentionally absent — this is a Markdown body, and a path under
+  docs/ is a human-doc (no work-item IDs).
 
-  This fragment is for the `## Orchestrators` section — one full section per
-  CJ_goal_* workflow orchestrator (today: CJ_goal_feature, CJ_goal_defect,
-  CJ_goal_todo_fix), with an ASCII chart + the 4-bullet Touches block. A
-  non-orchestrator skill (phase-step, validator, utility) does NOT use this
-  fragment — add it to the docs/workflow.md `## Utilities & phase-step skills`
-  section instead, using that section's LIGHTER per-skill shape (`### <skill>`
-  heading + Status + Source + Invoke when + a compact Touches: Scripts · tools ·
-  shell / Reads · writes; no chart, no 4-bullet Touches — single-step skills
-  dispatch nothing and run no pipeline). Either way, always add the skill to
-  docs/philosophy.md's decision tree, the no-vanish safety net.
+  This fragment is for a CJ_goal_* workflow orchestrator — the `### {name}`
+  section with an ASCII chart + the 4-bullet Touches block. A non-orchestrator
+  skill (phase-step, validator, utility) does NOT use this fragment — add it to
+  docs/workflows/utilities-and-phase-steps.md using that file's LIGHTER per-skill
+  shape (`### <skill>` heading + Status + Source + Invoke when + a compact
+  Touches: Scripts · tools · shell / Reads · writes; no chart, no 4-bullet
+  Touches — single-step skills dispatch nothing and run no pipeline). Either way:
+    (1) add the new docs/workflows/{name}.md as a row in spec/doc-spec-custom.md
+        (a human-doc — Check 15a-missing enforces it exists, Check 19 forbids
+        work-item IDs), and
+    (2) add a link to it from the docs/workflow.md index (Check 15c — no-vanish),
+    (3) add the skill to docs/philosophy.md's decision tree (the no-vanish safety
+        net for routing).
 
   Check 15b in scripts/validate.sh enforces, for every `CJ_goal_*` routable
   non-deprecated skill in skills-catalog.json:
-    (a) the `### {name}` heading exists in docs/workflow.md, AND
-    (b) the section has a fenced ``` block (the ASCII workflow chart).
-  Silent omission (heading present, no chart) is forbidden.
+    (a) the file docs/workflows/{name}.md exists with a `### {name}` heading, AND
+    (b) the section has a fenced ``` block (the ASCII workflow chart), AND
+    (c) the Touches block carries all four anchored bullets.
+  Check 15c enforces the docs/workflow.md index links docs/workflows/{name}.md.
+  Silent omission (heading present, no chart; or a file the index doesn't link)
+  is forbidden.
 -->
 
 ### {workflow-name}
 
 <!-- Replace {workflow-name} with the catalog entry's `name` field exactly
-     (case-sensitive). Must be a CJ_goal_* orchestrator, e.g. CJ_goal_feature. -->
+     (case-sensitive). Must be a CJ_goal_* orchestrator, e.g. CJ_goal_feature.
+     This is also the filename: docs/workflows/{workflow-name}.md. -->
 
 **Status:** {active | experimental} ({one-line rationale — why this status})
 

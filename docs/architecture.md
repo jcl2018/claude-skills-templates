@@ -195,8 +195,9 @@ an inline orchestrator halt; see [`spec/test-spec.md`](../spec/test-spec.md) and
 section below for the four-layer map of every verification surface.) The validator
 parses the registry and asserts the contract:
 
-- **declared <=> on-disk** — every declared doc exists, AND every `docs/*.md` on
-  disk is declared (no orphans).
+- **declared <=> on-disk** — every declared doc exists, AND every `docs/**/*.md`
+  on disk (recursive — including the `docs/workflows/` subfolder) is declared (no
+  orphans).
 - **table valid** — `doc-spec.md` exists, its registry table parses (the
   `| Doc | Purpose | Requirement |` shape, no literal `|` inside a cell), and no
   path is duplicated across the two files.
@@ -206,8 +207,13 @@ parses the registry and asserts the contract:
   declared path under `docs/` or the root `README.md`), the validator greps
   `[FSTD][0-9]{6}` and ERRORs on any hit. This is the hard lint that keeps the
   human docs human-readable.
-- **workflow completeness** — `docs/workflow.md` carries a section for every
-  `CJ_goal_*` orchestrator, each with an ASCII chart and a 4-bullet Touches block.
+- **workflows-subfolder mandate** — when the registry is present, `docs/workflows/`
+  must exist and be non-empty (the portable contract's two-level docs structure;
+  registry-gated, so it never fires on a non-adopting repo).
+- **workflow completeness** — `docs/workflow.md` is a pure overview/index, and
+  each `CJ_goal_*` orchestrator has its OWN per-workflow file
+  `docs/workflows/<name>.md` carrying an ASCII chart and a 4-bullet Touches block
+  (Check 15b); the index must link each one (Check 15c — the no-vanish guard).
 
 ### The helper (`scripts/doc-spec.sh`)
 
@@ -249,10 +255,12 @@ portable gate:
 well-formed and exits 1 (`[doc-sync-no-config] <reason>`) otherwise. And the
 schema check is no longer the only mechanical guarantee that travels:
 `doc-spec.sh --check-on-disk` carries the full deterministic conformance set in
-the same portable helper — the audit Stage-1 engine. It runs four checks of the
-MERGED registry against the disk state — declared-exists, orphans (`docs/*.md`
-maxdepth 1 + `spec/*.md`, each dir only when present; an undeclared overlay file
-IS an orphan), root-declared, and human-doc-ids — emitting one
+the same portable helper — the audit Stage-1 engine. It runs five checks of the
+MERGED registry against the disk state — declared-exists, orphans (`docs/**/*.md`
+RECURSIVE — including `docs/workflows/` — + `spec/*.md` maxdepth 1, each dir only
+when present; an undeclared overlay file IS an orphan), workflows-subfolder
+(registry-gated: `docs/workflows/` exists + non-empty), root-declared, and
+human-doc-ids — emitting one
 `check: <id> — PASS` line per clean check, one `FINDING: stage1/<id> — <detail>`
 line per violation, and a `CHECKS_RUN=`/`FINDINGS=` tail (exit 0 clean / 1
 findings). It probes registry existence ITSELF before the parse gates: an absent
@@ -559,8 +567,9 @@ for the why.
 
 The per-skill component roster — the phase-step skills the `cj_goal` orchestrators
 dispatch, the `CJ_personal-workflow` validator, and the standalone utilities —
-lives in [workflow.md](workflow.md) `## Utilities & phase-step skills` (alongside
-the orchestrator chains, so the whole routable-skill catalog is one doc). This doc
+lives in [workflows/utilities-and-phase-steps.md](workflows/utilities-and-phase-steps.md)
+`## Utilities & phase-step skills` (one of the per-workflow files under
+`docs/workflows/` that the [workflow.md](workflow.md) index links). This doc
 keeps the *mechanism* sections above; the per-skill reference lives there.
 
 ## Decision tree mirror
