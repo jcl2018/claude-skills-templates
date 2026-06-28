@@ -3,7 +3,7 @@ skill-name: "CJ_portability-audit"
 version: 0.1.0
 status: experimental
 created: "2026-06-04"
-last-updated: "2026-06-07T03:06:10Z"
+last-updated: "2026-06-28T21:15:57Z"
 ---
 
 # Skill Usage: CJ_portability-audit
@@ -51,14 +51,15 @@ carve-outs (bundled-own-script, scoped self-resolution-preamble,
 is one of `portable` / `portable-with-notes` / `findings:<list>`.
 
 Surface 1 = this skill (rich report, engine resolved repo-local-first then via
-`.source`). Surface 2 = a `validate.sh` advisory check (prints findings, exits 0;
-`PORTABILITY_STRICT=1` flips it to hard-fail). Surface 3 = the `cj_goal`
-orchestrated path, where the engine runs under `PORTABILITY_STRICT=1` via
-`cj-goal-common.sh --phase portability-audit` and is a HARD GATE — the build HALTs
-with `[portability-red]` before `/ship` on any finding (F000051). The catalog is
-currently clean (`FINDINGS=0`), so a finding is advisory globally but blocking on
-the orchestrated build path. The full correct-behavior contract lives in
-`docs/workflow.md` (`### /CJ_portability-audit`).
+`.source`). Surface 2 = `validate.sh` Check 18 — **strict-by-default** since
+T000054 (a finding hard-fails every commit, CI, and manual `validate.sh` run;
+`PORTABILITY_STRICT=0` downgrades it to advisory for a deliberate WIP commit).
+Surface 3 = the `cj_goal` orchestrated path, where the engine runs under
+`PORTABILITY_STRICT=1` via `cj-goal-common.sh --phase portability-audit` and is a
+HARD GATE — the build HALTs with `[portability-red]` before `/ship` on any finding
+(F000051). The catalog is currently clean (`FINDINGS=0`), so a finding is blocking
+both globally (Check 18) and on the orchestrated build path. The full
+correct-behavior contract lives in `docs/workflow.md` (`### /CJ_portability-audit`).
 
 ## Common pitfalls
 
@@ -73,10 +74,11 @@ the orchestrated build path. The full correct-behavior contract lives in
   workbench) OR by adding the verbatim finding token to the skill's
   `portability_requires` array — then re-run; the adjudicated dep is OK and the
   re-run won't re-flag it.
-- **Reading exit 0 as "no findings."** v1 is advisory: the engine exits 0 even
+- **Reading exit 0 as "no findings."** The engine's default mode exits 0 even
   when findings remain. Read the `FINDINGS=<n>` tail (and the verdict table), not
-  the exit code. `PORTABILITY_STRICT=1` is the opt-in that makes findings
-  non-zero-exit.
+  the exit code. `PORTABILITY_STRICT=1` makes the engine exit non-zero on a
+  finding — which is what `validate.sh` Check 18 (strict-by-default since T000054)
+  and the `cj_goal` gate rely on.
 - **Running it in a non-workbench repo.** The engine reads the repo's
   `skills-catalog.json` + `skills/` source tree, which exist only in the
   workbench clone — so the skill is `workbench`-scoped by construction. Run it

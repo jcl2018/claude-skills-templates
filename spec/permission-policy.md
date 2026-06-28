@@ -38,7 +38,8 @@ adding a registry row — never by editing one of the enforcement points directl
   is forward-looking: correct if it is ever reactivated.
 
 `scripts/validate.sh` Check 21 flags drift between this policy and the
-enforcement points (advisory — exit 0, like the portability Check 18).
+enforcement points (advisory — exit 0; a follow-up may flip it strict once the
+policy and its enforcement points are fully reconciled).
 
 ## Deny verbs vs ask surfaces (the two layers)
 

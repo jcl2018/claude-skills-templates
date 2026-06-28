@@ -517,7 +517,7 @@ units:
     anchor: "=== Check 18:"
     source: scripts/validate.sh
     layer: ci
-    disposition: advisory
+    disposition: hard-fail
     skips_when_absent: true
     ratchet: true
     trigger: "pre-commit pr-ci"

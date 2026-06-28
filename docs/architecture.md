@@ -62,8 +62,11 @@ cleanup, and the pre-ship portability gate.
   finding) prints a visible note and continues. On `ok` the clean
   `VERDICT_LINE` is spliced into the PR body's `## Documentation` section
   alongside the registered-doc verdicts. The catalog baseline is clean, so the
-  gate is green today and a free regression ratchet. This is cj_goal-scoped
-  enforcement; `validate.sh` Check 18 stays advisory globally.
+  gate is green today and a free regression ratchet. This gate is the
+  cj_goal-scoped enforcement; `validate.sh` Check 18 is **strict-by-default
+  globally** (a portability finding hard-fails every commit, CI, and manual run;
+  `PORTABILITY_STRICT=0` downgrades it to advisory), so the whole repo is the
+  portability ratchet and this gate is the orchestrated-path belt.
 - **recap** — the land/PR human-readable 3-part recap formatter. A **pure
   formatter**: it renders a standardized block — **Delivered / How to E2E-test it
   / Next step** — with a header keyed off `--when {before|after}`, sourcing the
