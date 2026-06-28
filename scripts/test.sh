@@ -1817,6 +1817,22 @@ else
   fail_test "tests/cj-goal-common-portability.test.sh failed (rc=$_cgcp_rc) — run \`bash tests/cj-goal-common-portability.test.sh\` directly to see"
 fi
 
+# Regression test (F000068 / S000112): scripts/cj-goal-common.sh `--phase recap`
+# (the land/PR human-readable 3-part recap formatter) — renders Delivered / How
+# to E2E-test it / Next step; the header switches on --when before|after; a
+# missing --field renders an empty section and still exits 0 (fail-soft); and
+# --field content prints verbatim (no eval). The phase is a PURE FORMATTER, so
+# the test is trivially hermetic — it just inspects stdout / exit code, mutating
+# nothing.
+echo ""
+echo "Running tests/cj-goal-common-recap.test.sh (F000068 --phase recap formatter, hermetic)..."
+if bash "$REPO_ROOT/tests/cj-goal-common-recap.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-common-recap.test.sh: 3-part block / --when header switch / fail-soft on missing field / verbatim --field (no eval); exit 0"
+else
+  _cgcr_rc=$?
+  fail_test "tests/cj-goal-common-recap.test.sh failed (rc=$_cgcr_rc) — run \`bash tests/cj-goal-common-recap.test.sh\` directly to see"
+fi
+
 # Regression test (F000048 / S000084): scripts/cj-id-claim.sh — the atomic
 # scaffold-time ID-claim engine that closes the scaffold-before-push race. Seven
 # cases incl. the LOOPED concurrent race (25 rounds, distinct IDs), both reap

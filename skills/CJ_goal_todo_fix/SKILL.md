@@ -437,6 +437,32 @@ endanger shipped work. This is the single-TODO-mode seam; drain mode wires the
 same `cj-worktree-cleanup.sh --caller todo` call at `drain-one-todo.sh`'s
 per-iteration terminal instead.
 
+### Agent-layer terminal: AFTER-land recap (3-part; advisory — F000068)
+
+`todo_fix` is a landing verb, so it completes the before+after recap pair: the
+BEFORE block ran in `pipeline.md` Step 5.6 (right after `/ship`, before
+`/land-and-deploy`); the AFTER block runs HERE — after `/land-and-deploy` merged +
+deployed and the `TODOS.md` DONE-mark landed, **per drained TODO** (once per
+shipped PR; in drain mode `drain-one-todo.sh`'s per-iteration terminal is the same
+seam). YOU (the agent) author the three fields for THIS TODO's change; the shared
+helper only formats. Render the AFTER ("Landed") block:
+
+```bash
+_COMMON="${_RR:-$(git rev-parse --show-toplevel 2>/dev/null)}/scripts/cj-goal-common.sh"
+if [ -x "$_COMMON" ]; then
+  bash "$_COMMON" --phase recap --mode feature --when after \
+    --field delivered="<this TODO's change in plain terms + the version it bumped to + the TODOS row closed + PR $PR_URL + the squash-merge SHA>" \
+    --field e2e="<the concrete end-to-end commands/checks that prove it is LIVE — e.g. scripts/test.sh against origin/main, a specific scripts/*.sh invocation, or git show origin/main:<file>>" \
+    --field next="<the concrete next action — typically: confirm the deploy, then drain the next TODO (or nothing if this was the last)>"
+fi
+```
+
+(`--mode feature` matches this pipeline's other `cj-goal-common.sh` calls — the
+block shape is verb-neutral.) **Prose fallback (helper absent):** emit the same
+3-part block as prose under a `=== Landed / PR opened ===` header (do NOT halt —
+the recap is advisory; a missing field renders an empty section). No `validate.sh`
+check asserts the recap fired.
+
 ## Halt classes / end states
 
 Canonical gate sequence: `spec/test-spec.md` (the cross-cj_goal verification contract;

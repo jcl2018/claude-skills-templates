@@ -162,6 +162,21 @@ enforcement; `validate.sh` Check 18 stays advisory globally (a separate decision
 Tests: `tests/cj-goal-common-portability.test.sh` + the `--phase portability-audit`
 integration block in `scripts/test.sh`.
 
+**Land/PR recap formatter (F000068 / S000112):** a 7th `cj-goal-common.sh` phase —
+`--phase recap` — a **pure formatter** that renders the standardized 3-part
+land/PR recap block (see `## Post-land recap`). It takes `--when {before|after}`
+(selects the header) and the content via the existing repeatable `--field`
+parsing (`delivered=` / `e2e=` / `next=`), printed verbatim (no eval — reuses the
+telemetry phase's split-on-first-`=` idiom). It computes NOTHING, mutates NOTHING,
+writes NO telemetry; emits `PHASE=recap` + `PHASE_RESULT=ok` and exits 0. Fully
+fail-soft / advisory — a missing field renders an empty section, it NEVER halts.
+The four `CJ_goal_*` orchestrators call it at their land/PR-stop step (S000113;
+before+after for the landing verbs defect/todo_fix, one at-PR recap for the
+PR-stop verbs feature/task), with a documented prose fallback when the helper is
+absent. There is NO `validate.sh` gate asserting the wiring (advisory posture).
+Tests: `tests/cj-goal-common-recap.test.sh` + the `--phase recap` integration
+block in `scripts/test.sh`.
+
 **Worktree cleanup:** This repo's day-to-day work happens inside a git worktree under
 `.claude/worktrees/{name}/`, while the parent repo at the root has `main` checked out.
 `gh pr merge --delete-branch` does a local `git checkout main` to clean up; in a worktree
@@ -260,36 +275,51 @@ to gstack.
 
 ## Post-land recap
 
-After **any** land/merge succeeds, surface a short two-part recap to the operator
-so they are not left guessing what just shipped or how to confirm it. This fires
-on every land path:
+Around **every** cj_goal land/PR-stop, surface a consistent **3-part** recap to
+the operator so they are never left guessing what just shipped, how to confirm it,
+or what to do next. The three parts are always the same labelled sections:
 
-- a direct `/land-and-deploy` invocation,
-- the `CJ_goal_defect` land step (`skills/CJ_goal_defect/pipeline.md` Step 10), and
-- the `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail (per drained TODO).
+1. **Delivered** — 1–3 lines: the change in plain terms, the version it bumped to,
+   and the PR number + squash-merge SHA (e.g. "v6.0.69 — added the layer-grouped
+   verification-surface section to `spec/test-spec-custom.md`; PR #267, `cdc684c`").
+2. **How to E2E-test it** — the concrete end-to-end commands or checks for *this*
+   change, not a generic checklist (e.g. `scripts/test-spec.sh --check-coverage`,
+   `git show origin/main:<file>`, or "open PR #N and read section X"). Name the one
+   or two checks that actually prove the change is live and correct.
+3. **Next step** — the concrete next action (review + merge the PR, run
+   `/land-and-deploy`, drain the next TODO, confirm the deploy — whatever applies).
 
-`/land-and-deploy` is an upstream gstack skill this workbench never edits (the
-same rule that makes `/CJ_document-release` wrap `/document-release`), so the
-recap lives here as a convention the agent reads — not as an edit to the gstack
-skill.
+**Before + after (F000068).** The recap is emitted at two points around the
+land/PR moment, keyed off `--when`:
 
-Emit the recap **only after** the merge is verified `MERGED` (the
-verify-before-cleanup step in `## CI/CD merge convention`), as two labelled parts:
+- **before** (`=== About to land ===`) — a heads-up just ahead of the land/PR.
+- **after** (`=== Landed / PR opened ===`) — the confirmation + verification once
+  the merge/PR is in place.
 
-1. **What this merge did** — 1–3 lines: the change in plain terms, the version it
-   bumped to, and the PR number + squash-merge SHA (e.g. "v6.0.69 — added the
-   layer-grouped verification-surface section to `spec/test-spec-custom.md`; PR
-   #267, `cdc684c`").
-2. **How to verify it** — the concrete commands or checks for *this* change, not a
-   generic checklist (e.g. `scripts/test-spec.sh --check-coverage`, `git show
-   origin/main:<file>`, or "open PR #N and read section X"). Name the one or two
-   checks that actually prove the change is live and correct.
+The two **landing verbs** emit a true before+after pair around the land:
+`CJ_goal_defect` (before ahead of `skills/CJ_goal_defect/pipeline.md` Step 10's
+`/land-and-deploy`; after at Step 12) and `CJ_goal_todo_fix` (before in
+`pipeline.md` Step 5.6, after in SKILL.md's Agent-layer terminal — per drained
+TODO). The two **PR-stop verbs** emit ONE at-PR recap (the after form), since they
+never land in-pipeline: `CJ_goal_feature` (Step 6.5) and `CJ_goal_task` (Step 7);
+the operator's later manual `/land-and-deploy` is the existing direct-land path.
 
-It is **advisory**: it never blocks, never changes the land outcome, and adds no
-gate — it is the post-land mirror of the pre-build design-summary digest, a
-courtesy recap so the operator can review or verify at a glance. Like the other
-convention sections here, it is prose guidance; there is no `validate.sh` check
-that asserts it fired.
+**The producer is `cj-goal-common.sh --phase recap`** (F000068 / S000112) — a
+shared **pure formatter**: it renders the standardized 3-part block (header keyed
+off `--when {before|after}`, then the three labelled sections sourced from
+`--field delivered=` / `--field e2e=` / `--field next=`), and nothing else. It
+computes no content, mutates nothing, and writes no telemetry. **The agent authors
+the `delivered`/`e2e`/`next` content** for THIS change — the helper only formats
+it uniformly. A missing field renders an empty section; if the helper is absent the
+pipeline falls back to emitting the same 3-part block as prose. (`/land-and-deploy`
+is an upstream gstack skill this workbench never edits — the same rule that makes
+`/CJ_document-release` wrap `/document-release` — so the recap calls bracket the
+land in this repo's `pipeline.md`, never inside the upstream skill.)
+
+It is **advisory**: it never blocks, never changes the land/PR outcome, and adds no
+gate — a courtesy recap so the operator can review or verify at a glance. Like the
+other convention sections here, it is prose guidance; **there is no `validate.sh`
+check that asserts it fired.**
 
 ## Work item templates
 

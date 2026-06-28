@@ -1130,14 +1130,43 @@ Worktree cleanup: removed N other landed cj-* worktrees, root main refreshed.
   (Your session is still in this run's own worktree — it is never swept while
    its PR is open.)
 
-Next (separate human steps):
-  1. Review the PR on GitHub.
-  2. Merge it (the merge is manual — there is no automatic merge on this path).
-  3. /land-and-deploy   (deploy is a separate human step after merge)
-
 Resume state: $RESUME_STATE
 Telemetry:    $TELEMETRY
 ```
+
+**At-PR recap (3-part; advisory — F000068).** `feature` is a PR-stop verb: it
+never lands in-pipeline, so it emits ONE recap at the PR — the AFTER ("PR opened")
+form. YOU (the agent) author the three fields for THIS change — the helper is only
+a formatter. Then render the standardized 3-part block via the shared helper:
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+if [ -x "$_COMMON" ]; then
+  bash "$_COMMON" --phase recap --mode feature --when after \
+    --field delivered="<what shipped to the PR, in plain terms: the change + the version it will bump to + PR #$PR_NUMBER>" \
+    --field e2e="<the concrete end-to-end commands/checks that prove THIS change is correct — e.g. scripts/test.sh, a specific scripts/*.sh invocation, or 'open PR #N and read section X'>" \
+    --field next="Review PR #$PR_NUMBER on GitHub, merge it (manual — no automatic merge on this path), then /land-and-deploy (deploy is a separate human step after merge)."
+fi
+```
+
+**Prose fallback (helper absent).** If `$_COMMON` is missing/unreachable, emit the
+same 3-part block as prose directly (do NOT halt — the recap is advisory):
+
+```
+=== Landed / PR opened ===
+
+Delivered:
+<what shipped to the PR + version + PR #$PR_NUMBER>
+
+How to E2E-test it:
+<concrete E2E commands/checks for this change>
+
+Next step:
+Review PR #$PR_NUMBER on GitHub, merge it (manual), then /land-and-deploy.
+```
+
+The recap NEVER blocks: a missing field renders an empty section, and an absent
+helper degrades to the prose above. No `validate.sh` check asserts it fired.
 
 ---
 

@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.87] - 2026-06-28
+
+### Added
+
+- **3-part human-readable land/PR recap (before + after) for every cj_goal** (F000068 / S000112 + S000113). Standardizes the recap an operator sees around a cj_goal land or PR-stop so they are not left guessing what shipped, how to confirm it, or what is next. A new **pure-formatter** 7th phase `scripts/cj-goal-common.sh --phase recap` renders a consistent 3-part block — **Delivered** / **How to E2E-test it** / **Next step** — keyed off `--when {before|after}` (BEFORE: "About to land …"; AFTER/PR-stop: the landed/opened header), reusing the existing repeatable `--field KEY=VALUE` parser (`delivered=` / `e2e=` / `next=`, printed verbatim, no eval). It mutates nothing, writes no telemetry, emits `PHASE=recap` + `PHASE_RESULT=ok`, and is fail-soft (a missing field renders an empty section; exit 0) — the agent authors the change-specific content, the helper only formats. Wired into all four cj_goal pipelines: the two **landing** verbs get a true **before + after** pair around the land (`CJ_goal_defect` Step 10; `CJ_goal_todo_fix` `/ship → /land-and-deploy` tail, per drained TODO), and the two **PR-stop** verbs get one **at-PR** recap reshaped to the 3-part form (`CJ_goal_feature` Step 6.5; `CJ_goal_task` Step 7). The CLAUDE.md `## Post-land recap` convention is reframed to the 3-part before+after shape + a "Land/PR recap formatter" section naming the helper; `docs/architecture.md` + the four `docs/workflows/*.md` Touches blocks enumerate the new phase. **Advisory posture:** no new `validate.sh` gate (an absent helper falls back to prose; nothing blocks a land), and upstream `/land-and-deploy` is untouched. Regression-tested by `tests/cj-goal-common-recap.test.sh` (+ a `spec/test-spec-custom.md` units row; Check 24 coverage green, rows=70).
+
 ## [6.0.86] - 2026-06-28
 
 ### Fixed
