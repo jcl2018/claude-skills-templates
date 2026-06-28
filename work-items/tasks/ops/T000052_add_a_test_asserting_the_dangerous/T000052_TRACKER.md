@@ -112,3 +112,5 @@ Scope (from /CJ_goal_task topic): Add a test asserting the dangerous multi-line 
 - 2026-06-28 [qa-smoke-summary] green: 4/4 non-manual rows green (0 manual rows pending). Broader surface also green: validate.sh (0 errors / 0 warnings / PASS) + full test.sh suite (Failures: 0 / RESULT: PASS; new guard runner fired).
 - 2026-06-28 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:current(test-cj-goal-pr-body-splice-guard already registered+anchored),doc-spec-custom:none (Step 8.6a/8.6b ran inline; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
 - 2026-06-28 [qa-pass] T000052 (task): green smoke from test-plan rows (4 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+
+- 2026-06-28 [task-pr-opened] T000052 PR #286 (v6.0.88) — https://github.com/jcl2018/claude-skills-templates/pull/286
