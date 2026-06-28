@@ -309,16 +309,23 @@ skills/{skill-name}/
   *.md              # optional supporting files
 ```
 
-Additionally, every active routable skill must be documented in `docs/workflow.md`:
-a **`CJ_goal_*` workflow orchestrator** gets a section under
-`## Orchestrators` with an ASCII workflow chart + a granular 4-bullet **Touches**
-block (both enforced by `scripts/validate.sh` Check 15b); every **other**
-routable skill (phase-steps, validators, utilities) gets an entry under
-`docs/workflow.md` `## Utilities & phase-step skills` (the lighter per-skill shape —
-status + source + invoke-when + a compact Touches; not Check-enforced).
-Either way it must also appear in `docs/philosophy.md`'s decision tree (the
-New-skills check is the no-vanish safety net that guarantees no routable
-skill becomes undocumented).
+Additionally, every active routable skill must be documented under
+`docs/workflow.md` + its `docs/workflows/` subfolder. `docs/workflow.md` is a
+pure **overview/index** that names + links every workflow; the deep per-workflow
+detail lives one level down under `docs/workflows/<name>.md` (one file per
+workflow). A **`CJ_goal_*` workflow orchestrator** gets its OWN file
+`docs/workflows/<name>.md` with an ASCII workflow chart + a granular 4-bullet
+**Touches** block (enforced by `scripts/validate.sh` Check 15b), AND a link from
+the `docs/workflow.md` index (enforced by Check 15c — the no-vanish guard); every
+**other** routable skill (phase-steps, validators, utilities) gets an entry in
+`docs/workflows/utilities-and-phase-steps.md` (the lighter per-skill shape —
+status + source + invoke-when + a compact Touches; not Check-enforced). The
+`docs/workflows/` subfolder is part of the portable doc contract: it is required
++ non-empty in an adopting repo (`doc-spec.sh --check-on-disk`'s
+`workflows-subfolder` check, registry-gated), and every `docs/workflows/*.md` is
+a declared human-doc (no work-item IDs). Either way it must also appear in
+`docs/philosophy.md`'s decision tree (the New-skills check is the no-vanish safety
+net that guarantees no routable skill becomes undocumented).
 
 ### USAGE.md drift detection
 
@@ -434,7 +441,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
    ```
 4. Optionally create `skills/{name}/DESIGN.md` for design rationale if the skill is complex enough to warrant a developer-facing doc (template: `templates/doc-SKILL-DESIGN.md`)
 5. Create `skills/{name}/USAGE.md` using `templates/doc-SKILL-USAGE.md` and fill in all five required H2 sections (When to use / When NOT to use / Mental model / Common pitfalls / Related skills)
-6. Document the new skill in the right place: if it is a `CJ_goal_*` **workflow orchestrator**, add a section under `docs/workflow.md` `## Orchestrators` with a fenced ASCII workflow chart + a `**Touches:**` block (use `templates/doc-WORKFLOWS-section.md` as a starting point). The Touches block MUST carry all four canonical bullets — **Skills dispatched** / **Steps · phases** / **Scripts · tools · shell** / **Docs touched** — each enumerated at the granular named-helper + named-step level; Check 15b will ERROR if a `CJ_goal_*` skill's section is missing, lacks a chart, or is missing any of the four anchored Touches bullets. Otherwise (phase-step, validator, or utility) add an entry under `docs/workflow.md` `## Utilities & phase-step skills` (the lighter per-skill shape — `### <skill>` heading + **Status** + **Source** + **Invoke when** + a compact **Touches**; no chart, no 4-bullet Touches, not Check-enforced). EITHER WAY, also add the skill to `docs/philosophy.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
+6. Document the new skill in the right place: if it is a `CJ_goal_*` **workflow orchestrator**, create its own per-workflow file `docs/workflows/<name>.md` with a fenced ASCII workflow chart + a `**Touches:**` block (use `templates/doc-WORKFLOWS-section.md` as a starting point), declare that file as a row in `spec/doc-spec-custom.md` (a human-doc — no work-item IDs), and add a link to it from the `docs/workflow.md` index. The Touches block MUST carry all four canonical bullets — **Skills dispatched** / **Steps · phases** / **Scripts · tools · shell** / **Docs touched** — each enumerated at the granular named-helper + named-step level; Check 15b will ERROR if a `CJ_goal_*` skill's `docs/workflows/<name>.md` is missing, lacks a chart, or is missing any of the four anchored Touches bullets, and Check 15c will ERROR if the `docs/workflow.md` index does not link it (the no-vanish guard). Otherwise (phase-step, validator, or utility) add an entry in `docs/workflows/utilities-and-phase-steps.md` (the lighter per-skill shape — `### <skill>` heading + **Status** + **Source** + **Invoke when** + a compact **Touches**; no chart, no 4-bullet Touches, not Check-enforced). EITHER WAY, also add the skill to `docs/philosophy.md`'s `## Decision tree` (the New-skills check enforces this — it is the no-vanish safety net).
 7. Run `./scripts/validate.sh` to verify everything is consistent
 8. Use `/ship` to commit and create a PR
 
@@ -590,10 +597,15 @@ files is a validate error. There is no second list: the merged registry is the
 source, the prose explains it.
 
 - **Human docs** (path-derived `audit_class: human-doc` — a declared path under
-  `docs/` or the root `README.md`) are `docs/philosophy.md`, `docs/workflow.md`,
-  `docs/architecture.md`, `docs/reference.md` plus the root `README.md`. They
-  must exist and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard
-  `validate.sh` lint (Check 19).
+  `docs/` or the root `README.md`) are `docs/philosophy.md`, `docs/workflow.md`
+  (the overview/index), `docs/architecture.md`, `docs/reference.md`, the six
+  per-workflow files under `docs/workflows/` (`CJ_goal_feature.md`,
+  `CJ_goal_task.md`, `CJ_goal_defect.md`, `CJ_goal_todo_fix.md`,
+  `utilities-and-phase-steps.md`, `utility-audits.md`), plus the root `README.md`.
+  They must exist and carry **no work-item IDs** (`[FSTD]NNNNNN`) — a hard
+  `validate.sh` lint (Check 19). The `docs/workflows/` subfolder is mandated +
+  non-empty by the portable contract (`doc-spec.sh --check-on-disk`'s
+  `workflows-subfolder` check, registry-gated).
 - **Operational docs** (every other declared path) are the spec-registry family
   under `spec/` (general: `spec/doc-spec.md`, `spec/test-spec.md`; custom:
   `spec/permission-policy.md`, `spec/doc-spec-custom.md`,
@@ -607,9 +619,12 @@ source, the prose explains it.
 
 `validate.sh` enforces the contract against the merged registry:
 - **Check 15/15a** — declared ⇔ on-disk: every declared doc exists AND every
-  `docs/*.md` / `spec/*.md` on disk is declared (no orphans).
-- **Check 15b** — `docs/workflow.md` has a section for every `CJ_goal_*`
-  orchestrator (ASCII chart + a 4-bullet Touches block).
+  `docs/**/*.md` (recursive — including `docs/workflows/`) / `spec/*.md` on disk
+  is declared (no orphans).
+- **Check 15b** — each `CJ_goal_*` orchestrator has its own per-workflow file
+  `docs/workflows/<name>.md` (ASCII chart + a 4-bullet Touches block).
+- **Check 15c** — the `docs/workflow.md` index links each `CJ_goal_*`
+  orchestrator's `docs/workflows/<name>.md` (the no-vanish guard).
 - **Check 16** — the merged doc-spec registry table validates (`doc-spec.sh
   --validate` — general + overlay + the duplicate-path guard).
 - **Check 17** — every root `*.md` on disk is a declared registry path.

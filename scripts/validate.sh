@@ -249,6 +249,13 @@ echo "Checking for orphan doc directories..."
 for dir in "$DOCS_DIR"/*/; do
   [ -d "$dir" ] || continue
   dir_name=$(basename "$dir")
+  # `workflows/` is the contract-mandated per-workflow subfolder (F000067), NOT a
+  # per-skill doc directory — its files are declared human-docs in the doc-spec
+  # registry (Check 15a/15b/15c enforce them). Skip it here.
+  if [ "$dir_name" = "workflows" ]; then
+    pass "docs/workflows is the mandated per-workflow subfolder (declared in the doc-spec registry; not a per-skill doc dir)"
+    continue
+  fi
   if jq -e --arg name "$dir_name" '.[] | select(.name == $name)' "$CATALOG" >/dev/null 2>&1; then
     pass "docs/$dir_name has matching catalog entry"
   else
@@ -598,15 +605,18 @@ while IFS= read -r SKILL_NAME; do
 done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | .name' skills-catalog.json)
 
 # Check 15: doc-spec.md registry (declared <=> on-disk) + workflow.md completeness
-# The doc contract lives in the spec/doc-spec.md registry (a fenced ```yaml block
-# parsed by scripts/doc-spec.sh). Check 15a asserts declared <=> on-disk: every
-# declared doc exists AND every docs/*.md on disk is declared (no orphans). Check
-# 15b asserts docs/workflow.md carries a section for every CJ_goal_* orchestrator
-# (the component skills it dispatches live in the same doc's `## Utilities &
-# phase-step skills` section, guaranteed visible by the docs/philosophy.md
-# decision-tree New-skills check). No silent omission of a workflow.
+# The doc contract lives in the spec/doc-spec.md registry (a 3-column Markdown
+# table parsed by scripts/doc-spec.sh). Check 15a asserts declared <=> on-disk:
+# every declared doc exists AND every docs/**/*.md on disk (recursive, incl.
+# docs/workflows/) is declared (no orphans). Check 15b asserts each CJ_goal_*
+# orchestrator's per-workflow file docs/workflows/<name>.md carries its `### <name>`
+# section with an ASCII chart + the four anchored Touches bullets (F000067
+# retarget: the per-orchestrator detail moved out of the docs/workflow.md index
+# into docs/workflows/<name>.md). Check 15c is the no-vanish guard: the
+# docs/workflow.md index must LINK each CJ_goal_* orchestrator's
+# docs/workflows/<name>.md so the overview can never silently drop a workflow.
 echo ""
-echo "=== Check 15: doc-spec.md registry (declared <=> on-disk) + workflow.md completeness ==="
+echo "=== Check 15: doc-spec.md registry (declared <=> on-disk) + workflows completeness ==="
 
 # 15a: parse the doc-spec.md registry via the helper (--list-declared) and check
 # declared <=> on-disk. The helper enforces schema validity itself (Check 16);
@@ -618,8 +628,12 @@ if [ -x "$DOC_SPEC_HELPER" ]; then
   DECLARED_PATHS=$(bash "$DOC_SPEC_HELPER" --list-declared 2>/dev/null || true)
 fi
 
-# 15a-orphan: docs/*.md on disk that aren't declared in the registry.
-DOCS_FILES_ON_DISK=$(find docs -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+# 15a-orphan: docs/**/*.md on disk that aren't declared in the registry. The
+# scan RECURSES (no -maxdepth) so a per-workflow file under docs/workflows/ must
+# also be declared (F000067 docs/workflows/ subfolder); this mirrors the
+# doc-spec.sh --check-on-disk recursed orphan scan so validate.sh and the engine
+# agree on what counts as an orphan.
+DOCS_FILES_ON_DISK=$(find docs -type f -name '*.md' 2>/dev/null | sort)
 for f in $DOCS_FILES_ON_DISK; do
   if ! printf '%s\n' "$DECLARED_PATHS" | grep -qFx "$f"; then
     echo "  ERROR: $f is in docs/ but not declared in the doc-spec.md registry"
@@ -647,70 +661,86 @@ for p in $DECLARED_PATHS; do
 done
 [ -n "$DECLARED_PATHS" ] && echo "  PASS: doc-spec.md registry declared <=> on-disk ($(printf '%s\n' "$DECLARED_PATHS" | grep -c .) docs declared)"
 
-# 15b: workflow.md per-workflow completeness (only if the doc exists).
-# Enforce a section ONLY for the CJ_goal_* workflow orchestrators (today:
-# CJ_goal_feature, CJ_goal_defect, CJ_goal_todo_fix). Component skills live in
-# docs/workflow.md's `## Utilities & phase-step skills` section.
-CATALOG_FILE="docs/workflow.md"
-if [ -f "$CATALOG_FILE" ]; then
-  # Tag regex: matches the tag anywhere in the line (markdown often wraps it in
-  # backticks for inline-code styling: `(validator)`, `(single-step utility)`,
-  # etc.). Anchored `^\(` would reject the backticked form. The closed enum on
-  # the inner alternation makes anywhere-in-line matching safe against false
-  # positives — the four exact phrases would rarely appear in prose.
-  TAG_RE='\((single-step utility|validator|phase-step in /CJ_goal_feature chain)\)'
+# 15b: per-workflow completeness — each CJ_goal_* orchestrator has its OWN file
+# docs/workflows/<name>.md carrying a `### <name>` section with an ASCII chart +
+# all four anchored Touches bullets (F000067: the per-orchestrator detail moved
+# out of the docs/workflow.md index into the docs/workflows/ subfolder). The
+# CJ_goal_* set is enumerated from skills-catalog.json (status != deprecated,
+# files non-empty, name startswith CJ_goal_) — dynamic, no hardcoded list.
+WORKFLOWS_DIR="docs/workflows"
+while IFS= read -r SKILL_NAME; do
+  WF_FILE="$WORKFLOWS_DIR/$SKILL_NAME.md"
+  if [ ! -f "$WF_FILE" ]; then
+    echo "  ERROR: $WF_FILE missing (every CJ_goal_* orchestrator needs a per-workflow file under $WORKFLOWS_DIR/)"
+    ERRORS=$((ERRORS+1))
+    continue
+  fi
+  # Section heading is `### <name>` line-anchored, inside the per-workflow file.
+  if ! grep -qE "^### ${SKILL_NAME}$" "$WF_FILE"; then
+    echo "  ERROR: $WF_FILE missing section: ### $SKILL_NAME"
+    ERRORS=$((ERRORS+1))
+    continue
+  fi
+  # Extract the section body (between this ### and the next ###, or EOF). Flag-
+  # based, NOT awk's `/start/,/end/` range (the range collapses to a single line
+  # when start + end overlap). A per-workflow file typically has exactly one
+  # `### <name>` section, so the flag stays armed to EOF — the whole body.
+  SECTION=$(awk -v skill="$SKILL_NAME" '
+    $0 == "### " skill {flag=1; next}
+    /^### / {flag=0}
+    flag {print}
+  ' "$WF_FILE")
+  # Section must have an ASCII chart (a fenced ``` block — open + close = 2 lines).
+  HAS_CHART=$(echo "$SECTION" | grep -cE '^```' || true)
+  if [ "$HAS_CHART" -lt 2 ]; then
+    echo "  ERROR: $WF_FILE section '$SKILL_NAME' has no ASCII chart (fenced block); one is required"
+    ERRORS=$((ERRORS+1))
+  else
+    echo "  PASS: $WF_FILE has the '$SKILL_NAME' section with an ASCII chart"
+  fi
+  # 15b-touches (T000040): the **Touches** block MUST carry all four canonical
+  # bullets — Skills dispatched / Steps · phases / Scripts · tools · shell /
+  # Docs touched — at the granular helper + named-step level. Patterns are
+  # LINE-ANCHORED on the bullet shape (`^- \*\*<dim>`), NOT bare substrings:
+  # SECTION is the WHOLE section body (chart + prose + Touches), so a bare
+  # `Steps` would false-match a chart node (`Step 5.5`) or an Invoke-when
+  # sentence and pass a section with NO Touches bullet, defeating the check. The
+  # anchored bullet line is the deterministic structural guarantee; completeness
+  # WITHIN each bullet stays agent-judged (CJ_document-release Step 6.7 audit +
+  # the docs/workflows/<name>.md `requirement:` in the doc-spec.md registry).
+  if ! echo "$SECTION" | grep -qE '^- \*\*Skills'; then
+    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Skills dispatched' bullet (expected a line matching '^- **Skills')"
+    ERRORS=$((ERRORS+1))
+  fi
+  if ! echo "$SECTION" | grep -qE '^- \*\*Steps'; then
+    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Steps · phases' bullet (expected a line matching '^- **Steps')"
+    ERRORS=$((ERRORS+1))
+  fi
+  if ! echo "$SECTION" | grep -qE '^- \*\*Scripts'; then
+    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Scripts · tools · shell' bullet (expected a line matching '^- **Scripts')"
+    ERRORS=$((ERRORS+1))
+  fi
+  if ! echo "$SECTION" | grep -qE '^- \*\*Docs'; then
+    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Docs touched' bullet (expected a line matching '^- **Docs')"
+    ERRORS=$((ERRORS+1))
+  fi
+done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
+
+# 15c (F000067 no-vanish guard): the docs/workflow.md index must LINK each
+# CJ_goal_* orchestrator's docs/workflows/<name>.md. Retargeting 15b to the
+# subfolder removes the guarantee that the overview still NAMES every workflow;
+# 15c restores it — the index can never silently drop a workflow. The link
+# target is matched as `workflows/<name>.md` (the index lives at docs/workflow.md,
+# one level up from docs/workflows/, so it references the relative path). Same
+# dynamic CJ_goal_* enumeration as 15b.
+INDEX_FILE="docs/workflow.md"
+if [ -f "$INDEX_FILE" ]; then
   while IFS= read -r SKILL_NAME; do
-    # Section heading is `### <name>` line-anchored
-    if ! grep -qE "^### ${SKILL_NAME}$" "$CATALOG_FILE"; then
-      echo "  ERROR: $CATALOG_FILE missing section: ### $SKILL_NAME"
-      ERRORS=$((ERRORS+1))
-      continue
-    fi
-    # Extract the section body (between this ### and the next ###).
-    # Flag-based, NOT awk's `/start/,/end/` range: the range collapses to a single
-    # line when start and end patterns overlap (both match `^### `), so the body
-    # comes out empty. Flag pattern reads: arm when we see the section heading
-    # (and skip the heading line itself via `next`), disarm at the next `^### `,
-    # print everything in between.
-    SECTION=$(awk -v skill="$SKILL_NAME" '
-      $0 == "### " skill {flag=1; next}
-      /^### / {flag=0}
-      flag {print}
-    ' "$CATALOG_FILE")
-    # Section must have EITHER a fenced ``` block (ASCII chart) OR a tag line
-    HAS_CHART=$(echo "$SECTION" | grep -cE '^```' || true)
-    HAS_TAG=$(echo "$SECTION"   | grep -cE "$TAG_RE" || true)
-    if [ "$HAS_CHART" -lt 2 ] && [ "$HAS_TAG" -lt 1 ]; then
-      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' has neither ASCII chart (fenced block) nor a tag line; one is required"
+    if ! grep -qF "workflows/$SKILL_NAME.md" "$INDEX_FILE"; then
+      echo "  ERROR: $INDEX_FILE index does not link workflows/$SKILL_NAME.md (no-vanish: the overview must name every CJ_goal_* workflow)"
       ERRORS=$((ERRORS+1))
     else
-      echo "  PASS: $CATALOG_FILE has section for $SKILL_NAME"
-    fi
-    # 15b-touches (T000040): the **Touches** block MUST carry all four canonical
-    # bullets — Skills dispatched / Steps · phases / Scripts · tools · shell /
-    # Docs touched — at the granular helper + named-step level. Patterns are
-    # LINE-ANCHORED on the bullet shape (`^- \*\*<dim>`), NOT bare substrings:
-    # SECTION above is the WHOLE section body (chart + prose + Touches), so a bare
-    # `Steps` would false-match a chart node (`Step 5.5`) or an Invoke-when
-    # sentence and pass a section with NO Touches bullet, defeating the check. The
-    # anchored bullet line is the deterministic structural guarantee; completeness
-    # WITHIN each bullet stays agent-judged (CJ_document-release Step 6.7 audit +
-    # the docs/workflow.md `requirement:` in the doc-spec.md registry).
-    if ! echo "$SECTION" | grep -qE '^- \*\*Skills'; then
-      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Skills dispatched' bullet (expected a line matching '^- **Skills')"
-      ERRORS=$((ERRORS+1))
-    fi
-    if ! echo "$SECTION" | grep -qE '^- \*\*Steps'; then
-      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Steps · phases' bullet (expected a line matching '^- **Steps')"
-      ERRORS=$((ERRORS+1))
-    fi
-    if ! echo "$SECTION" | grep -qE '^- \*\*Scripts'; then
-      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Scripts · tools · shell' bullet (expected a line matching '^- **Scripts')"
-      ERRORS=$((ERRORS+1))
-    fi
-    if ! echo "$SECTION" | grep -qE '^- \*\*Docs'; then
-      echo "  ERROR: $CATALOG_FILE section '$SKILL_NAME' Touches block missing the 'Docs touched' bullet (expected a line matching '^- **Docs')"
-      ERRORS=$((ERRORS+1))
+      echo "  PASS: $INDEX_FILE index links workflows/$SKILL_NAME.md"
     fi
   done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
 fi

@@ -10,9 +10,13 @@ internally, so every consumer — `validate.sh` Checks 15–24,
 
 This workbench's custom tier is `CONTRIBUTING.md` (the contributor
 authoring guide, surfaced by GitHub from the repo root) plus the repo-specific
-spec-registry file (`spec/permission-policy.md`) and the two overlay files
+spec-registry file (`spec/permission-policy.md`), the two overlay files
 themselves (`spec/doc-spec-custom.md`, `spec/test-spec-custom.md` — each
-self-declared here). The spec-registry family lives under `spec/` — a dedicated
+self-declared here), and the six per-workflow human-docs under `docs/workflows/`
+(`CJ_goal_feature.md`, `CJ_goal_task.md`, `CJ_goal_defect.md`,
+`CJ_goal_todo_fix.md`, `utilities-and-phase-steps.md`, `utility-audits.md` — the
+detail split out of the `docs/workflow.md` index per the general contract's
+two-level mandate). The spec-registry family lives under `spec/` — a dedicated
 folder that signals "machine config, not hand-read docs" at a glance. The
 contract's *why* (the logic) lives in
 [`docs/philosophy.md`](../docs/philosophy.md) `## Topic: Doc contract`.
@@ -45,3 +49,9 @@ operational (path-derived, not declared). Cells may not contain a literal `|`.
 | `CONTRIBUTING.md` | Contributor authoring guide. | Present; surfaced by GitHub from the repo root. |
 | `spec/doc-spec-custom.md` | This repo's doc-contract overlay (this file) — the custom-tier rows merged into the general contract by scripts/doc-spec.sh. | Present; one registry table of repo-specific docs (including itself); no path duplicated against the general file. |
 | `spec/test-spec-custom.md` | This repo's test-contract overlay — the unit-level enumeration of the verification surface plus the per-mode pipeline gates (parsed by scripts/test-spec.sh). | Present; one fenced yaml registry of units + gates parsing with schema_version 1; every anchor present in its declared source (validate.sh Check 24). |
+| `docs/workflows/CJ_goal_feature.md` | Per-workflow detail for /CJ_goal_feature — the ASCII workflow chart + the 4-bullet Touches block; linked from the docs/workflow.md index. | Present; carries the ASCII chart + all four anchored Touches bullets (validate.sh Check 15b); human-readable; no work-item IDs. |
+| `docs/workflows/CJ_goal_task.md` | Per-workflow detail for /CJ_goal_task — the ASCII workflow chart + the 4-bullet Touches block; linked from the docs/workflow.md index. | Present; carries the ASCII chart + all four anchored Touches bullets (validate.sh Check 15b); human-readable; no work-item IDs. |
+| `docs/workflows/CJ_goal_defect.md` | Per-workflow detail for /CJ_goal_defect — the ASCII workflow chart + the 4-bullet Touches block; linked from the docs/workflow.md index. | Present; carries the ASCII chart + all four anchored Touches bullets (validate.sh Check 15b); human-readable; no work-item IDs. |
+| `docs/workflows/CJ_goal_todo_fix.md` | Per-workflow detail for /CJ_goal_todo_fix — the ASCII workflow chart + the 4-bullet Touches block; linked from the docs/workflow.md index. | Present; carries the ASCII chart + all four anchored Touches bullets (validate.sh Check 15b); human-readable; no work-item IDs. |
+| `docs/workflows/utilities-and-phase-steps.md` | The machinery glossary + the per-skill roster for the phase-step skills, the validator, and the standalone utilities the orchestrators dispatch / the operator runs directly. | Present; names the shared machinery + every component skill in the lighter per-skill shape; human-readable; no work-item IDs. |
+| `docs/workflows/utility-audits.md` | The standalone read-only utility audits — /CJ_portability-audit (the authoritative correct-behavior spec), /CJ_doc_audit, /CJ_test_audit. | Present; documents each utility audit's correct behavior; human-readable; no work-item IDs. |

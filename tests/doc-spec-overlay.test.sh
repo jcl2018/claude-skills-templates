@@ -23,13 +23,17 @@
 #   7. DOC_SPEC_PATH override stays hermetic: the overlay resolves NEXT TO the
 #      overridden general file, never the live repo's overlay
 #   8. --check-on-disk battery (the audit Stage-1 engine): clean fixture =>
-#      all 4 check lines PASS + CHECKS_RUN=4 + FINDINGS=0 + exit 0; FOUR
-#      seeded violations (missing declared doc; orphan in docs/; orphan in
-#      spec/ — a non-self-declaring overlay; undeclared root *.md; work-item
-#      ID in a human-doc) each flip EXACTLY their own `FINDING: stage1/<id>`
-#      + FINDINGS=1 + exit 1; registry-absent => REGISTRY=absent + exit 0
-#      (probe before parse gates); invalid registry => [doc-sync-no-config] +
-#      exit 1
+#      all 5 check lines PASS (incl. the F000067 workflows-subfolder check) +
+#      CHECKS_RUN=5 + FINDINGS=0 + exit 0; seeded violations (missing declared
+#      doc; orphan in docs/; orphan in spec/ — a non-self-declaring overlay;
+#      undeclared root *.md; work-item ID in a human-doc; an undeclared
+#      docs/workflows/ file — the recursed orphan scan; registry present but
+#      docs/workflows/ missing — the registry-gated mandate; docs/workflows/
+#      present but empty) each flip EXACTLY their own `FINDING: stage1/<id>` +
+#      FINDINGS=1 + exit 1; registry-absent => REGISTRY=absent + exit 0 (probe
+#      before parse gates), so the workflows-subfolder mandate is registry-gated
+#      and never fires on a non-adopting repo; invalid registry =>
+#      [doc-sync-no-config] + exit 1
 #
 # Temp-dir isolated; never mutates the live tree.
 
@@ -196,10 +200,14 @@ fi
 # 8. --check-on-disk battery (the audit Stage-1 engine; F000063: 4 checks)
 
 # Fixture builder: a COMPLETE clean repo for the seeded general contract —
-# every declared doc present. Echoes the fixture dir.
+# every declared doc present. The portable contract now mandates a non-empty
+# docs/workflows/ subfolder (F000067), so the fixture creates one
+# docs/workflows/*.md AND declares it via an overlay (else it is an orphan); this
+# keeps the clean fixture clean against the recursed orphan scan + the
+# registry-gated workflows-subfolder mandate. Echoes the fixture dir.
 mk_cod_fixture() {
   _cf=$(mk_tmp)
-  mkdir -p "$_cf/spec" "$_cf/docs"
+  mkdir -p "$_cf/spec" "$_cf/docs/workflows"
   bash "$HELPER" --seed > "$_cf/spec/doc-spec.md" 2>/dev/null
   printf '# philosophy\n\n## Principle 1\n\nBody.\n' > "$_cf/docs/philosophy.md"
   printf '# workflow\n\n## Flows\n\nBody.\n' > "$_cf/docs/workflow.md"
@@ -210,6 +218,17 @@ mk_cod_fixture() {
   printf '# changelog\n' > "$_cf/CHANGELOG.md"
   printf '# todos\n' > "$_cf/TODOS.md"
   printf '# test contract stub\n' > "$_cf/spec/test-spec.md"
+  # A per-workflow file satisfying the non-empty docs/workflows/ mandate, declared
+  # via an overlay so it is NOT an orphan.
+  printf '### CJ_goal_example\n\nPer-workflow detail.\n' > "$_cf/docs/workflows/CJ_goal_example.md"
+  cat > "$_cf/spec/doc-spec-custom.md" <<'OVR'
+# overlay fixture
+
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `spec/doc-spec-custom.md` | The overlay (self-declared). | Present. |
+| `docs/workflows/CJ_goal_example.md` | A per-workflow detail file. | Present; human-readable; no work-item IDs. |
+OVR
   printf '%s' "$_cf"
 }
 
@@ -227,14 +246,16 @@ assert_one_finding() {
   fi
 }
 
-# 8a. clean fixture: all 4 PASS, CHECKS_RUN=4, FINDINGS=0, exit 0
+# 8a. clean fixture: all 5 PASS, CHECKS_RUN=5, FINDINGS=0, exit 0 (F000067 added
+# the workflows-subfolder check as the 5th).
 _CF=$(mk_cod_fixture)
 _COD=$(REPO_ROOT="$_CF" bash "$HELPER" --check-on-disk 2>&1); _COD_RC=$?
 if [ "$_COD_RC" -eq 0 ] \
-   && [ "$(printf '%s\n' "$_COD" | grep -c '^check: .* — PASS$')" -eq 4 ] \
-   && printf '%s\n' "$_COD" | grep -qx 'CHECKS_RUN=4' \
-   && printf '%s\n' "$_COD" | grep -qx 'FINDINGS=0'; then
-  ok "--check-on-disk clean fixture: 4 PASS lines + CHECKS_RUN=4 + FINDINGS=0 + exit 0"
+   && [ "$(printf '%s\n' "$_COD" | grep -c '^check: .* — PASS$')" -eq 5 ] \
+   && printf '%s\n' "$_COD" | grep -qx 'CHECKS_RUN=5' \
+   && printf '%s\n' "$_COD" | grep -qx 'FINDINGS=0' \
+   && printf '%s\n' "$_COD" | grep -qF 'check: workflows-subfolder — PASS'; then
+  ok "--check-on-disk clean fixture: 5 PASS lines (incl. workflows-subfolder) + CHECKS_RUN=5 + FINDINGS=0 + exit 0"
 else
   fail_test "--check-on-disk clean fixture not clean (rc=$_COD_RC): $_COD"
 fi
@@ -268,8 +289,10 @@ _V=$(mk_cod_fixture); printf 'stray doc\n' > "$_V/docs/extra.md"
 assert_one_finding "$_V" "orphans" "orphan in docs/"
 
 # 8d. violation 3 — orphan in spec/: a NON-SELF-DECLARING overlay (declares
-# EXTRA.md but not itself => the overlay file IS the orphan, by design). EXTRA.md
-# is created so the ONLY finding is the orphan overlay.
+# EXTRA.md + the builder's docs/workflows/ example, but NOT itself => the overlay
+# file IS the orphan, by design). EXTRA.md is created and the example workflow
+# file kept declared so the ONLY finding is the orphan overlay (the builder's
+# subfolder file would otherwise be a second orphan once we replace its overlay).
 _V=$(mk_cod_fixture)
 cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
 # overlay fixture
@@ -277,6 +300,7 @@ cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `EXTRA.md` | An overlay-declared extra doc. | Present. |
+| `docs/workflows/CJ_goal_example.md` | The builder's per-workflow detail file. | Present. |
 EOF
 printf 'extra doc\n' > "$_V/EXTRA.md"
 _OV_OUT=$(REPO_ROOT="$_V" bash "$HELPER" --check-on-disk 2>&1); _OV_RC=$?
@@ -296,6 +320,27 @@ assert_one_finding "$_V" "root-declared" "undeclared root *.md"
 # 8f. violation 5 — work-item ID in a human-doc
 _V=$(mk_cod_fixture); printf '\nShipped by F000999.\n' >> "$_V/docs/architecture.md"
 assert_one_finding "$_V" "human-doc-ids" "work-item ID in a human-doc"
+
+# 8f-1 (F000067). violation 6 — an undeclared *.md UNDER docs/workflows/ is an
+# orphan: the orphan scan now RECURSES docs/ (no -maxdepth), so a subfolder file
+# that no registry row declares flips stage1/orphans. Proves the recursion.
+_V=$(mk_cod_fixture); printf 'stray subfolder doc\n' > "$_V/docs/workflows/zzz_undeclared.md"
+assert_one_finding "$_V" "orphans" "undeclared docs/workflows/ file (recursed orphan scan)"
+
+# 8f-2 (F000067). violation 7 — registry PRESENT but docs/workflows/ MISSING flips
+# the registry-gated workflows-subfolder mandate. Remove the subfolder the clean
+# fixture created AND the overlay that declared its file (so the ONLY finding is
+# the workflows-subfolder mandate, not an orphan/missing-declared from the overlay
+# row). Proves the mandate fires when the contract is adopted but the subfolder
+# is absent.
+_V=$(mk_cod_fixture); rm -rf "$_V/docs/workflows"; rm -f "$_V/spec/doc-spec-custom.md"
+assert_one_finding "$_V" "workflows-subfolder" "registry present but docs/workflows/ missing (registry-gated mandate)"
+
+# 8f-3 (F000067). violation 8 — docs/workflows/ EXISTS but is EMPTY also flips the
+# workflows-subfolder mandate (non-empty is required). Empty the dir; drop the
+# overlay row so the (now-deleted) example file is not a missing-declared finding.
+_V=$(mk_cod_fixture); rm -f "$_V"/docs/workflows/*.md; rm -f "$_V/spec/doc-spec-custom.md"
+assert_one_finding "$_V" "workflows-subfolder" "docs/workflows/ present but empty (non-empty mandate)"
 
 # 8g. registry-absent => REGISTRY=absent + exit 0 (probe BEFORE parse gates)
 _AB=$(mk_tmp)

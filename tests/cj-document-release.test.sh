@@ -13,7 +13,7 @@
 #   6. allowed-tools includes Bash, Read, Glob, Grep, Skill
 #   7. USAGE.md has all 5 required H2 sections
 #   8. skills-catalog.json: CJ_document-release status=experimental + portability=local-only
-#   9. docs/workflow.md `## Utilities & phase-step skills` has the CJ_document-release entry
+#   9. docs/workflows/utilities-and-phase-steps.md `## Utilities & phase-step skills` has the CJ_document-release entry
 #   9b. that entry names the Step 5.5 inline role
 #  10. [doc-sync-red] halt marker present
 #  11. [doc-sync-non-doc-write] halt marker present
@@ -43,7 +43,9 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SKILL_MD="$REPO_ROOT/skills/CJ_document-release/SKILL.md"
 USAGE_MD="$REPO_ROOT/skills/CJ_document-release/USAGE.md"
 CATALOG="$REPO_ROOT/skills-catalog.json"
-WORKFLOWS_DOC="$REPO_ROOT/docs/workflow.md"
+# F000067: the per-skill component roster (incl. the CJ_document-release entry)
+# moved out of the docs/workflow.md index into the docs/workflows/ subfolder.
+WORKFLOWS_DOC="$REPO_ROOT/docs/workflows/utilities-and-phase-steps.md"
 
 echo "=== cj-document-release: skill structure + body assertions (doc-spec.md) ==="
 
@@ -96,16 +98,16 @@ else
   fail_test "skills-catalog.json: CJ_document-release entry wrong (status=$CATALOG_STATUS portability=$CATALOG_PORTABILITY)"
 fi
 
-# 9. docs/workflow.md entry
+# 9. docs/workflows/utilities-and-phase-steps.md entry
 grep -qE '^#### CJ_document-release$' "$WORKFLOWS_DOC" 2>/dev/null \
-  && ok "docs/workflow.md '## Utilities & phase-step skills' has the CJ_document-release entry" \
-  || fail_test "docs/workflow.md missing the CJ_document-release entry"
+  && ok "docs/workflows/utilities-and-phase-steps.md '## Utilities & phase-step skills' has the CJ_document-release entry" \
+  || fail_test "docs/workflows/utilities-and-phase-steps.md missing the CJ_document-release entry"
 
 # 9b. entry names Step 5.5
 if awk '/^#### CJ_document-release$/{f=1;next} /^#### /{f=0} f' "$WORKFLOWS_DOC" 2>/dev/null | grep -qE 'Step 5\.5'; then
-  ok "docs/workflow.md CJ_document-release entry names the Step 5.5 inline role"
+  ok "docs/workflows/utilities-and-phase-steps.md CJ_document-release entry names the Step 5.5 inline role"
 else
-  fail_test "docs/workflow.md CJ_document-release entry missing the Step 5.5 role description"
+  fail_test "docs/workflows/utilities-and-phase-steps.md CJ_document-release entry missing the Step 5.5 role description"
 fi
 
 # 10. [doc-sync-red]

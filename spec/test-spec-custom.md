@@ -233,7 +233,7 @@ verification unit:
 Row-granularity conventions the extraction grammar honors:
 
 - Check 15 is ONE row — the live source has a single `=== Check 15` banner;
-  its 15a/15b sub-assertions are described in that row's `purpose` (they
+  its 15a/15b/15c sub-assertions are described in that row's `purpose` (they
   exist only as bare comments).
 - Check 17 is echo-anchored only (it has no `# Check 17:` comment header).
 - Check 12 is retired; it must not be resurrected by extraction.
@@ -485,13 +485,13 @@ units:
     purpose: "USAGE.md's last commit is at least as recent as its sibling SKILL.md's (git timestamps, staged-aware); skips untracked files (ratchet)."
   - id: validate-check-15
     family: validate
-    label: "Check 15 — doc registry declared matches on-disk + workflow doc completeness"
+    label: "Check 15 — doc registry declared matches on-disk + workflows completeness"
     anchor: "=== Check 15:"
     source: scripts/validate.sh
     layer: ci
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "15a: every declared doc exists and every doc under docs/ and spec/ is declared (no orphans); 15b: the workflow doc carries a charted section plus a four-bullet Touches block per goal orchestrator."
+    purpose: "15a: every declared doc exists and every doc under docs/ (RECURSIVE, including the docs/workflows/ subfolder) and spec/ is declared (no orphans); 15b: each goal orchestrator's per-workflow file docs/workflows/<name>.md carries a charted section plus a four-bullet Touches block; 15c (no-vanish): the docs/workflow.md index links each goal orchestrator's docs/workflows/<name>.md."
   - id: validate-check-16
     family: validate
     label: "Check 16 — doc registry schema"
@@ -711,7 +711,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and the --check-on-disk Stage-1 battery (clean fixture; four seeded violations each isolated to its own stage1/<id> finding; registry-absent REGISTRY=absent; invalid-registry halt)."
+    purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and the --check-on-disk Stage-1 battery (clean fixture: five checks PASS / CHECKS_RUN=5; seeded violations each isolated to its own stage1/<id> finding, including the docs/workflows/ recursed orphan and the registry-gated workflows-subfolder mandate; registry-absent REGISTRY=absent skip; invalid-registry halt)."
   - id: test-test-spec
     family: test
     label: "test-spec suite — two-tier registry parser + coverage drills"

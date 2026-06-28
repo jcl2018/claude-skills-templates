@@ -34,10 +34,12 @@
 #   --validate          exit 0 + print `OK schema_version=<n>` if the merged
 #                       registry is valid; exit 1 + halt-emit otherwise.
 #   --check-on-disk     the deterministic conformance set (the audit Stage-1
-#                       engine): FOUR checks of the MERGED registry against the
+#                       engine): FIVE checks of the MERGED registry against the
 #                       disk state under REPO_ROOT — declared-exists, orphans
-#                       (docs/*.md maxdepth 1 + spec/*.md, each dir only when
-#                       present; an undeclared overlay file IS an orphan),
+#                       (docs/**/*.md RECURSIVE — incl. docs/workflows/ — +
+#                       spec/*.md maxdepth 1, each dir only when present; an
+#                       undeclared overlay file IS an orphan), workflows-subfolder
+#                       (registry-gated: docs/workflows/ exists + non-empty),
 #                       root-declared, human-doc-ids. One `check: <id> — PASS`
 #                       line per clean check, one `FINDING: stage1/<id> —
 #                       <detail>` line per violation, then `CHECKS_RUN=<n>` +
@@ -261,14 +263,14 @@ _run_registry_gates() {
 }
 
 # ---- --check-on-disk: the deterministic conformance set (audit Stage 1) ----
-# FOUR checks of the MERGED registry against the disk state under REPO_ROOT.
+# FIVE checks of the MERGED registry against the disk state under REPO_ROOT.
 # Called AFTER _run_registry_gates (the dispatch arm runs the registry-absent
 # probe itself, BEFORE the gates — a subcommand-local carve-out, since the
 # parse gates halt on a missing registry, which is wrong for this caller).
 # Output contract: one `check: <id> — PASS` line per clean check, one
 # `FINDING: stage1/<id> — <detail>` line PER VIOLATION (a multi-violation
 # check emits one line each, no PASS line), then the machine tail
-# `CHECKS_RUN=<n>` (check ids run — 4 on a full run) + `FINDINGS=<n>`
+# `CHECKS_RUN=<n>` (check ids run — 5 on a full run) + `FINDINGS=<n>`
 # (violation lines). When declared-exists finds missing docs, a trailing
 # `REMEDIATION: stage1/declared-exists — …` advisory line (NOT a finding; does
 # NOT change FINDINGS=) names /CJ_document-release as the scaffolder, so a
@@ -297,25 +299,54 @@ EOF
   _COD_FINDINGS=$((_COD_FINDINGS + _c))
   _COD_MISSING=$_c
 
-  # orphans — every docs/*.md (maxdepth 1) and spec/*.md on disk is declared;
-  # each dir checked only when it exists. A non-self-declaring overlay file
-  # COUNTS as an orphan by design — an overlay MUST self-declare (this
-  # workbench's does); the finding is honest guidance for a consumer repo.
+  # orphans — every docs/**/*.md (RECURSIVE — so a per-workflow file under
+  # docs/workflows/ must be declared too) and spec/*.md (maxdepth 1) on disk is
+  # declared; each dir checked only when it exists. The docs scan is recursive
+  # (F000067 docs/workflows/ subfolder); spec stays maxdepth 1 (the flat
+  # spec-registry family). A non-self-declaring overlay file COUNTS as an orphan
+  # by design — an overlay MUST self-declare (this workbench's does); the finding
+  # is honest guidance for a consumer repo.
   _COD_CHECKS=$((_COD_CHECKS + 1))
   _c=0
   for _dir in docs spec; do
     [ -d "$REPO_ROOT_RESOLVED/$_dir" ] || continue
+    # docs recurses (no -maxdepth); spec stays flat (-maxdepth 1). Two explicit
+    # find invocations rather than an unquoted flag variable (shellcheck SC2086).
+    if [ "$_dir" = "docs" ]; then
+      _COD_ORPHAN_FILES=$(cd "$REPO_ROOT_RESOLVED" && find "$_dir" -type f -name '*.md' 2>/dev/null | sort)
+    else
+      _COD_ORPHAN_FILES=$(cd "$REPO_ROOT_RESOLVED" && find "$_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+    fi
     while IFS= read -r _f; do
       [ -n "$_f" ] || continue
       if ! printf '%s\n' "$_COD_DECLARED" | grep -qFx "$_f"; then
-        echo "FINDING: stage1/orphans — undeclared $_dir/*.md on disk (orphan): $_f"
+        echo "FINDING: stage1/orphans — undeclared $_dir *.md on disk (orphan): $_f"
         _c=$((_c + 1))
       fi
     done <<EOF
-$(cd "$REPO_ROOT_RESOLVED" && find "$_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+$_COD_ORPHAN_FILES
 EOF
   done
   if [ "$_c" -eq 0 ]; then echo "check: orphans — PASS"; fi
+  _COD_FINDINGS=$((_COD_FINDINGS + _c))
+
+  # workflows-subfolder (F000067) — when the registry is PRESENT, docs/workflows/
+  # MUST exist and contain at least one *.md (the two-level docs structure is a
+  # mandated part of the portable contract). This check only runs from
+  # _check_on_disk, which the --check-on-disk dispatch arm calls AFTER the
+  # registry-absent probe returns early — so REGISTRY=absent never reaches here,
+  # i.e. the mandate is registry-gated and never fires on a non-adopting repo.
+  _COD_CHECKS=$((_COD_CHECKS + 1))
+  _c=0
+  _WF_DIR="$REPO_ROOT_RESOLVED/docs/workflows"
+  if [ ! -d "$_WF_DIR" ]; then
+    echo "FINDING: stage1/workflows-subfolder — docs/workflows/ is required but missing (the contract mandates a per-workflow subfolder)"
+    _c=1
+  elif [ -z "$(find "$_WF_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | head -1)" ]; then
+    echo "FINDING: stage1/workflows-subfolder — docs/workflows/ exists but contains no *.md (the contract mandates a non-empty per-workflow subfolder)"
+    _c=1
+  fi
+  if [ "$_c" -eq 0 ]; then echo "check: workflows-subfolder — PASS"; fi
   _COD_FINDINGS=$((_COD_FINDINGS + _c))
 
   # root-declared — every root *.md on disk is a declared registry path.
@@ -670,10 +701,17 @@ in the registry table below — sub-grouped here for the reader.
 
 **Human docs** — what a person (not just an agent) reads to understand the
 project: `docs/philosophy.md`, `docs/workflow.md`, `docs/architecture.md`,
-`README.md`. A declared doc whose path is under `docs/`, or the root
-`README.md`, is treated as a **human doc**: it must exist and must carry **no
-work-item IDs** (a reference of the shape `<F|S|T|D>` followed by six digits is
-internal-tracker noise; this is a hard CI lint, not a guideline).
+`README.md`, plus every per-workflow file under `docs/workflows/`. A declared
+doc whose path is under `docs/`, or the root `README.md`, is treated as a
+**human doc**: it must exist and must carry **no work-item IDs** (a reference of
+the shape `<F|S|T|D>` followed by six digits is internal-tracker noise; this is
+a hard CI lint, not a guideline).
+
+`docs/workflow.md` is an **overview/index**: it names + links every major
+workflow, and the deep per-workflow detail (flowcharts, touches, steps) lives
+one level down under `docs/workflows/<name>.md`. In an adopting repo
+`docs/workflows/` is **required and non-empty**, and every `docs/workflows/*.md`
+is a human doc that must be declared in the (merged) registry.
 
 **Operational docs** — agent- and ops-facing, so they may reference work
 items: `spec/doc-spec.md` (this file), `spec/test-spec.md`, `CLAUDE.md`,
@@ -695,8 +733,9 @@ Two rules make these docs trustworthy:
 Two consumers parse the merged table (this file + the overlay):
 
 - **A CI validator** asserts that every declared doc exists, that every doc on
-  disk under `docs/` (and `spec/`) is declared (no orphans), that every root
-  `*.md` is declared, and that no human-doc contains a work-item ID.
+  disk under `docs/` (recursively — including `docs/workflows/`) and `spec/` is
+  declared (no orphans), that `docs/workflows/` exists and is non-empty, that
+  every root `*.md` is declared, and that no human-doc contains a work-item ID.
 - **A doc-release skill** reads the registry to self-heal the contract: if
   `doc-spec.md` is missing it recreates it from the portable seed; if a
   declared doc is missing it scaffolds a stub; it audits each doc against its
@@ -737,7 +776,7 @@ everything else is operational. Cells may not contain a literal `|`.
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `docs/philosophy.md` | Major design logic, one '## Principle N' section each. | Arranged by principle; states the repo's first principle(s); human-readable; no work-item IDs. |
-| `docs/workflow.md` | The major workflows from a human's perspective; names the major entry points. | Lists every major workflow/entry point a human would invoke; ASCII flowcharts preferred; no work-item IDs. |
+| `docs/workflow.md` | Overview/index that names + links every major workflow; per-workflow detail lives under docs/workflows/. | Overview/index that names + links every major workflow a human would invoke; per-workflow detail (flowcharts, touches, steps) lives under docs/workflows/<name>.md; no work-item IDs. |
 | `docs/architecture.md` | Meaningful infra under the hood, deeper than workflow.md. | Explains the load-bearing machinery deeper than workflow.md; ASCII diagrams preferred; no work-item IDs. |
 | `README.md` | Repo landing page: folder structure + how to get started. | Has a folder-structure section and a getting-started section naming the major workflows; no work-item IDs. |
 | `docs/reference.md` | Curated external references for building this workbench — repos, docs, blogs, articles — grouped by category. | Lists useful external references (repos / links / blogs / articles) relevant to building this workbench, grouped by category, each with a one-line note on why it is relevant; human-readable; no work-item IDs. |

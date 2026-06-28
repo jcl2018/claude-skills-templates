@@ -12,7 +12,7 @@ A doc-first development workbench: a work lifecycle pipeline, doc-contract enfor
 ```
 .
 ├── spec/               # machine registries (doc-spec + doc-spec-custom / permission-policy / test-spec + test-spec-custom)
-├── docs/                # human docs (philosophy.md, workflow.md, architecture.md)
+├── docs/                # human docs (workflow.md index + workflows/, philosophy.md, architecture.md)
 ├── skills/              # Claude Code skills (the CJ_ family + utilities)
 ├── templates/           # work-item + doc authoring templates
 ├── work-copilot/        # the GitHub Copilot delivery bundle (Python-CLI deployed)
@@ -78,8 +78,9 @@ a handful of `CJ_` front doors. Pick by what you have in hand:
 | "Is my `~/.claude/` healthy?" | `/CJ_system-health` | A read-only health dashboard for the install. |
 
 Every front door converges on the same `/ship` → `/land-and-deploy` tail. For the
-full workflow charts see [`docs/workflow.md`](docs/workflow.md); for the routing
-decision tree see [`docs/philosophy.md`](docs/philosophy.md).
+full per-workflow charts see [`docs/workflows/`](docs/workflows/), indexed from
+[`docs/workflow.md`](docs/workflow.md); for the routing decision tree see
+[`docs/philosophy.md`](docs/philosophy.md).
 
 ## Installation
 
