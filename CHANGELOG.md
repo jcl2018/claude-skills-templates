@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.88] - 2026-06-28
+
+### Added
+
+- **PR-body splice wiper-idiom guard across the four `CJ_goal_*` pipelines** (T000052). T000053 (PR #279) replaced the BSD/macOS-awk-fragile `awk -v <var>="$payload"` PR-body splice with temp-file composition + `gh pr edit --body-file` + a post-edit line-count floor in all four `CJ_goal_*` `pipeline.md` files, but shipped **doc-only** — the four splice blocks are agent-executed prose, and nothing asserted the wiper idiom (which BSD/macOS awk rejects with "newline in string", wiping the PR body — the live PR #259 failure) could not creep back into one of the four copies on a future edit. New `tests/cj-goal-pr-body-splice-guard.test.sh` asserts that no executable (non-comment) line in any of the four `pipeline.md` passes a multi-line shell payload through `awk -v` (only the safe `*_FILE` filename form, where the payload is read via `getline`, plus the warning comments remain), and that each file keeps its `gh pr edit --body-file` splice. Wired into `scripts/test.sh` (hand-wired discovery — an unregistered test silently never runs) and registered as the `units:` row `test-cj-goal-pr-body-splice-guard` in `spec/test-spec-custom.md` (Check 24 coverage). Baseline is clean (0 violations) — a free regression ratchet.
+
 ## [6.0.87] - 2026-06-28
 
 ### Added

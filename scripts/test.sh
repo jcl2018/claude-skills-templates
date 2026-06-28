@@ -1650,6 +1650,21 @@ else
   fail_test "tests/cj-task-scaffold.test.sh failed (rc=$_cts_rc) — run \`bash tests/cj-task-scaffold.test.sh\` directly to see"
 fi
 
+# T000052: guard the PR-body splice idiom across the 4 cj_goal pipeline.md files.
+# T000053 (PR #279) replaced the BSD/macOS-awk-fragile `awk -v <var>="$payload"`
+# splice with temp-file + `gh pr edit --body-file` but shipped DOC-ONLY; this
+# guard asserts the wiper idiom cannot creep back into one of the four copies.
+# Registration is MANDATORY — scripts/test.sh discovery is hand-written, NOT
+# glob-based; an unregistered tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/cj-goal-pr-body-splice-guard.test.sh (no multi-line 'awk -v' PR-body payload in 4 pipeline.md)..."
+if bash "$REPO_ROOT/tests/cj-goal-pr-body-splice-guard.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-pr-body-splice-guard.test.sh: no dangerous 'awk -v' payload idiom in any cj_goal pipeline.md"
+else
+  _cgpbsg_rc=$?
+  fail_test "tests/cj-goal-pr-body-splice-guard.test.sh failed (rc=$_cgpbsg_rc) — run \`bash tests/cj-goal-pr-body-splice-guard.test.sh\` directly to see"
+fi
+
 # Regression test (F000011 fix, Approach A): the post-merge git hook installed by
 # setup-hooks.sh must redeploy skills (Section 1) but NOT auto-edit work-item
 # trackers. The former Phase-3 lifecycle-gate block dirtied main on every

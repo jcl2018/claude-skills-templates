@@ -658,6 +658,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The doc-sync step and halt-taxonomy rows are present and correctly ordered in the goal orchestrators."
+  - id: test-cj-goal-pr-body-splice-guard
+    family: test
+    label: "goal PR-body splice guard suite — no multi-line awk -v payload idiom"
+    anchor: "tests/cj-goal-pr-body-splice-guard.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "No executable line in any of the four cj_goal pipeline.md passes a multi-line shell payload through awk -v; only the safe --body-file filename idiom and the warning comments remain, and each file keeps its gh pr edit --body-file splice."
   - id: test-post-land-sync
     family: test
     label: "post-land-sync suite — post-merge local sync helper"
