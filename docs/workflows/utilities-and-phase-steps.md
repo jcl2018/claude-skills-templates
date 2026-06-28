@@ -210,7 +210,7 @@ produces a scored report with trend tracking.
 
 **Status:** active
 **Category:** local-only (reaches deployed `~/.claude` state via its own bundled
-`scripts/suggest.sh` — matches `skills-catalog.json`)
+`skills/CJ_suggest/scripts/suggest.sh` — matches `skills-catalog.json`)
 **Source:** `skills/CJ_suggest/SKILL.md` · `skills/CJ_suggest/USAGE.md`
 **Invoke when:** you want a ranked top-5 (or `--limit N`) of next-up work items;
 internal phase-step rows are filtered by default (`--include-internal` surfaces
@@ -218,7 +218,7 @@ them); `--for-skill` / `--limit` pre-filter for downstream callers like
 `/CJ_goal_todo_fix`.
 **Touches:**
 
-- **Scripts · tools · shell:** `scripts/suggest.sh` (the ranking helper); Read / Grep.
+- **Scripts · tools · shell:** `skills/CJ_suggest/scripts/suggest.sh` (the ranking helper); Read / Grep.
 - **Reads / writes:** reads `TODOS.md` + each work-item TRACKER's frontmatter; read-only — prints the ranked list, mutates nothing.
 
 #### CJ_improve-queue

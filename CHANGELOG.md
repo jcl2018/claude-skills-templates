@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.86] - 2026-06-28
+
+### Fixed
+
+- **`docs/workflows/` Touches bullets: bundled per-skill helpers now use their full `skills/<name>/scripts/` path** (surfaced by a `/CJ_doc_audit` Stage-3 drift pass on the new F000067 docs). Two `Scripts · tools · shell` Touches bullets cited a *bundled* helper with a bare `scripts/` root prefix where no root file exists: `docs/workflows/utilities-and-phase-steps.md` cited `scripts/suggest.sh` (real path `skills/CJ_suggest/scripts/suggest.sh`) and `docs/workflows/CJ_goal_todo_fix.md` cited `scripts/drain-one-todo.sh` (real path `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh`). Both now use the full bundled path, matching the sibling `docs/workflows/CJ_goal_task.md` which already spelled out `skills/CJ_goal_task/scripts/cj-task-scaffold.sh`. Docs-only; the bare-`scripts/` shorthand in chart/prose (an established `CLAUDE.md` convention) is left unchanged.
+
 ## [6.0.85] - 2026-06-27
 
 ### Added
