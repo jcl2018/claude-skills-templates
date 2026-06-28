@@ -31,21 +31,36 @@
 #                   ([portability-red]). Engine-absent → skipped (fail-soft, like
 #                   validate.sh Check 18's "SKIP: engine absent"); findings →
 #                   non-zero exit so the caller can halt. --dry-run runs nothing.
+#   7. recap      — land/PR human-readable recap formatter (F000068 / S000112): a
+#                   PURE FORMATTER. Prints a standardized 3-part block — Delivered /
+#                   How to E2E-test it / Next step — with a header keyed off --when
+#                   {before|after}. The agent authors the content and passes it via
+#                   the existing repeatable --field parsing (delivered/e2e/next);
+#                   the phase computes NOTHING, mutates NOTHING, writes NO telemetry.
+#                   Fail-soft / advisory: a missing field renders an empty section,
+#                   it emits PHASE=recap + PHASE_RESULT=ok and exits 0 — it NEVER
+#                   halts. The 4 cj_goal orchestrators call it at their land/PR-stop
+#                   step (S000113 wires them); an absent helper degrades to prose.
 #
 # Args:
-#   --phase {worktree|telemetry|pr-check|ship|cleanup|sync|portability-audit}
+#   --phase {worktree|telemetry|pr-check|ship|cleanup|sync|portability-audit|recap}
 #                                                 required; selects the op
 #                                                 ('ship' is an alias for pr-check —
 #                                                 the PR-creation seam where the
 #                                                 verb skills run the PR check)
 #   --mode  {feature|defect|task}                 required; verb context
+#   --when  {before|after}                        (recap phase) selects the header
+#                                                 line (BEFORE: "About to land …";
+#                                                 AFTER: "Landed …" / "PR opened …")
 #   --dry-run                                     emit output only; no fs / git mutation
 #   --no-worktree                                 (worktree phase) forward opt-out to helper
 #   --no-sync                                     (sync phase) skip the install → PHASE_RESULT=skipped
 #   --branch NAME                                 (pr-check phase) --head fallback for gh pr list
 #   --repo PATH                                   repo root override (default: git toplevel)
 #   --receipt-file PATH                           (telemetry phase) override receipt path (test hook)
-#   --field KEY=VALUE                             (telemetry phase) repeatable; extra receipt fields
+#   --field KEY=VALUE                             (telemetry + recap phases) repeatable;
+#                                                 telemetry: extra receipt fields;
+#                                                 recap: delivered=/e2e=/next= content
 #
 # Stdout (always emitted, one line per field, KEY=VALUE — mirrors
 # scripts/cj-handoff-gate.sh):
@@ -73,6 +88,7 @@ set -u  # strict on undefined vars; do NOT set -e — phase ops handle errors ex
 
 PHASE=""
 MODE=""
+WHEN=""
 DRY_RUN=0
 NO_WORKTREE=0
 NO_SYNC=0
@@ -87,6 +103,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --phase)        PHASE="${2:-}"; shift 2 ;;
     --mode)         MODE="${2:-}"; shift 2 ;;
+    --when)         WHEN="${2:-}"; shift 2 ;;
     --dry-run)      DRY_RUN=1; shift ;;
     --no-worktree)  NO_WORKTREE=1; shift ;;
     --no-sync)      NO_SYNC=1; shift ;;
@@ -117,9 +134,9 @@ case "$PHASE" in
 esac
 
 case "$PHASE" in
-  worktree|telemetry|pr-check|cleanup|sync|portability-audit) ;;
+  worktree|telemetry|pr-check|cleanup|sync|portability-audit|recap) ;;
   *)
-    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup, sync, portability-audit)" >&2
+    echo "[common-usage-phase] --phase required (one of: worktree, telemetry, pr-check, ship, cleanup, sync, portability-audit, recap)" >&2
     exit 1
     ;;
 esac
@@ -607,6 +624,97 @@ if [ "$PHASE" = "portability-audit" ]; then
   echo "PHASE_RESULT=findings"
   echo "[common-portability-findings] $FINDINGS skill(s) declare a portability tier they do not honor (engine exit $PA_RC)" >&2
   exit 2
+fi
+
+# =============================================================================
+# Phase: recap — land/PR human-readable 3-part recap formatter (F000068/S000112)
+# =============================================================================
+#
+# A PURE FORMATTER. Renders a standardized, labelled 3-part block — Delivered /
+# How to E2E-test it / Next step — with a header keyed off --when {before|after}.
+# The agent authors the content and passes it via the existing repeatable --field
+# parsing (delivered=, e2e=, next=); this phase computes NOTHING, mutates NOTHING,
+# and writes NO telemetry. It only renders to stdout.
+#
+# Fail-soft / advisory (the whole point of the posture): a missing/unknown field
+# renders an EMPTY section rather than erroring; the phase ALWAYS emits
+# PHASE=recap + PHASE_RESULT=ok and exits 0 — it NEVER halts a run. The 4 cj_goal
+# orchestrators call it at their land/PR-stop step (S000113 wires them); if the
+# helper is absent the orchestrator falls back to emitting the same 3-part block
+# as prose.
+#
+# Field values are printed VERBATIM via printf '%s' (no eval; the same safe
+# split-on-first-'=' idiom the telemetry phase uses), so multi-line / special-char
+# content renders without a new escaping bug.
+#
+# --when selects the header line:
+#   before → "About to land …"
+#   after  → "Landed …" / "PR opened …" (PR-stop verbs read this as the at-PR recap)
+# An unknown/empty --when defaults to the AFTER header (a recap with no --when is
+# most usefully a "here is what happened" block).
+#
+# --mode is labelling-only here (the block shape is verb-neutral); the todo verb
+# passes --mode feature, the same value it already uses for --phase sync.
+#
+# Stdout fields: PHASE=recap, MODE, WHEN, then the rendered block, then
+# PHASE_RESULT=ok.
+
+if [ "$PHASE" = "recap" ]; then
+  echo "PHASE=recap"
+  echo "MODE=$MODE"
+
+  # Resolve the three content fields from the repeatable --field KEY=VALUE pairs.
+  # Split on the FIRST '=' (same idiom as the telemetry phase); print verbatim,
+  # never eval. Unknown keys are ignored; absent keys leave an empty section.
+  RECAP_DELIVERED=""
+  RECAP_E2E=""
+  RECAP_NEXT=""
+  for kv in "${EXTRA_FIELDS[@]:-}"; do
+    [ -z "$kv" ] && continue
+    _k="${kv%%=*}"
+    _v="${kv#*=}"
+    case "$_k" in
+      delivered) RECAP_DELIVERED="$_v" ;;
+      e2e)       RECAP_E2E="$_v" ;;
+      next)      RECAP_NEXT="$_v" ;;
+      *)         : ;;  # ignore unknown field keys (fail-soft)
+    esac
+  done
+
+  # Header keyed off --when. Default (unknown/empty) → the AFTER header.
+  case "$WHEN" in
+    before)
+      echo "WHEN=before"
+      echo ""
+      echo "=== About to land ==="
+      ;;
+    after)
+      echo "WHEN=after"
+      echo ""
+      echo "=== Landed / PR opened ==="
+      ;;
+    *)
+      echo "WHEN=after"
+      echo ""
+      echo "=== Landed / PR opened ==="
+      ;;
+  esac
+
+  # The three labelled sections. printf '%s' renders the field verbatim (no eval,
+  # no truncation); a missing field yields an empty line under its label.
+  echo ""
+  echo "Delivered:"
+  printf '%s\n' "$RECAP_DELIVERED"
+  echo ""
+  echo "How to E2E-test it:"
+  printf '%s\n' "$RECAP_E2E"
+  echo ""
+  echo "Next step:"
+  printf '%s\n' "$RECAP_NEXT"
+  echo ""
+
+  echo "PHASE_RESULT=ok"
+  exit 0
 fi
 
 # Unreachable — phase validation above exits non-zero on any unknown phase.

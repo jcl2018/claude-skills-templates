@@ -321,4 +321,29 @@ else
 fi
 ```
 
+**BEFORE-land recap (3-part; advisory — F000068).** `todo_fix` is a landing verb:
+it drains each TODO end-to-end through `/ship → /land-and-deploy`, so it emits a
+recap BEFORE the land and another AFTER (the AFTER half runs in SKILL.md's
+Agent-layer terminal, after `/land-and-deploy` + the DONE-mark). Render the BEFORE
+block HERE — right after `/ship` opened the PR and before `/land-and-deploy` merges
+it — **per drained TODO** (this site runs once per shipped PR, same as the Step 5.6
+surfacing above). YOU (the agent) author the three fields for THIS TODO's change;
+the helper only formats:
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+if [ -x "$_COMMON" ]; then
+  bash "$_COMMON" --phase recap --mode feature --when before \
+    --field delivered="<this TODO's change in plain terms + the TODOS row it closes; PR $PR_URL>" \
+    --field e2e="<the concrete end-to-end commands/checks that prove THIS change — e.g. scripts/test.sh, a specific scripts/*.sh invocation, or 'open PR and read section X'>" \
+    --field next="/land-and-deploy is about to merge + deploy PR $PR_URL, then the TODOS.md DONE-mark."
+fi
+```
+
+(`--mode feature` matches this pipeline's `--phase sync`/`portability-audit` calls
+— the block shape is verb-neutral and `--mode` is labelling-only.) **Prose fallback
+(helper absent):** emit the same 3-part block as prose under an
+`=== About to land ===` header (do NOT halt — the recap is advisory; a missing
+field renders an empty section).
+
 Control always proceeds to `/land-and-deploy` — this step has no halt path.

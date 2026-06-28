@@ -64,6 +64,18 @@ cleanup, and the pre-ship portability gate.
   alongside the registered-doc verdicts. The catalog baseline is clean, so the
   gate is green today and a free regression ratchet. This is cj_goal-scoped
   enforcement; `validate.sh` Check 18 stays advisory globally.
+- **recap** — the land/PR human-readable 3-part recap formatter. A **pure
+  formatter**: it renders a standardized block — **Delivered / How to E2E-test it
+  / Next step** — with a header keyed off `--when {before|after}`, sourcing the
+  content from the existing repeatable `--field` parsing (`delivered=` / `e2e=` /
+  `next=`, printed verbatim, no eval). It computes nothing, mutates nothing, and
+  writes no telemetry; it emits `PHASE_RESULT=ok` and exits 0 — fully fail-soft
+  (a missing field renders an empty section; it never halts). The four
+  orchestrators call it at their land/PR-stop step (a before+after pair around the
+  land for the two landing verbs `defect` / `todo_fix`; one at-PR recap for the
+  two PR-stop verbs `feature` / `task`), with a documented prose fallback when the
+  helper is absent. The agent authors the content; the helper only standardizes
+  the shape. Advisory — there is no `validate.sh` gate asserting the wiring.
 
 **Modes it dispatches on:**
 

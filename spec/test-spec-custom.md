@@ -685,6 +685,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "A clean catalog passes, dry-run runs nothing, a dishonest declaration yields findings, and an absent engine skips fail-soft."
+  - id: test-cj-goal-common-recap
+    family: test
+    label: "goal-common recap suite — land/PR 3-part recap formatter"
+    anchor: "tests/cj-goal-common-recap.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The --phase recap pure formatter renders all three labelled sections, switches the header on --when before|after, is fail-soft on a missing field, and prints --field content verbatim (no eval)."
   - id: test-cj-id-claim
     family: test
     label: "cj-id-claim suite — atomic work-item ID claim"

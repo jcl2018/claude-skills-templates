@@ -1154,7 +1154,28 @@ Control always proceeds to Step 10 — this step has no halt path.
 
 ## Step 10: Chain to /land-and-deploy --suppress-readiness-gate
 
-Invoke `/land-and-deploy --suppress-readiness-gate` via the Skill tool.
+**BEFORE-land recap (3-part; advisory — F000068).** `defect` is a landing verb:
+it lands in-pipeline, so it emits a recap BEFORE the land (the "about to land"
+heads-up) and another AFTER (Step 12). Render the BEFORE block here, just ahead of
+the `/land-and-deploy` invocation. YOU (the agent) author the three fields for THIS
+fix — the helper only formats. The land has NOT happened yet, so frame `next` as
+"the land is about to run":
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+if [ -x "$_COMMON" ]; then
+  bash "$_COMMON" --phase recap --mode defect --when before \
+    --field delivered="<the fix in plain terms: what the bug was + what changed; PR $PR_URL>" \
+    --field e2e="<the concrete end-to-end commands/checks that prove the fix — e.g. the test-plan's regression command, scripts/test.sh, or a repro that now passes>" \
+    --field next="/land-and-deploy --suppress-readiness-gate is about to merge + deploy PR $PR_URL."
+fi
+```
+
+**Prose fallback (helper absent).** If `$_COMMON` is missing/unreachable, emit the
+same 3-part block as prose under an `=== About to land ===` header (do NOT halt —
+the recap is advisory). A missing field renders an empty section.
+
+Then invoke `/land-and-deploy --suppress-readiness-gate` via the Skill tool.
 
 If red (CI / merge / canary / regression): halt with a `[land-and-deploy-red]`
 journal entry (`pr_url=$PR_URL`) + the C7 3-line block. Telemetry:
@@ -1235,6 +1256,26 @@ Test plan: $TEST_PLAN_PATH
 Tracker:   $TRACKER
 Telemetry: $TELEMETRY
 ```
+
+**AFTER-land recap (3-part; advisory — F000068).** This is the AFTER half of the
+landing-verb before+after pair (the BEFORE block ran in Step 10). The fix has now
+merged + deployed, so render the AFTER ("Landed") block via the shared helper. YOU
+(the agent) author the three fields for THIS fix; the helper only formats:
+
+```bash
+_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
+if [ -x "$_COMMON" ]; then
+  bash "$_COMMON" --phase recap --mode defect --when after \
+    --field delivered="<the fix in plain terms + the version it bumped to + PR $PR_URL + the squash-merge SHA>" \
+    --field e2e="<the concrete end-to-end commands/checks that prove the fix is LIVE — e.g. the regression command against origin/main, scripts/test.sh, or a repro that now passes>" \
+    --field next="<the concrete next action — typically: confirm the deploy / canary, then nothing else; or a named follow-up>"
+fi
+```
+
+**Prose fallback (helper absent).** If `$_COMMON` is missing/unreachable, emit the
+same 3-part block as prose under a `=== Landed / PR opened ===` header (do NOT halt
+— the recap is advisory). A missing field renders an empty section. No
+`validate.sh` check asserts the recap fired.
 
 ---
 
