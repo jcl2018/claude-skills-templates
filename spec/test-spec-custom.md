@@ -562,6 +562,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "README.md byte-matches the generate-readme.sh stdout, so a stale catalog-derived README cannot pass validation; read-only (the generator writes only to stdout); skips when the generator is absent."
+  - id: validate-check-26
+    family: validate
+    label: "Check 26 — generated test catalog in sync with test-spec.sh --render-docs"
+    anchor: "=== Check 26:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "The generated test catalog (docs/tests/<family>.md per unit family plus the docs/test-catalog.md index) byte-matches a fresh render from the merged registry, so a stale catalog cannot pass validation; read-only (--check renders only into a temp dir); skips when the engine is absent or no units are declared."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -766,6 +776,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "test-spec.sh --classify labeling absent/canonical/duplicate/malformed (never legacy — the fenced-yaml format never diverged), --reconcile as a dedup/no-op (canonical clean no-op, duplicate reports the redundant copy with no auto-delete, malformed halts), and the live-workbench canonical-no-reconcile-noise baseline."
+  - id: test-test-spec-render
+    family: test
+    label: "test-spec render suite — generated catalog renderer + freshness primitive"
+    anchor: "tests/test-spec-render.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated test catalog from the merged registry, and --render-docs --check exits zero on a fresh render and non-zero after a hand-edit — the freshness primitive behind validate.sh Check 26."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test

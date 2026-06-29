@@ -398,7 +398,10 @@ cp "$CATALOG" "/tmp/catalog-backup-$$"
 cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
 [ -f "$REPO_ROOT/VERSION" ] && cp "$REPO_ROOT/VERSION" "/tmp/version-backup-$$"
 [ -f "$REPO_ROOT/CHANGELOG.md" ] && cp "$REPO_ROOT/CHANGELOG.md" "/tmp/changelog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$"' EXIT
+# F000069 / Check 26: back up the generated test catalog so the Step-3e fixture
+# (which plants drift in docs/test-catalog.md) is safe even on an unexpected exit.
+[ -f "$REPO_ROOT/docs/test-catalog.md" ] && cp "$REPO_ROOT/docs/test-catalog.md" "/tmp/testcatalog-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; [ -f "/tmp/testcatalog-backup-$$" ] && cp "/tmp/testcatalog-backup-$$" "$REPO_ROOT/docs/test-catalog.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$" "/tmp/testcatalog-backup-$$"' EXIT
 
 # Step 1: manually create a skill directory + SKILL.md (the CLAUDE.md-guided way)
 mkdir -p "$SKILLS_DIR/zzz-test-scaffold"
@@ -603,6 +606,44 @@ if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
   ok "Check 25: validate.sh exits 0 again after README.md is regenerated"
 else
   fail_test "Check 25: validate.sh should have exited 0 after README.md was regenerated, but exited non-zero"
+fi
+
+# Step 3e (F000069 / Check 26): docs/tests/ + docs/test-catalog.md ↔
+# test-spec.sh --render-docs freshness check. THE PARALLEL test.sh EDIT the new
+# validate.sh Check 26 needs — pre-flighted in lockstep with the check add (the
+# standing F000032/34/35 zzz-mirror blind spot that bit Check 25 too, defused
+# here for Check 26). The generated test catalog is rendered from the merged
+# test-spec registry by scripts/test-spec.sh --render-docs; Check 26 calls
+# --render-docs --check (render to temp + diff vs on-disk) so a stale catalog
+# cannot pass validation. docs/test-catalog.md is already backed up + restored by
+# the EXIT trap above, so mutating it here is safe even on an unexpected exit.
+# POSITIVE: on the live (in-sync) tree Check 26 PASSes. NEGATIVE: append a stray
+# line to docs/test-catalog.md (the registry is unchanged so the render diverges)
+# → assert validate.sh exits non-zero AND emits the literal Check 26 stale ERROR,
+# then regenerate the catalog from the registry → assert validate.sh exits 0
+# again. Proves Check 26 actually FIRES, not just defaults green.
+_C26_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
+if echo "$_C26_OUT_OK" | grep -qF "  PASS: docs/tests/ + docs/test-catalog.md match test-spec.sh --render-docs"; then
+  ok "Check 26: generated test catalog is in sync with test-spec.sh --render-docs on the live tree (PASS)"
+else
+  fail_test "Check 26: validate.sh did not emit the Check-26 PASS on the in-sync live tree; output: $_C26_OUT_OK"
+fi
+printf '\n<!-- planted drift for Check 26 negative test -->\n' >> "$REPO_ROOT/docs/test-catalog.md"
+if _C26_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 26: validate.sh should have exited non-zero with a drifted test catalog, but exited 0"
+else
+  if echo "$_C26_OUT" | grep -qF "  ERROR: the generated test catalog is stale vs the registry"; then
+    ok "Check 26: a drifted docs/test-catalog.md triggers the stale ERROR + non-zero exit"
+  else
+    fail_test "Check 26: validate.sh exited non-zero but missing '  ERROR: the generated test catalog is stale vs the registry'; output: $_C26_OUT"
+  fi
+fi
+# Regenerate the catalog from the registry (its single source of truth), then assert green.
+bash "$REPO_ROOT/scripts/test-spec.sh" --render-docs >/dev/null 2>&1
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 26: validate.sh exits 0 again after the test catalog is regenerated"
+else
+  fail_test "Check 26: validate.sh should have exited 0 after the test catalog was regenerated, but exited non-zero"
 fi
 
 # Step 4: frontmatter is parseable
@@ -1959,6 +2000,24 @@ if bash "$REPO_ROOT/tests/test-spec-reconcile.test.sh" >/dev/null 2>&1; then
 else
   _tsr_rc=$?
   fail_test "tests/test-spec-reconcile.test.sh failed (rc=$_tsr_rc) — run \`bash tests/test-spec-reconcile.test.sh\` directly to see"
+fi
+
+# Regression test (F000069): the generated test-catalog renderer — test-spec.sh
+# --render-docs is the SECOND instance of the README ↔ generate-readme.sh ↔
+# Check 25 freshness primitive, applied to the test surface. The suite asserts
+# render→render byte-stability, work-item-ID-freeness of the output (the anchor
+# IDs are masked so the human-docs pass Check 19 by construction), --check exit 0
+# on a freshly-rendered tree, and --check exit 1 after a hand-edit. Temp-dir
+# isolated (TESTDOC_OUT override); never mutates the live tree. MANDATORY
+# registration — Check 24's reverse sweep hard-fails any unregistered
+# tests/*.test.sh.
+echo ""
+echo "Running tests/test-spec-render.test.sh (F000069 generated test-catalog renderer + freshness)..."
+if bash "$REPO_ROOT/tests/test-spec-render.test.sh" >/dev/null 2>&1; then
+  ok "tests/test-spec-render.test.sh: render stability + ID-free output + --check pass-on-fresh / fail-on-edit all pass"
+else
+  _tsrender_rc=$?
+  fail_test "tests/test-spec-render.test.sh failed (rc=$_tsrender_rc) — run \`bash tests/test-spec-render.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
