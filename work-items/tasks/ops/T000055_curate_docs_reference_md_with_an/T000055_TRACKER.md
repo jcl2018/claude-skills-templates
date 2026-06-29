@@ -110,3 +110,5 @@ Scope (from /CJ_goal_task topic): Curate docs/reference.md with an editorial pas
 - 2026-06-28 [qa-smoke-summary] green: 4/4 rows green. Docs-only change; validate.sh 0/0.
 - 2026-06-28 [qa-audit] AUDITS=deferred (no spec-overlay change; 8.6c/8.6d deferred to the orchestrator post-sync audit).
 - 2026-06-28 [qa-pass] T000055 (task): green smoke from test-plan rows (4 rows). No qa-owned Phase 2 gates per task template.
+
+- 2026-06-28 [task-pr-opened] T000055 PR #288 (v6.0.90) — https://github.com/jcl2018/claude-skills-templates/pull/288
