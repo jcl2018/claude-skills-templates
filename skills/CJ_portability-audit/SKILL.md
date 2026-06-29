@@ -1,6 +1,6 @@
 ---
 name: CJ_portability-audit
-description: "Static dependency lint for declared skill portability. Compares each catalog skill's declared `portability` field against its ACTUAL executed repo-local dependencies (root scripts/*.sh helpers, root config, CLAUDE.md, the manifest `.source` reach-back) using a strict tier ladder (standalone < local-only < workbench), an EXECUTED-vs-documented precision rule, bundled-own-script + scoped self-resolution-preamble carve-outs, and an optional `portability_requires` accepted-deps field. Emits a per-skill verdict (portable / portable-with-notes / findings:<list>). Engine-in-script; also wired into validate.sh as an advisory check (exit 0 in v1; PORTABILITY_STRICT=1 flips to hard-fail). Workbench-only. Use when: 'audit skill portability', 'check declared-vs-actual dependencies', 'is this skill really standalone'."
+description: "Static dependency lint for declared skill portability. Compares each catalog skill's declared `portability` field against its ACTUAL executed repo-local dependencies (root scripts/*.sh helpers, root config, CLAUDE.md, the manifest `.source` reach-back) using a strict tier ladder (standalone < local-only < workbench), an EXECUTED-vs-documented precision rule, bundled-own-script + scoped self-resolution-preamble carve-outs, and an optional `portability_requires` accepted-deps field. Emits a per-skill verdict (portable / portable-with-notes / findings:<list>). Engine-in-script; also wired into validate.sh as Check 18 (strict-by-default — a finding hard-fails; PORTABILITY_STRICT=0 downgrades to advisory). Workbench-only. Use when: 'audit skill portability', 'check declared-vs-actual dependencies', 'is this skill really standalone'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -38,10 +38,11 @@ that a fresh target repo will not have. (The consumer-side duty it once paired w
 
 **Posture is split by surface.** The workbench catalog is currently CLEAN
 (`bash scripts/cj-portability-audit.sh` reports `FINDINGS=0`, even raw via
-`--no-adjudication`) — no declared-vs-actual mismatches today. The audit stays
-**advisory in `validate.sh` Check 18** (it prints findings and **exits 0**; a
-documented `PORTABILITY_STRICT=1` env flips that check to hard-fail), but it is a
-**HARD GATE on the `cj_goal` orchestrated path** as of F000051: each of the three
+`--no-adjudication`) — no declared-vs-actual mismatches today. The audit is
+**strict-by-default in `validate.sh` Check 18** (a finding hard-fails on every
+commit, CI, and manual `validate.sh` run; `PORTABILITY_STRICT=0` downgrades it to
+advisory for a deliberate WIP commit), AND a **HARD GATE on the `cj_goal`
+orchestrated path** as of F000051: each of the three
 `cj_goal` orchestrators runs `scripts/cj-goal-common.sh --phase portability-audit`
 (the engine under `PORTABILITY_STRICT=1`) before `/ship` and HALTs with
 `[portability-red]` on any finding. So a finding is advisory globally but blocking
@@ -190,7 +191,8 @@ Pass-through engine flags (advanced): `--skill <name>` (audit one skill),
 `--catalog <path>` (audit a custom catalog). `PORTABILITY_STRICT=1` env flips the
 exit code to non-zero when findings remain (the hard-fail path the `cj_goal`
 orchestrators already use via `cj-goal-common.sh --phase portability-audit` —
-F000051; advisory by default in `validate.sh` Check 18).
+F000051 — and the path `validate.sh` Check 18 now defaults to (strict-by-default;
+`PORTABILITY_STRICT=0` downgrades it to advisory).
 
 ## Error handling
 

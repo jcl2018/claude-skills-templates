@@ -2720,7 +2720,7 @@ PCAT
   rm -rf "$_PA_TMP"
 fi
 
-# (g) The advisory check is WIRED into validate.sh (Check 18) — proves the
+# (g) The portability check is WIRED into validate.sh (Check 18) — proves the
 # parallel validate.sh edit exists and its output is visible (TEST-SPEC S2/S3:
 # `bash scripts/test.sh ... | grep -q 'portability'`). Capture-then-grep (not a
 # pipe in the `if`) so `set -e` + validate.sh's own exit code can't mask the
@@ -2729,9 +2729,20 @@ set +e
 _S83G_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1)
 set -e
 if printf '%s\n' "$_S83G_OUT" | grep -qiE 'Check 18: skill portability audit'; then
-  ok "S000083g: validate.sh runs the portability audit as Check 18 (advisory check wired)"
+  ok "S000083g: validate.sh runs the portability audit as Check 18 (strict-by-default check wired)"
 else
-  fail_test "S000083g: validate.sh is missing the 'Check 18: skill portability audit' advisory check (the parallel validate.sh edit)"
+  fail_test "S000083g: validate.sh is missing the 'Check 18: skill portability audit' check (the parallel validate.sh edit)"
+fi
+
+# (g2) T000054: validate.sh Check 18 is STRICT-BY-DEFAULT — PORTABILITY_STRICT
+# defaults to 1, so a portability finding ERRORs WITHOUT any env opt-in (the whole
+# repo is the ratchet, not just the cj_goal gate). Structural assert: validate.sh
+# audits the live (clean) catalog, so it cannot surface a finding from a fixture;
+# this grep proves the flip landed and guards against a silent revert to ':-0'.
+if grep -qE 'PORTABILITY_STRICT:-1' "$REPO_ROOT/scripts/validate.sh"; then
+  ok "S000083g2 (T000054): validate.sh Check 18 defaults PORTABILITY_STRICT to 1 (strict-by-default hard-fail)"
+else
+  fail_test "S000083g2 (T000054): validate.sh Check 18 is not strict-by-default (expected \${PORTABILITY_STRICT:-1} in Check 18)"
 fi
 
 # (h) PORTABILITY_STRICT=1 flips the engine's exit code to non-zero when findings

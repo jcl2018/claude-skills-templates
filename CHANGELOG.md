@@ -3,6 +3,18 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.90] - 2026-06-28
+
+### Changed
+
+- **`docs/reference.md` editorial pass — the grounded reference shelf is now opinionated** (T000055). The reference shelf shipped (F000062) curated-but-mechanical: every entry was grounded in a real in-repo reference, but the notes only said *why* each link was cited, not *how useful it is or when you'd reach for it* — an editorial call a grep cannot make. This pass adds a "New here?" reader-orientation paragraph (read Claude Code + gstack first; the two conventions every `/ship` touches next), gives each category heading an opinionated subtitle (e.g. "the delivery surface (read first)", "what every `/ship` obeys"), and rewrites each entry's note to lead with its practical bite (gh/jq are *hard prerequisites*; the Keep-a-Changelog "entry goes above the prior header" gotcha; the 3-digit SemVer twist; CI ShellCheck being stricter than local). The link set is byte-identical to before — pure enrichment, no references added or removed — and the doc stays human-doc-clean (no work-item IDs). Docs-only.
+
+## [6.0.89] - 2026-06-28
+
+### Changed
+
+- **`validate.sh` Check 18 (skill portability audit) flipped to strict-by-default globally** (T000054). Previously the portability audit hard-failed only on the `cj_goal` orchestrated path (F000051's pre-ship gate); `validate.sh` Check 18 stayed advisory everywhere else (printed findings, exited 0; only `PORTABILITY_STRICT=1` made it fail). Now Check 18 defaults `PORTABILITY_STRICT` to `1`, so a portability finding hard-fails on **every** commit (pre-commit hook), CI run, and manual `validate.sh` — turning the whole repo into the portability ratchet rather than just the orchestrated path. `PORTABILITY_STRICT=0` is the escape hatch for a deliberate WIP commit. The catalog is clean today (`FINDINGS=0` after adjudication), so this is green now and any regression is by definition new. The `cj_goal` pre-ship gate is KEPT as the orchestrated-path belt-and-suspenders. Ripple: `spec/test-spec-custom.md` `validate-check-18` disposition `advisory`→`hard-fail`; `scripts/test.sh` gains the `S000083g2` strict-by-default guard (and the `S000083g` wording updated); prose synced across `CLAUDE.md`, `docs/architecture.md`, `skills-catalog.json` + regenerated `README.md`, `skills/CJ_portability-audit/{SKILL,USAGE}.md`, and the stale "like Check 18" analogy in `spec/permission-policy.md`. The cj-portability-audit **engine** and the `cj_goal` gate keep their explicit `PORTABILITY_STRICT=1` — only validate.sh's wrapper default changed.
+
 ## [6.0.88] - 2026-06-28
 
 ### Added
