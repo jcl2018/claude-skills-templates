@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.90] - 2026-06-28
+
+### Changed
+
+- **`docs/reference.md` editorial pass — the grounded reference shelf is now opinionated** (T000055). The reference shelf shipped (F000062) curated-but-mechanical: every entry was grounded in a real in-repo reference, but the notes only said *why* each link was cited, not *how useful it is or when you'd reach for it* — an editorial call a grep cannot make. This pass adds a "New here?" reader-orientation paragraph (read Claude Code + gstack first; the two conventions every `/ship` touches next), gives each category heading an opinionated subtitle (e.g. "the delivery surface (read first)", "what every `/ship` obeys"), and rewrites each entry's note to lead with its practical bite (gh/jq are *hard prerequisites*; the Keep-a-Changelog "entry goes above the prior header" gotcha; the 3-digit SemVer twist; CI ShellCheck being stricter than local). The link set is byte-identical to before — pure enrichment, no references added or removed — and the doc stays human-doc-clean (no work-item IDs). Docs-only.
+
 ## [6.0.89] - 2026-06-28
 
 ### Changed
