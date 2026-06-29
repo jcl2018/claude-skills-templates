@@ -116,3 +116,5 @@ Scope (from /CJ_goal_task topic): Flip validate.sh Check 18 (portability audit) 
 - 2026-06-28 [qa-smoke-summary] green: 5/5 rows green. Broader surface green: validate.sh (0/0) + full test.sh (PASS).
 - 2026-06-28 [qa-audit] AUDITS=deferred (8.6a test-spec-custom disposition updated inline; 8.6b no new doc; 8.6c/8.6d deferred to the orchestrator post-sync audit).
 - 2026-06-28 [qa-pass] T000054 (task): green smoke from test-plan rows (5 rows). No qa-owned Phase 2 gates per task template.
+
+- 2026-06-28 [task-pr-opened] T000054 PR #287 (v6.0.89) — https://github.com/jcl2018/claude-skills-templates/pull/287
