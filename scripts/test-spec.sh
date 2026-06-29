@@ -1144,6 +1144,190 @@ _reconcile() {
   esac
 }
 
+# ---- --render-docs / --render-docs --check: generated human test catalog ----
+# (F000069/S000114) The SECOND instance of the proven README ↔ generate-readme.sh
+# ↔ validate.sh Check 25 primitive, applied to the test surface. The renderer is
+# PURE: the merged registry in → deterministic human docs out. It emits
+#   docs/tests/<family>.md  (one per unit `family` present in the registry), and
+#   docs/test-catalog.md     (the index grouped by family with per-family counts).
+# RENDERED FIELDS ONLY are emitted: label, purpose, layer, disposition, trigger,
+# and the anchor shown as an inline `code` reference next to its source path
+# (NEVER as a prose claim). label/purpose are already ID-free by the existing
+# rendered-field lint, so the output satisfies Check 19 (no work-item IDs in
+# human-docs) by construction.
+#
+# DETERMINISM (load-bearing — Check 26 diffs byte-for-byte): families are emitted
+# in a FIXED sort order (sort -u over the families present); within a family,
+# rows are sorted by unit id (LC_ALL=C). Fixed header strings, no timestamps, no
+# run-specific metadata — a regenerate→diff is byte-stable. Mirrors
+# generate-readme.sh's idempotence discipline.
+#
+# The DOCS_ROOT (default $REPO_ROOT_RESOLVED/docs) is overridable via TESTDOC_OUT
+# so --check can render into a temp dir and diff vs on-disk without touching the
+# committed tree. awk only — no python/yaml dependency.
+
+# The generated-file banner (mirrors generate-readme.sh's "do not edit by hand"
+# intent). Kept as a function so the index + every family page share one string.
+_render_banner() {
+  # $1 = the regenerate command shown to the reader.
+  echo "<!-- GENERATED FILE — do not edit by hand."
+  echo "     Rendered from the merged test-spec registry (spec/test-spec.md +"
+  echo "     spec/test-spec-custom.md) by: $1"
+  echo "     Re-run that command to regenerate; validate.sh Check 26 enforces freshness. -->"
+}
+
+# Markdown-table-cell escaper: a literal pipe in a rendered field would break the
+# table. Replace it with the HTML entity so the cell stays one column. (The
+# rendered-field lint already forbids tabs/double-quotes; pipes are the only
+# table-hostile char that can legitimately appear in prose.)
+_md_cell() {
+  printf '%s' "$1" | sed 's/|/\&#124;/g'
+}
+
+# Work-item-ID masker (load-bearing for Check 19). The rendered-field lint keeps
+# label + purpose ID-free, but the `anchor` is NOT a rendered field — it is a
+# grep token that can legitimately embed a work-item ID (a test banner like
+# `=== F000026: ... ===`). The anchor is a SOURCE POINTER, not a human claim, so
+# masking the ID token keeps the catalog ID-free BY CONSTRUCTION (the SPEC's
+# guarantee — passes validate.sh Check 19) while still pointing the reader at the
+# right source line. Replace each `[FSTD]NNNNNN` token with a neutral `[id]`.
+_mask_ids() {
+  printf '%s' "$1" | sed -E 's/[FSTD][0-9]{6}/[id]/g'
+}
+
+# The sorted, unique list of families present in the merged registry (one per
+# line). Empty when no units are declared.
+_render_families() {
+  [ -n "$_UNITS" ] || return 0
+  printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $2}' | LC_ALL=C sort -u
+}
+
+# Render ONE family page to stdout. $1 = family name. Reads the merged $_UNITS.
+_render_family_page() {
+  _rf_fam="$1"
+  echo "# Test catalog — \`$_rf_fam\` family"
+  echo ""
+  _render_banner "scripts/test-spec.sh --render-docs"
+  echo ""
+  echo "Verification units in the \`$_rf_fam\` family, rendered from the test-spec"
+  echo "registry. Each row shows only registry-rendered fields; the \`anchor\` is a"
+  echo "source reference, never a claim."
+  echo ""
+  echo "| Label | Layer | Disposition | Trigger | Source · anchor | Purpose |"
+  echo "|-------|-------|-------------|---------|-----------------|---------|"
+  # Stable sort by unit id (column 1), restricted to this family (column 2).
+  printf '%s\n' "$_UNITS" | awk -F'\t' -v fam="$_rf_fam" '$2 == fam' | LC_ALL=C sort -t"$(printf '\t')" -k1,1 | \
+  while IFS="$(printf '\t')" read -r _id _family _label _anchor _source _layer _disp _skips _ratchet _trigger _purpose; do
+    [ -n "$_id" ] || continue
+    [ "$_label" = "-" ] && _label=""
+    [ "$_anchor" = "-" ] && _anchor=""
+    [ "$_source" = "-" ] && _source=""
+    [ "$_layer" = "-" ] && _layer=""
+    [ "$_disp" = "-" ] && _disp=""
+    [ "$_trigger" = "-" ] && _trigger=""
+    [ "$_purpose" = "-" ] && _purpose=""
+    # Anchor as an inline code reference next to its source path — never prose.
+    # Mask any work-item ID in the anchor (a grep token, not a rendered field) so
+    # the human-doc stays ID-free by construction (Check 19). Source is a file
+    # path (never carries IDs) but mask defensively for symmetry.
+    _ref="\`$(_mask_ids "$_source")\` · \`$(_mask_ids "$_anchor")\`"
+    printf '| %s | %s | %s | %s | %s | %s |\n' \
+      "$(_md_cell "$_label")" "$(_md_cell "$_layer")" "$(_md_cell "$_disp")" \
+      "$(_md_cell "$_trigger")" "$_ref" "$(_md_cell "$_purpose")"
+  done
+}
+
+# Render the index page (docs/test-catalog.md) to stdout. Reads $_UNITS.
+_render_index_page() {
+  echo "# Test catalog"
+  echo ""
+  _render_banner "scripts/test-spec.sh --render-docs"
+  echo ""
+  echo "A human-browsable view of the workbench's verification surface, generated"
+  echo "from the merged test-spec registry (\`spec/test-spec.md\` +"
+  echo "\`spec/test-spec-custom.md\`). Each family links to its own page listing the"
+  echo "units in that family. The registry is the single source of truth; this"
+  echo "catalog is a rendered view kept fresh by \`validate.sh\` Check 26."
+  echo ""
+  echo "| Family | Units | Page |"
+  echo "|--------|-------|------|"
+  _render_families | while IFS= read -r _fam; do
+    [ -n "$_fam" ] || continue
+    _cnt=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v fam="$_fam" '$2 == fam' | grep -c . || true)
+    echo "| \`$_fam\` | $_cnt | [docs/tests/$_fam.md](tests/$_fam.md) |"
+  done
+}
+
+# Render the full catalog into a target docs dir. $1 = docs root (created if
+# absent). Writes docs/test-catalog.md + docs/tests/<family>.md per family.
+# Pure-ish: it writes files only under the given root (overridable via the caller
+# for --check's temp dir). Returns 0.
+_render_into() {
+  _ri_docs="$1"
+  mkdir -p "$_ri_docs/tests"
+  _render_index_page > "$_ri_docs/test-catalog.md"
+  _render_families | while IFS= read -r _fam; do
+    [ -n "$_fam" ] || continue
+    _render_family_page "$_fam" > "$_ri_docs/tests/$_fam.md"
+  done
+  return 0
+}
+
+# --render-docs: write the catalog into the live docs/ tree (or TESTDOC_OUT).
+# --render-docs --check: render into a temp dir, diff vs on-disk, exit 0 if
+# identical, exit 1 + a finding list if any file is missing or differs.
+_render_docs() {
+  _RD_DOCS="${TESTDOC_OUT:-$REPO_ROOT_RESOLVED/docs}"
+  if [ "${1:-}" = "--check" ] || [ "${1:-}" = "--check-render" ]; then
+    _RD_TMP=$(mktemp -d -t test-spec-render-XXXXXX)
+    # Render the fresh catalog into the temp dir's docs/ shape.
+    TESTDOC_OUT="$_RD_TMP/docs" _render_into "$_RD_TMP/docs" >/dev/null 2>&1 || _render_into "$_RD_TMP/docs"
+    _RD_FINDINGS=0
+    # Compare every freshly-rendered file against the on-disk counterpart.
+    # A missing on-disk file or a byte diff is a finding.
+    while IFS= read -r _gen; do
+      [ -n "$_gen" ] || continue
+      _rel="${_gen#"$_RD_TMP/docs/"}"
+      _live="$_RD_DOCS/$_rel"
+      if [ ! -f "$_live" ]; then
+        echo "FINDING: render — docs/$_rel is missing on disk (run: scripts/test-spec.sh --render-docs)"
+        _RD_FINDINGS=$((_RD_FINDINGS + 1))
+      elif ! diff -q "$_live" "$_gen" >/dev/null 2>&1; then
+        echo "FINDING: render — docs/$_rel is stale vs the registry (run: scripts/test-spec.sh --render-docs)"
+        _RD_FINDINGS=$((_RD_FINDINGS + 1))
+      fi
+    done <<EOF
+$(find "$_RD_TMP/docs" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
+EOF
+    # Reverse: an on-disk docs/tests/*.md with NO freshly-rendered counterpart is
+    # an orphan family page (a family was removed from the registry but its page
+    # lingers) — also a freshness finding.
+    if [ -d "$_RD_DOCS/tests" ]; then
+      while IFS= read -r _disk; do
+        [ -n "$_disk" ] || continue
+        _rel="${_disk#"$_RD_DOCS/"}"
+        if [ ! -f "$_RD_TMP/docs/$_rel" ]; then
+          echo "FINDING: render — docs/$_rel exists on disk but no longer maps to a registry family (run: scripts/test-spec.sh --render-docs)"
+          _RD_FINDINGS=$((_RD_FINDINGS + 1))
+        fi
+      done <<EOF
+$(find "$_RD_DOCS/tests" -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
+EOF
+    fi
+    rm -rf "$_RD_TMP"
+    if [ "$_RD_FINDINGS" -gt 0 ]; then
+      echo "RENDER: findings=$_RD_FINDINGS (the generated test catalog is stale — run: scripts/test-spec.sh --render-docs)"
+      return 1
+    fi
+    echo "OK render — generated test catalog in sync with the registry (findings=0)"
+    return 0
+  fi
+  # Plain --render-docs: write into the live tree.
+  _render_into "$_RD_DOCS"
+  echo "OK render — wrote $(_render_families | grep -c . || true) family page(s) + docs/test-catalog.md to $_RD_DOCS"
+  return 0
+}
+
 # ---- Portable seed (a COMPLETE, minimal, VALID general test-spec.md) ----
 # The embedded heredoc makes --seed self-contained so a CONSUMER repo — where
 # only the deployed scripts/test-spec.sh is present — can self-bootstrap. The
@@ -1380,6 +1564,14 @@ case "${1:-}" in
     _run_registry_gates
     _run_coverage
     ;;
+  --render-docs)
+    # (F000069/S000114) Render the generated human test catalog from the merged
+    # registry. `--render-docs` writes docs/tests/<family>.md + docs/test-catalog.md;
+    # `--render-docs --check` (or --check-render) renders to a temp dir, diffs vs
+    # on-disk, exits non-zero on any mismatch/missing/orphan file and 0 when fresh.
+    _run_registry_gates
+    _render_docs "${2:-}"
+    ;;
   --classify)
     # READ-ONLY. No registry gates (classification works on absent/malformed
     # files too). Symmetric with doc-spec.sh --classify; never emits `legacy`
@@ -1411,6 +1603,8 @@ Usage:
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
+  test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
+  test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
                                  #   GENERATION=<canonical|absent|malformed> (never legacy —
                                  #   test-spec's yaml format never diverged)/POSITIONS=/
@@ -1422,7 +1616,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

@@ -256,6 +256,14 @@ for dir in "$DOCS_DIR"/*/; do
     pass "docs/workflows is the mandated per-workflow subfolder (declared in the doc-spec registry; not a per-skill doc dir)"
     continue
   fi
+  # `tests/` is the GENERATED test-catalog subfolder (F000069) — one
+  # docs/tests/<family>.md per unit family, rendered by test-spec.sh
+  # --render-docs, declared as human-docs in the doc-spec registry (Check 15a)
+  # and kept fresh by Check 26. NOT a per-skill doc dir — skip it here.
+  if [ "$dir_name" = "tests" ]; then
+    pass "docs/tests is the generated test-catalog subfolder (declared in the doc-spec registry; rendered by test-spec.sh --render-docs)"
+    continue
+  fi
   if jq -e --arg name "$dir_name" '.[] | select(.name == $name)' "$CATALOG" >/dev/null 2>&1; then
     pass "docs/$dir_name has matching catalog entry"
   else
@@ -1079,6 +1087,36 @@ else
     pass "README.md matches generate-readme.sh output (catalog-derived README is current)"
   else
     echo "  ERROR: README.md is stale vs generate-readme.sh — run: bash scripts/generate-readme.sh > README.md"
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
+# Check 26: docs/tests/ + docs/test-catalog.md are in sync with the test-spec
+# registry (HARD). The generated test catalog (one docs/tests/<family>.md per
+# unit family + the docs/test-catalog.md index) is rendered from the merged
+# test-spec registry by `scripts/test-spec.sh --render-docs` — the SECOND
+# instance of the README ↔ generate-readme.sh ↔ Check 25 primitive (F000069).
+# Without this check a stale catalog — family pages lagging the registry's
+# units, a removed family's page lingering — passes validation silently.
+# `--render-docs --check` is the single freshness owner: it renders to a temp
+# dir, diffs vs on-disk, exits non-zero on any mismatch/missing/orphan file.
+# The renderer is deterministic (stable sort, fixed headers, no timestamps), so
+# a byte diff is a deterministic staleness signal. READ-ONLY: --check renders
+# only into a temp dir; the committed docs/ tree is never modified here.
+echo ""
+echo "=== Check 26: docs/tests/ catalog in sync with test-spec.sh --render-docs ==="
+TESTSPEC="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+elif [ "$(bash "$TESTSPEC" --list-units 2>/dev/null | grep -c . || true)" -eq 0 ]; then
+  echo "  SKIP: no units declared in the test-spec registry (the catalog is units-gated; nothing to render)"
+else
+  C26_OUT=$(bash "$TESTSPEC" --render-docs --check 2>&1) && C26_RC=0 || C26_RC=$?
+  if [ "$C26_RC" -eq 0 ]; then
+    pass "docs/tests/ + docs/test-catalog.md match test-spec.sh --render-docs (generated test catalog is current)"
+  else
+    echo "  ERROR: the generated test catalog is stale vs the registry — run: bash scripts/test-spec.sh --render-docs"
+    printf '%s\n' "$C26_OUT" | grep -E '^(FINDING|RENDER):' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
     ERRORS=$((ERRORS+1))
   fi
 fi

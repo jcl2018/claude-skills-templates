@@ -1,6 +1,6 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine, unchanged mechanics): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries the renderer, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
 version: 0.3.0
 allowed-tools:
   - Bash
@@ -200,6 +200,28 @@ bash "$_TA_ENGINE" --check-coverage
   quote it verbatim with the `stage1/` prefix
   (`FINDING: stage1/coverage — <engine line>`).
 
+**Generated test-catalog freshness (F000069 — portable, any repo).** When the
+engine supports `--render-docs` (the workbench + any repo carrying the renderer),
+ALSO run the generated-catalog freshness check as part of Stage 1 — this is the
+same `--render-docs --check` freshness owner that `validate.sh` Check 26 calls,
+so the catalog is enforced standalone in a consumer repo that has no
+`validate.sh`:
+
+```bash
+if bash "$_TA_ENGINE" --render-docs --help >/dev/null 2>&1 \
+   || bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--render-docs'; then
+  bash "$_TA_ENGINE" --render-docs --check
+fi
+```
+
+- Exit 0 with `OK render ...` — the on-disk `docs/tests/<family>.md` +
+  `docs/test-catalog.md` byte-match a fresh render from the registry; clean.
+- Exit 1 — each `FINDING: render — ...` line is one STAGE-1 finding; quote it
+  verbatim with the `stage1/` prefix (`FINDING: stage1/render — <engine line>`).
+  A stale or missing generated catalog file is the finding.
+- Engine without `--render-docs` (an older deployed engine) — skip cleanly with
+  a one-line note; not a finding (the catalog primitive simply isn't present).
+
 ## Fresh-context dispatch (standalone posture — REQUIRED)
 
 At top level (standalone), Stages 2+3 MUST be executed by ONE fresh
@@ -325,6 +347,15 @@ tests/*.test.sh, 24 validate banners, 4 workflows, 2 installed hooks`):
   fuzzing harness, a benchmark gate, or a deployment smoke that no rule or
   unit family covers) is drift: the contract no longer describes the
   verification surface.
+
+**Generated-surface recognition (F000069).** `docs/tests/<family>.md` +
+`docs/test-catalog.md` are a GENERATED VIEW of the registry, not an independent
+verification surface — they are rendered by `test-spec.sh --render-docs` and kept
+fresh by Stage 1's `--render-docs --check` (and `validate.sh` Check 26). Do NOT
+flag them as an uncontemplated surface class or an undeclared orphan in Stage 3:
+their freshness is already a Stage-1 finding when stale, and they are declared
+human-docs in the doc-spec registry. They are the catalog's OWN output, not a new
+test mechanism the contract fails to describe.
 
 **5.3 — Verdict lines:**
 

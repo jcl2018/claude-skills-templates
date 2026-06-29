@@ -67,11 +67,14 @@ never migrates a format).
 ## Mental model
 
 Three stages, symmetric with `/CJ_doc_audit` (one shape, both audits).
-**Stage 1 (deterministic — engine, unchanged mechanics):** the existing
-`test-spec.sh --validate` + `--check-coverage` calls — forward anchors,
-reverse sweep, token floor — mechanize `units-anchored` / `single-owner` /
-`tests-discoverable` wherever units exist, and report "coverage cross-check
-inactive" by name where they don't; findings carry the `stage1/` prefix.
+**Stage 1 (deterministic — engine):** the `test-spec.sh --validate` +
+`--check-coverage` calls — forward anchors, reverse sweep, token floor —
+mechanize `units-anchored` / `single-owner` / `tests-discoverable` wherever
+units exist, and report "coverage cross-check inactive" by name where they
+don't; PLUS, when the engine carries the renderer, `--render-docs --check` —
+the generated `docs/tests/` test-catalog freshness gate (the same owner
+`validate.sh` Check 26 calls), so a stale catalog is caught standalone in any
+repo. Findings carry the `stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence
 (`suite-green` names the freshest full-suite run; `new-code-tested` names the
@@ -86,7 +89,9 @@ broad test over-claimed against many behaviors?), findings prefixed
 (tests on disk, validate banners, workflows, hooks) are enumerated first,
 then coverage-in-substance is judged — where Stage 1 proves a mapping EXISTS,
 Stage 3 judges whether it is still TRUE, and a NEW surface class the rules
-don't contemplate is drift.
+don't contemplate is drift. The generated `docs/tests/` + `docs/test-catalog.md`
+view is recognized as the catalog's OWN rendered output (its freshness is a
+Stage-1 finding when stale), never flagged as an uncontemplated surface.
 
 Before the three stages, **Step 2 ensures the contract is canonical** via
 `test-spec.sh --classify`: `absent` → seed-deliver (as before); `canonical` →

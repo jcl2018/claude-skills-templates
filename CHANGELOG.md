@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.91] - 2026-06-28
+
+### Added
+
+- **Generated `docs/tests/` test catalog + a freshness primitive** (F000069 / S000114 — Story 1 of 4 of the audit-tightening epic). The `spec/test-spec-custom.md` `units:` overlay is a machine registry — the right shape for the engine and the AI, the wrong shape for a human asking "what tests do we have and what does each prove?" This story adds a **generated human-readable view** of that registry: `docs/test-catalog.md` (the index, families with counts) plus one `docs/tests/<family>.md` per unit `family` (`validate`, `test`, `ci`, `hook`, `windows-smoke`, `test-deploy`, `eval`). A new `scripts/test-spec.sh --render-docs` renders them deterministically from the merged registry's **rendered fields only** (`label`, `purpose`, `layer`, `disposition`, `trigger`; the `anchor` shown as an inline code reference with any work-item ID masked, so the generated human-docs are work-item-ID-free by construction and pass Check 19). This is the **same primitive** the repo already trusts for `README.md` ↔ `generate-readme.sh` ↔ Check 25: one source of truth (the `spec/` registry) renders a `docs/` view, and a freshness check keeps the two in lockstep. The freshness gate is the new **`validate.sh` Check 26** (regenerate to a temp dir, diff vs on-disk, hard-fail on any mismatch — with its parallel `scripts/test.sh` integration fixture), and the same check runs as **`/CJ_test_audit` Stage 1** (`test-spec.sh --render-docs --check`) so the catalog is enforced standalone in any repo even without `validate.sh`; the audit's Stage-3 drift pass recognizes `docs/tests/` as a generated surface (never an orphan). Editing a catalog page by hand is pointless — the next regenerate reverts it; to change the catalog, change the registry. Regression-tested by `tests/test-spec-render.test.sh` (determinism, ID-free output, `--check` pass-on-fresh / fail-on-edit / fail-on-missing) + the `spec/test-spec-custom.md` units rows `validate-check-26` + `test-test-spec-render` (Check 24 coverage). `docs/architecture.md` + `CLAUDE.md` document the generated-catalog model. **This is Story 1 of the 4-story F000069 epic** (tighten the doc/test audits); Stories 2 (workflows full symmetric generation), 3 (forced/proactive seeding + stale-engine-shadow fix), and 4 (deterministic Stage-1 consumer-repo enforcement gate) are scaffolded + tracked as deferred follow-ups.
+
 ## [6.0.90] - 2026-06-28
 
 ### Changed
