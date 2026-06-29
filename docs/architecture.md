@@ -225,10 +225,14 @@ parses the registry and asserts the contract:
 - **workflows-subfolder mandate** — when the registry is present, `docs/workflows/`
   must exist and be non-empty (the portable contract's two-level docs structure;
   registry-gated, so it never fires on a non-adopting repo).
-- **workflow completeness** — `docs/workflow.md` is a pure overview/index, and
-  each `CJ_goal_*` orchestrator has its OWN per-workflow file
-  `docs/workflows/<name>.md` carrying an ASCII chart and a 4-bullet Touches block
-  (Check 15b); the index must link each one (Check 15c — the no-vanish guard).
+- **workflow completeness** — `docs/workflow.md` (the index) + every
+  `docs/workflows/<name>.md` are GENERATED from `spec/workflow-spec.md` (see "The
+  generated workflow docs" below). Each `CJ_goal_*` orchestrator carries an ASCII
+  chart + a 4-bullet Touches block by construction (it is an `orchestrator`-kind
+  registry entry), the index links each one, and `validate.sh` Check 27 +
+  `workflow-spec.sh --validate` enforce freshness + the no-vanish guarantee. The
+  former shape-only Checks 15b/15c are retired (their intent moved into generation
+  + registry-completeness).
 
 ### The helper (`scripts/doc-spec.sh`)
 
@@ -553,6 +557,38 @@ carries no `validate.sh`. The audit's Stage-3 drift pass recognizes
 `docs/tests/` as a generated surface, never flagging it as an orphan. Editing a
 catalog page by hand is therefore pointless: the next regenerate (or the
 freshness gate) reverts it — to change the catalog, change the registry.
+
+## The generated workflow docs (`docs/workflows/` — from `spec/workflow-spec.md`)
+
+The **third instance** of the generate→freshness→audit primitive (after
+`README.md` and the test catalog) covers the workflow docs. `docs/workflow.md`
+(the index) + the six `docs/workflows/*.md` were hand-authored prose whose
+4-bullet **Touches** blocks drifted on every workflow change. They are now
+GENERATED from a single registry, `spec/workflow-spec.md`, by
+`scripts/workflow-spec.sh --render-docs`.
+
+The registry is bash-parseable structured Markdown — one `## <name>` section per
+workflow, in two `kind`s: **orchestrator** (the four `CJ_goal_*` verbs — a key
+block + a verbatim ASCII `chart` + the four Touches axes `skills`/`steps`/
+`scripts`/`docs` + an "In words" summary) and **roster** (the two free-form
+roster docs — a verbatim `body`), plus a header block holding the
+`docs/workflow.md` index preamble. The renderer emits a normalized template;
+charts, roster bodies, and the preamble are reproduced verbatim (the migration
+from the hand-authored docs was a one-time reviewed reformat, not a byte
+round-trip), and the output is work-item-ID-free by construction (Check 19).
+
+Freshness is the **`validate.sh` Check 27** gate (regenerate→diff vs on-disk,
+hard-fail on mismatch — the structural mirror of Check 26, with its parallel
+`scripts/test.sh` fixture), and the same `workflow-spec.sh --render-docs --check`
+runs as **`/CJ_doc_audit` Stage 1** so a stale workflow doc is caught standalone
+in any repo; Stage 3 recognizes the surface as generated. The **no-vanish
+guarantee** — every routable `CJ_goal_*` orchestrator has a registry entry — is a
+`workflow-spec.sh --validate` registry-completeness check (`jq` over
+`skills-catalog.json`), STRONGER than the index-link grep it replaces. This is
+why the former shape-only **Checks 15b/15c were retired**: a generated doc cannot
+be missing its chart/Touches and the generated index cannot drop a link, so the
+only remaining risk (a routable workflow with no entry) is exactly what
+`--validate` fails closed on.
 
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
