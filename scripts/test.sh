@@ -401,7 +401,10 @@ cp "$REPO_ROOT/README.md" "/tmp/readme-backup-$$"
 # F000069 / Check 26: back up the generated test catalog so the Step-3e fixture
 # (which plants drift in docs/test-catalog.md) is safe even on an unexpected exit.
 [ -f "$REPO_ROOT/docs/test-catalog.md" ] && cp "$REPO_ROOT/docs/test-catalog.md" "/tmp/testcatalog-backup-$$"
-trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; [ -f "/tmp/testcatalog-backup-$$" ] && cp "/tmp/testcatalog-backup-$$" "$REPO_ROOT/docs/test-catalog.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$" "/tmp/testcatalog-backup-$$"' EXIT
+# F000069 / S000115 / Check 27: back up the generated workflow index so the Step-3f
+# fixture (which plants drift in docs/workflow.md) is safe even on an unexpected exit.
+[ -f "$REPO_ROOT/docs/workflow.md" ] && cp "$REPO_ROOT/docs/workflow.md" "/tmp/workflowidx-backup-$$"
+trap 'cp "/tmp/catalog-backup-$$" "$CATALOG"; cp "/tmp/readme-backup-$$" "$REPO_ROOT/README.md"; [ -f "/tmp/version-backup-$$" ] && cp "/tmp/version-backup-$$" "$REPO_ROOT/VERSION"; [ -f "/tmp/changelog-backup-$$" ] && cp "/tmp/changelog-backup-$$" "$REPO_ROOT/CHANGELOG.md"; [ -f "/tmp/testcatalog-backup-$$" ] && cp "/tmp/testcatalog-backup-$$" "$REPO_ROOT/docs/test-catalog.md"; [ -f "/tmp/workflowidx-backup-$$" ] && cp "/tmp/workflowidx-backup-$$" "$REPO_ROOT/docs/workflow.md"; rm -rf "$SKILLS_DIR/zzz-test-scaffold" "$DOCS_DIR/zzz-test-scaffold" "/tmp/catalog-backup-$$" "/tmp/readme-backup-$$" "/tmp/version-backup-$$" "/tmp/changelog-backup-$$" "/tmp/testcatalog-backup-$$" "/tmp/workflowidx-backup-$$"' EXIT
 
 # Step 1: manually create a skill directory + SKILL.md (the CLAUDE.md-guided way)
 mkdir -p "$SKILLS_DIR/zzz-test-scaffold"
@@ -644,6 +647,44 @@ if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
   ok "Check 26: validate.sh exits 0 again after the test catalog is regenerated"
 else
   fail_test "Check 26: validate.sh should have exited 0 after the test catalog was regenerated, but exited non-zero"
+fi
+
+# Step 3f (F000069 / S000115 / Check 27): docs/workflow.md + docs/workflows/*.md ↔
+# workflow-spec.sh --render-docs freshness check. THE PARALLEL test.sh EDIT the new
+# validate.sh Check 27 needs — pre-flighted in lockstep with the check add (the
+# standing F000032/34/35 zzz-mirror blind spot that bit Check 25/26 too, defused
+# here for Check 27). The generated workflow surface is rendered from
+# spec/workflow-spec.md by scripts/workflow-spec.sh --render-docs; Check 27 calls
+# --render-docs --check (render to temp + diff vs on-disk) so a stale workflow doc
+# cannot pass validation. docs/workflow.md is already backed up + restored by the
+# EXIT trap above, so mutating it here is safe even on an unexpected exit.
+# POSITIVE: on the live (in-sync) tree Check 27 PASSes. NEGATIVE: append a stray
+# line to docs/workflow.md (the registry is unchanged so the render diverges)
+# → assert validate.sh exits non-zero AND emits the literal Check 27 stale ERROR,
+# then regenerate the surface from the registry → assert validate.sh exits 0
+# again. Proves Check 27 actually FIRES, not just defaults green.
+_C27_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
+if echo "$_C27_OUT_OK" | grep -qF "  PASS: docs/workflow.md + docs/workflows/ match workflow-spec.sh --render-docs"; then
+  ok "Check 27: generated workflow surface is in sync with workflow-spec.sh --render-docs on the live tree (PASS)"
+else
+  fail_test "Check 27: validate.sh did not emit the Check-27 PASS on the in-sync live tree; output: $_C27_OUT_OK"
+fi
+printf '\n<!-- planted drift for Check 27 negative test -->\n' >> "$REPO_ROOT/docs/workflow.md"
+if _C27_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 27: validate.sh should have exited non-zero with a drifted workflow surface, but exited 0"
+else
+  if echo "$_C27_OUT" | grep -qF "  ERROR: the generated workflow surface is stale vs the registry"; then
+    ok "Check 27: a drifted docs/workflow.md triggers the stale ERROR + non-zero exit"
+  else
+    fail_test "Check 27: validate.sh exited non-zero but missing '  ERROR: the generated workflow surface is stale vs the registry'; output: $_C27_OUT"
+  fi
+fi
+# Regenerate the workflow surface from the registry (its single source of truth), then assert green.
+bash "$REPO_ROOT/scripts/workflow-spec.sh" --render-docs >/dev/null 2>&1
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 27: validate.sh exits 0 again after the workflow surface is regenerated"
+else
+  fail_test "Check 27: validate.sh should have exited 0 after the workflow surface was regenerated, but exited non-zero"
 fi
 
 # Step 4: frontmatter is parseable
@@ -2020,6 +2061,26 @@ else
   fail_test "tests/test-spec-render.test.sh failed (rc=$_tsrender_rc) — run \`bash tests/test-spec-render.test.sh\` directly to see"
 fi
 
+# tests/workflow-spec-render.test.sh — the hermetic test for scripts/workflow-spec.sh
+# --render-docs, the THIRD instance of the README ↔ generate-readme.sh ↔ Check 25 +
+# test-catalog ↔ Check 26 freshness primitive, applied to the workflow surface
+# (F000069/S000115). The suite asserts render→render byte-stability,
+# work-item-ID-freeness of the output (IDs masked so the human-docs pass Check 19),
+# --check exit 0 on a fresh tree + exit 1 after a hand-edit / a removal, AND the
+# no-vanish remove-an-entry drill (--validate registry-completeness fails closed
+# when a routable CJ_goal_* orchestrator entry is removed — the retired-Check-15c
+# replacement). Temp-dir + temp-repo isolated; never mutates the live tree or the
+# real catalog. MANDATORY registration — Check 24's reverse sweep hard-fails any
+# unregistered tests/*.test.sh.
+echo ""
+echo "Running tests/workflow-spec-render.test.sh (F000069 generated workflow-docs renderer + freshness + no-vanish)..."
+if bash "$REPO_ROOT/tests/workflow-spec-render.test.sh" >/dev/null 2>&1; then
+  ok "tests/workflow-spec-render.test.sh: render stability + ID-free output + --check pass/fail-on-edit/fail-on-missing + the no-vanish drill all pass"
+else
+  _wsrender_rc=$?
+  fail_test "tests/workflow-spec-render.test.sh failed (rc=$_wsrender_rc) — run \`bash tests/workflow-spec-render.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.
@@ -2507,48 +2568,17 @@ else
 fi
 set -e
 
-# ---------- T000040 / F000067: per-workflow Touches blocks carry all 4 anchored bullets ----------
-# STANDALONE hermetic smoke check (mirrors the F000045/S000081 + T000038/T000039
-# blocks). The granular-enumeration rule (T000040) requires each CJ_goal_* section
-# to enumerate ALL skills/steps/tools/shell via a 4-bullet Touches block — Skills
-# dispatched / Steps · phases / Scripts · tools · shell / Docs touched. As of
-# F000067 each CJ_goal_* orchestrator's section lives in its OWN per-workflow file
-# docs/workflows/<name>.md (the detail was split out of the docs/workflow.md
-# index). validate.sh Check 15b structurally enforces the 4 anchored bullets per
-# CJ_goal_* file; this smoke check is a redundant standalone guard asserting the 4
-# REAL files carry all 4 anchored bullets (`^- \*\*Skills` / `^- \*\*Steps` /
-# `^- \*\*Scripts` / `^- \*\*Docs`). Patterns are LINE-ANCHORED on the bullet shape,
-# NOT bare substrings (a bare `Steps` would false-match a chart node like `Step 5.5`).
-# The zzz-test-scaffold fixture is non-CJ_goal_* and is NOT touched — Check 15b's
-# loop is `select(.name | startswith("CJ_goal_"))`, so the sub-check never iterates it.
-echo ""
-echo "Checking docs/workflows/<name>.md Touches blocks (4 anchored bullets per CJ_goal_* file)..."
-set +e
-for _t40_skill in CJ_goal_feature CJ_goal_task CJ_goal_defect CJ_goal_todo_fix; do
-  _T40_WF="$REPO_ROOT/docs/workflows/$_t40_skill.md"
-  if [ ! -f "$_T40_WF" ]; then
-    fail_test "docs/workflows/$_t40_skill.md not found at $_T40_WF"
-    continue
-  fi
-  # Extract the section body (between `### <name>` and the next `^### `), same
-  # flag-based awk shape validate.sh Check 15b uses.
-  _t40_section=$(awk -v skill="$_t40_skill" '
-    $0 == "### " skill {flag=1; next}
-    /^### / {flag=0}
-    flag {print}
-  ' "$_T40_WF")
-  _t40_missing=""
-  echo "$_t40_section" | grep -qE '^- \*\*Skills'  || _t40_missing="$_t40_missing Skills"
-  echo "$_t40_section" | grep -qE '^- \*\*Steps'   || _t40_missing="$_t40_missing Steps"
-  echo "$_t40_section" | grep -qE '^- \*\*Scripts' || _t40_missing="$_t40_missing Scripts"
-  echo "$_t40_section" | grep -qE '^- \*\*Docs'    || _t40_missing="$_t40_missing Docs"
-  if [ -z "$_t40_missing" ]; then
-    ok "docs/workflows/$_t40_skill.md section '$_t40_skill' Touches block has all 4 anchored bullets (Skills/Steps/Scripts/Docs)"
-  else
-    fail_test "docs/workflows/$_t40_skill.md section '$_t40_skill' Touches block missing anchored bullet(s):$_t40_missing"
-  fi
-done
-set -e
+# ---------- F000069 / S000115: the Check-15b Touches-block structural fixture is RETIRED ----------
+# The standalone smoke check that asserted each docs/workflows/<name>.md carried
+# the 4 anchored Touches bullets (the parallel of retired validate.sh Check 15b)
+# is removed: the workflow surface is now GENERATED from spec/workflow-spec.md, so
+# the Touches blocks are faithfully reproduced by the renderer (asserted by
+# tests/workflow-spec-render.test.sh) and a stale/dropped block is caught by
+# validate.sh Check 27 (regenerate→diff) — the new Check-27 fixture below proves
+# that gate fires. The no-vanish guarantee (every CJ_goal_* has an entry) now
+# lives in workflow-spec.sh --validate registry-completeness (the remove-an-entry
+# drill in tests/workflow-spec-render.test.sh T6).
+
 # ---------- F000047 / S000083: portability-audit engine integration fixture ----------
 # THE PARALLEL test.sh EDIT every new validate.sh check needs (the systematically-
 # forgotten step — F000032/F000034/F000035 all hit it; pre-flighted here). Check 18

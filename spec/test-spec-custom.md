@@ -233,8 +233,9 @@ verification unit:
 Row-granularity conventions the extraction grammar honors:
 
 - Check 15 is ONE row — the live source has a single `=== Check 15` banner;
-  its 15a/15b/15c sub-assertions are described in that row's `purpose` (they
-  exist only as bare comments).
+  its 15a sub-assertion is described in that row's `purpose` (15b/15c are
+  retired — the workflow surface is generated, enforced by Check 27 +
+  workflow-spec.sh --validate).
 - Check 17 is echo-anchored only (it has no `# Check 17:` comment header).
 - Check 12 is retired; it must not be resurrected by extraction.
 - `scripts/test.sh` wrapper blocks that merely invoke a standalone suite
@@ -491,7 +492,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "15a: every declared doc exists and every doc under docs/ (RECURSIVE, including the docs/workflows/ subfolder) and spec/ is declared (no orphans); 15b: each goal orchestrator's per-workflow file docs/workflows/<name>.md carries a charted section plus a four-bullet Touches block; 15c (no-vanish): the docs/workflow.md index links each goal orchestrator's docs/workflows/<name>.md."
+    purpose: "15a: every declared doc exists and every doc under docs/ (RECURSIVE, including the docs/workflows/ subfolder) and spec/ is declared (no orphans). 15b/15c are retired (the workflow surface is generated from spec/workflow-spec.md): the no-vanish guarantee lives in workflow-spec.sh --validate registry-completeness and freshness in Check 27."
   - id: validate-check-16
     family: validate
     label: "Check 16 — doc registry schema"
@@ -572,6 +573,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "The generated test catalog (docs/tests/<family>.md per unit family plus the docs/test-catalog.md index) byte-matches a fresh render from the merged registry, so a stale catalog cannot pass validation; read-only (--check renders only into a temp dir); skips when the engine is absent or no units are declared."
+  - id: validate-check-27
+    family: validate
+    label: "Check 27 — generated workflow surface in sync with workflow-spec.sh --render-docs"
+    anchor: "=== Check 27:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "The generated workflow surface (the docs/workflow.md index plus the six docs/workflows/<name>.md per-workflow files) byte-matches a fresh render from spec/workflow-spec.md, so a stale workflow doc cannot pass validation; read-only (--check renders only into a temp dir); registry-gated, skips when spec/workflow-spec.md is absent. Replaces the retired shape-only Checks 15b/15c."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -785,6 +796,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated test catalog from the merged registry, and --render-docs --check exits zero on a fresh render and non-zero after a hand-edit — the freshness primitive behind validate.sh Check 26."
+  - id: test-workflow-spec-render
+    family: test
+    label: "workflow-spec render suite — generated workflow-docs renderer + freshness primitive + no-vanish drill"
+    anchor: "tests/workflow-spec-render.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated workflow surface from spec/workflow-spec.md; --render-docs --check exits zero on a fresh render and non-zero after a hand-edit or a missing file; and a remove-an-entry drill proves workflow-spec.sh --validate registry-completeness fails closed (the no-vanish guarantee behind validate.sh Check 27 + the retired Check 15c)."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test

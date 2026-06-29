@@ -1,16 +1,15 @@
 ### CJ_goal_todo_fix
 
-**Status:** active (the TODO drainer; production front door for "fix this TODO"
-and the cron-eligible `--quiet` mode powers /schedule integrations)
-**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh`
-+ the worktree helpers; matches `skills-catalog.json`)
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
+**Status:** active (the TODO drainer; production front door for "fix this TODO" and the cron-eligible `--quiet` mode powers /schedule integrations)
+**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh` + the worktree helpers; matches `skills-catalog.json`)
 **Source:** `skills/CJ_goal_todo_fix/SKILL.md` · `skills/CJ_goal_todo_fix/USAGE.md`
 
-**Invoke when:** the operator wants to drain TODOS.md backlog rows into PRs.
-Default no-args drains up to 10 easy-fix TODOs; single-TODO mode (an ID or
-fragment) fixes exactly one. Common phrasings: "fix this TODO", "clear the TODO
-backlog", "drain TODOs", "auto-resolve TODOs". `/ship` Gate #2 still fires per
-drained TODO (the autonomy ceiling).
+**Invoke when:** the operator wants to drain TODOS.md backlog rows into PRs. Default no-args drains up to 10 easy-fix TODOs; single-TODO mode (an ID or fragment) fixes exactly one. Common phrasings: "fix this TODO", "clear the TODO backlog", "drain TODOs", "auto-resolve TODOs". `/ship` Gate #2 still fires per drained TODO (the autonomy ceiling).
 
 **Workflow:**
 
@@ -89,4 +88,3 @@ each diff); on land it hash-verified DONE-marks the row and
 - **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 5.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.5b — ONE combined read-only subagent) -> QA-audit checkpoint (interactive: AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest, Continue past findings journals `[qa-audit-waived]`; `--quiet`: auto-continue on doc:ok,test:ok, halt `[qa-audit-declined]` / halted_at_qa_audit on findings) -> portability gate (Step 5.7, `--phase portability-audit --mode feature`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory, per drained TODO) -> `/land-and-deploy` -> TODOS.md DONE-mark -> after-land recap (`--phase recap --when after`; 3-part, advisory, per drained TODO) -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` pre-build skills-sync + `--phase portability-audit` the pre-ship portability gate + `--phase recap` the land/PR 3-part recap formatter), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller todo`, base-freshness; drain mode creates one worktree per TODO via `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh`), `scripts/cj-worktree-cleanup.sh` (post-land janitor, called directly), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into each drained TODO's PR. Also marks the closed row in TODOS.md (hash-verified).
-

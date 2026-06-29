@@ -12,8 +12,9 @@ blocked_by: ""
 
 <!-- Distilled from the APPROVED /office-hours design doc:
      ~/.gstack/projects/jcl2018-claude-skills-templates/audit-tightening-design-20260628-200601.md
-     This is an EPIC, built in phases. Story 1 (S000114) is the only fully-specified,
-     buildable child this pass. Stories 2-4 are tracked below as deferred follow-ups. -->
+     This is an EPIC, built in phases. Story 1 (S000114) shipped. Story 2 (S000115)
+     is scaffolded + buildable this pass (design doc: workflows-gen-design-20260628-225608.md).
+     Stories 3-4 remain tracked below as deferred follow-ups. -->
 
 ## Lifecycle
 
@@ -72,29 +73,34 @@ blocked_by: ""
 - [ ] **(Story 1)** `scripts/validate.sh` Check 26 is a hard freshness ERROR (regenerate → diff vs on-disk), with the parallel `scripts/test.sh` integration-fixture assertion added in the SAME story.
 - [ ] **(Story 1)** The generated `docs/tests/*.md` + `docs/test-catalog.md` are committed; declared as generated human-docs in `spec/doc-spec-custom.md`; the new test units appear in `spec/test-spec-custom.md` (Check 24 reverse-sweep resolves them).
 - [ ] **(Story 1)** `/CJ_test_audit` Stage 1 runs the freshness check and Stage 3 recognizes `docs/tests/` as a generated surface (no false orphan finding); `tests/test-spec-render.test.sh` proves stability, ID-freeness, and check pass/fail.
-- [ ] **(Deferred — Story 2)** Workflows full symmetric generation (`spec/workflow-spec.md` + `scripts/workflow-spec.sh` + Check 27; Checks 15b/15c folded).
+- [ ] **(Story 2 — S000115)** Workflows full symmetric generation (`spec/workflow-spec.md` + `scripts/workflow-spec.sh` + Check 27; Checks 15b/15c retired, folded into `--validate` registry-completeness + Check 27).
 - [ ] **(Deferred — Story 3)** Forced (proactive) seeding (`skills-deploy install --seed-contracts`) + stale-engine-shadow capability probe.
 - [ ] **(Deferred — Story 4)** Consumer-repo deterministic Stage-1 enforcement gate (`scripts/cj-contract-gate.sh` + hook/CI install).
 
 ## Todos
 
-- [ ] Build Story 1 (S000114) through scaffold → implement → qa → doc-sync → audit → ship.
-- [ ] Defer Stories 2–4 to subsequent build passes (see "Deferred stories (follow-up)" below).
+- [x] Build Story 1 (S000114) through scaffold → implement → qa → doc-sync → audit → ship.
+- [ ] Build Story 2 (S000115 — workflows full symmetric generation) through scaffold → implement → qa → doc-sync → audit → ship.
+- [ ] Defer Stories 3–4 to subsequent build passes (see "Deferred stories (follow-up)" below).
+
+## Active child stories (scaffolded)
+
+- **Story 2 — Workflows full symmetric generation (S000115; design Part 2).** Scaffolded this pass at `S000115_workflows_full_symmetric_generation/` (TRACKER + DESIGN + SPEC + TEST-SPEC). NEW registry `spec/workflow-spec.md` (two entry shapes — orchestrator [the 4 `CJ_goal_*`: chart + 4-axis Touches + "In words"] and roster [the 2 prose docs: verbatim body] + a header block for the index preamble; migrate the 6 existing `docs/workflows/*.md` bodies + the `docs/workflow.md` intro into it). NEW engine `scripts/workflow-spec.sh` (`--validate` [per-kind fields + closed `kind` enum + registry-completeness] `/--list-workflows/--classify/--seed/--render-docs` + `--render-docs --check`). `validate.sh` Check 27 (regenerate→diff freshness) RETIRES hand-authored Checks 15b/15c — their no-vanish intent folded into `--validate` registry-completeness + Check 27. `/CJ_doc_audit` Stage 1 runs workflows-freshness; Stage 3 treats `docs/workflow.md` + `docs/workflows/` as generated. Decided: a one-time normalized reformat (charts/rosters/preamble verbatim, structure may shift), NOT a strict byte round-trip. The heaviest story.
 
 ## Deferred stories (follow-up)
 
-<!-- Per the phased-scope directive: Stories 2-4 are RECORDED here but NOT
+<!-- Per the phased-scope directive: Stories 3-4 are RECORDED here but NOT
      scaffolded as buildable dirs this pass. They become fully-specified child
      user-stories in subsequent passes (each reuses Story 1's generator/freshness/
-     audit primitive). Source: the design doc's "Phasing" + Parts 2/3/4. -->
+     audit primitive). Source: the design doc's "Phasing" + Parts 3/4. -->
 
-- **Story 2 — Workflows full symmetric generation (design Part 2).** NEW registry `spec/workflow-spec.md` (single-tier, one entry per routable `CJ_goal_*` workflow carrying name/summary/ASCII-chart/4-axis Touches; migrate the 6 existing `docs/workflows/*.md` bodies byte-faithfully). NEW engine `scripts/workflow-spec.sh` (`--validate/--list-workflows/--classify/--seed/--render-docs` for `docs/workflow.md` index + each `docs/workflows/<name>.md`). `validate.sh` Check 27 (freshness) replaces hand-authored Checks 15b/15c — fold their no-vanish intent into `--validate` entry-completeness. `/CJ_doc_audit` Stage 1 runs workflows-freshness; Stage 3 treats `docs/workflows/` as generated. Risk: ASCII-chart byte-fidelity (mitigation: fenced verbatim registry blocks + byte-diff acceptance test, or an explicitly-approved normalized rendering). The heaviest story.
 - **Story 3 — Forced seeding + stale-engine fix (design Part 3 / U2).** `skills-deploy install --seed-contracts` adopt path: force-deliver `spec/doc-spec.md`, `spec/test-spec.md`, `spec/workflow-spec.md` (each via engine `--seed`, corruption-guarded temp→validate→mv) when absent in the TARGET repo, then run the generators; the workbench self-install does NOT seed itself. Stale-engine-shadow fix: the audit engine-resolution (repo-local → `_cj-shared`) gains a capability probe — a repo-local engine missing a required subcommand (`--classify`/`--render-docs`) is treated as stale, emits `stage1/engine-stale` naming the remedy, and falls back to `_cj-shared`.
 - **Story 4 — Consumer-repo deterministic Stage-1 gate (design Part 4 / U3).** NEW `scripts/cj-contract-gate.sh` runs the deterministic-only checks (`doc-spec.sh --check-on-disk`, `test-spec.sh --validate --check-coverage`, `workflow-spec.sh --validate`, + the freshness checks); non-zero on any finding. `setup-hooks.sh`/`skills-deploy` install it as a consumer-repo pre-commit hook (+ documented CI snippet). In the workbench the gate is a subset of `validate.sh`, so no double-enforcement. Cross-machine — verify via a temp-dir adopt drill.
 
 ## Log
 
 - 2026-06-28: Created. Tighten doc/test audits via a unified "generated human catalog, freshness-gated, audit-owned" model + forced seeding + a consumer Stage-1 gate. Epic with 4 stories; Story 1 (S000114) is the buildable slice this pass.
+- 2026-06-28: Scaffolded Story 2 (S000115 — workflows full symmetric generation) as a child user-story from the APPROVED design doc (workflows-gen-design-20260628-225608.md). Moved Story 2 out of the deferred section into an active scaffolded child; Stories 3+4 remain deferred. Third instance of Story 1's generate→freshness→audit primitive, applied to the workflow docs.
 
 ## PRs
 
@@ -129,3 +135,4 @@ blocked_by: ""
 
 - [decision] 2026-06-28 — EPIC phased into 4 stories; build Story 1 only this pass. Summary: One silent autonomous build cannot deliver all four reliably (design "Epic size" risk). Story 1 establishes the generator/freshness/audit primitive and is fully E2E-testable inside the workbench; Stories 2–4 reuse it.
 - [decision] 2026-06-28 — Test catalog is GENERATED + freshness-gated, not hand-authored. Summary: a hand-maintained second copy of registry-derivable content fights the contract's own `single-owner` rule; the generated-view model keeps the `spec/` registry the single source of truth.
+- [decision] 2026-06-28 — Story 2 (S000115) scaffolded; workflow docs become a GENERATED surface too. Summary: applies Story 1's generate→freshness→audit primitive to `docs/workflow.md` + `docs/workflows/*.md` via a new `spec/workflow-spec.md` registry + `scripts/workflow-spec.sh` engine + `validate.sh` Check 27; the shape-only Checks 15b/15c retire, their no-vanish intent folded into `--validate` registry-completeness (stronger than an index-link grep) + Check 27 freshness. Operator chose full symmetry (all 6 docs + index, two entry shapes) + a one-time normalized reformat over a strict byte round-trip.

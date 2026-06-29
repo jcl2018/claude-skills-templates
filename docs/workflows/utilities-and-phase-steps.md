@@ -1,3 +1,8 @@
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
 ## How the machinery works
 
 The three orchestrator charts above share the same load-bearing pieces. Rather
@@ -256,4 +261,3 @@ advisory check). The full correct-behavior spec is in
 
 - **Scripts · tools · shell:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the deployed shared home); Bash / Read / Grep. Also invoked by `scripts/validate.sh`.
 - **Reads / writes:** reads `skills-catalog.json` (+ optional `portability_requires`) + each audited skill's files; read-only — prints the per-skill verdict table, mutates nothing.
-

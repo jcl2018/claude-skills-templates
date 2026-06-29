@@ -1,6 +1,6 @@
 ---
 name: CJ_doc_audit
-description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract is CANONICAL via doc-spec.sh --classify: absent → seed-deliver spec/doc-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; legacy/duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_doc_audit --reconcile to migrate a legacy yaml registry to the canonical 3-column Markdown table preserving every row). Stage 1 (deterministic — engine): ONE call, doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids vs the MERGED registry — four checks), printed verbatim; pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings (and the RECONCILE directive) never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
+description: "Three-stage doc audit against a repo's doc contract — runnable standalone in ANY repo. Ensures the two-tier doc contract is CANONICAL via doc-spec.sh --classify: absent → seed-deliver spec/doc-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; legacy/duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_doc_audit --reconcile to migrate a legacy yaml registry to the canonical 3-column Markdown table preserving every row). Stage 1 (deterministic — engine): doc-spec.sh --check-on-disk (declared-exists, orphans, root-declared, human-doc-ids vs the MERGED registry — four checks), printed verbatim, PLUS the workflow-docs freshness check (workflow-spec.sh --render-docs --check when the engine is present — the generated docs/workflow.md + docs/workflows/ surface, the same owner validate.sh Check 27 calls; stage1/workflow-render); pre-stage failures count as stage1/engine|seed|registry. Stage 2 (requirement compliance — agent-judged, evidence-forced): each declared doc's requirement: quoted, decomposed into clauses, verdicts satisfies | missing-requirement (soft) | n/a | FINDING: stage2/<path> with cited evidence. Stage 3 (implementation drift — agent-judged): ground-truth enumeration FIRST (catalog skills, scripts, workflows, spec family, dirs), then a per-doc cross-walk; docs/workflow.md + docs/workflows/ are recognized as a GENERATED surface (sourced from spec/workflow-spec.md), never an orphan/drift; verdicts no-drift | FINDING: stage3/<path> — <named delta>. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool); inside a QA subagent (qa.md Step 8.6c) they run INLINE (a subagent cannot spawn subagents). Per-stage report: DOC_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + DOCS_AUDITED= + seeded: + three --- stage N --- sections. Findings (and the RECONCILE directive) never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/doc-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's docs', 'check doc hygiene', 'does this repo follow its doc contract'."
 version: 0.3.0
 allowed-tools:
   - Bash
@@ -209,6 +209,36 @@ A present-but-invalid registry makes the engine exit 1 with
 
 Capture `DOCS_AUDITED` as the merged `--list-declared` count.
 
+### Step 3b: workflow-docs freshness (the generated workflow surface)
+
+Stage 1 ALSO runs the workflow-docs freshness check when the engine is present —
+the same `--render-docs --check` owner that `validate.sh` Check 27 calls, so a
+stale `docs/workflow.md` / `docs/workflows/*.md` is caught standalone in ANY repo
+that carries the engine (F000069/S000115). The workflow surface is GENERATED from
+`spec/workflow-spec.md`; this check renders to a temp dir, diffs vs on-disk, and
+reports a freshness finding if the surface drifted from the registry:
+
+```bash
+_DA_WFENGINE=""
+if [ -x "$_DA_ROOT/scripts/workflow-spec.sh" ]; then
+  _DA_WFENGINE="$_DA_ROOT/scripts/workflow-spec.sh"
+elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh" ]; then
+  _DA_WFENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh"
+fi
+if [ -n "$_DA_WFENGINE" ] && [ "$(bash "$_DA_WFENGINE" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')" = "canonical" ]; then
+  if bash "$_DA_WFENGINE" --render-docs --check >/dev/null 2>&1; then
+    echo "check: stage1/workflow-render — PASS (generated workflow surface in sync with spec/workflow-spec.md)"
+  else
+    echo "FINDING: stage1/workflow-render — the generated workflow surface (docs/workflow.md + docs/workflows/) is stale vs spec/workflow-spec.md (run: scripts/workflow-spec.sh --render-docs)"
+  fi
+fi
+```
+
+Each `FINDING: stage1/workflow-render` line counts toward `STAGE1_FINDINGS`. When
+the engine is absent or `spec/workflow-spec.md` is not canonical (a consumer repo
+without the workflow registry) the check is skipped silently — no finding, no
+noise (the registry-gated posture mirrors Check 27).
+
 ## Fresh-context dispatch (standalone posture — REQUIRED)
 
 At top level (standalone), Stages 2+3 MUST be executed by ONE fresh
@@ -285,7 +315,7 @@ rows that exist in THIS repo):
 
 | Doc | Cross-walk |
 |---|---|
-| `docs/workflow.md` | Names every routable skill; mentions NO retired/nonexistent skill. |
+| `docs/workflow.md` + `docs/workflows/*.md` | GENERATED surface (sourced from `spec/workflow-spec.md` by `workflow-spec.sh --render-docs`) — its freshness is owned by Stage 1's `stage1/workflow-render` check, NOT re-judged here. Do NOT flag it as an orphan, an uncontemplated surface, or hand-authored drift; cross-walk the REGISTRY instead. Names every routable skill: every routable `CJ_goal_*` skill has a `## <name>` orchestrator entry in `spec/workflow-spec.md`, and the registry mentions NO retired/nonexistent skill. |
 | `docs/philosophy.md` | Its decision tree covers every ACTIVE routable skill. |
 | `docs/architecture.md` | Every named piece of machinery (scripts, registries, checks, helpers) exists on disk. |
 | `README.md` | Its folder-structure section matches the actual tree. |

@@ -1,3 +1,8 @@
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
 ## Utility audits
 
 ### /CJ_portability-audit
@@ -13,8 +18,7 @@ via the deployed shared home; matches `skills-catalog.json`)
 their `portability` — i.e. whether a skill declared `standalone` quietly reaches
 for repo-local artifacts a fresh target repo will not have. Not part of a
 `cj_goal` chain — a single-step utility (this section documents its correct
-behavior verbatim, operator-requested; it is NOT a `CJ_goal_*` orchestrator, so
-`validate.sh` Check 15b neither requires nor rejects it).
+behavior verbatim, operator-requested; it is NOT a `CJ_goal_*` orchestrator).
 
 > This is the authoritative **correct-behavior spec** for the engine: the tier
 > ladder, the EXECUTED-vs-documented rule, the carve-outs, and the
@@ -117,12 +121,15 @@ engine `scripts/doc-spec.sh`
 its doc contract?" — in the workbench or any consumer repo. First run in a fresh
 repo seed-delivers the two-tier contract (`spec/doc-spec.md` from
 `doc-spec.sh --seed`, `seeded: yes`; second run `seeded: no`). Three stages:
-Stage 1 is ONE engine call (`doc-spec.sh --check-on-disk`, printed verbatim);
-Stages 2 (requirement compliance — each `requirement:` quoted, clause-checked,
-evidence cited) and 3 (implementation drift — ground truth enumerated first,
-then each contract doc cross-walked) are agent-judged and, standalone, REQUIRED
-to run in one fresh-context subagent. On cj_goal orchestrator paths QA defers
-this audit (`DEFER_AUDIT: true`) and the orchestrator runs it ONCE post-sync
+Stage 1 is ONE engine call (`doc-spec.sh --check-on-disk`, printed verbatim) plus
+the workflow-docs freshness check (`workflow-spec.sh --render-docs --check` when
+the engine is present); Stages 2 (requirement compliance — each `requirement:`
+quoted, clause-checked, evidence cited) and 3 (implementation drift — ground
+truth enumerated first, then each contract doc cross-walked; `docs/workflow.md` +
+`docs/workflows/` are recognized as a GENERATED surface sourced from
+`spec/workflow-spec.md`, never an orphan/drift) are agent-judged and, standalone,
+REQUIRED to run in one fresh-context subagent. On cj_goal orchestrator paths QA
+defers this audit (`DEFER_AUDIT: true`) and the orchestrator runs it ONCE post-sync
 (after `/CJ_document-release`) as part of the combined read-only post-sync audit
 subagent, feeding the post-QA checkpoint with the docs that will actually ship;
 standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE (a subagent cannot
@@ -132,8 +139,9 @@ spawn subagents).
 
 - **Scripts · tools · shell:** `scripts/doc-spec.sh` (`--seed` / `--validate` /
   `--check-on-disk` — the Stage-1 engine — / the merged list subcommands),
-  plus the Agent tool for the standalone fresh-context dispatch of
-  Stages 2+3.
+  `scripts/workflow-spec.sh` (`--render-docs --check` — the workflow-docs
+  freshness check folded into Stage 1), plus the Agent tool for the standalone
+  fresh-context dispatch of Stages 2+3.
 - **Reads / writes:** reads the merged registry (`spec/doc-spec.md` +
   `spec/doc-spec-custom.md`), every declared doc, and the live repo state
   (catalog skills, scripts, workflows, dirs — the Stage-3 ground truth); its
@@ -180,4 +188,3 @@ read-only post-sync audit subagent, feeding the post-QA checkpoint; standalone
   the Stage-3 ground truth); its ONLY write is the idempotent seed delivery of
   a missing `spec/test-spec.md`. Findings ride the per-stage `TEST_AUDIT:`
   report (`STAGE1/2/3_FINDINGS=` + `stageN/` prefixes) — never a halt.
-
