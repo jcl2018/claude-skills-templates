@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.95] - 2026-06-29
+
+### Fixed
+
+- **`skills-deploy is_workbench_self_repo()` no longer false-positives a consumer with a hand-authored overlay** (D000036). The worktree-aware data-loss guard that skips the workbench self-repo (so adoption + the contract-gate hook install never run against the workbench's own canonical contracts) used two signals: (1) the target's main toplevel matching the manifest `source`/`bundle_path`, and (2)/(3) the presence of an authored `spec/doc-spec-custom.md` (without the auto-marker) or `spec/test-spec-custom.md` overlay. Signal (2)/(3) was too broad: a CONSUMER repo can legitimately hand-author its own custom overlay (the documented way to declare repo-specific docs/units), so overlay presence alone misclassified real consumers as the workbench and skipped their entire adoption + gate-hook install. The fix gates signals (2)/(3) behind a root `skills-catalog.json` check — the unmistakable workbench marker a consumer never ships. The real workbench (catalog + authored overlays) is still skipped (data-loss protection preserved); a consumer with a curated overlay but no catalog now proceeds through adoption and gets the gate hook. Signal (1) (the manifest identity match) is the primary identifier, unchanged. Regression-tested by an added `tests/seed-contracts.test.sh` case (a consumer with a hand-authored overlay + no catalog is NOT classified as self-repo). `CLAUDE.md` (the skills-deploy row) + `docs/architecture.md` (the contract-seeding + adoption sections) document the refined guard.
+
 ## [6.0.94] - 2026-06-29
 
 ### Added
