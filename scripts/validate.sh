@@ -224,8 +224,9 @@ done
 # behaving like a missing status. Status is required on every entry. `deprecated`
 # is the lifecycle-retired status (the F000031 relocation pattern): the skill
 # source is relocated under deprecated/ and the entry stays catalog-claimed (so
-# Check 4 is satisfied) while every `!= deprecated` selector — Check 13/14/15b,
-# the portability audit, the registered-doc audit — correctly excludes it.
+# Check 4 is satisfied) while every `!= deprecated` selector — Check 13/14,
+# workflow-spec.sh --validate registry-completeness, the portability audit, the
+# registered-doc audit — correctly excludes it.
 echo ""
 echo "Checking catalog status values..."
 for name in $(jq -r '.[].name' "$CATALOG"); do
@@ -249,11 +250,13 @@ echo "Checking for orphan doc directories..."
 for dir in "$DOCS_DIR"/*/; do
   [ -d "$dir" ] || continue
   dir_name=$(basename "$dir")
-  # `workflows/` is the contract-mandated per-workflow subfolder (F000067), NOT a
-  # per-skill doc directory — its files are declared human-docs in the doc-spec
-  # registry (Check 15a/15b/15c enforce them). Skip it here.
+  # `workflows/` is the GENERATED per-workflow subfolder (F000067 mandate; F000069
+  # generation), NOT a per-skill doc directory — its files are declared human-docs
+  # in the doc-spec registry (Check 15a enforces declared <=> on-disk), rendered
+  # from spec/workflow-spec.md by workflow-spec.sh --render-docs, and kept fresh by
+  # Check 27. Skip it here.
   if [ "$dir_name" = "workflows" ]; then
-    pass "docs/workflows is the mandated per-workflow subfolder (declared in the doc-spec registry; not a per-skill doc dir)"
+    pass "docs/workflows is the generated per-workflow subfolder (declared in the doc-spec registry; rendered by workflow-spec.sh --render-docs)"
     continue
   fi
   # `tests/` is the GENERATED test-catalog subfolder (F000069) — one
@@ -616,13 +619,18 @@ done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length)
 # The doc contract lives in the spec/doc-spec.md registry (a 3-column Markdown
 # table parsed by scripts/doc-spec.sh). Check 15a asserts declared <=> on-disk:
 # every declared doc exists AND every docs/**/*.md on disk (recursive, incl.
-# docs/workflows/) is declared (no orphans). Check 15b asserts each CJ_goal_*
-# orchestrator's per-workflow file docs/workflows/<name>.md carries its `### <name>`
-# section with an ASCII chart + the four anchored Touches bullets (F000067
-# retarget: the per-orchestrator detail moved out of the docs/workflow.md index
-# into docs/workflows/<name>.md). Check 15c is the no-vanish guard: the
-# docs/workflow.md index must LINK each CJ_goal_* orchestrator's
-# docs/workflows/<name>.md so the overview can never silently drop a workflow.
+# docs/workflows/) is declared (no orphans).
+#
+# Checks 15b + 15c are RETIRED (F000069/S000115): the entire workflow surface
+# (docs/workflow.md + docs/workflows/*.md) is now GENERATED from
+# spec/workflow-spec.md by scripts/workflow-spec.sh --render-docs. The shape-only
+# guarantees those checks gave (15b: each orchestrator doc has a chart + the four
+# anchored Touches bullets; 15c: the index links each orchestrator) are replaced
+# by truth/freshness enforcement: the no-vanish guarantee now lives in
+# `workflow-spec.sh --validate` (registry-completeness — every routable CJ_goal_*
+# skill has an orchestrator entry, a STRONGER guarantee than 15c's index-link
+# grep), and freshness is Check 27 below (regenerate→diff; a stale chart/Touches
+# can no longer pass). See Check 27 + scripts/workflow-spec.sh.
 echo ""
 echo "=== Check 15: doc-spec.md registry (declared <=> on-disk) + workflows completeness ==="
 
@@ -669,89 +677,9 @@ for p in $DECLARED_PATHS; do
 done
 [ -n "$DECLARED_PATHS" ] && echo "  PASS: doc-spec.md registry declared <=> on-disk ($(printf '%s\n' "$DECLARED_PATHS" | grep -c .) docs declared)"
 
-# 15b: per-workflow completeness — each CJ_goal_* orchestrator has its OWN file
-# docs/workflows/<name>.md carrying a `### <name>` section with an ASCII chart +
-# all four anchored Touches bullets (F000067: the per-orchestrator detail moved
-# out of the docs/workflow.md index into the docs/workflows/ subfolder). The
-# CJ_goal_* set is enumerated from skills-catalog.json (status != deprecated,
-# files non-empty, name startswith CJ_goal_) — dynamic, no hardcoded list.
-WORKFLOWS_DIR="docs/workflows"
-while IFS= read -r SKILL_NAME; do
-  WF_FILE="$WORKFLOWS_DIR/$SKILL_NAME.md"
-  if [ ! -f "$WF_FILE" ]; then
-    echo "  ERROR: $WF_FILE missing (every CJ_goal_* orchestrator needs a per-workflow file under $WORKFLOWS_DIR/)"
-    ERRORS=$((ERRORS+1))
-    continue
-  fi
-  # Section heading is `### <name>` line-anchored, inside the per-workflow file.
-  if ! grep -qE "^### ${SKILL_NAME}$" "$WF_FILE"; then
-    echo "  ERROR: $WF_FILE missing section: ### $SKILL_NAME"
-    ERRORS=$((ERRORS+1))
-    continue
-  fi
-  # Extract the section body (between this ### and the next ###, or EOF). Flag-
-  # based, NOT awk's `/start/,/end/` range (the range collapses to a single line
-  # when start + end overlap). A per-workflow file typically has exactly one
-  # `### <name>` section, so the flag stays armed to EOF — the whole body.
-  SECTION=$(awk -v skill="$SKILL_NAME" '
-    $0 == "### " skill {flag=1; next}
-    /^### / {flag=0}
-    flag {print}
-  ' "$WF_FILE")
-  # Section must have an ASCII chart (a fenced ``` block — open + close = 2 lines).
-  HAS_CHART=$(echo "$SECTION" | grep -cE '^```' || true)
-  if [ "$HAS_CHART" -lt 2 ]; then
-    echo "  ERROR: $WF_FILE section '$SKILL_NAME' has no ASCII chart (fenced block); one is required"
-    ERRORS=$((ERRORS+1))
-  else
-    echo "  PASS: $WF_FILE has the '$SKILL_NAME' section with an ASCII chart"
-  fi
-  # 15b-touches (T000040): the **Touches** block MUST carry all four canonical
-  # bullets — Skills dispatched / Steps · phases / Scripts · tools · shell /
-  # Docs touched — at the granular helper + named-step level. Patterns are
-  # LINE-ANCHORED on the bullet shape (`^- \*\*<dim>`), NOT bare substrings:
-  # SECTION is the WHOLE section body (chart + prose + Touches), so a bare
-  # `Steps` would false-match a chart node (`Step 5.5`) or an Invoke-when
-  # sentence and pass a section with NO Touches bullet, defeating the check. The
-  # anchored bullet line is the deterministic structural guarantee; completeness
-  # WITHIN each bullet stays agent-judged (CJ_document-release Step 6.7 audit +
-  # the docs/workflows/<name>.md `requirement:` in the doc-spec.md registry).
-  if ! echo "$SECTION" | grep -qE '^- \*\*Skills'; then
-    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Skills dispatched' bullet (expected a line matching '^- **Skills')"
-    ERRORS=$((ERRORS+1))
-  fi
-  if ! echo "$SECTION" | grep -qE '^- \*\*Steps'; then
-    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Steps · phases' bullet (expected a line matching '^- **Steps')"
-    ERRORS=$((ERRORS+1))
-  fi
-  if ! echo "$SECTION" | grep -qE '^- \*\*Scripts'; then
-    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Scripts · tools · shell' bullet (expected a line matching '^- **Scripts')"
-    ERRORS=$((ERRORS+1))
-  fi
-  if ! echo "$SECTION" | grep -qE '^- \*\*Docs'; then
-    echo "  ERROR: $WF_FILE section '$SKILL_NAME' Touches block missing the 'Docs touched' bullet (expected a line matching '^- **Docs')"
-    ERRORS=$((ERRORS+1))
-  fi
-done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
-
-# 15c (F000067 no-vanish guard): the docs/workflow.md index must LINK each
-# CJ_goal_* orchestrator's docs/workflows/<name>.md. Retargeting 15b to the
-# subfolder removes the guarantee that the overview still NAMES every workflow;
-# 15c restores it — the index can never silently drop a workflow. The link
-# target is matched as `workflows/<name>.md` (the index lives at docs/workflow.md,
-# one level up from docs/workflows/, so it references the relative path). Same
-# dynamic CJ_goal_* enumeration as 15b.
-INDEX_FILE="docs/workflow.md"
-if [ -f "$INDEX_FILE" ]; then
-  while IFS= read -r SKILL_NAME; do
-    if ! grep -qF "workflows/$SKILL_NAME.md" "$INDEX_FILE"; then
-      echo "  ERROR: $INDEX_FILE index does not link workflows/$SKILL_NAME.md (no-vanish: the overview must name every CJ_goal_* workflow)"
-      ERRORS=$((ERRORS+1))
-    else
-      echo "  PASS: $INDEX_FILE index links workflows/$SKILL_NAME.md"
-    fi
-  done < <(jq -r '.[] | select(.status != "deprecated") | select((.files | length) > 0) | select(.name | startswith("CJ_goal_")) | .name' skills-catalog.json)
-fi
+# Checks 15b + 15c RETIRED (F000069/S000115). The workflow surface is now
+# GENERATED from spec/workflow-spec.md; the no-vanish guarantee lives in
+# `workflow-spec.sh --validate` (registry-completeness) and freshness in Check 27.
 
 # Check 16: doc-spec.md registry schema enforcement
 # Skip silently when doc-spec.md is missing (non-adopting repos). When present,
@@ -1117,6 +1045,39 @@ else
   else
     echo "  ERROR: the generated test catalog is stale vs the registry — run: bash scripts/test-spec.sh --render-docs"
     printf '%s\n' "$C26_OUT" | grep -E '^(FINDING|RENDER):' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
+# Check 27: docs/workflow.md + docs/workflows/*.md are in sync with the workflow
+# registry (HARD). The entire workflow surface (the docs/workflow.md index + the
+# six docs/workflows/<name>.md per-workflow files) is rendered from
+# spec/workflow-spec.md by `scripts/workflow-spec.sh --render-docs` — the THIRD
+# instance of the README ↔ generate-readme.sh ↔ Check 25 + test-catalog ↔ Check 26
+# primitive (F000069/S000115). Without this check a stale workflow doc — a chart
+# or a Touches bullet lagging the registry, a removed workflow's page lingering —
+# passes validation silently (the shape-only Checks 15b/15c it replaces could not
+# see staleness at all). `--render-docs --check` is the single freshness owner: it
+# renders to a temp dir, diffs vs on-disk, exits non-zero on any
+# mismatch/missing/orphan file. The renderer is deterministic (registry order,
+# fixed headers, no timestamps), so a byte diff is a deterministic staleness
+# signal. READ-ONLY: --check renders only into a temp dir; the committed docs/ tree
+# is never modified here. Registry-gated: skips when spec/workflow-spec.md is
+# absent (mirror of Check 26's engine-absent skip).
+echo ""
+echo "=== Check 27: docs/workflow.md + docs/workflows/ in sync with workflow-spec.sh --render-docs ==="
+WORKFLOWSPEC="$REPO_ROOT/scripts/workflow-spec.sh"
+if [ ! -f "$WORKFLOWSPEC" ]; then
+  echo "  SKIP: scripts/workflow-spec.sh not present (non-adopting repo)"
+elif [ "$(bash "$WORKFLOWSPEC" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')" != "canonical" ]; then
+  echo "  SKIP: no spec/workflow-spec.md registry (the workflow surface is registry-gated; nothing to render)"
+else
+  C27_OUT=$(bash "$WORKFLOWSPEC" --render-docs --check 2>&1) && C27_RC=0 || C27_RC=$?
+  if [ "$C27_RC" -eq 0 ]; then
+    pass "docs/workflow.md + docs/workflows/ match workflow-spec.sh --render-docs (generated workflow surface is current)"
+  else
+    echo "  ERROR: the generated workflow surface is stale vs the registry — run: bash scripts/workflow-spec.sh --render-docs"
+    printf '%s\n' "$C27_OUT" | grep -E '^(FINDING|RENDER):' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
     ERRORS=$((ERRORS+1))
   fi
 fi

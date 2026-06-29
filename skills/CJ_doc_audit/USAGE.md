@@ -64,11 +64,16 @@ reports the redundant one (it does not auto-delete).
 ## Mental model
 
 Three stages, split exactly along the deterministic/judged boundary. **Stage 1
-(deterministic — engine):** ONE call to `doc-spec.sh --check-on-disk` — the
+(deterministic — engine):** `doc-spec.sh --check-on-disk` — the
 four conformance checks (declared⇔on-disk, orphans, root-declared, ID-free
 human docs) live inside a tested script, so no
 executor can re-derive the loops wrong (the word-split defect class is
-designed out). When declared docs are missing, Stage 1 also prints a trailing
+designed out) — PLUS the workflow-docs freshness check
+(`workflow-spec.sh --render-docs --check`, the same `--render-docs --check` owner
+`validate.sh` Check 27 calls), so a stale generated `docs/workflow.md` /
+`docs/workflows/` surface is caught standalone in any repo carrying the engine
+(`stage1/workflow-render`; skipped silently when the engine/registry is absent).
+When declared docs are missing, Stage 1 also prints a trailing
 `REMEDIATION:` pointer to `/CJ_document-release` (the scaffolder) — the audit
 names the fix for a dead-end "doc missing" list, but stays read-mostly and
 never scaffolds the docs itself. **Stage 2 (requirement compliance — agent-judged,
@@ -77,7 +82,9 @@ decomposed into clauses, and judged clause-by-clause with cited evidence —
 verdicts `satisfies` / `missing-requirement (soft)` / `n/a` /
 `FINDING: stage2/<path>`. **Stage 3 (implementation drift — agent-judged):**
 ground truth first (enumerate catalog skills, scripts, workflows, dirs), then
-each contract doc is cross-walked against it — verdicts `no-drift` /
+each contract doc is cross-walked against it (the generated `docs/workflow.md` +
+`docs/workflows/` surface is recognized as sourced from `spec/workflow-spec.md`,
+never flagged as an orphan/drift) — verdicts `no-drift` /
 `FINDING: stage3/<path> — <named delta>`.
 
 Before the three stages, **Step 2 ensures the contract is canonical** via

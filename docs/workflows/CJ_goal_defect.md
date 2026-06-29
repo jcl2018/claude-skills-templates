@@ -1,15 +1,15 @@
 ### CJ_goal_defect
 
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
 **Status:** experimental (the `defect` verb; still being hardened)
-**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh`
-+ the worktree helpers; matches `skills-catalog.json`)
+**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh` + the worktree helpers; matches `skills-catalog.json`)
 **Source:** `skills/CJ_goal_defect/SKILL.md` · `skills/CJ_goal_defect/USAGE.md`
 
-**Invoke when:** the operator has a plain bug description with no pre-existing
-defect dir and wants a deployed fix. Common phrasings: "fix this bug
-end-to-end", "bug report to deployed fix", "root-cause and ship a fix". Differs
-from `/CJ_goal_feature` in that it auto-deploys after `/ship` — defects are
-time-sensitive.
+**Invoke when:** the operator has a plain bug description with no pre-existing defect dir and wants a deployed fix. Common phrasings: "fix this bug end-to-end", "bug report to deployed fix", "root-cause and ship a fix". Differs from `/CJ_goal_feature` in that it auto-deploys after `/ship` — defects are time-sensitive.
 
 **Workflow:**
 
@@ -80,4 +80,3 @@ with `cj-worktree-cleanup.sh` sweeping the now-landed worktree.
 - **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 8.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode defect`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller defect`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same fix PR.
-

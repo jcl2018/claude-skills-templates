@@ -1,15 +1,15 @@
 ### CJ_goal_task
 
-**Status:** experimental (the `task` verb; the lightweight sibling of
-`/CJ_goal_feature` for small ad-hoc work)
-**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh`
-+ the worktree helpers + its own `cj-task-scaffold.sh`; matches `skills-catalog.json`)
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
+**Status:** experimental (the `task` verb; the lightweight sibling of `/CJ_goal_feature` for small ad-hoc work)
+**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh` + the worktree helpers + its own `cj-task-scaffold.sh`; matches `skills-catalog.json`)
 **Source:** `skills/CJ_goal_task/SKILL.md` · `skills/CJ_goal_task/USAGE.md`
 
-**Invoke when:** the operator has a small, mechanical, ad-hoc task (refine a doc,
-add a file, clean up files, a one-line fix) that does NOT need design or
-investigation and is NOT already a `TODOS.md` row. Common phrasings: "do this
-small task end-to-end", "small cleanup to a PR". Stops at the PR.
+**Invoke when:** the operator has a small, mechanical, ad-hoc task (refine a doc, add a file, clean up files, a one-line fix) that does NOT need design or investigation and is NOT already a `TODOS.md` row. Common phrasings: "do this small task end-to-end", "small cleanup to a PR". Stops at the PR.
 
 **Workflow:**
 
@@ -87,4 +87,3 @@ and the resume state file lets a re-invocation pick up mid-chain.
 - **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 4.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 4.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode task`), `skills/CJ_goal_task/scripts/cj-task-scaffold.sh` (the complexity gate + topic-driven `type: task` scaffold), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller task`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
-

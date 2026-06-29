@@ -1,14 +1,15 @@
 ### CJ_goal_feature
 
-**Status:** experimental (the `feature` verb; production front door for "build a
-feature end-to-end" but the chain is still being tuned)
-**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh`
-+ the worktree helpers; matches `skills-catalog.json`)
+<!-- GENERATED FILE — do not edit by hand.
+     Rendered from the workflow-docs registry (spec/workflow-spec.md) by:
+     scripts/workflow-spec.sh --render-docs
+     Re-run that command to regenerate; validate.sh Check 27 enforces freshness. -->
+
+**Status:** experimental (the `feature` verb; production front door for "build a feature end-to-end" but the chain is still being tuned)
+**Category:** workbench (operates ON the workbench — executes `cj-goal-common.sh` + the worktree helpers; matches `skills-catalog.json`)
 **Source:** `skills/CJ_goal_feature/SKILL.md` · `skills/CJ_goal_feature/USAGE.md`
 
-**Invoke when:** the operator has a one-line feature topic and wants a reviewable
-PR. Common phrasings: "build a feature", "one-line idea to a reviewable PR",
-"topic to PR". Stops at the PR — `/land-and-deploy` is a separate human step.
+**Invoke when:** the operator has a one-line feature topic and wants a reviewable PR. Common phrasings: "build a feature", "one-line idea to a reviewable PR", "topic to PR". Stops at the PR — `/land-and-deploy` is a separate human step.
 
 **Workflow:**
 
@@ -88,4 +89,3 @@ mid-chain without redoing finished phases.
 - **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 3.5) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 3.4 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode feature`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same code PR.
-
