@@ -134,7 +134,8 @@ trap 'rm -rf "$TMP_REPO"' EXIT
     && git -C "$TMP_REPO" config user.name t \
     && cp "$SETUP_HOOKS" "$TMP_REPO/setup-hooks.sh" \
     && mkdir -p "$TMP_REPO/scripts" \
-    && cp "$SETUP_HOOKS" "$TMP_REPO/scripts/setup-hooks.sh"
+    && cp "$SETUP_HOOKS" "$TMP_REPO/scripts/setup-hooks.sh" \
+    && cp "$REPO_ROOT/scripts/cj-hook-lib.sh" "$TMP_REPO/scripts/cj-hook-lib.sh"
 ) >/dev/null 2>&1 || { fail_test "Smoke 1: could not stage temp git repo"; exit 1; }
 
 # Run the copy from the temp repo's scripts/ so its REPO_ROOT resolves to TMP_REPO

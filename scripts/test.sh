@@ -1256,33 +1256,50 @@ else
   fail_test "setup.sh does not invoke setup-hooks.sh — fresh-clone bootstrap leaves auto-sync hook uninstalled (D000013 bootstrap-wiring guard)"
 fi
 
-# D000022: setup-hooks.sh must not blind-clobber operator/tooling-owned git
-# hooks. Since D000021 wired setup-hooks.sh into setup.sh's always-on update
-# path, an unconditional `cat > "$HOOK_DIR/<hook>"` would silently destroy a
-# customized pre-commit/post-merge (Husky, lefthook, local) with no backup, and
-# a partial write would leave a truncated hook present. The fix installs via a
-# sentinel-aware, atomic install_hook helper. Source-level static checks only —
-# never fires a hook (same CI-safety rationale as the D000013 block above).
-# shellcheck disable=SC2016 # literal $SENTINEL is intentional — grepping for the exact source string in setup-hooks.sh
-if grep -qF '! grep -qF "$SENTINEL"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
-  ok "setup-hooks.sh checks the workbench sentinel before overwriting an existing hook (D000022 guard)"
+# D000022: the git-hook installer must not blind-clobber operator/tooling-owned
+# hooks. Since D000021 wired setup-hooks.sh into setup.sh's always-on update path,
+# an unconditional `cat > "$HOOK_DIR/<hook>"` would silently destroy a customized
+# pre-commit/post-merge (Husky, lefthook, local) with no backup, and a partial
+# write would leave a truncated hook present. The fix installs via a
+# sentinel-aware, atomic install_hook helper.
+#
+# F000069/S000117 EXTRACTED that clobber-safe install_hook (+ the SENTINEL) into
+# the ONE shared, sourceable scripts/cj-hook-lib.sh that BOTH setup-hooks.sh and
+# skills-deploy source (no two drifting copies). So the D000022 source-level static
+# checks now anchor on cj-hook-lib.sh (the new home of the safety logic) PLUS a
+# parity check that setup-hooks.sh actually sources the lib (so the wrapper still
+# routes through the safe primitive). Source-level static checks only — never fires
+# a hook (same CI-safety rationale as the D000013 block above).
+LIB="$REPO_ROOT/scripts/cj-hook-lib.sh"
+# Parity: setup-hooks.sh must source cj-hook-lib.sh AND call cj_install_hook (so
+# the shared safety primitive is the only install path — not a stale inline copy).
+if grep -qF 'cj-hook-lib.sh' "$REPO_ROOT/scripts/setup-hooks.sh" \
+   && grep -qF 'cj_install_hook' "$REPO_ROOT/scripts/setup-hooks.sh"; then
+  ok "setup-hooks.sh sources the shared cj-hook-lib.sh and routes installs through cj_install_hook (F000069/S000117 parity)"
 else
-  fail_test "setup-hooks.sh missing sentinel ownership check — operator/tooling hooks can be blind-clobbered (D000022 guard)"
+  fail_test "setup-hooks.sh does not source cj-hook-lib.sh / call cj_install_hook — the shared hook-install safety is bypassed (S000117 parity guard)"
 fi
 
-# shellcheck disable=SC2016 # literal $HOOK_DIR/$tmp/$hook_path are intentional — grepping for the exact source strings in setup-hooks.sh
-if grep -qF 'mktemp "$HOOK_DIR/.${hook_name}.XXXXXX"' "$REPO_ROOT/scripts/setup-hooks.sh" \
-   && grep -qF 'mv "$tmp" "$hook_path"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
-  ok "setup-hooks.sh stages hooks via mktemp and installs with an atomic mv (D000022 guard)"
+# shellcheck disable=SC2016 # literal $CJ_HOOK_SENTINEL is intentional — grepping for the exact source string in cj-hook-lib.sh
+if grep -qF '! grep -qF "$CJ_HOOK_SENTINEL"' "$LIB"; then
+  ok "cj-hook-lib.sh checks the workbench sentinel before overwriting an existing hook (D000022 guard)"
 else
-  fail_test "setup-hooks.sh missing atomic mktemp-stage + mv install — a partial write can leave a truncated hook (D000022 guard)"
+  fail_test "cj-hook-lib.sh missing sentinel ownership check — operator/tooling hooks can be blind-clobbered (D000022 guard)"
 fi
 
-# shellcheck disable=SC2016 # literal $hook_path/$backup are intentional — grepping for the exact source string in setup-hooks.sh
-if grep -qF 'cp -p "$hook_path" "$backup"' "$REPO_ROOT/scripts/setup-hooks.sh"; then
-  ok "setup-hooks.sh backs up a non-workbench hook to <hook>.bak before clobbering (D000022 guard)"
+# shellcheck disable=SC2016 # literal $hook_dir/$tmp/$hook_path are intentional — grepping for the exact source strings in cj-hook-lib.sh
+if grep -qF 'mktemp "$hook_dir/.${hook_name}.XXXXXX"' "$LIB" \
+   && grep -qF 'mv "$tmp" "$hook_path"' "$LIB"; then
+  ok "cj-hook-lib.sh stages hooks via mktemp and installs with an atomic mv (D000022 guard)"
 else
-  fail_test "setup-hooks.sh missing .bak backup of non-workbench hooks — custom hooks lost unrecoverably (D000022 guard)"
+  fail_test "cj-hook-lib.sh missing atomic mktemp-stage + mv install — a partial write can leave a truncated hook (D000022 guard)"
+fi
+
+# shellcheck disable=SC2016 # literal $hook_path/$backup are intentional — grepping for the exact source string in cj-hook-lib.sh
+if grep -qF 'cp -p "$hook_path" "$backup"' "$LIB"; then
+  ok "cj-hook-lib.sh backs up a non-workbench hook to <hook>.bak before clobbering (D000022 guard)"
+else
+  fail_test "cj-hook-lib.sh missing .bak backup of non-workbench hooks — custom hooks lost unrecoverably (D000022 guard)"
 fi
 
 # D000022 (pre-landing-review hardening): the two failure-mode invariants below
@@ -1290,11 +1307,13 @@ fi
 # while re-opening exactly the bug classes D000022 exists to kill.
 #   (a) exit $rc — setup-hooks.sh must propagate a non-zero exit so setup.sh's
 #       `|| echo WARN >&2` guard fires; dropping it re-introduces the masked
-#       partial-failure class (the original D000022 / PR #150 finding).
-#   (b) backup-fail abort — if the .bak copy fails, install_hook must refuse to
+#       partial-failure class (the original D000022 / PR #150 finding). This
+#       invariant stays in setup-hooks.sh (the wrapper that aggregates per-hook rc).
+#   (b) backup-fail abort — if the .bak copy fails, cj_install_hook must refuse to
 #       overwrite (the design's "one unacceptable outcome": losing an un-backed
 #       custom hook). The ERROR string is emitted only on that abort path,
-#       immediately before its `return 1`, so its presence proves the branch.
+#       immediately before its `return 1`, so its presence proves the branch. It
+#       now lives in cj-hook-lib.sh (the extracted primitive).
 # shellcheck disable=SC2016 # literal $rc is intentional — grepping for the exact source string in setup-hooks.sh
 if grep -qF 'exit $rc' "$REPO_ROOT/scripts/setup-hooks.sh"; then
   ok "setup-hooks.sh propagates a non-zero exit on hook-install failure (D000022 guard)"
@@ -1302,10 +1321,10 @@ else
   fail_test "setup-hooks.sh missing 'exit \$rc' — a failed hook install is masked from setup.sh's WARN guard (D000022 guard)"
 fi
 
-if grep -qF 'could not be backed up — refusing to overwrite' "$REPO_ROOT/scripts/setup-hooks.sh"; then
-  ok "setup-hooks.sh aborts without clobbering when the .bak backup fails (D000022 guard)"
+if grep -qF 'could not be backed up — refusing to overwrite' "$LIB"; then
+  ok "cj-hook-lib.sh aborts without clobbering when the .bak backup fails (D000022 guard)"
 else
-  fail_test "setup-hooks.sh missing backup-fail abort — an un-backed custom hook can be destroyed (D000022 guard)"
+  fail_test "cj-hook-lib.sh missing backup-fail abort — an un-backed custom hook can be destroyed (D000022 guard)"
 fi
 
 echo ""
@@ -2101,6 +2120,31 @@ if bash "$REPO_ROOT/tests/seed-contracts.test.sh" >/dev/null 2>&1; then
 else
   _seedc_rc=$?
   fail_test "tests/seed-contracts.test.sh failed (rc=$_seedc_rc) — run \`bash tests/seed-contracts.test.sh\` directly to see"
+fi
+
+# tests/cj-contract-gate.test.sh — the hermetic test for scripts/cj-contract-gate.sh
+# (the deterministic, agent-free Stage-1 contract gate) + its guarded consumer
+# pre-commit auto-install (F000069/S000117 — the FINAL story of the epic). The
+# suite asserts: PART (a) gate dispositions — PASS on a clean fully-adopted
+# contract, hard-FAIL on a planted violation (a stale generated catalog OR a
+# malformed registry), a missing DECLARED doc treated as a SOFT remediation
+# (exit 0, pointing at /CJ_document-release — never a block), and a registry-absent
+# contract a clean SKIP; PART (b) the guarded consumer install — install-contract-gate
+# installs a sentinel pre-commit hook resolving cj-contract-gate.sh from _cj-shared
+# (idempotent re-run), a custom core.hooksPath (husky) is SKIPPED, the workbench
+# self-repo is SKIPPED, and --remove uninstalls ONLY a sentinel hook while a
+# non-workbench hook is left untouched. Fully hermetic: engines + the gate resolve
+# from a pinned _cj-shared (the repo's scripts/), SKILLS_DEPLOY_MANIFEST is
+# overridden, every sandbox is a throwaway repo — the live workbench + the real
+# ~/.claude are never touched. MANDATORY registration — Check 24's reverse sweep
+# hard-fails any unregistered tests/*.test.sh.
+echo ""
+echo "Running tests/cj-contract-gate.test.sh (F000069/S000117 deterministic contract gate + guarded consumer hook install)..."
+if bash "$REPO_ROOT/tests/cj-contract-gate.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-contract-gate.test.sh: gate PASS/hard-FAIL/declared-exists-soft/registry-absent-SKIP + consumer auto-install sentinel/husky-skip/self-skip/--remove all pass"
+else
+  _ccg_rc=$?
+  fail_test "tests/cj-contract-gate.test.sh failed (rc=$_ccg_rc) — run \`bash tests/cj-contract-gate.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

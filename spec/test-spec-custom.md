@@ -814,6 +814,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "skills-deploy seed-contracts force-seeds the three contracts (doc-spec/test-spec/workflow-spec) into a consumer repo corruption-guarded (--seed → non-empty + --validate-clean → mv) and idempotent (present⇒skip); the workbench self-repo is detected (manifest-source match OR custom-overlay presence) and SKIPPED so its authored spec/*.md are never overwritten with skeletons (the data-loss guard); and the stale-engine capability probe detects a vendored repo-local engine lacking --classify, falls back to _cj-shared, and emits stage1/engine-stale (the actual stale-engine-shadow bug fix)."
+  - id: test-cj-contract-gate
+    family: test
+    label: "cj-contract-gate suite — deterministic Stage-1 contract gate + guarded consumer hook install"
+    anchor: "tests/cj-contract-gate.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "scripts/cj-contract-gate.sh (the engine-only Stage-1 subset of validate.sh, agent-free) PASSes on a clean fully-adopted contract and hard-FAILS (exit non-zero) on a planted violation (a stale generated catalog OR a malformed registry); a missing DECLARED doc is a SOFT remediation pointing at /CJ_document-release (exit 0 — never a block) and an unadopted contract (REGISTRY=absent) is a clean SKIP; and the guarded consumer pre-commit auto-install (skills-deploy install-contract-gate, reusing the shared cj-hook-lib.sh install_hook safety) installs a sentinel hook resolving the gate from _cj-shared (idempotent re-run), SKIPS a custom core.hooksPath (husky) and the workbench self-repo, and --remove uninstalls ONLY a sentinel hook while a non-workbench hook is left untouched."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
