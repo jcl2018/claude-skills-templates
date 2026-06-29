@@ -525,6 +525,32 @@ parser classifies it mechanically — `REGISTRY=absent` + exit 0 — and Check 2
 SKIPs; the first `/CJ_test_audit` run seeds the general contract and the repo
 opts into units whenever it is ready.
 
+### The generated test catalog (`docs/tests/` — the human-readable view)
+
+The `units:` overlay is a machine registry — the right shape for the engine and
+the AI, the wrong shape for a human asking "what tests do we have and what does
+each prove?" So the registry gets a **generated human-readable view**:
+`docs/test-catalog.md` (the index, families with counts) plus one
+`docs/tests/<family>.md` per unit `family` (`validate`, `test`, `ci`, `hook`,
+`windows-smoke`, `test-deploy`, `eval`). `test-spec.sh --render-docs` renders
+them deterministically from the merged registry's **rendered fields only**
+(`label`, `purpose`, `layer`, `disposition`, `trigger`; the `anchor` shown as an
+inline code reference with any work-item ID masked, so a generated human-doc is
+work-item-ID-free by construction and passes Check 19).
+
+This is the **same primitive** the repo already trusts for `README.md`: a single
+source of truth (the `spec/` registry) renders a `docs/` view, and a freshness
+check keeps the two in lockstep. The catalog's freshness gate is **`validate.sh`
+Check 26** — regenerate to a temp dir, diff against on-disk, hard-fail on any
+mismatch (the structural mirror of Check 25's README freshness gate, with its
+parallel `scripts/test.sh` integration fixture). The same freshness check also
+runs as **`/CJ_test_audit` Stage 1** (`test-spec.sh --render-docs --check`), so a
+stale catalog is caught the moment the audit runs — even in a consumer repo that
+carries no `validate.sh`. The audit's Stage-3 drift pass recognizes
+`docs/tests/` as a generated surface, never flagging it as an orphan. Editing a
+catalog page by hand is therefore pointless: the next regenerate (or the
+freshness gate) reverts it — to change the catalog, change the registry.
+
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
 Everything above is Claude-side plumbing. `work-copilot/` is the workbench's
