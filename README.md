@@ -139,6 +139,8 @@ See `CLAUDE.md` for the `.gstack/` (lateral/exploratory) vs `work-items/` (struc
 | `generate-readme.sh` | Auto-generate this README | 1 on write failure |
 | `sync-upstream.sh` | Compare upstream gstack skills | 0 (local-only) |
 | `setup-hooks.sh` | Install pre-commit hook | 0 |
+| `cj-hook-lib.sh` | Shared git-hook install library (`cj_install_hook`) — the one clobber-safe, sentinel-aware hook installer both `setup-hooks.sh` and `skills-deploy` source | sourced (no standalone exit) |
+| `cj-contract-gate.sh` | Deterministic Stage-1 contract gate — the engine-only subset of `validate.sh` (doc/test/workflow contracts); runnable with no agent from a pre-commit hook or CI. HARD except a soft `declared-exists` remediation; registry-absent ⇒ SKIP | 1 on a hard finding |
 | `setup-gstack-symlink.sh` | Per-machine: symlink `~/.gstack/projects/<slug>/` to `<main-repo>/.gstack/` so gstack output commits in git. Idempotent; `--force` to re-point or merge non-empty target. | 1 on error |
 | `teardown-gstack-symlink.sh` | Reverse the gstack symlink: restore `~/.gstack/projects/<slug>/` to a real directory. Refuses if the symlink target doesn't match expected. | 1 on wrong target |
 | `copilot-deploy.py` | Install/doctor/remove the Copilot bundle in a target repo | 1 on error |

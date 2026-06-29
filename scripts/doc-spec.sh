@@ -336,17 +336,43 @@ EOF
   # _check_on_disk, which the --check-on-disk dispatch arm calls AFTER the
   # registry-absent probe returns early — so REGISTRY=absent never reaches here,
   # i.e. the mandate is registry-gated and never fires on a non-adopting repo.
+  #
+  # EMPTY-REGISTRY TOLERANCE (F000069 / S000117): the docs/workflows/ surface is
+  # GENERATED from spec/workflow-spec.md (one *.md per declared workflow). A fresh
+  # consumer that adopted a VACUOUS workflow-spec (zero workflow sections — its
+  # `--seed` skeleton) has NOTHING to render there, so an empty/absent
+  # docs/workflows/ is correct, not a violation. The mandate therefore applies
+  # only when the workflow registry DECLARES at least one workflow. We detect the
+  # zero-workflow case self-contained (no cross-engine call — this engine is
+  # freshness-checked into _cj-shared and must stay portable): the workflow-spec
+  # registry is absent, OR present with no top-level `kind:` line (each workflow
+  # section's first key is `kind:`; the seed's contract prose mentions `kind:`
+  # only inside a backtick span, never at line-start). The workbench (6 workflows
+  # → 6 `kind:` lines) is unchanged — it still requires a non-empty docs/workflows/.
   _COD_CHECKS=$((_COD_CHECKS + 1))
   _c=0
   _WF_DIR="$REPO_ROOT_RESOLVED/docs/workflows"
-  if [ ! -d "$_WF_DIR" ]; then
+  _WF_SPEC="$REPO_ROOT_RESOLVED/spec/workflow-spec.md"
+  [ -f "$_WF_SPEC" ] || _WF_SPEC="$REPO_ROOT_RESOLVED/workflow-spec.md"
+  _WF_COUNT=0
+  if [ -f "$_WF_SPEC" ]; then
+    # grep -c exits 1 (and prints 0) on no match; under set -e capture it safely
+    # and normalize to a single integer.
+    _WF_COUNT=$( { grep -cE '^kind:' "$_WF_SPEC" 2>/dev/null || true; } | head -1 )
+    [ -n "$_WF_COUNT" ] || _WF_COUNT=0
+  fi
+  if [ "$_WF_COUNT" -eq 0 ]; then
+    # Zero declared workflows ⇒ an empty/absent docs/workflows/ is expected.
+    echo "check: workflows-subfolder — PASS (no workflows declared; empty docs/workflows/ tolerated)"
+  elif [ ! -d "$_WF_DIR" ]; then
     echo "FINDING: stage1/workflows-subfolder — docs/workflows/ is required but missing (the contract mandates a per-workflow subfolder)"
     _c=1
   elif [ -z "$(find "$_WF_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | head -1)" ]; then
     echo "FINDING: stage1/workflows-subfolder — docs/workflows/ exists but contains no *.md (the contract mandates a non-empty per-workflow subfolder)"
     _c=1
+  else
+    echo "check: workflows-subfolder — PASS"
   fi
-  if [ "$_c" -eq 0 ]; then echo "check: workflows-subfolder — PASS"; fi
   _COD_FINDINGS=$((_COD_FINDINGS + _c))
 
   # root-declared — every root *.md on disk is a declared registry path.

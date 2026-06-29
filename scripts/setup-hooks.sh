@@ -13,76 +13,44 @@
 # only; it is no longer auto-invoked by this hook.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# --git-common-dir resolves to the shared .git for both regular checkouts and
-# worktrees (where $REPO_ROOT/.git is a file, not a directory). It returns an
-# absolute path in worktrees but a relative ".git" in main checkouts, so
-# normalize to absolute by prefixing REPO_ROOT when relative.
-GIT_COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null)"
-case "$GIT_COMMON_DIR" in
-  /*) HOOK_DIR="$GIT_COMMON_DIR/hooks" ;;
-  *)  HOOK_DIR="$REPO_ROOT/$GIT_COMMON_DIR/hooks" ;;
-esac
 
-if [ ! -d "$HOOK_DIR" ]; then
+# The clobber-safe hook-install primitive + the SENTINEL now live in ONE shared,
+# sourceable lib (F000069 / S000117) so this script and scripts/skills-deploy share
+# a single implementation instead of two drifting copies. Source it; fall back to
+# the deployed _cj-shared copy if the repo-local one is missing (defensive).
+if [ -f "$REPO_ROOT/scripts/cj-hook-lib.sh" ]; then
+  # shellcheck source=scripts/cj-hook-lib.sh
+  . "$REPO_ROOT/scripts/cj-hook-lib.sh"
+elif [ -f "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-hook-lib.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-hook-lib.sh"
+else
+  echo "ERROR: cannot find scripts/cj-hook-lib.sh (the shared hook-install lib)" >&2
+  exit 1
+fi
+
+# --git-common-dir resolves to the shared .git for both regular checkouts and
+# worktrees (where $REPO_ROOT/.git is a file, not a directory). cj_resolve_hook_dir
+# normalizes the relative-in-main / absolute-in-worktree path to an absolute hooks
+# dir.
+HOOK_DIR="$(cj_resolve_hook_dir "$REPO_ROOT")"
+
+if [ -z "$HOOK_DIR" ] || [ ! -d "$HOOK_DIR" ]; then
   echo "ERROR: cannot resolve git hooks directory. Are you in a git repo?" >&2
   exit 1
 fi
 
-# Sentinel embedded in every hook body this script writes (see the heredocs
-# below). Lets install_hook tell a workbench-owned hook from an
-# operator/tooling-owned one (Husky, lefthook, a local debug hook) so a custom
-# hook is never blindly destroyed. grep -F substring match: tolerates the
-# post-merge body's trailing '.' after the sentinel.
-SENTINEL='# Auto-installed by scripts/setup-hooks.sh'
+# The sentinel embedded in every hook body this script writes (see the heredocs
+# below) is the shared lib's $CJ_HOOK_SENTINEL — kept byte-identical so a
+# sentinel match (grep -F substring) recognizes our own prior install.
 
 # install_hook <name>   (hook body on stdin)
-# Clobber-safe, atomic install of .git/hooks/<name>:
-#   - Stage the body into a temp file in $HOOK_DIR and chmod +x it BEFORE the
-#     target is touched. The live hook is only ever changed by an atomic mv of
-#     a fully-written file (same dir => same filesystem => rename(2)), so a
-#     mid-write/chmod failure leaves the prior hook intact — never a truncated
-#     or non-executable hook (the prior `cat >` truncated the target up front;
-#     setup.sh's `|| echo WARN >&2` then masked the partial write).
-#   - If an existing hook lacks $SENTINEL it is operator/tooling-owned: back it
-#     up to <hook>.bak (timestamped if .bak exists) and warn, instead of
-#     silently destroying it. If the backup itself fails, abort WITHOUT
-#     clobbering — losing an un-backed custom hook is the one unacceptable
-#     outcome.
-#   - An existing hook that already carries $SENTINEL is our own prior install:
-#     refreshed in place, no backup, so repeated setup.sh runs stay a no-op.
-# Returns non-zero on failure so setup.sh's `|| echo WARN >&2` guard fires.
+# Thin wrapper over the shared cj_install_hook, pinned to this script's $HOOK_DIR,
+# so the existing call sites + the `|| echo WARN >&2` guards stay unchanged. The
+# clobber-safe atomic-install + back-up-non-workbench-hook safety lives in the
+# shared lib (sourced above).
 install_hook() {
-  hook_name="$1"
-  hook_path="$HOOK_DIR/$hook_name"
-  tmp="$(mktemp "$HOOK_DIR/.${hook_name}.XXXXXX" 2>/dev/null)" || {
-    echo "ERROR: cannot create temp file in $HOOK_DIR for $hook_name hook" >&2
-    return 1
-  }
-  if ! cat > "$tmp"; then
-    rm -f "$tmp"
-    echo "ERROR: failed to write $hook_name hook body" >&2
-    return 1
-  fi
-  if ! chmod +x "$tmp"; then
-    rm -f "$tmp"
-    echo "ERROR: chmod +x failed for $hook_name hook" >&2
-    return 1
-  fi
-  if [ -e "$hook_path" ] && ! grep -qF "$SENTINEL" "$hook_path" 2>/dev/null; then
-    backup="$hook_path.bak"
-    [ -e "$backup" ] && backup="$hook_path.bak.$(date +%Y%m%d%H%M%S)"
-    if ! cp -p "$hook_path" "$backup"; then
-      rm -f "$tmp"
-      echo "ERROR: existing .git/hooks/$hook_name is not workbench-owned and could not be backed up — refusing to overwrite (your custom hook is untouched)" >&2
-      return 1
-    fi
-    echo "WARN: existing .git/hooks/$hook_name is not workbench-owned — backed up to $(basename "$backup") before installing the workbench hook" >&2
-  fi
-  if ! mv "$tmp" "$hook_path"; then
-    rm -f "$tmp"
-    echo "ERROR: failed to install $hook_name hook" >&2
-    return 1
-  fi
+  cj_install_hook "$HOOK_DIR" "$1"
 }
 
 rc=0

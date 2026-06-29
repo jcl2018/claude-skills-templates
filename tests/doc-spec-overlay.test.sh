@@ -218,6 +218,12 @@ mk_cod_fixture() {
   printf '# changelog\n' > "$_cf/CHANGELOG.md"
   printf '# todos\n' > "$_cf/TODOS.md"
   printf '# test contract stub\n' > "$_cf/spec/test-spec.md"
+  # A workflow-spec declaring ONE workflow (a top-level `kind:` line) so the
+  # registry-gated workflows-subfolder mandate is ACTIVE for this fixture
+  # (F000069/S000117: the mandate is tolerated only when the workflow registry
+  # declares ZERO workflows; a fixture that exercises the mandate must declare one).
+  # shellcheck disable=SC2016 # the ````body fence is literal registry content, not a command substitution
+  printf '<!-- WORKFLOW-SPEC:BEGIN -->\n## CJ_goal_example\nkind: roster\n\n````body\nx\n````\n<!-- WORKFLOW-SPEC:END -->\n' > "$_cf/spec/workflow-spec.md"
   # A per-workflow file satisfying the non-empty docs/workflows/ mandate, declared
   # via an overlay so it is NOT an orphan.
   printf '### CJ_goal_example\n\nPer-workflow detail.\n' > "$_cf/docs/workflows/CJ_goal_example.md"
@@ -227,6 +233,7 @@ mk_cod_fixture() {
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `spec/doc-spec-custom.md` | The overlay (self-declared). | Present. |
+| `spec/workflow-spec.md` | The workflow registry (declares the workflows). | Present. |
 | `docs/workflows/CJ_goal_example.md` | A per-workflow detail file. | Present; human-readable; no work-item IDs. |
 OVR
   printf '%s' "$_cf"
@@ -289,10 +296,11 @@ _V=$(mk_cod_fixture); printf 'stray doc\n' > "$_V/docs/extra.md"
 assert_one_finding "$_V" "orphans" "orphan in docs/"
 
 # 8d. violation 3 — orphan in spec/: a NON-SELF-DECLARING overlay (declares
-# EXTRA.md + the builder's docs/workflows/ example, but NOT itself => the overlay
-# file IS the orphan, by design). EXTRA.md is created and the example workflow
-# file kept declared so the ONLY finding is the orphan overlay (the builder's
-# subfolder file would otherwise be a second orphan once we replace its overlay).
+# EXTRA.md + the builder's docs/workflows/ example + spec/workflow-spec.md, but NOT
+# itself => the overlay file IS the orphan, by design). EXTRA.md is created and the
+# example workflow file + spec/workflow-spec.md kept declared so the ONLY finding is
+# the orphan overlay (any otherwise-undeclared file would be a second orphan once we
+# replace its overlay).
 _V=$(mk_cod_fixture)
 cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
 # overlay fixture
@@ -300,6 +308,7 @@ cat > "$_V/spec/doc-spec-custom.md" <<'EOF'
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `EXTRA.md` | An overlay-declared extra doc. | Present. |
+| `spec/workflow-spec.md` | The workflow registry. | Present. |
 | `docs/workflows/CJ_goal_example.md` | The builder's per-workflow detail file. | Present. |
 EOF
 printf 'extra doc\n' > "$_V/EXTRA.md"
@@ -327,20 +336,57 @@ assert_one_finding "$_V" "human-doc-ids" "work-item ID in a human-doc"
 _V=$(mk_cod_fixture); printf 'stray subfolder doc\n' > "$_V/docs/workflows/zzz_undeclared.md"
 assert_one_finding "$_V" "orphans" "undeclared docs/workflows/ file (recursed orphan scan)"
 
-# 8f-2 (F000067). violation 7 — registry PRESENT but docs/workflows/ MISSING flips
-# the registry-gated workflows-subfolder mandate. Remove the subfolder the clean
-# fixture created AND the overlay that declared its file (so the ONLY finding is
-# the workflows-subfolder mandate, not an orphan/missing-declared from the overlay
-# row). Proves the mandate fires when the contract is adopted but the subfolder
-# is absent.
-_V=$(mk_cod_fixture); rm -rf "$_V/docs/workflows"; rm -f "$_V/spec/doc-spec-custom.md"
+# 8f-2 (F000067). violation 7 — registry PRESENT (a workflow IS declared) but
+# docs/workflows/ MISSING flips the registry-gated workflows-subfolder mandate.
+# Remove the subfolder the clean fixture created and rewrite the overlay to declare
+# only the spec files (NOT the removed docs/workflows/ file), so the ONLY finding is
+# the workflows-subfolder mandate (not an orphan from spec/workflow-spec.md nor a
+# missing-declared from the dropped subfolder row). F000069/S000117: spec/workflow-spec.md
+# declares a workflow, so the mandate is active (not the empty-registry tolerance).
+_V=$(mk_cod_fixture); rm -rf "$_V/docs/workflows"
+cat > "$_V/spec/doc-spec-custom.md" <<'OVR'
+# overlay fixture
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `spec/doc-spec-custom.md` | The overlay (self-declared). | Present. |
+| `spec/workflow-spec.md` | The workflow registry (declares the workflows). | Present. |
+OVR
 assert_one_finding "$_V" "workflows-subfolder" "registry present but docs/workflows/ missing (registry-gated mandate)"
 
 # 8f-3 (F000067). violation 8 — docs/workflows/ EXISTS but is EMPTY also flips the
-# workflows-subfolder mandate (non-empty is required). Empty the dir; drop the
-# overlay row so the (now-deleted) example file is not a missing-declared finding.
-_V=$(mk_cod_fixture); rm -f "$_V"/docs/workflows/*.md; rm -f "$_V/spec/doc-spec-custom.md"
+# workflows-subfolder mandate (non-empty required, and a workflow IS declared).
+# Empty the dir; rewrite the overlay to declare only the spec files so the (now-deleted)
+# example file is not a missing-declared finding and spec/workflow-spec.md is not an orphan.
+_V=$(mk_cod_fixture); rm -f "$_V"/docs/workflows/*.md
+cat > "$_V/spec/doc-spec-custom.md" <<'OVR'
+# overlay fixture
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `spec/doc-spec-custom.md` | The overlay (self-declared). | Present. |
+| `spec/workflow-spec.md` | The workflow registry (declares the workflows). | Present. |
+OVR
 assert_one_finding "$_V" "workflows-subfolder" "docs/workflows/ present but empty (non-empty mandate)"
+
+# 8f-4 (F000069/S000117). EMPTY-REGISTRY TOLERANCE — when the workflow registry
+# declares ZERO workflows (workflow-spec absent, or present with no `kind:` section),
+# an empty/absent docs/workflows/ is NOT a violation (a fresh consumer that adopted a
+# vacuous workflow-spec has nothing to render there). Drop the workflow-spec + the
+# subfolder + the overlay rows that named them; the clean fixture must stay clean.
+_V=$(mk_cod_fixture); rm -rf "$_V/docs/workflows"; rm -f "$_V/spec/workflow-spec.md"
+cat > "$_V/spec/doc-spec-custom.md" <<'OVR'
+# overlay fixture
+| Doc | Purpose | Requirement |
+|-----|---------|-------------|
+| `spec/doc-spec-custom.md` | The overlay (self-declared). | Present. |
+OVR
+_TOL_OUT=$(REPO_ROOT="$_V" bash "$HELPER" --check-on-disk 2>&1); _TOL_RC=$?
+if [ "$_TOL_RC" -eq 0 ] \
+   && printf '%s\n' "$_TOL_OUT" | grep -qF 'check: workflows-subfolder — PASS (no workflows declared' \
+   && printf '%s\n' "$_TOL_OUT" | grep -qx 'FINDINGS=0'; then
+  ok "empty-registry tolerance: zero declared workflows + empty/absent docs/workflows/ => workflows-subfolder PASS (FINDINGS=0, exit 0)"
+else
+  fail_test "empty-registry tolerance broken (rc=$_TOL_RC): $_TOL_OUT"
+fi
 
 # 8g. registry-absent => REGISTRY=absent + exit 0 (probe BEFORE parse gates)
 _AB=$(mk_tmp)

@@ -624,6 +624,110 @@ contracts and re-seeding would clobber them with skeletons. A consumer's seeded
 `workflow-spec` is a vacuously-complete skeleton (no `CJ_goal_*` workflows), so
 its `--validate` no-vanish check passes with zero entries.
 
+### The deterministic contract gate (`cj-contract-gate.sh`) — enforced in each repo
+
+Seeding makes a consumer repo *carry* the contracts and the audits *run on
+demand*; the gate makes the deterministic checks **forced**. `scripts/cj-contract-gate.sh`
+is the **engine-only (Stage-1) subset of `validate.sh`** — runnable with NO agent,
+so a consumer can enforce its contract from a git **pre-commit hook** or a **CI
+step** (the agent-judged Stage 2/3 audits stay on-demand via `/CJ_doc_audit` /
+`/CJ_test_audit`). It composes the three engines and thresholds their dispositions:
+
+The gate is **FULLY HARD with exactly ONE soft exception** — `declared-exists`.
+Every other check blocks; `declared-exists` is soft because it is the one gap a
+machine cannot close (it can't auto-author prose docs):
+
+- `doc-spec.sh --check-on-disk` — HARD, **except** a `declared-exists` finding,
+  which is a **SOFT** `REMEDIATION:` note pointing at `/CJ_document-release`. This
+  is the SINGLE documented soft remediation: a consumer carries the registry but
+  not yet the human-authored prose docs (README/CHANGELOG/architecture/…), and a
+  machine can't write those for it. The orphan / `workflows-subfolder` /
+  `root-declared` / `human-doc-ids` checks stay HARD — they are made to pass by
+  *adoption* (below), not by softening the gate.
+- `test-spec.sh --validate` + `--check-coverage` — HARD (a rules-only consumer's
+  coverage cross-check reports "inactive", which is *not* a finding).
+- `workflow-spec.sh --validate` — HARD (the no-vanish / registry-completeness guard).
+- `test-spec.sh --render-docs --check` + `workflow-spec.sh --render-docs --check` —
+  HARD freshness (a stale generated catalog / workflow surface).
+
+The `workflows-subfolder` doc-spec check has one **empty-registry tolerance**
+(`doc-spec.sh`): the `docs/workflows/` surface is GENERATED from
+`spec/workflow-spec.md`, so when the workflow registry declares **zero** workflows
+(absent, or present with no `kind:` section — a fresh consumer's vacuous seed) an
+empty/absent `docs/workflows/` is correct, not a violation. A repo that declares a
+workflow still requires a non-empty `docs/workflows/` (the workbench is unchanged).
+
+It is **registry-gated** throughout: an engine that reports `REGISTRY=absent` (a
+contract the repo has not adopted) is a clean **SKIP** (exit 0 for that check). The
+gate exits non-zero **iff at least one HARD check finds a violation**, printing a
+compact per-check summary (`PASS` / `FINDING` / `REMEDIATION` / `SKIP`). `--quiet`
+suppresses the per-check lines on success (silent for hook use); on a block it
+replays the summary so the developer sees exactly which check failed. Engine
+resolution reuses the seeding stale-engine probe: **repo-local `scripts/<engine>.sh`
+(only if its `--classify` emits `GENERATION=`) → `_cj-shared`** — a stale vendored
+engine never silently mis-gates.
+
+**Adoption completes the repo (so the fully-hard gate passes from the first
+commit).** Rather than softening the gate for a fresh adopter, `skills-deploy`
+makes adoption leave the repo **contract-clean**. In the consumer-path block, AFTER
+seeding and BEFORE the gate-hook install, `complete_consumer_adoption` runs two
+idempotent, deterministic steps: it **refreshes the generated surfaces**
+(`test-spec.sh --render-docs` + `workflow-spec.sh --render-docs` → `docs/test-catalog.md`,
+`docs/tests/`, `docs/workflow.md`, `docs/workflows/`) so the freshness checks pass,
+and it **auto-declares the seeded/generated docs** — it writes a minimal,
+auto-marked `spec/doc-spec-custom.md` overlay declaring every `docs/**/*.md` +
+`spec/*.md` orphan the engine reports (so `orphans` passes), validating the merged
+registry and rolling back if invalid. A repo that already carries a hand-authored
+overlay (no auto-marker) is treated as already-adopted and left untouched; the
+auto-marker also keeps the adoption overlay from tripping the workbench-self
+data-loss guard. After adoption the only remaining finding is `declared-exists`
+(the prose docs), which is soft — so the auto-installed gate never bricks the next
+commit, and no pre-flight is needed.
+
+**Consumer pre-commit auto-install (guarded).** `skills-deploy install` run from a
+consumer repo installs the gate as a pre-commit hook (in the same consumer-path
+block as the seeding, AFTER it — the contracts must exist before enforcing them).
+The hook body resolves `cj-contract-gate.sh` from `${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}`
+at commit time and blocks the commit on a non-zero exit. The install reuses the
+clobber-safe `cj_install_hook` from the shared `scripts/cj-hook-lib.sh` (the ONE
+implementation both `setup-hooks.sh` and `skills-deploy` source — no drifting
+copies), carrying the `setup-hooks` SENTINEL so re-install is idempotent and
+`--remove` recognizes it. Guards: a custom `core.hooksPath` (husky/lefthook) is
+SKIPPED with a note (the committed hooks dir is left alone), a **non-workbench**
+pre-commit hook is **backed up with a WARN** (never clobbered), the **workbench
+self-repo** is SKIPPED (it enforces via `validate.sh` — no double-enforcement), and
+a non-git cwd is a clean no-op.
+
+**Standalone command.** `skills-deploy install-contract-gate [--repo <path>]`
+installs the hook explicitly; `--remove` uninstalls **only** a sentinel
+(workbench-owned) hook, leaving a non-workbench hook untouched.
+
+**CI snippet (doc-only — no workflow file is shipped into consumers).** A team
+that prefers server-side enforcement can run the gate on PRs by copying this into
+`.github/workflows/contract-gate.yml`:
+
+```yaml
+name: contract-gate
+on: [pull_request]
+jobs:
+  contract-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Make the deployed gate + engines available under _cj-shared. In a repo that
+      # vendors scripts/cj-contract-gate.sh + scripts/{doc,test,workflow}-spec.sh,
+      # point CJ_SHARED_SCRIPTS at scripts/ instead of running skills-deploy install.
+      - name: Run the deterministic contract gate
+        run: |
+          GATE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/cj-contract-gate.sh"
+          [ -x "$GATE" ] || GATE="scripts/cj-contract-gate.sh"   # repo-vendored fallback
+          bash "$GATE" --repo .
+```
+
+The gate exits non-zero on a hard finding, failing the check; a missing declared
+doc is a soft remediation (exit 0) and an unadopted contract is a clean SKIP, so
+the CI gate never spuriously fails a partially-adopted consumer.
+
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
 Everything above is Claude-side plumbing. `work-copilot/` is the workbench's
