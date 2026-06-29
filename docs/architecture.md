@@ -590,6 +590,40 @@ be missing its chart/Touches and the generated index cannot drop a link, so the
 only remaining risk (a routable workflow with no entry) is exactly what
 `--validate` fails closed on.
 
+## Contract seeding + the stale-engine probe (adoption)
+
+The three `spec/` contracts (`doc-spec.md`, `test-spec.md`, `workflow-spec.md`)
+are per-repo files: an adopting repo carries them so the audits + `validate.sh`
+have something to check. Two mechanisms make seeding **forced and reliable** in
+any consumer repo.
+
+**The stale-engine capability probe (the bug fix).** Every consumer of a
+`spec/` engine resolves it **repo-local `scripts/<engine>.sh` → `_cj-shared`**.
+A consumer that vendored an OLD engine had the stale copy WIN, and a stale engine
+lacks the current `--seed`/`--classify` surface — so seeding silently no-op'd
+("it doesn't force generate the seeding"). The fix: after picking the repo-local
+engine, probe it with the side-effect-free `--classify` (read-only; a current
+engine emits `GENERATION=`). A repo-local engine that does NOT emit `GENERATION=`
+is treated as **stale** — resolution falls back to `_cj-shared` and the audit
+emits an advisory `stage1/engine-stale` finding naming the engine + the remedy
+(update/remove the vendored script, or re-run `skills-deploy install`). This makes
+the existing seeding actually fire in a repo that carries a stale vendored engine.
+
+**Forced seeding through every adoption path.** A shared `do_seed_contracts`
+routine in `scripts/skills-deploy` seeds each of the three contracts into a target
+repo when absent — corruption-guarded (write a temp file, require non-empty AND
+`--validate`-clean, then `mv`) and idempotent (present ⇒ skip). Three triggers
+call it: the standalone **`skills-deploy seed-contracts`** subcommand (the
+explicit adopt command), **`install` run from a consumer repo** (always seeds,
+forced, git-repo-guarded), and **both audits' lazy Step-2 seed** (`/CJ_doc_audit`
+now seeds `doc-spec` + `workflow-spec`; `/CJ_test_audit` seeds `test-spec`). The
+**workbench self-repo is always skipped** — a worktree-aware data-loss guard
+(the target's main toplevel matches the manifest `source`/`bundle_path`, or it
+already carries the canonical contracts), because the workbench AUTHORS the real
+contracts and re-seeding would clobber them with skeletons. A consumer's seeded
+`workflow-spec` is a vacuously-complete skeleton (no `CJ_goal_*` workflows), so
+its `--validate` no-vanish check passes with zero entries.
+
 ## The work-copilot Copilot bundle (parallel delivery surface)
 
 Everything above is Claude-side plumbing. `work-copilot/` is the workbench's
