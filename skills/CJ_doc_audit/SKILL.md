@@ -66,23 +66,42 @@ in-QA judge carries more resident context than a standalone fresh-context
 judge; the standalone dogfood is the fresh-context proof. Both postures
 produce the identical per-stage report shape.
 
-## Step 1: Resolve the engine
+## Step 1: Resolve the engine (with the stale-engine capability probe)
 
 The deterministic stage runs on `doc-spec.sh`. Resolve it repo-local first,
-then the deployed shared home:
+then the deployed shared home — but a repo-local engine is used ONLY if it is
+CURRENT, proven by a side-effect-free `--classify` capability probe (F000069 /
+S000116 — the stale-engine-shadow fix). A consumer repo that vendored an OLD
+`scripts/doc-spec.sh` would otherwise SHADOW the deployed `_cj-shared` engine
+and silently no-op the whole audit (the stale copy lacks `--classify` / `--seed`
+/ `--render-docs`). The probe keys on the literal `GENERATION=` line that every
+CURRENT engine emits from `--classify`:
 
 ```bash
 _DA_ROOT=$(git rev-parse --show-toplevel)
 _DA_ENGINE=""
+# Repo-local first — but only if it is CURRENT (emits GENERATION= from --classify).
 if [ -x "$_DA_ROOT/scripts/doc-spec.sh" ]; then
-  _DA_ENGINE="$_DA_ROOT/scripts/doc-spec.sh"
+  if bash "$_DA_ROOT/scripts/doc-spec.sh" --classify 2>/dev/null | grep -q '^GENERATION='; then
+    _DA_ENGINE="$_DA_ROOT/scripts/doc-spec.sh"
+  elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh" ]; then
+    # Repo-local is STALE (no --classify) — fall back to _cj-shared + emit the finding.
+    _DA_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh"
+    echo "FINDING: stage1/engine-stale — repo-local doc-spec.sh is stale (missing --classify); using _cj-shared. Remedy: update/remove the vendored scripts/doc-spec.sh or re-run 'skills-deploy install'."
+  fi
 elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh" ]; then
   _DA_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/doc-spec.sh"
 fi
 [ -n "$_DA_ENGINE" ] || echo "ENGINE_UNREACHABLE"
 ```
 
-If `ENGINE_UNREACHABLE`: this is a STAGE-1 finding —
+Each `FINDING: stage1/engine-stale` line counts toward `STAGE1_FINDINGS` (it is
+advisory — the audit then runs on the current `_cj-shared` engine; it does NOT
+halt). When the repo-local engine IS current (emits `GENERATION=`), it is used
+unchanged — the normal path is not regressed.
+
+If `ENGINE_UNREACHABLE` (repo-local stale OR absent AND `_cj-shared` absent —
+both unusable): this is a STAGE-1 finding —
 `FINDING: stage1/engine — doc-spec.sh unreachable (repo-local scripts/ +
 deployed _cj-shared both absent); run 'skills-deploy install'`. Nothing else
 can run; emit the per-stage report (Step 6) with `STAGE1_FINDINGS=1`, Stages
@@ -153,6 +172,45 @@ A failed seed delivery (the `absent` branch falls through) is a STAGE-1
 finding: `FINDING: stage1/seed — doc-spec.sh --seed did not emit a valid
 doc-spec.md`.
 
+### Step 2b: Lazily seed `workflow-spec` when absent (F000069 / S000116)
+
+`/CJ_doc_audit` OWNS the lazy `workflow-spec` seed (it freshness-checks the
+generated `docs/workflows/` surface in Step 3b, so it is the natural owner). When
+`spec/workflow-spec.md` is ABSENT, seed it using the SAME corruption-guarded
+temp→non-empty→`--validate`-clean→`mv` shape as the doc-spec seed above, resolving
+the workflow-spec engine with the SAME stale-engine probe (repo-local-if-current →
+`_cj-shared`). `/CJ_test_audit` Step 2 is unchanged (it already seeds `test-spec`);
+between the two audits, adoption-via-first-audit-run covers all three contracts.
+
+```bash
+# Resolve the workflow-spec engine (probe repo-local; fall back to _cj-shared).
+_DA_WFSEED_ENGINE=""
+if [ -x "$_DA_ROOT/scripts/workflow-spec.sh" ] \
+   && bash "$_DA_ROOT/scripts/workflow-spec.sh" --classify 2>/dev/null | grep -q '^GENERATION='; then
+  _DA_WFSEED_ENGINE="$_DA_ROOT/scripts/workflow-spec.sh"
+elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh" ]; then
+  _DA_WFSEED_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh"
+fi
+if [ -n "$_DA_WFSEED_ENGINE" ] \
+   && [ "$(bash "$_DA_WFSEED_ENGINE" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')" = "absent" ]; then
+  _DA_WFTMP=$(mktemp -d)
+  if bash "$_DA_WFSEED_ENGINE" --seed > "$_DA_WFTMP/workflow-spec.md" 2>/dev/null \
+     && [ -s "$_DA_WFTMP/workflow-spec.md" ] \
+     && WORKFLOW_SPEC_PATH="$_DA_WFTMP/workflow-spec.md" bash "$_DA_WFSEED_ENGINE" --validate >/dev/null 2>&1; then
+    mkdir -p "$_DA_ROOT/spec"
+    mv "$_DA_WFTMP/workflow-spec.md" "$_DA_ROOT/spec/workflow-spec.md"
+    echo "seeded-workflow-spec: yes"
+  else
+    echo "FINDING: stage1/seed — workflow-spec.sh --seed did not emit a valid workflow-spec.md"
+  fi
+  rm -rf "$_DA_WFTMP"
+fi
+```
+
+A failed workflow-spec seed delivery is a STAGE-1 finding
+(`stage1/seed`), exactly like the doc-spec case; an already-present
+`spec/workflow-spec.md` (classify ≠ `absent`) is left untouched (idempotent).
+
 ### Step 0: `--reconcile` flag (standalone only — opt-in write)
 
 Parse the skill's arguments for `--reconcile`. When present AND running
@@ -218,10 +276,23 @@ that carries the engine (F000069/S000115). The workflow surface is GENERATED fro
 `spec/workflow-spec.md`; this check renders to a temp dir, diffs vs on-disk, and
 reports a freshness finding if the surface drifted from the registry:
 
+The workflow-spec engine resolution carries the SAME stale-engine capability
+probe as Step 1's doc-spec resolution (F000069 / S000116): a stale vendored
+`scripts/workflow-spec.sh` (no `--classify`) is detected and `_cj-shared` is used
+instead, with a `stage1/engine-stale` finding. (This `$_DA_WFENGINE` is the SAME
+engine variable Step 2's lazy `workflow-spec` seed resolves and reuses.) Skip the
+freshness check silently if NO usable workflow-spec engine resolves at all (a
+consumer repo without the workflow renderer):
+
 ```bash
 _DA_WFENGINE=""
 if [ -x "$_DA_ROOT/scripts/workflow-spec.sh" ]; then
-  _DA_WFENGINE="$_DA_ROOT/scripts/workflow-spec.sh"
+  if bash "$_DA_ROOT/scripts/workflow-spec.sh" --classify 2>/dev/null | grep -q '^GENERATION='; then
+    _DA_WFENGINE="$_DA_ROOT/scripts/workflow-spec.sh"
+  elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh" ]; then
+    _DA_WFENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh"
+    echo "FINDING: stage1/engine-stale — repo-local workflow-spec.sh is stale (missing --classify); using _cj-shared. Remedy: update/remove the vendored scripts/workflow-spec.sh or re-run 'skills-deploy install'."
+  fi
 elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh" ]; then
   _DA_WFENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh"
 fi
@@ -349,7 +420,8 @@ seeded: <yes|no>
  the --check-on-disk output verbatim — check:/FINDING: lines, the
  CHECKS_RUN=/FINDINGS= tail, and (when declared docs are missing) the trailing
  REMEDIATION: stage1/declared-exists line naming /CJ_document-release; plus any
- stage1/engine, stage1/seed, stage1/registry pre-stage FINDING lines; and, under
+ stage1/engine-stale (Step 1 / 3b), stage1/engine, stage1/seed, stage1/registry
+ pre-stage FINDING lines + the seeded-workflow-spec: yes line (Step 2b); and, under
  the standalone --reconcile flag, the engine's migration report (RECONCILE:
  migrated N rows / ...)>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
@@ -366,21 +438,25 @@ finding prefixes keep stages grep-able even when a consumer flattens the
 report.
 
 **Pre-stage findings and skipped stages (the error-path grammar).** The
-engine-unreachable (Step 1), seed-delivery-failure (Step 2), and
-registry-invalid (Step 3) findings are deterministic — they count toward
+engine-stale (Step 1 / Step 3b — a stale repo-local engine shadowed by
+`_cj-shared`), engine-unreachable (Step 1), seed-delivery-failure (Step 2 / 2b),
+and registry-invalid (Step 3) findings are deterministic — they count toward
 `STAGE1_FINDINGS` and print inside the stage-1 section with prefixes
-`stage1/engine`, `stage1/seed`, `stage1/registry`. When a pre-stage failure
-makes later stages unjudgeable, each skipped stage still prints its section
-header with ONE line — `skipped: <reason>` — and its `STAGE*_FINDINGS=0`.
-The report shape never collapses on the error path.
+`stage1/engine-stale`, `stage1/engine`, `stage1/seed`, `stage1/registry`. A
+`stage1/engine-stale` finding is ADVISORY — the audit continues on the current
+`_cj-shared` engine; only a fully unreachable engine (`stage1/engine`) skips
+Stages 2+3. When a pre-stage failure makes later stages unjudgeable, each skipped
+stage still prints its section header with ONE line — `skipped: <reason>` — and
+its `STAGE*_FINDINGS=0`. The report shape never collapses on the error path.
 
 ## Error handling (stage terms)
 
 | Condition | Stage accounting | Behavior |
 |---|---|---|
 | Not a git repo | (pre-audit) | "Error: /CJ_doc_audit requires a git repository." — stop |
-| Engine unreachable | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `DOC_AUDIT: findings` |
-| Seed delivery fails | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
+| Stale repo-local engine (doc-spec or workflow-spec; no `--classify`) | `FINDING: stage1/engine-stale` → `STAGE1_FINDINGS` | falls back to the `_cj-shared` engine + names the remedy; audit continues (advisory — Stages 2+3 still run) |
+| Engine unreachable (stale-or-absent repo-local AND `_cj-shared` absent) | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `DOC_AUDIT: findings` |
+| Seed delivery fails (doc-spec Step 2 or workflow-spec Step 2b) | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
 | Registry present-but-invalid | ONE `FINDING: stage1/registry` quoting `[doc-sync-no-config]` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: registry invalid — nothing to judge against` |
 | Legacy / duplicate contract file | advisory `RECONCILE:` directive — NOT a finding, counts toward NO stage | Plain run points at the remedy + writes nothing; `--reconcile` (standalone) forwards to the engine migration |
 | Stage-1 engine findings | `FINDING: stage1/<check-id>` lines → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the disk just disagrees) |

@@ -2081,6 +2081,28 @@ else
   fail_test "tests/workflow-spec-render.test.sh failed (rc=$_wsrender_rc) — run \`bash tests/workflow-spec-render.test.sh\` directly to see"
 fi
 
+# tests/seed-contracts.test.sh — the hermetic test for `skills-deploy
+# seed-contracts` + the stale-engine capability probe (F000069/S000116). The
+# suite asserts: (A) seed-all-3 into a consumer repo + each --validate-clean +
+# idempotent re-run; (B) the workbench self-repo is SKIPPED via BOTH detection
+# signals (manifest-source match + custom-overlay) with the real contracts
+# untouched (the data-loss guard); (C) a planted stale repo-local engine (no
+# --classify) falls back to _cj-shared + emits stage1/engine-stale; (D) the
+# corruption guard holds — a --validate-dirty --seed reports seed-failed and
+# nothing lands in spec/. Fully hermetic: engines resolve from a pinned
+# _cj-shared (the repo's scripts/), SKILLS_DEPLOY_MANIFEST is overridden, and
+# every seed lands in a throwaway sandbox — the live workbench + the operator's
+# real ~/.claude are never touched. MANDATORY registration — Check 24's reverse
+# sweep hard-fails any unregistered tests/*.test.sh.
+echo ""
+echo "Running tests/seed-contracts.test.sh (F000069/S000116 forced seeding + stale-engine probe + data-loss guard)..."
+if bash "$REPO_ROOT/tests/seed-contracts.test.sh" >/dev/null 2>&1; then
+  ok "tests/seed-contracts.test.sh: seed-all-3 + idempotent + workbench-self skip + stale-engine fallback + corruption guard all pass"
+else
+  _seedc_rc=$?
+  fail_test "tests/seed-contracts.test.sh failed (rc=$_seedc_rc) — run \`bash tests/seed-contracts.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.

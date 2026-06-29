@@ -186,6 +186,175 @@ validate_template_name() {
   return 1
 }
 
+# --- contract seeding (F000069 / S000116) ---
+
+# Resolve a contract engine for a TARGET repo (F000069 / S000116). Mirrors the
+# audit skills' Step-1 resolution PLUS the stale-engine capability probe (Part 1):
+#   1. repo-local "$target/scripts/<engine>.sh" — but ONLY if it is CURRENT, proven
+#      by the side-effect-free `--classify` probe emitting `GENERATION=`. A repo
+#      that vendored an OLD engine (no --classify) would otherwise SHADOW the
+#      deployed _cj-shared one and silently no-op every --seed/--classify call.
+#   2. the deployed shared home ("$SHARED_SCRIPTS_TARGET/<engine>.sh").
+# Echoes the resolved engine path (empty if neither is usable). When the repo-local
+# engine is present-but-stale and a _cj-shared engine exists, ALSO emits a
+# `STALE_FINDING:` line on stderr naming the engine (the do_seed_contracts caller
+# surfaces it as the engine-stale note). `engine` arg is the basename without
+# the `.sh` suffix (doc-spec | test-spec | workflow-spec).
+resolve_contract_engine() {
+  local engine="$1" target="$2"
+  local repo_local="$target/scripts/${engine}.sh"
+  local shared="$SHARED_SCRIPTS_TARGET/${engine}.sh"
+  if [ -x "$repo_local" ]; then
+    # Capability probe: a CURRENT engine emits GENERATION= from --classify
+    # (read-only). Run it with REPO_ROOT pinned to the target so the probe reads
+    # the target's tree, not the workbench's.
+    local gen
+    gen=$(REPO_ROOT="$target" bash "$repo_local" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $1}')
+    if [ "$gen" = "GENERATION" ]; then
+      echo "$repo_local"
+      return 0
+    fi
+    # Stale repo-local engine: fall back to _cj-shared if usable, and report it.
+    if [ -x "$shared" ]; then
+      echo "STALE_FINDING: stage1/engine-stale — repo-local ${engine}.sh is stale (missing --classify); using _cj-shared. Remedy: update/remove the vendored scripts/${engine}.sh or re-run 'skills-deploy install'." >&2
+      echo "$shared"
+      return 0
+    fi
+    # No usable _cj-shared fallback — the stale repo-local is all there is.
+    echo "STALE_FINDING: stage1/engine — repo-local ${engine}.sh is stale (missing --classify) and no _cj-shared ${engine}.sh is available; cannot seed ${engine}." >&2
+    echo ""
+    return 0
+  fi
+  if [ -x "$shared" ]; then
+    echo "$shared"
+    return 0
+  fi
+  echo ""
+}
+
+# Detect whether a TARGET repo IS the workbench self-repo (F000069 / S000116 —
+# the DATA-LOSS guard). Seeding must NEVER fire on the workbench's own checkout:
+# it AUTHORS the canonical contracts, and re-seeding with skeletons is data loss.
+# Two INDEPENDENT signals, OR'd (a false negative is the catastrophic case, so we
+# err toward "self"):
+#   (1) PRIMARY — the target's MAIN repo toplevel == the manifest `source` /
+#       `bundle_path`. We resolve the MAIN toplevel via the git-common-dir parent
+#       (the same idiom do_install uses) so a git WORKTREE of the workbench (whose
+#       own `--show-toplevel` differs from `source`) is still correctly detected
+#       as self.
+#   (2) SECONDARY — the target already carries a canonical (non-skeleton) custom
+#       overlay (`spec/doc-spec-custom.md` or `spec/test-spec-custom.md`). The
+#       general seed files are byte-identical to `--seed`, so only a repo that has
+#       AUTHORED its own contract carries a `*-custom.md` overlay.
+# Echoes "yes" (self-repo — skip) or "no". Never fails.
+is_workbench_self_repo() {
+  local target="$1"
+  # (1) manifest-source match (worktree-aware).
+  local m msrc mbundle main_top
+  m=$(manifest_read 2>/dev/null || echo '{}')
+  msrc=$(echo "$m" | jq -r '.source // empty' 2>/dev/null || echo "")
+  mbundle=$(echo "$m" | jq -r '.bundle_path // empty' 2>/dev/null || echo "")
+  main_top=$(dirname "$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null) || true
+  if [ -z "$main_top" ] || [ ! -d "$main_top" ]; then
+    main_top="$target"
+  fi
+  if [ -n "$msrc" ] && [ "$main_top" = "$msrc" ]; then echo "yes"; return 0; fi
+  if [ -n "$mbundle" ] && [ "$main_top" = "$mbundle" ]; then echo "yes"; return 0; fi
+  # (2) canonical-contract presence (a custom overlay = an AUTHORED contract).
+  if [ -f "$target/spec/doc-spec-custom.md" ] || [ -f "$target/spec/test-spec-custom.md" ]; then
+    echo "yes"; return 0
+  fi
+  echo "no"
+}
+
+# Force-seed the three contracts into a TARGET repo (F000069 / S000116). The
+# single shared seeding routine all three triggers call. For each of doc-spec,
+# test-spec, workflow-spec: resolve the engine (repo-local→stale-probe→_cj-shared),
+# and if `spec/<contract>.md` is ABSENT, seed it CORRUPTION-GUARDED (write a temp,
+# require non-empty AND `--validate`-clean — with REPO_ROOT pinned to the target so
+# the validate reads the target's tree — then `mv` into place). Idempotent: a
+# present contract is skipped. NEVER touches the workbench self-repo (data-loss
+# guard). Prints a per-contract line (seeded | present | seed-failed) + a summary.
+# Usage: do_seed_contracts [--repo <path>]
+do_seed_contracts() {
+  require_jq
+  local target=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) target="${2:-}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [ -n "$target" ] || target="$(pwd)"
+
+  # Git-repo guard: seeding only makes sense inside a git repo (the contracts live
+  # at a repo's `spec/`). A non-git target is a clean no-op.
+  if ! git -C "$target" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "  SEED: $target is not a git repository — nothing to seed (no-op)"
+    return 0
+  fi
+  # Normalize to the target's own toplevel so `spec/` lands at the repo root.
+  target=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)
+
+  # DATA-LOSS GUARD (primary): never seed the workbench self-repo.
+  if [ "$(is_workbench_self_repo "$target")" = "yes" ]; then
+    echo "  SEED: $target is the workbench self-repo (authors the canonical contracts) — skipping all seeding (data-loss guard)"
+    return 0
+  fi
+
+  local seeded=0 present=0 failed=0
+  local engine_basename
+  for engine_basename in doc-spec test-spec workflow-spec; do
+    local spec_file="$target/spec/${engine_basename}.md"
+    if [ -f "$spec_file" ]; then
+      echo "  ${engine_basename}: present"
+      present=$((present + 1))
+      continue
+    fi
+    # Resolve the engine (repo-local→stale-probe→_cj-shared). The resolver writes
+    # any STALE_FINDING: line to stderr; capture it to a temp so it surfaces
+    # alongside the contract line (rather than racing to the terminal).
+    local engine stale_finding="" stale_tmp
+    stale_tmp=$(mktemp)
+    engine=$(resolve_contract_engine "$engine_basename" "$target" 2>"$stale_tmp")
+    stale_finding=$(cat "$stale_tmp" 2>/dev/null || true)
+    rm -f "$stale_tmp" 2>/dev/null || true
+    [ -n "$stale_finding" ] && echo "  $stale_finding"
+    if [ -z "$engine" ]; then
+      echo "  ${engine_basename}: seed-failed (no usable engine — repo-local stale + _cj-shared absent)"
+      failed=$((failed + 1))
+      continue
+    fi
+    # Corruption-guarded seed: temp → non-empty AND --validate-clean → mv.
+    # REPO_ROOT pinned to the target so the validate reads the target's tree
+    # (e.g. workflow-spec's no-vanish check is vacuous in a no-catalog consumer).
+    local tmp_dir tmp_file
+    tmp_dir=$(mktemp -d)
+    tmp_file="$tmp_dir/${engine_basename}.md"
+    local path_var
+    case "$engine_basename" in
+      doc-spec) path_var="DOC_SPEC_PATH" ;;
+      test-spec) path_var="TEST_SPEC_PATH" ;;
+      workflow-spec) path_var="WORKFLOW_SPEC_PATH" ;;
+    esac
+    if REPO_ROOT="$target" bash "$engine" --seed > "$tmp_file" 2>/dev/null \
+       && [ -s "$tmp_file" ] \
+       && REPO_ROOT="$target" env "$path_var=$tmp_file" bash "$engine" --validate >/dev/null 2>&1; then
+      mkdir -p "$target/spec"
+      mv "$tmp_file" "$spec_file"
+      echo "  ${engine_basename}: seeded"
+      seeded=$((seeded + 1))
+    else
+      echo "  ${engine_basename}: seed-failed (--seed empty or --validate-dirty; spec/ left untouched)"
+      failed=$((failed + 1))
+    fi
+    rm -rf "$tmp_dir" 2>/dev/null || true
+  done
+
+  echo "  SEED summary ($target): seeded=$seeded present=$present seed-failed=$failed"
+  return 0
+}
+
 # --- install ---
 
 # F000049 / S2 (S000086): bundle install (install == clone). Ensure a managed git
@@ -795,6 +964,26 @@ do_install() {
   fi
   if [ "$shared_installed" -gt 0 ] || [ "$shared_skipped" -gt 0 ] || [ "$shared_pruned" -gt 0 ]; then
     echo "Shared scripts — Installed: $shared_installed  Skipped: $shared_skipped  Pruned: $shared_pruned"
+  fi
+
+  # Consumer-path contract seeding (F000069 / S000116). AFTER the skills install,
+  # force-seed the three contracts into the CWD when it is a consumer git repo —
+  # idempotent + forced, no flag. The workbench self-install (install==clone:
+  # source == bundle_path == cwd) is the self-repo and is SKIPPED by
+  # do_seed_contracts' airtight data-loss guard; a non-git cwd is a clean no-op
+  # (git-repo guard). A single visible note reports whether seeding ran; the
+  # per-contract detail lines come from do_seed_contracts itself.
+  local _seed_cwd
+  _seed_cwd="$(pwd)"
+  if git -C "$_seed_cwd" rev-parse --show-toplevel >/dev/null 2>&1; then
+    if [ "$(is_workbench_self_repo "$_seed_cwd")" = "yes" ]; then
+      echo "Contracts — skipped (workbench self-repo; authored contracts left untouched)"
+    else
+      echo "Contracts — seeding consumer repo contracts (doc-spec / test-spec / workflow-spec):"
+      do_seed_contracts --repo "$_seed_cwd"
+    fi
+  else
+    echo "Contracts — skipped (install run from a non-git directory)"
   fi
 }
 
@@ -1426,8 +1615,9 @@ case "${1:-}" in
   relink)  do_relink ;;
   doctor)  do_doctor ;;
   bundle-status) do_bundle_status ;;
+  seed-contracts) shift; do_seed_contracts "$@" ;;
   *)
-    echo "Usage: skills-deploy <install|remove|relink|doctor|bundle-status> [options]"
+    echo "Usage: skills-deploy <install|remove|relink|doctor|bundle-status|seed-contracts> [options]"
     echo ""
     echo "Commands:"
     echo "  install [skill...] [--no-overwrite]"
@@ -1443,6 +1633,11 @@ case "${1:-}" in
     echo "                                    (~/.claude/skills/cj-workbench) + symlink the flat /CJ_*"
     echo "                                    INTO it; develop in place. Opt-in; legacy install untouched."
     echo "  bundle-status                     Show the develop-in-place bundle's path/branch/origin/tree"
+    echo "  seed-contracts [--repo <path>]    Force-seed the three contracts (spec/doc-spec.md,"
+    echo "                                    spec/test-spec.md, spec/workflow-spec.md) into a CONSUMER repo"
+    echo "                                    (cwd, or --repo). Idempotent (present⇒skip), corruption-guarded"
+    echo "                                    (--seed → non-empty + --validate-clean → mv). The workbench"
+    echo "                                    self-repo is skipped (data-loss guard); a non-git dir is a no-op."
     exit 1
     ;;
 esac
