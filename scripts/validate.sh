@@ -813,20 +813,21 @@ done
 N_ALLOW=$(printf '%s\n' "$ALLOWED_ROOT_MD" | grep -c . || true)
 [ "$N_ALLOW" -gt 0 ] && echo "  PASS: root *.md allowlist parsed from doc-spec.md ($N_ALLOW entries)"
 
-# Check 18: portability audit (F000047 / S000083) — ADVISORY.
+# Check 18: portability audit (F000047 / S000083; strict-by-default since T000054) — HARD.
 # Runs the shared static-lint engine (scripts/cj-portability-audit.sh) over the
 # catalog-derived skill set and prints its per-skill verdict table. The engine
 # compares each skill's declared `portability` against its ACTUAL executed
 # repo-local dependencies (strict tier ladder; EXECUTED-vs-documented precision;
 # bundled-own + scoped self-resolution-preamble carve-outs; `portability_requires`
-# adjudication). v1 posture is ADVISORY: findings print but do NOT fail validate
-# (the workbench has real declared-vs-actual mismatches today, adjudicated green
-# via pre-seeded `portability_requires`). Setting PORTABILITY_STRICT=1 flips it to
-# a hard gate (findings -> ERROR) — the documented Story-2 follow-up once the
-# declarations are fully reconciled. The engine itself always exits 0 in default
-# mode; this check inspects its FINDINGS=<n> tail.
+# adjudication). Posture is STRICT-BY-DEFAULT (T000054): findings -> ERROR on every
+# commit (pre-commit hook), CI, and manual run — the whole repo is the portability
+# ratchet, not just the cj_goal orchestrated path. The catalog is clean today
+# (FINDINGS=0 after adjudication), so this is green now and any regression is by
+# definition new. Escape hatch: PORTABILITY_STRICT=0 downgrades it to advisory for
+# a deliberate WIP commit. The engine itself always exits 0 in default mode; this
+# check inspects its FINDINGS=<n> tail and decides ERROR vs advisory.
 echo ""
-echo "=== Check 18: skill portability audit (advisory) ==="
+echo "=== Check 18: skill portability audit (strict) ==="
 PA_ENGINE="$REPO_ROOT/scripts/cj-portability-audit.sh"
 if [ ! -x "$PA_ENGINE" ] && [ ! -f "$PA_ENGINE" ]; then
   echo "  SKIP: scripts/cj-portability-audit.sh not found (engine absent)"
@@ -841,11 +842,11 @@ PA_TABLE
   PA_FINDINGS=$(printf '%s\n' "$PA_OUT" | sed -n 's/^FINDINGS=\([0-9][0-9]*\)$/\1/p' | head -1)
   PA_FINDINGS=${PA_FINDINGS:-0}
   if [ "$PA_FINDINGS" -gt 0 ]; then
-    if [ "${PORTABILITY_STRICT:-0}" = "1" ]; then
-      echo "  ERROR: $PA_FINDINGS skill(s) have unresolved portability findings (PORTABILITY_STRICT=1)"
+    if [ "${PORTABILITY_STRICT:-1}" = "1" ]; then
+      echo "  ERROR: $PA_FINDINGS skill(s) have unresolved portability findings (strict-by-default; set PORTABILITY_STRICT=0 to downgrade to advisory). Resolve by relabeling the skill's portability or adding the dep to its portability_requires."
       ERRORS=$((ERRORS+1))
     else
-      echo "  ADVISORY: $PA_FINDINGS skill(s) have portability findings (advisory in v1; set PORTABILITY_STRICT=1 to hard-fail). Resolve by relabeling the skill's portability or adding the dep to its portability_requires."
+      echo "  ADVISORY: $PA_FINDINGS skill(s) have portability findings (downgraded via PORTABILITY_STRICT=0; unset it to restore the strict-by-default hard-fail). Resolve by relabeling the skill's portability or adding the dep to its portability_requires."
     fi
   else
     echo "  PASS: portability audit clean ($PA_FINDINGS findings after adjudication)"
@@ -888,8 +889,9 @@ fi
 
 # Check 21: cj_goal permission-policy <-> enforcement-point drift (F000053/S000094) — ADVISORY.
 # permission-policy.md is the single declared allow/ask/deny contract; this check
-# flags drift between it and the enforcement points (advisory — exit 0, like
-# Check 18; a follow-up PR flips it strict once reconciled). Drift = the policy
+# flags drift between it and the enforcement points (advisory — exit 0; a
+# follow-up PR flips it strict once reconciled, the same path Check 18 took in
+# T000054). Drift = the policy
 # does not parse, the handoff-gate re-hardcoded its denylist instead of deriving
 # from the policy, or a live orchestrator dropped its policy pointer. Skips
 # silently when the policy / parser is absent (non-adopting repo).

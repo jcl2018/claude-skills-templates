@@ -156,8 +156,12 @@ surfacing; `PHASE_RESULT=skipped` (engine absent — a broken install, NOT a
 finding) ⇒ a visible note + continue (fail-soft, mirroring `validate.sh` Check
 18's "SKIP: engine absent"). `--dry-run` emits the schema and runs nothing. The
 catalog baseline is clean (`FINDINGS=0`), so the strict gate is green today AND a
-free regression ratchet (any finding is by definition new). This is cj_goal-scoped
-enforcement; `validate.sh` Check 18 stays advisory globally (a separate decision).
+free regression ratchet (any finding is by definition new). This gate is the
+cj_goal-scoped enforcement; `validate.sh` Check 18 is **strict-by-default
+globally** (T000054 flipped it — a portability finding hard-fails every commit,
+CI, and manual `validate.sh` run; `PORTABILITY_STRICT=0` downgrades to advisory
+for a deliberate WIP commit), so the whole repo is the portability ratchet and
+the cj_goal gate is the orchestrated-path belt-and-suspenders.
 `scripts/drain-one-todo.sh` is NOT modified — the gate is orchestrator-layer.
 Tests: `tests/cj-goal-common-portability.test.sh` + the `--phase portability-audit`
 integration block in `scripts/test.sh`.
