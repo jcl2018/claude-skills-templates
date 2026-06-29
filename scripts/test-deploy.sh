@@ -1291,6 +1291,75 @@ fi
 unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
 teardown_env
 
+# Test S000116a: `seed-contracts` seeds a consumer repo + idempotent + self-skip.
+# F000069/S000116 — the explicit adoption command. A consumer temp git repo gets
+# all three contracts seeded valid; a re-run is a no-op (all present); a temp repo
+# made to look like the workbench self-repo (manifest source == its toplevel) is
+# SKIPPED with the real contracts untouched (the data-loss guard). Engines resolve
+# from a pinned _cj-shared (deposited by an install into a temp dir), so the real
+# ~/.claude is never touched.
+echo "Test S000116a: seed-contracts (consumer seed-all-3 + idempotent + workbench-self skip)"
+setup_env
+SHARED_TARGET="$SKILLS_DEPLOY_TARGET/_cj-shared/scripts"
+export SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$SHARED_TARGET"
+# Populate _cj-shared with the engines via an install (manifest source recorded too).
+"$DEPLOY" install >/dev/null 2>&1
+s116a_ok=yes
+consumer=$(mktemp -d)
+git -C "$consumer" init -q
+"$DEPLOY" seed-contracts --repo "$consumer" >/dev/null 2>&1
+for c in doc-spec test-spec workflow-spec; do
+  [ -f "$consumer/spec/$c.md" ] || { fail_test "seed-contracts: $c.md not seeded in consumer"; s116a_ok=no; }
+done
+# Idempotent re-run: all present.
+seed_rerun=$("$DEPLOY" seed-contracts --repo "$consumer" 2>&1)
+printf '%s\n' "$seed_rerun" | grep -q 'seeded=0 present=3' || { fail_test "seed-contracts: re-run not idempotent (seeded=0 present=3)"; s116a_ok=no; }
+# Workbench-self skip: make a temp repo whose toplevel == the manifest source.
+selfrepo=$(mktemp -d)
+git -C "$selfrepo" init -q
+self_top=$(git -C "$selfrepo" rev-parse --show-toplevel)
+self_manifest=$(mktemp)
+printf '{"source":"%s","bundle_path":"%s"}\n' "$self_top" "$self_top" > "$self_manifest"
+self_out=$(SKILLS_DEPLOY_MANIFEST="$self_manifest" "$DEPLOY" seed-contracts --repo "$selfrepo" 2>&1)
+printf '%s\n' "$self_out" | grep -q 'workbench self-repo' || { fail_test "seed-contracts: workbench self-repo not skipped"; s116a_ok=no; }
+[ -d "$selfrepo/spec" ] && { fail_test "seed-contracts: spec/ created in workbench self-repo (data-loss guard breached)"; s116a_ok=no; }
+rm -rf "$consumer" "$selfrepo" "$self_manifest"
+if [ "$s116a_ok" = yes ]; then
+  ok "seed-contracts seeds all 3 into a consumer + idempotent re-run + workbench-self skip (contracts untouched)"
+fi
+unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
+teardown_env
+
+# Test S000116b: install always-seeds the consumer cwd path.
+# F000069/S000116 — install force-seeds the contracts into a consumer git repo
+# (cwd) after the skills install, with a visible note; the workbench self-install
+# is skipped; a non-git cwd is a clean no-op. Driven from inside a consumer temp
+# repo (cd) so the install's cwd-seeding hook targets it; engines + manifest are
+# isolated to temp dirs.
+echo "Test S000116b: install always-seeds the consumer cwd (visible note + non-git no-op)"
+setup_env
+SHARED_TARGET="$SKILLS_DEPLOY_TARGET/_cj-shared/scripts"
+export SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$SHARED_TARGET"
+s116b_ok=yes
+consumer=$(mktemp -d)
+git -C "$consumer" init -q
+inst_out=$( cd "$consumer" && "$DEPLOY" install 2>&1 )
+printf '%s\n' "$inst_out" | grep -q 'Contracts — seeding consumer repo contracts' || { fail_test "install: no consumer seeding note"; s116b_ok=no; }
+for c in doc-spec test-spec workflow-spec; do
+  [ -f "$consumer/spec/$c.md" ] || { fail_test "install: $c.md not seeded in consumer cwd"; s116b_ok=no; }
+done
+# Non-git cwd: install's seeding hook is a clean no-op (skip note, no crash).
+nongit=$(mktemp -d)
+nongit_out=$( cd "$nongit" && "$DEPLOY" install 2>&1 ) || { fail_test "install from non-git dir crashed"; s116b_ok=no; }
+printf '%s\n' "$nongit_out" | grep -q 'Contracts — skipped (install run from a non-git directory)' || { fail_test "install: non-git cwd not a clean no-op (skip note absent)"; s116b_ok=no; }
+[ -d "$nongit/spec" ] && { fail_test "install: spec/ created in a non-git dir"; s116b_ok=no; }
+rm -rf "$consumer" "$nongit"
+if [ "$s116b_ok" = yes ]; then
+  ok "install always-seeds the consumer cwd (visible note + 3 contracts); non-git cwd is a clean no-op"
+fi
+unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
+teardown_env
+
 echo ""
 if [ "$ERRORS" -eq 0 ]; then
   echo "All tests passed."

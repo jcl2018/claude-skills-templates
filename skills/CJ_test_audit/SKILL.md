@@ -72,23 +72,42 @@ the same stage protocols. This inline posture is an honest degradation; the
 standalone fresh-context run is the independence proof. Both postures produce
 the identical per-stage report shape.
 
-## Step 1: Resolve the engine
+## Step 1: Resolve the engine (with the stale-engine capability probe)
 
 The deterministic stage runs on `test-spec.sh`. Resolve it repo-local first,
-then the deployed shared home:
+then the deployed shared home — but a repo-local engine is used ONLY if it is
+CURRENT, proven by a side-effect-free `--classify` capability probe (F000069 /
+S000116 — the stale-engine-shadow fix, symmetric with `/CJ_doc_audit` Step 1). A
+consumer repo that vendored an OLD `scripts/test-spec.sh` would otherwise SHADOW
+the deployed `_cj-shared` engine and silently no-op the audit (the stale copy
+lacks `--classify` / `--seed` / `--render-docs`). The probe keys on the literal
+`GENERATION=` line every CURRENT engine emits from `--classify`:
 
 ```bash
 _TA_ROOT=$(git rev-parse --show-toplevel)
 _TA_ENGINE=""
+# Repo-local first — but only if it is CURRENT (emits GENERATION= from --classify).
 if [ -x "$_TA_ROOT/scripts/test-spec.sh" ]; then
-  _TA_ENGINE="$_TA_ROOT/scripts/test-spec.sh"
+  if bash "$_TA_ROOT/scripts/test-spec.sh" --classify 2>/dev/null | grep -q '^GENERATION='; then
+    _TA_ENGINE="$_TA_ROOT/scripts/test-spec.sh"
+  elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/test-spec.sh" ]; then
+    # Repo-local is STALE (no --classify) — fall back to _cj-shared + emit the finding.
+    _TA_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/test-spec.sh"
+    echo "FINDING: stage1/engine-stale — repo-local test-spec.sh is stale (missing --classify); using _cj-shared. Remedy: update/remove the vendored scripts/test-spec.sh or re-run 'skills-deploy install'."
+  fi
 elif [ -x "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/test-spec.sh" ]; then
   _TA_ENGINE="${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/test-spec.sh"
 fi
 [ -n "$_TA_ENGINE" ] || echo "ENGINE_UNREACHABLE"
 ```
 
-If `ENGINE_UNREACHABLE`: this is a STAGE-1 finding —
+Each `FINDING: stage1/engine-stale` line counts toward `STAGE1_FINDINGS` (it is
+advisory — the audit then runs on the current `_cj-shared` engine; it does NOT
+halt). When the repo-local engine IS current (emits `GENERATION=`), it is used
+unchanged — the normal path is not regressed.
+
+If `ENGINE_UNREACHABLE` (repo-local stale OR absent AND `_cj-shared` absent —
+both unusable): this is a STAGE-1 finding —
 `FINDING: stage1/engine — test-spec.sh unreachable (repo-local scripts/ +
 deployed _cj-shared both absent); run 'skills-deploy install'`. Nothing else
 can run; emit the per-stage report (Step 6) with `STAGE1_FINDINGS=1`, Stages
@@ -382,9 +401,9 @@ BEHAVIORS_AUDITED=<n>     # --list-behaviors count (0 = no behavior-coverage axi
 seeded: <yes|no>
 --- stage 1: deterministic conformance (engine) ---
 <any advisory RECONCILE: directive from Step 2 (duplicate — NOT a finding);
- the --validate + --check-coverage output verbatim; plus any stage1/engine,
- stage1/seed, stage1/registry pre-stage FINDING lines; and, under the standalone
- --reconcile flag, the engine's dedup report>
+ the --validate + --check-coverage output verbatim; plus any stage1/engine-stale,
+ stage1/engine, stage1/seed, stage1/registry pre-stage FINDING lines; and, under
+ the standalone --reconcile flag, the engine's dedup report>
 --- stage 2: requirement compliance (agent-judged, fresh-context) ---
 <per-rule + per-unit + per-behavior verdict lines + FINDING: stage2/... lines>
 --- stage 3: implementation drift (agent-judged, fresh-context) ---
@@ -399,20 +418,24 @@ coverage note and `n/a` verdicts never block `ok`. The `stage1/` / `stage2/`
 report.
 
 **Pre-stage findings and skipped stages (the error-path grammar).** The
+engine-stale (Step 1 — a stale repo-local engine shadowed by `_cj-shared`),
 engine-unreachable (Step 1), seed-delivery-failure (Step 2), and
 registry-invalid (Step 3) findings are deterministic — they count toward
-`STAGE1_FINDINGS` with prefixes `stage1/engine`, `stage1/seed`,
-`stage1/registry` and print inside the stage-1 section. When a pre-stage
-failure makes later stages unjudgeable, each skipped stage still prints its
-section header with ONE line — `skipped: <reason>` — and its
-`STAGE*_FINDINGS=0`. The report shape never collapses on the error path.
+`STAGE1_FINDINGS` with prefixes `stage1/engine-stale`, `stage1/engine`,
+`stage1/seed`, `stage1/registry` and print inside the stage-1 section. A
+`stage1/engine-stale` finding is ADVISORY — the audit continues on the current
+`_cj-shared` engine; only a fully unreachable engine (`stage1/engine`) skips
+Stages 2+3. When a pre-stage failure makes later stages unjudgeable, each skipped
+stage still prints its section header with ONE line — `skipped: <reason>` — and
+its `STAGE*_FINDINGS=0`. The report shape never collapses on the error path.
 
 ## Error handling (stage terms)
 
 | Condition | Stage accounting | Behavior |
 |---|---|---|
 | Not a git repo | (pre-audit) | "Error: /CJ_test_audit requires a git repository." — stop |
-| Engine unreachable | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `TEST_AUDIT: findings` |
+| Stale repo-local engine (test-spec; no `--classify`) | `FINDING: stage1/engine-stale` → `STAGE1_FINDINGS` | falls back to the `_cj-shared` engine + names the remedy; audit continues (advisory — Stages 2+3 still run) |
+| Engine unreachable (stale-or-absent repo-local AND `_cj-shared` absent) | `FINDING: stage1/engine` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: engine unreachable — nothing to judge against`; `TEST_AUDIT: findings` |
 | Seed delivery fails | `FINDING: stage1/seed` → `STAGE1_FINDINGS` | audit continues on whatever exists |
 | Registry present-but-invalid | ONE `FINDING: stage1/registry` quoting `[test-spec-no-config]` → `STAGE1_FINDINGS` | Stages 2+3 print headers + `skipped: registry invalid — nothing to judge against` |
 | Duplicate contract file | advisory `RECONCILE:` directive — NOT a finding, counts toward NO stage | Plain run points at the remedy + writes nothing; `--reconcile` (standalone) forwards to the engine dedup (test-spec has no legacy migration) |

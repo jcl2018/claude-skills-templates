@@ -130,6 +130,14 @@ decides at the post-QA checkpoint.
   `doc-spec.sh` repo-local then `~/.claude/_cj-shared/scripts/`; on a machine
   that never ran `skills-deploy install`, the `stage1/engine` finding tells
   you to.
+- **A stale vendored `scripts/doc-spec.sh` (or `workflow-spec.sh`) silently
+  shadowing `_cj-shared`.** Each repo-local engine is used ONLY if it is CURRENT,
+  proven by a side-effect-free `--classify` capability probe (F000069/S000116). A
+  stale copy (no `--classify`) is detected, `_cj-shared` is used instead, and the
+  audit emits `stage1/engine-stale` naming the remedy. The doc audit also OWNS the
+  lazy `workflow-spec` seed (Step 2b): when `spec/workflow-spec.md` is absent it is
+  seeded corruption-guarded alongside `doc-spec`, so adoption-via-first-audit-run
+  covers the full contract set.
 
 ## Related skills
 

@@ -805,6 +805,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated workflow surface from spec/workflow-spec.md; --render-docs --check exits zero on a fresh render and non-zero after a hand-edit or a missing file; and a remove-an-entry drill proves workflow-spec.sh --validate registry-completeness fails closed (the no-vanish guarantee behind validate.sh Check 27 + the retired Check 15c)."
+  - id: test-seed-contracts
+    family: test
+    label: "seed-contracts suite — forced contract seeding + stale-engine probe + data-loss guard"
+    anchor: "tests/seed-contracts.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "skills-deploy seed-contracts force-seeds the three contracts (doc-spec/test-spec/workflow-spec) into a consumer repo corruption-guarded (--seed → non-empty + --validate-clean → mv) and idempotent (present⇒skip); the workbench self-repo is detected (manifest-source match OR custom-overlay presence) and SKIPPED so its authored spec/*.md are never overwritten with skeletons (the data-loss guard); and the stale-engine capability probe detects a vendored repo-local engine lacking --classify, falls back to _cj-shared, and emits stage1/engine-stale (the actual stale-engine-shadow bug fix)."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
