@@ -3,6 +3,16 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.97] - 2026-06-29
+
+### Added
+
+- **Workflow-coverage axis — every `CJ_goal_*` workflow now carries a real, gate-enforced `level: workflow` test** (F000070 / S000119). F000069 made the workflow docs + the test catalog GENERATED and freshness-gated, but *documenting* a workflow was not *testing* it: a `CJ_goal_*` orchestrator could be fully described in `spec/workflow-spec.md` with ZERO test that it runs, and the `behaviors:` axis's `level: workflow` slot sat empty (0 declared). This closes the gap. The honest `level: workflow` test is a **real Claude-driven eval case** (the proven `CJ_goal_todo_fix` halt-case pattern) targeting a gstack-independent path — `task` → `halted_at_too_complex`; `feature`/`defect` → `dry_run_preview`; `todo_fix` reuses an existing preflight-halt case — so the workflow actually runs (not a shell stub) while sidestepping the gstack-in-CI blocker that caps the full happy-path-to-PR E2E. Adds: 3 eval cases (`tests/eval/CJ_goal_{task,feature,defect}/`); 4 `level: workflow` behaviors + `behavior_coverage:` rows (`unit: suite-eval`) in `spec/test-spec-custom.md`; a new optional `workflow:` field on `behaviors:` rows; `workflow-spec.sh --list-orchestrators`; the `test-spec.sh --check-workflow-coverage` forward/reverse gate (every orchestrator → a `level: workflow` behavior; every workflow behavior → a real orchestrator); `validate.sh` **Check 28** (HARD, registry-gated, green from birth — orchestrators=4, behaviors=4); and `/CJ_test_audit` Stage-1 surfacing + a Stage-2 substance judgment (the linked test is a real run, not a hollow prompt). The forward gate makes a documented-but-untested workflow structurally impossible: add a 5th `CJ_goal_*` orchestrator and CI HARD-fails until it carries a `level: workflow` behavior. Tested by a 468-line `tests/workflow-coverage.test.sh` (forward-miss negative fixture, reverse-orphan, consumer-absent skip, the 6th-column parser round-trip). The eval cases run nightly via `eval-nightly.yml` (gated on the `ANTHROPIC_API_KEY` repo secret); the gate runs in plain CI with no API. Deferred follow-ups: a generated `docs/tests/workflow-coverage.md` view, the full happy-path-to-PR eval E2E (gstack-in-CI blocker), and `/CJ_test_audit`-as-test-runner. `CLAUDE.md` + `docs/architecture.md` document the gate.
+
+### Fixed
+
+- **Pre-existing `CLAUDE.md` path drift** surfaced by the F000070 post-sync doc audit: corrected `scripts/drain-one-todo.sh` → `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh` (two refs) and the bare `setup.sh` scripts-reference row → `scripts/setup.sh`.
+
 ## [6.0.96] - 2026-06-29
 
 ### Fixed
