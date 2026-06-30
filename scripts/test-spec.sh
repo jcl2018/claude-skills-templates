@@ -1447,10 +1447,18 @@ EOF
     # Reverse: an on-disk docs/tests/*.md with NO freshly-rendered counterpart is
     # an orphan family page (a family was removed from the registry but its page
     # lingers) — also a freshness finding.
+    # Hand-authored explainer pages under docs/tests/ are editorial prose, NOT
+    # generated from the registry (e.g. the test-hierarchy explainer) — exempt
+    # them from the orphan sweep. Keep this list narrow + explicit (space-
+    # separated, repo-relative under docs/).
+    _HANDAUTHORED_TESTDOCS="tests/test-hierarchy.md"
     if [ -d "$_RD_DOCS/tests" ]; then
       while IFS= read -r _disk; do
         [ -n "$_disk" ] || continue
         _rel="${_disk#"$_RD_DOCS/"}"
+        case " $_HANDAUTHORED_TESTDOCS " in
+          *" $_rel "*) continue ;;  # hand-authored page, not registry-generated
+        esac
         if [ ! -f "$_RD_TMP/docs/$_rel" ]; then
           echo "FINDING: render — docs/$_rel exists on disk but no longer maps to a registry family (run: scripts/test-spec.sh --render-docs)"
           _RD_FINDINGS=$((_RD_FINDINGS + 1))

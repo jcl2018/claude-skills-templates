@@ -407,6 +407,11 @@ Claude-driven eval case under `tests/eval/CJ_goal_*/`, so a documented-but-untes
 workflow cannot ship. `scripts/test-spec.sh` merges everything internally;
 consumers see ONE verification contract.
 
+For *why* the workbench needs this whole layered set — what each layer (the shell
+skeleton, the contract gates, the behavioral eval cases, the still-deferred full
+E2E) actually proves and where it runs — see the hand-authored explainer
+[`docs/tests/test-hierarchy.md`](tests/test-hierarchy.md).
+
 **One contract, folded from two.** The former `spec/gate-spec.md`
 member (the LAYER map + the per-mode `gates[]`) and its `scripts/gate-spec.sh`
 reader were folded into this contract: `layers[]` into the general file,
