@@ -1082,6 +1082,40 @@ else
   fi
 fi
 
+# Check 28: every CJ_goal_* orchestrator has a level:workflow behavior + no
+# orphan workflow: link (HARD, registry-gated). The workflow-coverage gate
+# (F000070) is a forward + reverse cross-check between the declared CJ_goal_*
+# orchestrators (spec/workflow-spec.md, via workflow-spec.sh --list-orchestrators)
+# and the level:workflow behaviors in the test-spec registry: FORWARD — every
+# orchestrator has >=1 level:workflow behavior whose `workflow:` equals it;
+# REVERSE — every level:workflow behavior's `workflow:` resolves to a declared
+# orchestrator. This makes "documented-but-untested workflow" structurally
+# impossible: adding a 5th CJ_goal_* orchestrator HARD-fails CI until it has a
+# level:workflow behavior linked to a real eval case. The gate runs in plain CI
+# (registry-only, no API); the linked eval cases RUN nightly/local with the API
+# key. Engine: scripts/test-spec.sh --check-workflow-coverage (which resolves
+# workflow-spec.sh repo-local→_cj-shared and registry-gates itself). Registry-
+# gated: skips when the test-spec engine is absent OR the gate reports inactive
+# (no test-spec registry / no resolvable orchestrators — a consumer with no
+# orchestrators passes vacuously). Mirror of Check 24/26/27's engine-absent skip.
+echo ""
+echo "=== Check 28: every CJ_goal_* orchestrator has a level:workflow behavior (workflow-coverage gate) ==="
+TESTSPEC_WFC="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC_WFC" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+else
+  C28_OUT=$(bash "$TESTSPEC_WFC" --check-workflow-coverage 2>&1) && C28_RC=0 || C28_RC=$?
+  if printf '%s\n' "$C28_OUT" | grep -qE '^(REGISTRY=absent|workflow coverage inactive)'; then
+    echo "  SKIP: workflow-coverage gate inactive (no test-spec registry or no resolvable orchestrators — registry-gated)"
+  elif [ "$C28_RC" -eq 0 ]; then
+    pass "every declared CJ_goal_* orchestrator has a level:workflow behavior; no orphan workflow: link ($(printf '%s\n' "$C28_OUT" | grep '^workflow coverage:' | head -1))"
+  else
+    echo "  ERROR: the workflow-coverage gate has findings — a documented-but-untested orchestrator, or an orphan workflow: link"
+    printf '%s\n' "$C28_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

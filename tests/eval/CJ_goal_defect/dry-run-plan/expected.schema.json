@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "dry-run-plan expected output",
+  "description": "Asserts that /CJ_goal_defect --dry-run previews the chain plan + write paths and emits end_state dry_run_preview without reaching any gstack skill.",
+  "type": "object",
+  "required": ["end_state", "chain_plan_contains"],
+  "additionalProperties": true,
+  "properties": {
+    "end_state": {
+      "type": "string",
+      "const": "dry_run_preview"
+    },
+    "chain_plan_contains": {
+      "type": "string",
+      "pattern": "DRY RUN|draft|investigate|promote|ship"
+    }
+  }
+}

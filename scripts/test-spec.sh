@@ -64,6 +64,18 @@
 #                      inactive" + exit 0 (behaviors do NOT participate in the
 #                      reverse floor). Findings print as `FINDING: ...` lines;
 #                      exit 1 on any.
+#   --check-workflow-coverage  (F000070) the workflow-coverage gate. FORWARD:
+#                      every declared CJ_goal_* orchestrator (sourced from
+#                      workflow-spec.sh --list-orchestrators, repo-local→_cj-shared)
+#                      has >=1 level:workflow behavior whose `workflow:` field
+#                      equals it. REVERSE: every level:workflow behavior's
+#                      `workflow:` resolves to a declared orchestrator. Registry-
+#                      gated skip (mirror of Check 24/26/27): an absent test-spec
+#                      registry OR an absent/non-canonical workflow registry =>
+#                      `workflow coverage inactive` + exit 0 (a consumer with no
+#                      orchestrators passes vacuously). HARD (exit 1) on any
+#                      forward/reverse finding. Surfaced by validate.sh Check 28
+#                      + /CJ_test_audit Stage 1.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -122,6 +134,43 @@ emit_halt() {
 _emit_absent_and_exit() {
   echo "REGISTRY=absent"
   exit 0
+}
+
+# ---- Cross-script resolution to workflow-spec.sh (F000070) -------------------
+# The workflow-coverage gate + the --validate workflow: enum-check both need the
+# set of declared CJ_goal_* orchestrators, which is sourced from the workflow
+# registry via `workflow-spec.sh --list-orchestrators`. Resolve that engine
+# repo-local FIRST (sibling of this script, then $REPO_ROOT/scripts/), then the
+# deployed shared home — the same repo-local→_cj-shared idiom /CJ_test_audit
+# uses for its own engine. Emits the engine path on stdout, or nothing when the
+# engine is unreachable (callers treat absence as the registry-gated skip).
+_resolve_workflow_spec() {
+  _ws_self_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd 2>/dev/null || echo "")
+  for _ws_cand in \
+    "$_ws_self_dir/workflow-spec.sh" \
+    "$REPO_ROOT_RESOLVED/scripts/workflow-spec.sh" \
+    "${CJ_SHARED_SCRIPTS:-$HOME/.claude/_cj-shared/scripts}/workflow-spec.sh"; do
+    [ -n "$_ws_cand" ] || continue
+    if [ -x "$_ws_cand" ] || [ -f "$_ws_cand" ]; then
+      echo "$_ws_cand"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# Emit the declared orchestrator names (one per line) from the resolved workflow
+# registry, or NOTHING when the engine is unreachable / the registry is absent /
+# not canonical (the registry-gated skip — callers must treat empty output as
+# "no orchestrators to enforce", never as a finding).
+_list_orchestrators() {
+  _lo_engine=$(_resolve_workflow_spec)
+  [ -n "$_lo_engine" ] || return 0
+  # Only a canonical registry yields orchestrators; an absent/malformed one is a
+  # clean skip (mirror of validate.sh Check 27's --classify gate).
+  _lo_gen=$(bash "$_lo_engine" --classify 2>/dev/null | awk -F= '/^GENERATION=/{print $2}')
+  [ "$_lo_gen" = "canonical" ] || return 0
+  bash "$_lo_engine" --list-orchestrators 2>/dev/null || true
 }
 
 # Extract the single fenced ```yaml ... ``` block from one registry file ($1).
@@ -353,13 +402,16 @@ EOF
   true
 }
 
-# Parse one file's behaviors[] block into TSV rows (5 columns):
-#   id, statement, level, area, purpose
+# Parse one file's behaviors[] block into TSV rows (6 columns):
+#   id, statement, level, area, purpose, workflow
 # Flag-based, key-anchored — keys on `- id:` like rules/units (a behavior HAS
 # an id). statement/purpose are quoted single-line values stripped of the
-# `key: "…"` wrapper; level/area are bare tokens. The optional area/purpose
-# use the same nz()/`-` empty-field placeholder discipline as the units parser
-# (tab-IFS collapses empty fields and shifts columns otherwise).
+# `key: "…"` wrapper; level/area/workflow are bare tokens. The optional
+# area/purpose/workflow use the same nz()/`-` empty-field placeholder discipline
+# as the units parser (tab-IFS collapses empty fields and shifts columns
+# otherwise). The 6th `workflow` column (F000070) is the forward-link: on a
+# `level: workflow` row it names the CJ_goal_* orchestrator the behavior proves
+# (enum-checked in --validate); empty (`-`) on every other level.
 _parse_behaviors_file() {
   _extract_yaml_file "$1" | awk '
     function strip(line,   v) {
@@ -371,9 +423,9 @@ _parse_behaviors_file() {
     function nz(v) { return (v == "" ? "-" : v) }
     function flush() {
       if (cur_id != "") {
-        printf "%s\t%s\t%s\t%s\t%s\n", nz(cur_id), nz(cur_stmt), nz(cur_level), nz(cur_area), nz(cur_purpose)
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_id), nz(cur_stmt), nz(cur_level), nz(cur_area), nz(cur_purpose), nz(cur_workflow)
       }
-      cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""
+      cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""; cur_workflow=""
     }
     /^behaviors:/                                                { in_b=1; next }
     /^(rules|units|layers|gates|behavior_coverage):/             { flush(); in_b=0; next }
@@ -384,6 +436,7 @@ _parse_behaviors_file() {
     /^[[:space:]]*level:/     { cur_level=$2; next }
     /^[[:space:]]*area:/      { cur_area=strip($0); next }
     /^[[:space:]]*purpose:/   { cur_purpose=strip($0); next }
+    /^[[:space:]]*workflow:/  { cur_workflow=$2; next }
     END { if (in_b) flush() }
   '
 }
@@ -577,13 +630,21 @@ EOF
   # behaviors block halts --validate / --list-* / --check-coverage alike). Runs
   # INDEPENDENT of the units: gate — a repo may declare behaviors with no units.
   if [ -n "$_BEHAVIORS" ]; then
-    while IFS="$(printf '\t')" read -r _bid _bstmt _blevel _barea _bpurpose; do
+    # Orchestrator enum for the workflow: field (F000070). Sourced from the
+    # workflow registry (repo-local→_cj-shared); empty when the engine/registry
+    # is unreachable — in which case an unknown workflow: value is reported as
+    # "unresolvable" rather than enum-rejected (a present workflow: with no way
+    # to resolve the orchestrator set is a halt, but only because the field was
+    # declared; absent fields never touch this path).
+    _ORCH_ENUM=$(_list_orchestrators)
+    while IFS="$(printf '\t')" read -r _bid _bstmt _blevel _barea _bpurpose _bworkflow; do
       [ -n "$_bid" ] || continue
       # Normalize the `-` empty-field placeholders back to "".
       [ "$_bstmt" = "-" ] && _bstmt=""
       [ "$_blevel" = "-" ] && _blevel=""
       [ "$_barea" = "-" ] && _barea=""
       [ "$_bpurpose" = "-" ] && _bpurpose=""
+      [ "$_bworkflow" = "-" ] && _bworkflow=""
       case "$_bid" in
         *[!a-z0-9-]*) emit_halt "behavior id '$_bid' is not a slug ([a-z0-9-]+ only)" ;;
       esac
@@ -597,6 +658,23 @@ EOF
       # fields (like a unit's label/purpose); they must be ID-free.
       if printf '%s %s' "$_bstmt" "$_bpurpose" | grep -qE '[FSTD][0-9]{6}'; then
         emit_halt "behavior '$_bid' carries a work-item ID in a rendered field (statement/purpose must be ID-free)"
+      fi
+      # The 6th `workflow:` forward-link (F000070): optional, but allowed ONLY on
+      # a `level: workflow` row, and — WHEN the orchestrator set is resolvable —
+      # its value MUST be a declared orchestrator. The level-placement check is
+      # unconditional (a structural rule). The enum-check is GRACEFUL when the
+      # orchestrator set is unresolvable (workflow-spec.sh / spec/workflow-spec.md
+      # absent or not canonical): it SKIPS rather than halts, so test-spec
+      # --validate never depends on the workflow registry being present (a temp-dir
+      # drill copying only test-spec-custom.md, or a consumer repo with no workflow
+      # registry, still validates). The dedicated --check-workflow-coverage gate +
+      # validate.sh Check 28 own the orchestrator-set enforcement where the registry
+      # IS resolvable, so a genuine orphan link is still caught there.
+      if [ -n "$_bworkflow" ]; then
+        [ "$_blevel" = "workflow" ] || emit_halt "behavior '$_bid' declares 'workflow: $_bworkflow' but is level '$_blevel' — the workflow: forward-link is allowed ONLY on level: workflow rows"
+        if [ -n "$_ORCH_ENUM" ] && ! printf '%s\n' "$_ORCH_ENUM" | grep -qxF "$_bworkflow"; then
+          emit_halt "behavior '$_bid' declares 'workflow: $_bworkflow' which is not a declared orchestrator (workflow-spec.sh --list-orchestrators: $(printf '%s' "$_ORCH_ENUM" | tr '\n' ' '))"
+        fi
       fi
     done <<EOF
 $_BEHAVIORS
@@ -744,6 +822,73 @@ EOF
   done <<EOF
 $_BEHAVIORS
 EOF
+}
+
+# ---- Workflow-coverage gate (F000070) ----
+# A forward + reverse cross-check between the workflow registry (the declared
+# CJ_goal_* orchestrators, via workflow-spec.sh --list-orchestrators) and the
+# `level: workflow` behaviors in the test-spec registry's behaviors[] block:
+#   FORWARD  — every declared orchestrator has >=1 level:workflow behavior whose
+#              `workflow:` field equals it (a documented orchestrator with no
+#              workflow test is the gap this gate makes structurally impossible);
+#   REVERSE  — every level:workflow behavior's `workflow:` value resolves to a
+#              declared orchestrator (an orphan workflow: link is a finding).
+# Registry-gated skip (mirror of validate.sh Check 24/26/27): when the workflow
+# registry is unreachable / not canonical (no orchestrators resolvable) OR the
+# test-spec registry is absent, the gate prints an `inactive` note + exits 0 —
+# a consumer repo with no orchestrators passes vacuously, never a false finding.
+# Findings print as `FINDING: workflow-coverage — ...`; exit 1 on any finding.
+_run_workflow_coverage() {
+  # test-spec registry-absent → inactive skip (callers must not parse halt prose).
+  if [ ! -f "$TEST_SPEC_PATH" ]; then
+    echo "workflow coverage inactive — test-spec registry absent (no behaviors to cross-check)"
+    return 0
+  fi
+
+  _ORCHS=$(_list_orchestrators)
+  if [ -z "$_ORCHS" ]; then
+    echo "workflow coverage inactive — no orchestrators resolvable (workflow-spec.sh / spec/workflow-spec.md absent or not canonical); nothing to enforce"
+    return 0
+  fi
+
+  # The level:workflow behaviors: TSV is id<tab>statement<tab>level<tab>area<tab>
+  # purpose<tab>workflow. Project to "id workflow" for the level:workflow rows.
+  _WF_BEHAVIORS=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '$3 == "workflow" {wf=$6; if (wf=="-") wf=""; print $1 "\t" wf}')
+
+  _WFC_FINDINGS=0
+
+  # FORWARD: every declared orchestrator has >=1 level:workflow behavior naming it.
+  while IFS= read -r _orch; do
+    [ -n "$_orch" ] || continue
+    _hits=$(printf '%s\n' "$_WF_BEHAVIORS" | awk -F'\t' -v want="$_orch" '$2 == want' | grep -c . || true)
+    if [ "$_hits" -lt 1 ]; then
+      echo "FINDING: workflow-coverage — orchestrator '$_orch' is declared in spec/workflow-spec.md but has NO level:workflow behavior whose 'workflow:' field equals it (a documented-but-untested workflow); declare one in spec/test-spec-custom.md behaviors[] linked to a real eval case"
+      _WFC_FINDINGS=$((_WFC_FINDINGS + 1))
+    fi
+  done <<EOF
+$_ORCHS
+EOF
+
+  # REVERSE: every level:workflow behavior's workflow: resolves to a declared orchestrator.
+  while IFS="$(printf '\t')" read -r _wbid _wbwf; do
+    [ -n "$_wbid" ] || continue
+    if [ -z "$_wbwf" ]; then
+      echo "FINDING: workflow-coverage — level:workflow behavior '$_wbid' has no 'workflow:' field (a level:workflow behavior MUST name the orchestrator it proves)"
+      _WFC_FINDINGS=$((_WFC_FINDINGS + 1))
+      continue
+    fi
+    if ! printf '%s\n' "$_ORCHS" | grep -qxF "$_wbwf"; then
+      echo "FINDING: workflow-coverage — level:workflow behavior '$_wbid' names 'workflow: $_wbwf' which is not a declared orchestrator (orphan forward-link)"
+      _WFC_FINDINGS=$((_WFC_FINDINGS + 1))
+    fi
+  done <<EOF
+$_WF_BEHAVIORS
+EOF
+
+  _ORCH_N=$(printf '%s\n' "$_ORCHS" | grep -c . || true)
+  _WFB_N=$(printf '%s\n' "$_WF_BEHAVIORS" | grep -c . || true)
+  echo "workflow coverage: orchestrators=$_ORCH_N level:workflow behaviors=$_WFB_N findings=$_WFC_FINDINGS"
+  [ "$_WFC_FINDINGS" -eq 0 ]
 }
 
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
@@ -1564,6 +1709,16 @@ case "${1:-}" in
     _run_registry_gates
     _run_coverage
     ;;
+  --check-workflow-coverage)
+    # The workflow-coverage gate (F000070): forward + reverse cross-check between
+    # the declared CJ_goal_* orchestrators (workflow-spec.sh --list-orchestrators)
+    # and the level:workflow behaviors. Registry-gated skip: an ABSENT test-spec
+    # registry exits 0 via _run_registry_gates' REGISTRY=absent path; an absent /
+    # non-canonical workflow registry prints the inactive note + exits 0 inside
+    # _run_workflow_coverage. HARD (exit 1) only on a real forward/reverse finding.
+    _run_registry_gates
+    _run_workflow_coverage
+    ;;
   --render-docs)
     # (F000069/S000114) Render the generated human test catalog from the merged
     # registry. `--render-docs` writes docs/tests/<family>.md + docs/test-catalog.md;
@@ -1603,6 +1758,7 @@ Usage:
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
+  test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
@@ -1616,7 +1772,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

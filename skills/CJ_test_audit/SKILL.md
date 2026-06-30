@@ -1,6 +1,6 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries the renderer, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries them, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo) and --check-workflow-coverage (the forward+reverse workflow-coverage gate, the same owner validate.sh Check 28 calls — so a documented-but-untested CJ_goal_* orchestrator is caught standalone), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
 version: 0.3.0
 allowed-tools:
   - Bash
@@ -241,6 +241,32 @@ fi
 - Engine without `--render-docs` (an older deployed engine) — skip cleanly with
   a one-line note; not a finding (the catalog primitive simply isn't present).
 
+**Workflow-coverage gate (F000070 — portable, any repo).** When the engine
+supports `--check-workflow-coverage`, ALSO run the workflow-coverage gate as part
+of Stage 1 — this is the same forward+reverse gate that `validate.sh` Check 28
+calls (every declared `CJ_goal_*` orchestrator has a `level: workflow` behavior;
+no orphan `workflow:` link), so a documented-but-untested workflow is caught
+standalone in any repo:
+
+```bash
+if bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--check-workflow-coverage'; then
+  bash "$_TA_ENGINE" --check-workflow-coverage
+fi
+```
+
+- Exit 0 with `workflow coverage: orchestrators=N level:workflow behaviors=N
+  findings=0` — every orchestrator has a `level: workflow` behavior + no orphan
+  link; clean.
+- Exit 0 with `workflow coverage inactive ...` / `REGISTRY=absent` — registry-
+  gated skip (no test-spec registry / no resolvable orchestrators); a consumer
+  with no orchestrators passes vacuously. Not a finding.
+- Exit 1 — each `FINDING: workflow-coverage — ...` line is one STAGE-1 finding;
+  quote it verbatim with the `stage1/` prefix
+  (`FINDING: stage1/workflow-coverage — <engine line>`). A documented-but-untested
+  orchestrator (forward miss) or an orphan `workflow:` link (reverse) is the finding.
+- Engine without `--check-workflow-coverage` (an older deployed engine) — skip
+  cleanly with a one-line note; not a finding (the gate simply isn't present).
+
 ## Fresh-context dispatch (standalone posture — REQUIRED)
 
 At top level (standalone), Stages 2+3 MUST be executed by ONE fresh
@@ -326,6 +352,18 @@ the linked test at each `behavior_coverage` row's `source`/`anchor`, then judge
   such that it cannot really prove each? A single suite cited across several
   distinct behaviors, none of which it specifically asserts, is over-claim
   drift.
+- **(`level: workflow` only — F000070) Real run vs hollow prompt?** A
+  `level: workflow` behavior links (via its `behavior_coverage` row) to an eval
+  case `prompt.md` under `tests/eval/<skill>/<case>/`. Read that prompt + its
+  `expected.schema.json` and judge whether the eval case genuinely DRIVES the
+  workflow through a real gstack-independent path (the orchestrator actually runs
+  its preamble + isolation + a gate/dry-run decision and the schema asserts the
+  resulting `end_state`/`halt_class`) — versus a hollow prompt that asks the model
+  to merely RECITE the expected answer without running the workflow, or a schema
+  so loose (`additionalProperties` with no `const`/`pattern` on the load-bearing
+  field) that any output passes. A recite-the-answer prompt or an
+  asserts-nothing schema is a `FINDING: stage2/behavior:<id>` (the eval is a green
+  stub, not a real workflow run — the exact hollowness this axis exists to forbid).
 
 Every behavior touched by the current change MUST be checked; spot-coverage of
 the rest is acceptable but call out any obviously vague/over-claimed row.

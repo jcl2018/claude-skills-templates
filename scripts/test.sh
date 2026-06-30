@@ -687,6 +687,31 @@ else
   fail_test "Check 27: validate.sh should have exited 0 after the workflow surface was regenerated, but exited non-zero"
 fi
 
+# Step 3g (F000070 / S000119 / Check 28): the workflow-coverage gate. THE PARALLEL
+# test.sh EDIT the new validate.sh Check 28 needs — pre-flighted in lockstep with
+# the check add (the standing F000032/34/35 zzz-mirror blind spot that bit Check
+# 25/26/27 too, defused here for Check 28). The gate (test-spec.sh
+# --check-workflow-coverage) is a forward+reverse cross-check between the declared
+# CJ_goal_* orchestrators (workflow-spec.sh --list-orchestrators) and the
+# level:workflow behaviors — NOT a generated-doc diff, so there is no on-disk
+# drift to plant. POSITIVE: on the live (in-sync) tree Check 28 PASSes with the
+# orchestrators=N level:workflow behaviors=N findings=0 summary. The forward-miss /
+# reverse-orphan / registry-absent NEGATIVE paths are exercised hermetically in
+# tests/workflow-coverage.test.sh (registered below + as a units row). This block
+# proves Check 28 actually FIRES its PASS on the live tree, not just defaults green.
+_C28_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
+if echo "$_C28_OUT_OK" | grep -qF "  PASS: every declared CJ_goal_* orchestrator has a level:workflow behavior"; then
+  ok "Check 28: workflow-coverage gate PASSes on the in-sync live tree (every CJ_goal_* orchestrator has a level:workflow behavior)"
+else
+  fail_test "Check 28: validate.sh did not emit the Check-28 PASS on the in-sync live tree; output: $_C28_OUT_OK"
+fi
+# Direct gate assertion: the engine itself is green from birth on the live tree.
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-workflow-coverage 2>&1 | grep -qE '^workflow coverage: .*findings=0$'; then
+  ok "Check 28: test-spec.sh --check-workflow-coverage reports findings=0 on the live tree"
+else
+  fail_test "Check 28: test-spec.sh --check-workflow-coverage did not report findings=0 on the live tree"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -2145,6 +2170,21 @@ if bash "$REPO_ROOT/tests/cj-contract-gate.test.sh" >/dev/null 2>&1; then
 else
   _ccg_rc=$?
   fail_test "tests/cj-contract-gate.test.sh failed (rc=$_ccg_rc) — run \`bash tests/cj-contract-gate.test.sh\` directly to see"
+fi
+
+# F000070 / S000119 — the workflow-coverage gate machinery (the forward+reverse
+# level:workflow gate + the 6th `workflow` behaviors-TSV column + the registry-
+# sourced --list-orchestrators). MANDATORY registration — Check 24's reverse
+# sweep hard-fails any unregistered tests/*.test.sh, and this file has a parallel
+# `test-workflow-coverage` units row in spec/test-spec-custom.md. Fully hermetic:
+# every fixture is a throwaway temp repo; the live tree is never mutated.
+echo ""
+echo "Running tests/workflow-coverage.test.sh (F000070/S000119 level:workflow gate + 6th-column parser + --list-orchestrators)..."
+if bash "$REPO_ROOT/tests/workflow-coverage.test.sh" >/dev/null 2>&1; then
+  ok "tests/workflow-coverage.test.sh: green-from-birth + forward-miss/reverse-orphan/enum-check/consumer-absent + 6th-column round-trip all pass"
+else
+  _wfc_rc=$?
+  fail_test "tests/workflow-coverage.test.sh failed (rc=$_wfc_rc) — run \`bash tests/workflow-coverage.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
