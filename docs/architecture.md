@@ -687,9 +687,19 @@ and it **auto-declares the seeded/generated docs** — it writes a minimal,
 auto-marked `spec/doc-spec-custom.md` overlay declaring every `docs/**/*.md` +
 `spec/*.md` orphan the engine reports (so `orphans` passes), validating the merged
 registry and rolling back if invalid. A repo that already carries a hand-authored
-overlay (no auto-marker) is treated as already-adopted and left untouched; the
-auto-marker also keeps an adoption overlay from counting as an AUTHORED overlay in
-the workbench-self data-loss guard (a belt-and-suspenders alongside the guard's
+overlay (no auto-marker) is **also completed, but APPEND-ONLY**: adoption refreshes
+the same generated surfaces and then splices ONLY the new undeclared orphans as
+contiguous declaring rows appended under the curated overlay's existing
+`| Doc | Purpose | Requirement |` header — the hand-authored overlay is NEVER
+wholesale-regenerated, so curated rows and prose are preserved, no auto-marker is
+added, and the append is validated against the merged registry and rolled back
+(leaving the curated overlay exactly as it was) if it would be invalid. (Without
+this an adopter that curated its own overlay got the gate hook but not the surface
+render / orphan declaration, and its next commit was blocked by the fully-hard
+gate.) The auto-marker still distinguishes the two: an owned (auto-marked) overlay
+is regenerated, a hand-authored one is only appended to — and the absent
+auto-marker keeps a hand-authored overlay counting as an AUTHORED overlay in the
+workbench-self data-loss guard (a belt-and-suspenders alongside the guard's
 `skills-catalog.json` gate, which a consumer lacks anyway). After adoption the only remaining finding is `declared-exists`
 (the prose docs), which is soft — so the auto-installed gate never bricks the next
 commit, and no pre-flight is needed.

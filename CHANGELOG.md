@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.96] - 2026-06-29
+
+### Fixed
+
+- **`skills-deploy complete_consumer_adoption()` now completes a hand-authored-overlay consumer append-only** (D000037). Previously, when a consumer repo carried a hand-authored `spec/doc-spec-custom.md` overlay (one WITHOUT the adoption auto-marker), turnkey adoption early-returned as a no-op — it treated the curated overlay as "already adopted / left untouched." But the consumer `install` still installed the `cj-contract-gate.sh` pre-commit hook, so the repo got the fully-hard gate WITHOUT the surface render or the orphan declaration that makes the gate pass: its very next commit was blocked (stale generated `docs/test-catalog.md` / `docs/workflow.md` / `docs/workflows/`, plus undeclared `docs/**/*.md` + `spec/*.md` orphans). The fix routes a hand-authored overlay to a new `complete_consumer_adoption_handauthored()` that completes adoption **APPEND-ONLY**: it refreshes the generated surfaces (`test-spec.sh --render-docs` + `workflow-spec.sh --render-docs`) AND splices ONLY the NEW undeclared orphans as contiguous declaring rows appended under the curated table's existing `| Doc | Purpose | Requirement |` header. The hand-authored overlay is NEVER wholesale-regenerated — curated rows and prose are preserved, no auto-marker is added (so the overlay stays an AUTHORED overlay for the workbench-self data-loss guard), and the append validates the merged registry and rolls back the append (leaving the curated overlay untouched) if it would be invalid. An owned (auto-marked) overlay still takes the regenerate path; a consumer with no overlay still takes the original auto-declare path. Regression-tested by an added `scripts/test-deploy.sh` case (a consumer with a hand-authored overlay + the contract-gate hook can make its next commit). `CLAUDE.md` (the skills-deploy row) + `docs/architecture.md` (the turnkey-adoption section) document the append-only completion.
+
 ## [6.0.95] - 2026-06-29
 
 ### Fixed
