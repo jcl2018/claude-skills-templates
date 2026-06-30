@@ -583,6 +583,16 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "The generated workflow surface (the docs/workflow.md index plus the six docs/workflows/<name>.md per-workflow files) byte-matches a fresh render from spec/workflow-spec.md, so a stale workflow doc cannot pass validation; read-only (--check renders only into a temp dir); registry-gated, skips when spec/workflow-spec.md is absent. Replaces the retired shape-only Checks 15b/15c."
+  - id: validate-check-28
+    family: validate
+    label: "Check 28 — every CJ_goal_* orchestrator has a level:workflow behavior (workflow-coverage gate)"
+    anchor: "=== Check 28:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    skips_when_absent: true
+    trigger: "pre-commit pr-ci"
+    purpose: "The forward+reverse workflow-coverage gate (test-spec.sh --check-workflow-coverage): every declared CJ_goal_* orchestrator (workflow-spec.sh --list-orchestrators) has a level:workflow behavior whose workflow: equals it, and no level:workflow behavior names an undeclared orchestrator, so a documented-but-untested workflow cannot pass validation; runs in plain CI (registry-only, no API); registry-gated, skips when the test-spec engine is absent or no orchestrators are resolvable."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -823,6 +833,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "scripts/cj-contract-gate.sh (the engine-only Stage-1 subset of validate.sh, agent-free) PASSes on a clean fully-adopted contract and hard-FAILS (exit non-zero) on a planted violation (a stale generated catalog OR a malformed registry); a missing DECLARED doc is a SOFT remediation pointing at /CJ_document-release (exit 0 — never a block) and an unadopted contract (REGISTRY=absent) is a clean SKIP; and the guarded consumer pre-commit auto-install (skills-deploy install-contract-gate, reusing the shared cj-hook-lib.sh install_hook safety) installs a sentinel hook resolving the gate from _cj-shared (idempotent re-run), SKIPS a custom core.hooksPath (husky) and the workbench self-repo, and --remove uninstalls ONLY a sentinel hook while a non-workbench hook is left untouched."
+  - id: test-workflow-coverage
+    family: test
+    label: "workflow-coverage suite — the level:workflow gate + 6th-column parser + --list-orchestrators"
+    anchor: "tests/workflow-coverage.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "test-spec.sh --check-workflow-coverage is green from birth on the live tree and FAILS hermetically on a forward miss (a 5th orchestrator with no level:workflow behavior), a reverse orphan (an undeclared workflow: value via the enum-check, and an empty workflow: field via the gate's own reverse arm), while a consumer-absent registry SKIPs (REGISTRY=absent / inactive + exit 0); the 6th `workflow` behaviors-TSV column round-trips with the `-` placeholder unwrap (positional $1-only consumers unaffected) and --validate enum-checks workflow: ONLY on level:workflow rows against workflow-spec.sh --list-orchestrators; the gate behind validate.sh Check 28."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
@@ -1202,6 +1221,39 @@ behaviors:
     level: property
     area: coverage-cross-check
     purpose: "Grammar rot can never make the reverse sweep vacuously pass while the token floor holds."
+  # ---- the workflow-coverage axis: one level:workflow behavior per CJ_goal_*
+  # orchestrator (F000070). Each carries the 6th `workflow:` forward-link naming
+  # the orchestrator it proves, and links (below) to a REAL Claude-driven eval
+  # case under tests/eval/<skill>/<case>/ via the suite-eval unit. The eval cases
+  # target gstack-INDEPENDENT paths (task → hard complexity-gate halt; feature /
+  # defect → --dry-run preview), so the workflow genuinely RUNS up to a decision
+  # without reaching /office-hours or /ship. The forward/reverse gate
+  # (test-spec.sh --check-workflow-coverage) makes a documented-but-untested
+  # orchestrator structurally impossible.
+  - id: workflow-cj-goal-task-runs
+    statement: "Running /CJ_goal_task on a design-rework topic via claude --print drives the workflow through its preamble + isolation + hard complexity gate and emits halt_class halted_at_too_complex with the /CJ_goal_feature routing suggestion (schema-validated by the eval harness)."
+    level: workflow
+    workflow: CJ_goal_task
+    area: workflow-coverage
+    purpose: "A documented-but-unrun orchestrator is the gap this axis catches; the eval case is a real Claude-driven run of /CJ_goal_task up to a gstack-independent decision (the full happy-path-to-PR E2E is deferred on the gstack-in-CI blocker)."
+  - id: workflow-cj-goal-feature-runs
+    statement: "Running /CJ_goal_feature --dry-run on a topic via claude --print drives the workflow through its preamble + dry-run chain-plan preview and emits end_state dry_run_preview without reaching any gstack skill (schema-validated by the eval harness)."
+    level: workflow
+    workflow: CJ_goal_feature
+    area: workflow-coverage
+    purpose: "Proves /CJ_goal_feature actually runs to its dry-run preview on the clean gstack-independent path; a richer pre-gstack halt is a deferred upgrade of this same behavior."
+  - id: workflow-cj-goal-defect-runs
+    statement: "Running /CJ_goal_defect --dry-run on a bug description via claude --print drives the workflow through its preamble + dry-run chain-plan + write-path preview and emits end_state dry_run_preview without reaching any gstack skill (schema-validated by the eval harness)."
+    level: workflow
+    workflow: CJ_goal_defect
+    area: workflow-coverage
+    purpose: "Proves /CJ_goal_defect actually runs to its dry-run preview on the clean gstack-independent path; the full /investigate-to-ship E2E is a deferred upgrade of this same behavior."
+  - id: workflow-cj-goal-todo-fix-runs
+    statement: "Running /CJ_goal_todo_fix against a size-L TODO via claude --print drives the workflow through its preamble + pre-flight gates and emits a halt class at the size cap before any gstack skill (schema-validated by the eval harness)."
+    level: workflow
+    workflow: CJ_goal_todo_fix
+    area: workflow-coverage
+    purpose: "Reuses the existing CJ_goal_todo_fix preflight-halt eval case as the real Claude-driven run proving the orchestrator runs up to a gstack-independent decision."
 behavior_coverage:
   - behavior: seed-byte-identical
     unit: test-test-spec
@@ -1235,4 +1287,23 @@ behavior_coverage:
     unit: test-test-spec
     source: tests/test-spec.test.sh
     anchor: "the floor finding fires (alive + overridable)"
+  # ---- workflow-coverage axis (F000070): each level:workflow behavior links to
+  # its REAL eval case prompt via the suite-eval (family: eval) unit; the anchor
+  # is a literal present verbatim in that prompt.md (Check 5 greps it live -F).
+  - behavior: workflow-cj-goal-task-runs
+    unit: suite-eval
+    source: tests/eval/CJ_goal_task/halt-too-complex/prompt.md
+    anchor: "emits `halted_at_too_complex` and suggests `/CJ_goal_feature`"
+  - behavior: workflow-cj-goal-feature-runs
+    unit: suite-eval
+    source: tests/eval/CJ_goal_feature/dry-run-plan/prompt.md
+    anchor: "naming the planned worktree + the office-hours/scaffold/implement/qa/ship chain"
+  - behavior: workflow-cj-goal-defect-runs
+    unit: suite-eval
+    source: tests/eval/CJ_goal_defect/dry-run-plan/prompt.md
+    anchor: "naming the draft path + the investigate/promote/RCA/qa/ship chain"
+  - behavior: workflow-cj-goal-todo-fix-runs
+    unit: suite-eval
+    source: tests/eval/CJ_goal_todo_fix/halt-size-large/prompt.md
+    anchor: "which halt class /CJ_goal_todo_fix emits"
 ```

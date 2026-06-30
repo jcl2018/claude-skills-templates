@@ -43,6 +43,11 @@
 #                      files) has an orchestrator entry — the no-vanish guarantee
 #                      (the replacement for retired validate.sh Check 15c).
 #   --list-workflows   echo every declared workflow name (registry order).
+#   --list-orchestrators  echo ONLY the orchestrator-kind workflow names (the
+#                      CJ_goal_* verbs; registry order) — the registry-sourced
+#                      orchestrator set the test-spec workflow-coverage gate
+#                      consumes (F000070). Distinct from --list-workflows (which
+#                      includes the roster sections) + the skills-catalog jq set.
 #   --render-docs      render docs/workflow.md + docs/workflows/<name>.md (×N)
 #                      from the registry to a NORMALIZED deterministic template
 #                      (stable order, fixed headers, no timestamps, ID-free).
@@ -153,6 +158,22 @@ _extract_section_field() {
 # The `kind` field of a section. Empty when the section declares none.
 _section_kind() {
   _extract_section_field "$1" "kind"
+}
+
+# List the names of ONLY the orchestrator-kind sections (the CJ_goal_* verbs),
+# in registry order (F000070). Reuses _list_sections() + _section_kind() — the
+# registry-sourced orchestrator set the test-spec workflow-coverage gate consumes.
+# Distinct from --list-workflows (which includes the roster sections) and from
+# the skills-catalog.json jq set (which is consumer-absent and so would break the
+# registry-gated skip). A vacuous (zero-orchestrator) registry prints nothing.
+_list_orchestrators() {
+  while IFS= read -r _lo_name; do
+    [ -n "$_lo_name" ] || continue
+    [ "$(_section_kind "$_lo_name")" = "orchestrator" ] && printf '%s\n' "$_lo_name"
+  done <<EOF
+$(_list_sections)
+EOF
+  true
 }
 
 # ---- Validation ----
@@ -489,6 +510,10 @@ case "${1:-}" in
     _run_registry_gates
     _list_sections
     ;;
+  --list-orchestrators)
+    _run_registry_gates
+    _list_orchestrators
+    ;;
   --render-docs)
     _run_registry_gates
     _render_docs "${2:-}"
@@ -509,6 +534,7 @@ and render the docs/workflow.md index + docs/workflows/*.md per-workflow files.
 Usage:
   workflow-spec.sh --validate        # REGISTRY=absent/exit 0 when absent; OK + exit 0 when valid; halt when invalid (per-kind fields + closed kind enum + registry-completeness no-vanish)
   workflow-spec.sh --list-workflows  # every declared workflow name (registry order)
+  workflow-spec.sh --list-orchestrators # ONLY the orchestrator-kind workflow names (the CJ_goal_* verbs; registry order) — the set the test-spec workflow-coverage gate consumes
   workflow-spec.sh --render-docs     # render docs/workflow.md + docs/workflows/<name>.md from the registry
   workflow-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   workflow-spec.sh --classify        # READ-ONLY: GENERATION=<canonical|absent|malformed>/POSITIONS=/DUPLICATE=<0|1>/CANONICAL_PATH=
@@ -517,7 +543,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-workflows|--render-docs [--check]|--classify|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-workflows|--list-orchestrators|--render-docs [--check]|--classify|--seed}" >&2
     exit 2
     ;;
   *)

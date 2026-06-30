@@ -344,6 +344,20 @@ _rebuild_fixture() {
   # copying the real test-spec.test.sh content keeps the fixture's behavior
   # coverage clean WITHOUT affecting the units reverse sweep.
   cp "$REPO_ROOT/tests/test-spec.test.sh" "$_FIX/tests/test-spec.test.sh"
+  # The workflow-coverage behaviors[] (F000070) anchor their semantic evidence
+  # in the eval-case prompt.md files (behavior_coverage.source). Copy each
+  # referenced prompt with its body so the behavior-coverage source-exists +
+  # anchor-greps-live checks (Check 5) resolve in the fixture copy of the live
+  # overlay; without these the baseline copy of the live surface is not clean.
+  while IFS= read -r _evsrc; do
+    [ -n "$_evsrc" ] || continue
+    if [ -f "$REPO_ROOT/$_evsrc" ]; then
+      mkdir -p "$_FIX/$(dirname "$_evsrc")"
+      cp "$REPO_ROOT/$_evsrc" "$_FIX/$_evsrc"
+    fi
+  done <<EOF
+$(awk '/^behavior_coverage:/{inb=1} inb && /^[[:space:]]*source:[[:space:]]*tests\/eval\//{print $2}' "$OVERLAY")
+EOF
   cp "$GENERAL" "$_FIX/spec/test-spec.md"
   cp "$OVERLAY" "$_FIX/spec/test-spec-custom.md"
 }

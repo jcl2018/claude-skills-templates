@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "halt-too-complex expected output",
+  "description": "Asserts that /CJ_goal_task halts a design-rework topic at its hard complexity gate with end_state halted_at_too_complex and routes to /CJ_goal_feature.",
+  "type": "object",
+  "required": ["halt_class", "suggested_verb", "halt_reason_contains"],
+  "additionalProperties": true,
+  "properties": {
+    "halt_class": {
+      "type": "string",
+      "const": "halted_at_too_complex"
+    },
+    "suggested_verb": {
+      "type": "string",
+      "const": "/CJ_goal_feature"
+    },
+    "halt_reason_contains": {
+      "type": "string",
+      "pattern": "design|redesign|rework|/office-hours"
+    }
+  }
+}

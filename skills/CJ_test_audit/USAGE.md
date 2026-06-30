@@ -71,10 +71,14 @@ Three stages, symmetric with `/CJ_doc_audit` (one shape, both audits).
 `--check-coverage` calls — forward anchors, reverse sweep, token floor —
 mechanize `units-anchored` / `single-owner` / `tests-discoverable` wherever
 units exist, and report "coverage cross-check inactive" by name where they
-don't; PLUS, when the engine carries the renderer, `--render-docs --check` —
+don't; PLUS, when the engine carries them, `--render-docs --check` —
 the generated `docs/tests/` test-catalog freshness gate (the same owner
 `validate.sh` Check 26 calls), so a stale catalog is caught standalone in any
-repo. Findings carry the `stage1/` prefix.
+repo — AND `--check-workflow-coverage` — the forward+reverse workflow-coverage
+gate (the same owner `validate.sh` Check 28 calls), so a documented-but-untested
+`CJ_goal_*` orchestrator (a missing `level: workflow` behavior or an orphan
+`workflow:` link) is caught standalone in any repo. Findings carry the
+`stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence
 (`suite-green` names the freshest full-suite run; `new-code-tested` names the
