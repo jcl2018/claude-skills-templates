@@ -145,7 +145,7 @@ _emit_absent_and_exit() {
 # uses for its own engine. Emits the engine path on stdout, or nothing when the
 # engine is unreachable (callers treat absence as the registry-gated skip).
 _resolve_workflow_spec() {
-  _ws_self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd 2>/dev/null || echo "")
+  _ws_self_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd 2>/dev/null || echo "")
   for _ws_cand in \
     "$_ws_self_dir/workflow-spec.sh" \
     "$REPO_ROOT_RESOLVED/scripts/workflow-spec.sh" \
