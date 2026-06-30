@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.98] - 2026-06-30
+
+### Added
+
+- **`docs/tests/test-hierarchy.md` — a hand-authored explainer of the test hierarchy.** The generated per-family pages (`test.md`, `validate.md`, `eval.md`, …) say *where* each check lives; this new page says *what each layer proves and why all are needed*: the deterministic shell skeleton, the `validate.sh` + contract gates, the behavioral `tests/eval/CJ_goal_*/` cases (a real `claude --print` run of a workflow's entry + one gstack-independent gate path), and the still-deferred full happy-path E2E — plus an honest account of what the eval cases do and don't prove and the gstack-in-CI gap. To let a hand-authored page live under the otherwise-GENERATED `docs/tests/` tree, `test-spec.sh --render-docs --check` gained a narrow `_HANDAUTHORED_TESTDOCS` exemption from the Check-26 orphan sweep; the page is declared in `spec/doc-spec-custom.md` (hand-authored, no work-item IDs) and linked from `docs/architecture.md`. The Workflow-coverage TODOS row is marked PARTIAL (the core gate shipped in v6.0.97; the generated coverage view + full E2E remain).
+
 ## [6.0.97] - 2026-06-29
 
 ### Added
