@@ -397,8 +397,15 @@ array, PLUS a behavior-coverage axis: `behaviors:` rows (open-world
 statements of WHAT the software must prove, each with a first-class `level` from
 the closed enum `{unit, integration, contract, workflow, property}`) and
 `behavior_coverage:` rows (each behavior linked to a test-bearing `units:` row
-plus a semantic-evidence source/anchor). `scripts/test-spec.sh` merges everything
-internally; consumers see ONE verification contract.
+plus a semantic-evidence source/anchor). A `level: workflow` behavior also carries
+an optional `workflow:` field naming the `CJ_goal_*` orchestrator it covers; the
+**Check 28 workflow-coverage gate** (`test-spec.sh --check-workflow-coverage`, also
+in `/CJ_test_audit` Stage 1) cross-checks that every declared orchestrator
+(`workflow-spec.sh --list-orchestrators`) has one (forward) and every workflow
+behavior resolves to a real orchestrator (reverse) — each backed by a real
+Claude-driven eval case under `tests/eval/CJ_goal_*/`, so a documented-but-untested
+workflow cannot ship. `scripts/test-spec.sh` merges everything internally;
+consumers see ONE verification contract.
 
 **One contract, folded from two.** The former `spec/gate-spec.md`
 member (the LAYER map + the per-mode `gates[]`) and its `scripts/gate-spec.sh`
