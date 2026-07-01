@@ -22,3 +22,9 @@
 
 # /cj_goal_task resume-state scratch (never committed)
 .cj-goal-task/
+
+# cj_goal local-E2E sandbox marker (F000071 Part A) — the second half of the
+# build-gate auto-answer seam's double guard. NEVER tracked: it only ever exists
+# in a throwaway sandbox checkout; validate.sh Check 29 hard-fails if it appears
+# in the tracked tree.
+.cj-e2e-sandbox

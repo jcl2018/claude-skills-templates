@@ -593,6 +593,15 @@ units:
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
     purpose: "The forward+reverse workflow-coverage gate (test-spec.sh --check-workflow-coverage): every declared CJ_goal_* orchestrator (workflow-spec.sh --list-orchestrators) has a level:workflow behavior whose workflow: equals it, and no level:workflow behavior names an undeclared orchestrator, so a documented-but-untested workflow cannot pass validation; runs in plain CI (registry-only, no API); registry-gated, skips when the test-spec engine is absent or no orchestrators are resolvable."
+  - id: validate-check-29
+    family: validate
+    label: "Check 29 — cj_goal E2E sandbox marker absent from the tracked tree"
+    anchor: "=== Check 29:"
+    source: scripts/validate.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pre-commit pr-ci"
+    purpose: "The marker-absence guard for the build-gate auto-answer seam: git ls-files must never track .cj-e2e-sandbox (the second half of the seam's double guard, CJ_GOAL_E2E_AUTO=1 AND the marker). A committed marker could make the seam live in a real repo with only an env flag; this check hard-fails the moment git tracks it, anywhere in the tree (the gitignored sandbox copy passes cleanly)."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -635,6 +644,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Complexity-gate refusals, dry-run preview, live scaffold and idempotency of the task scaffolder."
+  - id: test-cj-e2e-gate
+    family: test
+    label: "cj-e2e-gate suite — build-gate auto-answer seam verdict matrix"
+    anchor: "tests/cj-e2e-gate.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The full verdict matrix of the build-gate auto-answer seam helper (scripts/cj-e2e-gate.sh): flag-only and marker-only both inactive, both-guards + green qa-audit continues, both-guards + findings/empty qa-audit halts (never auto-waive), a non-allowlisted gate id stays inactive, design-gate auto-approves — all deterministic, no Claude."
   - id: test-setup-hooks
     family: test
     label: "setup-hooks suite — git hook installer"

@@ -124,6 +124,40 @@ block (`/CJ_doc_audit` + `/CJ_test_audit` over the post-doc-sync tree). The two
 spec-overlay updates rode the QA RESULT inline at qa.md 8.6a/8.6b (they shipped in
 the pre-doc-sync commit).
 
+**Build-gate auto-answer seam (the dormant local-E2E seam — F000071 Part A).**
+BEFORE the per-mode branch below, run the deterministic verdict helper on the
+post-sync audit digest, then branch on its one-line stdout:
+
+```bash
+_E2E_GATE="$_REPO_ROOT/scripts/cj-e2e-gate.sh"
+_E2E_VERDICT="AUTO=inactive"
+[ -x "$_E2E_GATE" ] && _E2E_VERDICT=$(bash "$_E2E_GATE" --gate qa-audit --digest "$AUDITS" 2>/dev/null || echo "AUTO=inactive")
+```
+
+(`$AUDITS` is the compact `doc:<ok|findings:n>,test:<ok|findings:n>` digest from
+the post-sync audit. The helper is dormant unless BOTH `CJ_GOAL_E2E_AUTO=1` AND a
+`.cj-e2e-sandbox` marker hold AND the gate is in the `{design-gate, qa-audit}`
+allowlist — so on any normal run it prints `AUTO=inactive` and nothing changes.)
+
+- `AUTO=continue` — the seam is active and the post-sync digest is fully green
+  (`doc:ok` AND `test:ok`): SKIP the AUQ, print a loud
+  `[E2E-AUTO] qa-audit auto-continued on a green digest — no human gate fired`
+  banner, write NO waiver line (a green digest waives nothing), and proceed to
+  the next step exactly as a `--quiet` green-continue would.
+- `AUTO=halt` — the seam is active but the digest carries findings: take the
+  `[qa-audit-declined]` Halt path (end_state `halted_at_qa_audit`), exactly as
+  `--quiet` halts on findings. The seam NEVER auto-waives findings.
+- `AUTO=inactive` — the seam is dormant (the normal run): fall through to the
+  per-mode branch below unchanged.
+
+This GENERALIZES this verb's existing `--quiet` green-continue into ONE path,
+two triggers: the qa-audit auto-continue condition is now
+`QUIET=1 OR (the helper prints AUTO=continue)`, both honoring the same green-only
+predicate (continue only on `doc:ok,test:ok`; halt on findings; never
+auto-waive). A normal run (no `--quiet`, no `CJ_GOAL_E2E_AUTO`/marker) is
+behavior-unchanged — the helper prints `inactive` and the per-mode branch below
+runs as before.
+
 - **Interactive runs (no `--quiet`):** surface an AskUserQuestion **ALWAYS**
   — findings or not — showing the post-sync `AUDITS=` digest + the `AUDIT_FINDINGS`
   block, options **Continue** (→ portability gate + /ship; if findings>0 append
