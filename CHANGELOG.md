@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.101] - 2026-06-30
+
+### Fixed
+
+- **`scripts/e2e-local.sh` pre-flight now accepts a `claude` OAuth login, not just `ANTHROPIC_API_KEY`** (F000071 follow-up). The local-E2E harness previously hard-required `ANTHROPIC_API_KEY` and SKIPped otherwise — so a developer whose `claude` is signed in via a **claude.ai subscription** (`claude auth login`) could never run it, even though the subprocess build would authenticate fine. Surfaced by actually trying it: on a machine with no key, `claude auth status` reports `loggedIn: true` yet a fresh `claude -p` subprocess can still return `401` (some managed/remote environments don't propagate the session token to a subprocess). So the fix accepts auth from EITHER an explicit `ANTHROPIC_API_KEY` (reliable for a headless subprocess, no probe) OR a `claude auth login` **confirmed by a tiny live probe** — a stored login is not trusted blindly (a `claude -p` that returns an auth error → clean SKIP with an actionable message, never a false pass that provisions a sandbox then 401s mid-build). The probe is `timeout`-guarded (absent on bare macOS) and free on a subscription; it fires ONLY on the login path (API-key + CI + a normal `test.sh` skip it). `tests/e2e-local.test.sh` gains 4 deterministic auth-matrix cases via fake `claude` stubs (no key + not-logged-in → skip; API key → api-key path; logged-in + probe-401 → skip; logged-in + probe-ok → claude-login path) — 11 cases total, still no real Claude. `CLAUDE.md`, `spec/workflow-spec.md` (→ `docs/workflows/`), and `docs/tests/test-hierarchy.md` updated to state the prerequisite is `ANTHROPIC_API_KEY` OR a `claude auth login`.
+
 ## [6.0.100] - 2026-06-30
 
 ### Added

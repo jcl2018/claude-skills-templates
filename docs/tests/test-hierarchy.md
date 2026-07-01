@@ -42,7 +42,7 @@ model-intelligence failure.
 | **Shell unit/integration tests** (`tests/*.test.sh`, esp. `tests/cj-goal-*.test.sh`, `tests/cj-goal-common-*.test.sh`) | The deterministic skeleton: each phase honors its `KEY=VALUE` contract + exit code; the worktree/sync/portability/recap/cleanup/telemetry plumbing; the PR-body splice idiom | Anything Claude-judged (design quality, code correctness, QA verdicts) | plain CI, no model, no API key — the bulk of the real regression net |
 | **`validate.sh` + the contract gates** (Checks 1–28, incl. the `doc-spec` / `test-spec` / `workflow-spec` registries) | Structural integrity: the catalog, the doc/test/workflow contracts, frontmatter, USAGE freshness, portability, and that every orchestrator *has* a `level: workflow` test (**Check 28**) | That the declared tests are *comprehensive*, or that they pass when actually run | plain CI |
 | **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, run by `scripts/eval.sh`) | A **real** `claude --print` run of a workflow's *entry + one gate path* — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | nightly (`eval-nightly.yml`), needs the `ANTHROPIC_API_KEY` secret |
-| **Full happy-path E2E** (topic → scaffold → implement → qa → doc-sync → ship boundary) | The only thing that proves the *whole* workflow produces a correct result | n/a | **local-only, real run via the seam** — `scripts/e2e-local.sh` drives a real `/CJ_goal_task` build through the build-gate auto-answer seam in a sandbox to the `/ship` boundary and emits a **materialized report** (deterministic vs `claude --print`); its deterministic half is CI-tested (`tests/e2e-local.test.sh`), the real run needs gstack + `ANTHROPIC_API_KEY` + `gh` locally. No automated CI E2E (the gstack-in-CI blocker below) |
+| **Full happy-path E2E** (topic → scaffold → implement → qa → doc-sync → ship boundary) | The only thing that proves the *whole* workflow produces a correct result | n/a | **local-only, real run via the seam** — `scripts/e2e-local.sh` drives a real `/CJ_goal_task` build through the build-gate auto-answer seam in a sandbox to the `/ship` boundary and emits a **materialized report** (deterministic vs `claude --print`); its deterministic half is CI-tested (`tests/e2e-local.test.sh`), the real run needs gstack + a `claude` login (`ANTHROPIC_API_KEY` or `claude auth login`) + `gh` locally. No automated CI E2E (the gstack-in-CI blocker below) |
 
 ## What the eval cases honestly prove (and don't)
 
@@ -96,7 +96,7 @@ from real post-run evidence (a new `work-items/tasks/T*/` dir, a non-empty diff,
 the `end_state`) — a row without evidence renders `unverified`, never a false
 pass. Its deterministic half (the SKIP path + the sandbox lib + the report
 generator) is CI-tested with no Claude (`tests/e2e-local.test.sh`); the real run
-is LOCAL-only (needs gstack + `ANTHROPIC_API_KEY` + `gh` + budget) and the harness
+is LOCAL-only (needs gstack + a `claude` login [`ANTHROPIC_API_KEY` or `claude auth login`] + `gh` + budget) and the harness
 is documented as workbench machinery in
 [`workflows/utilities-and-phase-steps.md`](../workflows/utilities-and-phase-steps.md).
 There is still no CI-automated topic-to-PR run (the four-way CI blocker above), so

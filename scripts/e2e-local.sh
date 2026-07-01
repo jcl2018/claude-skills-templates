@@ -7,8 +7,9 @@
 # materialized report distinguishing DETERMINISTIC checks from the claude --print
 # run (tests/e2e-local/reports/<verb>-<UTC-ts>.md + .json).
 #
-# LOCAL-ONLY. Gated on CJ_E2E_LOCAL=1 AND gstack + ANTHROPIC_API_KEY + claude +
-# gh present. With the flag unset or any prerequisite missing it SKIPs (exit 0),
+# LOCAL-ONLY. Gated on CJ_E2E_LOCAL=1 AND gstack + a usable claude login
+# (ANTHROPIC_API_KEY, or a `claude auth login` confirmed by a live probe) + claude
+# + gh present. With the flag unset or any prerequisite missing it SKIPs (exit 0),
 # so CI and a normal `test.sh` stay green/unchanged and never touch a model.
 #
 # SAFETY: the harness activates ONLY the Part-A seam, whose allowlist is
@@ -46,20 +47,47 @@ while [ $# -gt 0 ]; do
 done
 
 # ---- Pre-flight gate: SKIP (exit 0) unless the flag AND all prereqs hold ----
-# This block is what CI + a normal test.sh exercise; it must never reach claude.
-skip() { echo "SKIP: e2e-local — $1 (this harness is local-only; set CJ_E2E_LOCAL=1 with gstack + ANTHROPIC_API_KEY + claude + gh to run)"; exit 0; }
+# In CI + a normal test.sh this SKIPs at the _missing gate below and never reaches
+# claude. The auth block's live probe fires ONLY on the interactive login path
+# (ANTHROPIC_API_KEY unset AND `claude auth status` logged-in), which is itself
+# gated behind the gstack + claude prereqs — so CI (key set) and test.sh (no
+# gstack) never hit it.
+skip() { echo "SKIP: e2e-local — $1 (this harness is local-only; set CJ_E2E_LOCAL=1 with gstack + a usable claude login [ANTHROPIC_API_KEY or 'claude auth login'] + claude + gh to run)"; exit 0; }
 
 [ "${CJ_E2E_LOCAL:-}" = "1" ] || skip "CJ_E2E_LOCAL is not set"
 
 _missing=""
 [ -d "$HOME/.claude/skills/gstack" ] || _missing="$_missing gstack(/ship)"
-[ -n "${ANTHROPIC_API_KEY:-}" ]     || _missing="$_missing ANTHROPIC_API_KEY"
 command -v claude >/dev/null 2>&1   || _missing="$_missing claude"
 command -v gh     >/dev/null 2>&1   || _missing="$_missing gh"
 [ -x "$REPO_ROOT/scripts/cj-e2e-gate.sh" ] || _missing="$_missing cj-e2e-gate.sh(Part-A-seam)"
 if [ -n "$_missing" ]; then
   skip "missing prerequisites:$_missing"
 fi
+
+# Auth: the subprocess `claude -p` build needs USABLE subprocess credentials.
+# Accept an explicit ANTHROPIC_API_KEY (reliable for a headless subprocess) OR a
+# `claude auth login` (claude.ai subscription). A stored login is NOT proof a fresh
+# subprocess can authenticate — some managed/remote environments report
+# loggedIn:true yet a `claude -p` call 401s — so the login path is CONFIRMED with a
+# tiny live probe (free on a subscription), never a false pass. The API-key path
+# skips the probe. `timeout` is used when present (absent on bare macOS).
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  _auth="api-key"
+elif claude auth status 2>/dev/null | grep -qE '"loggedIn"[[:space:]]*:[[:space:]]*true'; then
+  if command -v timeout >/dev/null 2>&1; then
+    _probe=$(timeout 60 claude -p "reply with the single word: ok" --max-budget-usd 0.05 2>&1 || true)
+  else
+    _probe=$(claude -p "reply with the single word: ok" --max-budget-usd 0.05 2>&1 || true)
+  fi
+  if printf '%s' "$_probe" | grep -qiE '401|unauthor|invalid.*credential|failed to authenticate'; then
+    skip "claude reports logged-in but a fresh subprocess could not authenticate (a 'claude -p' probe returned an auth error) — run 'claude auth login' here, or export ANTHROPIC_API_KEY"
+  fi
+  _auth="claude-login"
+else
+  skip "no usable claude credentials — export ANTHROPIC_API_KEY, or run 'claude auth login'"
+fi
+echo "[E2E-LOCAL] auth: $_auth"
 
 # Resolve the topic (arg > case file first non-comment line).
 if [ -z "$TOPIC" ] && [ -f "$CASE_TOPIC_FILE" ]; then
