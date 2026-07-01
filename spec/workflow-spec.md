@@ -538,8 +538,9 @@ sweep is self-healing across runs.)
 
 ### `scripts/e2e-local.sh` — the local happy-path E2E harness
 
-**What:** a LOCAL-only harness (gated on `CJ_E2E_LOCAL=1` plus gstack +
-`ANTHROPIC_API_KEY` + `claude` + `gh`; it SKIPs with a one-line reason otherwise,
+**What:** a LOCAL-only harness (gated on `CJ_E2E_LOCAL=1` plus gstack + a usable
+claude login — `ANTHROPIC_API_KEY`, or a `claude auth login` confirmed by a tiny
+live probe — plus `claude` + `gh`; it SKIPs with a one-line reason otherwise,
 so CI and a normal `test.sh` never touch a model) that runs a REAL `/CJ_goal_task`
 build end to end in a throwaway sandbox — a `mktemp` clone + a `.cj-e2e-sandbox`
 marker + a LOCAL bare origin (accepts push, defeats `gh pr create`) — driven
