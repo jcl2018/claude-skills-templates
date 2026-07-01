@@ -3,7 +3,7 @@ skill-name: "CJ_goal_todo_fix"
 version: 2.2.0
 status: active
 created: "2026-06-01"
-last-updated: "2026-06-28T19:58:52Z"
+last-updated: "2026-07-01T00:43:43Z"
 ---
 
 # Skill Usage: CJ_goal_todo_fix

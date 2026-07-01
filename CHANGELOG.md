@@ -3,6 +3,12 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.99] - 2026-06-30
+
+### Added
+
+- **cj_goal build-gate auto-answer seam — the dormant, CI-green foundation for a local happy-path E2E harness** (F000071 / S000120, Part A). F000070 proved each `CJ_goal_*` workflow's entry + one gate (real eval, gstack-independent); proving the autonomous BUILD runs end to end is blocked in CI four ways and, three adversarial reviews confirmed, by the **AUQ wall** even locally (a headless `claude --print` run halts at the first human-gate AUQ — the autonomy ceiling). The honest path is a LOCAL real run with the cj_goal *build* gates auto-answered under a hard guard — and this ships **Part A only**: the dormant, hard-guarded seam that a follow-on harness will drive. New `scripts/cj-e2e-gate.sh` is a pure verdict helper (`--gate <design-gate|qa-audit> [--digest ...]` → `AUTO=continue|halt|inactive`): it returns `inactive` UNLESS BOTH `CJ_GOAL_E2E_AUTO=1` AND a `.cj-e2e-sandbox` marker at the repo root AND the gate is in the hardcoded allowlist `{design-gate, qa-audit}`; `qa-audit` continues ONLY on a fully-green digest (`doc:ok` AND `test:ok`), else halts (never auto-waives); `design-gate` continues (feature-only). **Safety:** any non-allowlisted gate id (`ship`/merge/`land`/…) → `inactive`, so the seam can NEVER auto-answer a gstack ship/merge/deploy gate — verified. The four `CJ_goal_*` pipelines call it (uniform agent-prose) before the qa-audit checkpoint (design-gate in feature only), generalizing `todo_fix --quiet`'s green-continue into `QUIET=1 OR (helper says continue)` — so a normal run (no flag/marker) is behavior-unchanged. `.cj-e2e-sandbox` is gitignored + `validate.sh` **Check 29** hard-fails if it is ever tracked (the marker-leak guard, the second half of the double guard). Tested by a deterministic `tests/cj-e2e-gate.test.sh` (the 9-case verdict matrix; no Claude) + `validate-check-29`/`test-cj-e2e-gate` units rows. **Deferred follow-on (tracked):** Part B (the `scripts/e2e-local.sh` harness + a grep-backed materialized run report that tags each step deterministic vs `claude --print`) + Part C (a workflow-docs roster entry) — the actual local real run + its report. `CLAUDE.md` + `docs/tests/test-hierarchy.md` document the dormant seam.
+
 ## [6.0.98] - 2026-06-30
 
 ### Added

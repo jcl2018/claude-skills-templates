@@ -1116,6 +1116,28 @@ else
   fi
 fi
 
+# Check 29: the cj_goal local-E2E sandbox marker (.cj-e2e-sandbox) must NEVER be
+# in the tracked tree (HARD). The marker is the second half of the build-gate
+# auto-answer seam's double guard (F000071 Part A / S000120): the seam is active
+# ONLY when CJ_GOAL_E2E_AUTO=1 AND .cj-e2e-sandbox exists at the repo root. The
+# marker is .gitignore'd and only ever exists in a throwaway local-E2E sandbox
+# checkout; if it were ever committed into a real repo, the seam could become
+# live there with only an env flag — defeating the guard. This check makes that
+# impossible by hard-failing whenever git tracks .cj-e2e-sandbox (anywhere in the
+# tree). Engine: `git ls-files` (the committed/staged tree, not the working dir),
+# so a gitignored-but-present marker in a sandbox passes cleanly.
+echo ""
+echo "=== Check 29: cj_goal E2E sandbox marker absent from the tracked tree ==="
+C29_TRACKED=$(git -C "$REPO_ROOT" ls-files -- '.cj-e2e-sandbox' '**/.cj-e2e-sandbox' 2>/dev/null || true)
+if [ -n "$C29_TRACKED" ]; then
+  echo "  ERROR: .cj-e2e-sandbox is in the tracked tree — the cj_goal E2E seam marker must never be committed"
+  printf '%s\n' "$C29_TRACKED" | while IFS= read -r _mk; do echo "    tracked: $_mk"; done
+  echo "    Remove it: git rm --cached <path> (the marker belongs only in a throwaway local-E2E sandbox; it is .gitignore'd)"
+  ERRORS=$((ERRORS+1))
+else
+  pass ".cj-e2e-sandbox is not tracked (the E2E build-gate seam guard marker cannot ship)"
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

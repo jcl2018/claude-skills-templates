@@ -712,6 +712,44 @@ else
   fail_test "Check 28: test-spec.sh --check-workflow-coverage did not report findings=0 on the live tree"
 fi
 
+# Step 3h (F000071 / S000120 / Check 29): the cj_goal E2E sandbox marker-absence
+# guard. THE PARALLEL test.sh EDIT the new validate.sh Check 29 needs —
+# pre-flighted in lockstep with the check add (the standing F000032/34/35
+# zzz-mirror blind spot that bit Check 25/26/27/28 too, defused here for Check
+# 29). Check 29 hard-fails when git tracks .cj-e2e-sandbox (the build-gate seam's
+# guard marker, which must never ship). It is NOT a generated-doc diff, so the
+# negative path plants a TRACKED marker (git add -f, since the marker is
+# gitignored) and asserts validate.sh exits non-zero AND emits the literal Check
+# 29 ERROR, then untracks + removes it and asserts validate.sh exits 0 again.
+# POSITIVE: on the live tree (no tracked marker) Check 29 PASSes. The marker is
+# untracked + removed in a cleanup that runs regardless, so it never leaks into a
+# later test or the working tree.
+_C29_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
+if echo "$_C29_OUT_OK" | grep -qF "  PASS: .cj-e2e-sandbox is not tracked"; then
+  ok "Check 29: cj_goal E2E sandbox marker is absent from the tracked tree on the live tree (PASS)"
+else
+  fail_test "Check 29: validate.sh did not emit the Check-29 PASS on the live tree; output: $_C29_OUT_OK"
+fi
+touch "$REPO_ROOT/.cj-e2e-sandbox"
+git -C "$REPO_ROOT" add -f .cj-e2e-sandbox >/dev/null 2>&1
+if _C29_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
+  fail_test "Check 29: validate.sh should have exited non-zero with a tracked .cj-e2e-sandbox, but exited 0"
+else
+  if echo "$_C29_OUT" | grep -qF "  ERROR: .cj-e2e-sandbox is in the tracked tree"; then
+    ok "Check 29: a tracked .cj-e2e-sandbox triggers the marker ERROR + non-zero exit"
+  else
+    fail_test "Check 29: validate.sh exited non-zero but missing '  ERROR: .cj-e2e-sandbox is in the tracked tree'; output: $_C29_OUT"
+  fi
+fi
+# Cleanup (runs regardless of the assertions above): untrack + remove the marker.
+git -C "$REPO_ROOT" rm --cached -f .cj-e2e-sandbox >/dev/null 2>&1 || true
+rm -f "$REPO_ROOT/.cj-e2e-sandbox"
+if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
+  ok "Check 29: validate.sh exits 0 again after the tracked marker is removed"
+else
+  fail_test "Check 29: validate.sh should have exited 0 after the tracked .cj-e2e-sandbox was removed, but exited non-zero"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -1789,6 +1827,24 @@ if bash "$REPO_ROOT/tests/cj-goal-pr-body-splice-guard.test.sh" >/dev/null 2>&1;
 else
   _cgpbsg_rc=$?
   fail_test "tests/cj-goal-pr-body-splice-guard.test.sh failed (rc=$_cgpbsg_rc) — run \`bash tests/cj-goal-pr-body-splice-guard.test.sh\` directly to see"
+fi
+
+# F000071 Part A / S000120: the build-gate auto-answer seam verdict helper
+# (scripts/cj-e2e-gate.sh). The seam is dormant unless a double hard guard holds
+# (CJ_GOAL_E2E_AUTO=1 AND a .cj-e2e-sandbox marker at the repo root) AND the gate
+# id is in the {design-gate, qa-audit} allowlist; the qa-audit auto-continue
+# reuses todo_fix --quiet's green-only predicate (continue ONLY on doc:ok,test:ok;
+# any findings → halt). This deterministic test asserts the whole verdict matrix
+# in throwaway sandboxes (no Claude). Registration is MANDATORY — scripts/test.sh
+# discovery is hand-written, NOT glob-based; an unregistered tests/*.test.sh
+# silently never runs.
+echo ""
+echo "Running tests/cj-e2e-gate.test.sh (build-gate auto-answer seam verdict matrix)..."
+if bash "$REPO_ROOT/tests/cj-e2e-gate.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-e2e-gate.test.sh: verdict matrix passes (flag/marker/allowlist/green-digest guard, design-gate auto-approve)"
+else
+  _ceg_rc=$?
+  fail_test "tests/cj-e2e-gate.test.sh failed (rc=$_ceg_rc) — run \`bash tests/cj-e2e-gate.test.sh\` directly to see"
 fi
 
 # Regression test (F000011 fix, Approach A): the post-merge git hook installed by
