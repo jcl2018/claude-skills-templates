@@ -66,25 +66,26 @@ blocked_by: ""
 <!-- What "done" looks like for this feature. Each criterion should be
      testable and specific. -->
 
-- [ ] **Part A (this story, S000120):** the `scripts/cj-e2e-gate.sh` verdict helper lands; the four cj_goal pipelines branch on it with uniform seam prose; `.cj-e2e-sandbox` is gitignored AND a `validate.sh` marker-absence check hard-fails if it is tracked; `tests/cj-e2e-gate.test.sh` asserts the verdict matrix (no Claude); a normal run is behavior-unchanged; CI-green.
-- [ ] **Part B (TRACKED FOLLOW-ON — NOT in this feature's current scope):** `scripts/e2e-local.sh` runs a real `/CJ_goal_task` build in a sandbox unattended via the seam, stops at the `/ship` boundary (no real PR), and writes a materialized run report (md + json) distinguishing deterministic vs claude-print steps.
-- [ ] **Part C (TRACKED FOLLOW-ON — NOT in this feature's current scope):** a workflow-docs roster entry (extending `docs/workflows/utilities-and-phase-steps.md`) documents the harness; `docs/tests/test-hierarchy.md` is updated; Check 27 green; no work-item IDs in human-docs.
-- [ ] The seam NEVER touches ship/merge/deploy gates; `validate.sh` 0 errors; `test.sh` green.
+- [x] **Part A (S000120, SHIPPED v6.0.99):** the `scripts/cj-e2e-gate.sh` verdict helper lands; the four cj_goal pipelines branch on it with uniform seam prose; `.cj-e2e-sandbox` is gitignored AND a `validate.sh` marker-absence check hard-fails if it is tracked; `tests/cj-e2e-gate.test.sh` asserts the verdict matrix (no Claude); a normal run is behavior-unchanged; CI-green.
+- [x] **Part B (S000121):** `scripts/e2e-local.sh` runs a real `/CJ_goal_task` build in a sandbox unattended via the seam, stops at the `/ship` boundary (no real PR), and writes a materialized run report (md + json) distinguishing deterministic vs claude-print steps. Deterministic half CI-tested (`tests/e2e-local.test.sh`); the real run is a LOCAL manual E2E.
+- [x] **Part C (S000121):** a workflow-docs roster entry (extending `docs/workflows/utilities-and-phase-steps.md`) documents the harness; `docs/tests/test-hierarchy.md` is updated; Check 27 green; no work-item IDs in human-docs.
+- [x] The seam NEVER touches ship/merge/deploy gates; `validate.sh` 0 errors; `test.sh` green.
 
 ## Todos
 
 <!-- Actionable items for this feature. Break into child tasks for
      large features. -->
 
-- [ ] Ship S000120 (Part A — the dormant build-gate auto-answer seam)
-- [ ] Scaffold + ship Part B follow-on (the local-E2E harness + materialized report)
-- [ ] Scaffold + ship Part C follow-on (workflow-docs roster entry + test-hierarchy update)
+- [x] Ship S000120 (Part A — the dormant build-gate auto-answer seam) — SHIPPED v6.0.99
+- [x] Scaffold + ship Part B follow-on (the local-E2E harness + materialized report) — S000121
+- [x] Scaffold + ship Part C follow-on (workflow-docs roster entry + test-hierarchy update) — S000121
 
 ## Log
 
 <!-- Chronological entries with dates and commit SHAs. -->
 
 - 2026-06-30: Created. cj_goal local happy-path E2E harness — Part A scaffolded as child story S000120 (the dormant, CI-green build-gate auto-answer seam); Parts B and C captured as tracked follow-on.
+- 2026-06-30: Part A (S000120) shipped as v6.0.99 (PR #302). Parts B + C built as child story S000121 (the local-E2E harness `scripts/e2e-local.sh` + `lib/{sandbox,report}.sh` + the deterministic smoke `tests/e2e-local.test.sh`, the materialized report, the workflow-docs roster entry, and the test-hierarchy update). validate.sh 0 errors; test.sh green.
 
 ## PRs
 

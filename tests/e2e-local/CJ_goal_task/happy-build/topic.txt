@@ -1,0 +1,13 @@
+# The task topic the local-E2E harness drives through /CJ_goal_task.
+#
+# It MUST be a genuinely tiny, NON-sensitive, NON-doc change:
+#   * non-sensitive — must not touch skills-catalog.json, tests/*.test.sh,
+#     validate.sh, test.sh, or a skill dir (else the build can halt at [impl-red]
+#     or the handoff gate before it reaches the qa-audit boundary we want to test).
+#   * non-doc — must not edit anything under docs/ or a human-doc (else a
+#     doc-audit finding appears at the post-sync audit checkpoint).
+# A scratch fixture under tests/e2e-local/fixtures/ satisfies both: it is not a
+# doc, not a registered surface, and not swept by any validate check.
+#
+# The first non-comment line below is the topic passed to /CJ_goal_task.
+Append a single dated note line to the scratch fixture file tests/e2e-local/fixtures/scratch.txt (create it if missing). This is a deliberately trivial, non-sensitive, non-doc change whose only purpose is to exercise the cj_goal build pipeline end to end.

@@ -1847,6 +1847,24 @@ else
   fail_test "tests/cj-e2e-gate.test.sh failed (rc=$_ceg_rc) — run \`bash tests/cj-e2e-gate.test.sh\` directly to see"
 fi
 
+# F000071 Part B / S000121: the local-E2E harness (scripts/e2e-local.sh +
+# tests/e2e-local/lib/{sandbox,report}.sh). This runs the harness's DETERMINISTIC
+# half only (no Claude, no gstack, no API key): the SKIP path (flag unset →
+# exit 0, no claude), the sandbox provision/teardown, the materialized report
+# generator on synthetic evidence (DETERMINISTIC-vs-claude-print rows; a missing
+# evidence row renders `unverified`, never a false pass), and the gitignore
+# posture. The REAL /CJ_goal_task run is a LOCAL manual E2E and is deliberately
+# NOT invoked here. Registration is MANDATORY — scripts/test.sh discovery is
+# hand-written, NOT glob-based; an unregistered tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/e2e-local.test.sh (local-E2E harness deterministic half)..."
+if bash "$REPO_ROOT/tests/e2e-local.test.sh" >/dev/null 2>&1; then
+  ok "tests/e2e-local.test.sh: SKIP path + sandbox lib + report generator + gitignore posture all pass (real run is local-only)"
+else
+  _eel_rc=$?
+  fail_test "tests/e2e-local.test.sh failed (rc=$_eel_rc) — run \`bash tests/e2e-local.test.sh\` directly to see"
+fi
+
 # Regression test (F000011 fix, Approach A): the post-merge git hook installed by
 # setup-hooks.sh must redeploy skills (Section 1) but NOT auto-edit work-item
 # trackers. The former Phase-3 lifecycle-gate block dirtied main on every

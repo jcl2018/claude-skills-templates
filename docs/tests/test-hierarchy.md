@@ -42,7 +42,7 @@ model-intelligence failure.
 | **Shell unit/integration tests** (`tests/*.test.sh`, esp. `tests/cj-goal-*.test.sh`, `tests/cj-goal-common-*.test.sh`) | The deterministic skeleton: each phase honors its `KEY=VALUE` contract + exit code; the worktree/sync/portability/recap/cleanup/telemetry plumbing; the PR-body splice idiom | Anything Claude-judged (design quality, code correctness, QA verdicts) | plain CI, no model, no API key — the bulk of the real regression net |
 | **`validate.sh` + the contract gates** (Checks 1–28, incl. the `doc-spec` / `test-spec` / `workflow-spec` registries) | Structural integrity: the catalog, the doc/test/workflow contracts, frontmatter, USAGE freshness, portability, and that every orchestrator *has* a `level: workflow` test (**Check 28**) | That the declared tests are *comprehensive*, or that they pass when actually run | plain CI |
 | **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, run by `scripts/eval.sh`) | A **real** `claude --print` run of a workflow's *entry + one gate path* — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | nightly (`eval-nightly.yml`), needs the `ANTHROPIC_API_KEY` secret |
-| **Full happy-path E2E** (topic → office-hours → scaffold → implement → qa → doc-sync → ship → PR) | The only thing that proves the *whole* workflow produces a correct result | n/a | **partially seeded** — the dormant build-gate auto-answer **seam** has landed (`scripts/cj-e2e-gate.sh` + uniform prose in the four pipelines + `tests/cj-e2e-gate.test.sh`); the local-E2E **harness**, its grep-backed run **report**, and the workflow docs are the tracked follow-on (see the gap below) |
+| **Full happy-path E2E** (topic → scaffold → implement → qa → doc-sync → ship boundary) | The only thing that proves the *whole* workflow produces a correct result | n/a | **local-only, real run via the seam** — `scripts/e2e-local.sh` drives a real `/CJ_goal_task` build through the build-gate auto-answer seam in a sandbox to the `/ship` boundary and emits a **materialized report** (deterministic vs `claude --print`); its deterministic half is CI-tested (`tests/e2e-local.test.sh`), the real run needs gstack + `ANTHROPIC_API_KEY` + `gh` locally. No automated CI E2E (the gstack-in-CI blocker below) |
 
 ## What the eval cases honestly prove (and don't)
 
@@ -86,13 +86,23 @@ under a double hard guard (`CJ_GOAL_E2E_AUTO=1` **and** a `.cj-e2e-sandbox`
 marker) — auto-answers ONLY the two cj_goal *build* gates (design-gate,
 qa-audit), never the ship/merge/deploy gates. It is CI-green and fully
 unit-tested (`tests/cj-e2e-gate.test.sh`), and changes no normal run's behavior
-(the helper prints `inactive`). The follow-on — a local-only **harness** that
-drives a real `/CJ_goal_task` build through the seam in a sandbox and emits a
-grep-backed run **report** distinguishing deterministic checks from the
-`claude --print` parts, plus the workflow docs that make the harness
-discoverable — is the tracked next step. Until then, "does the whole workflow
-work end to end" is still verified by **running it**: a quick
-`/CJ_goal_feature --dry-run "<topic>"` smoke, or a real throwaway run.
+(the helper prints `inactive`). The follow-on has now landed: a local-only
+**harness** (`scripts/e2e-local.sh`) that drives a real `/CJ_goal_task` build
+through the seam in a sandbox (a `mktemp` clone + the marker + a LOCAL bare origin
+that defeats `gh pr create`), stops at the `/ship` boundary, and emits a
+**materialized report** (`tests/e2e-local/reports/<verb>-<ts>.md` + `.json`) whose
+rows are labelled DETERMINISTIC vs `claude --print` and whose outcome is derived
+from real post-run evidence (a new `work-items/tasks/T*/` dir, a non-empty diff,
+the `end_state`) — a row without evidence renders `unverified`, never a false
+pass. Its deterministic half (the SKIP path + the sandbox lib + the report
+generator) is CI-tested with no Claude (`tests/e2e-local.test.sh`); the real run
+is LOCAL-only (needs gstack + `ANTHROPIC_API_KEY` + `gh` + budget) and the harness
+is documented as workbench machinery in
+[`workflows/utilities-and-phase-steps.md`](../workflows/utilities-and-phase-steps.md).
+There is still no CI-automated topic-to-PR run (the four-way CI blocker above), so
+"does the whole workflow work end to end" is verified by **running the harness
+locally**, or, without the prerequisites, by a quick
+`/CJ_goal_feature --dry-run "<topic>"` smoke.
 
 ## How to run each layer
 
@@ -105,6 +115,8 @@ bash scripts/test-spec.sh --check-workflow-coverage   # orchestrators ↔ behavi
 # A real workflow run via Claude (needs ANTHROPIC_API_KEY):
 bash scripts/eval.sh CJ_goal_task        # or read tests/eval/CJ_goal_task/halt-too-complex/
 
-# The whole happy path (manual, until the E2E lands):
-# /CJ_goal_feature --dry-run "<topic>"   # or a real throwaway run
+# The whole happy path, real, to the /ship boundary (LOCAL — needs gstack + key + gh):
+CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh # provisions a sandbox, drives /CJ_goal_task, writes a report
+bash tests/e2e-local.test.sh             # the harness's deterministic half (no Claude, CI-green)
+# Without the prerequisites: /CJ_goal_feature --dry-run "<topic>"  # a plan-only smoke
 ```
