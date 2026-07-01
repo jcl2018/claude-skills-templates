@@ -58,6 +58,30 @@ and never halts the calling run. (A feature run does NOT sweep its own worktree 
 its PR is still OPEN at the PR-stop — so the *next* `cj_goal` run clears it; the
 sweep is self-healing across runs.)
 
+### `scripts/e2e-local.sh` — the local happy-path E2E harness
+
+**What:** a LOCAL-only harness (gated on `CJ_E2E_LOCAL=1` plus gstack +
+`ANTHROPIC_API_KEY` + `claude` + `gh`; it SKIPs with a one-line reason otherwise,
+so CI and a normal `test.sh` never touch a model) that runs a REAL `/CJ_goal_task`
+build end to end in a throwaway sandbox — a `mktemp` clone + a `.cj-e2e-sandbox`
+marker + a LOCAL bare origin (accepts push, defeats `gh pr create`) — driven
+unattended through the build gates by the build-gate auto-answer seam
+(`scripts/cj-e2e-gate.sh`), stopping at the `/ship` boundary. Every run writes a
+**materialized report** (`tests/e2e-local/reports/<verb>-<UTC-ts>.md` + a `.json`
+sibling) whose coverage rows are each labelled DETERMINISTIC (asserted in shell)
+vs `claude --print` (the real model run) and whose Outcome is DERIVED from real
+post-run evidence (a new `work-items/tasks/T*/` dir, a non-empty diff, the run's
+`end_state`) — a row without evidence renders `unverified`, never a false pass.
+Its deterministic half (the SKIP path, the sandbox lib, the report generator) is
+unit-tested with no Claude by `tests/e2e-local.test.sh`. **Why:** the automated
+happy-path E2E is blocked in CI four ways (gstack absent, the read-only eval tool
+grant, the per-case budget, the interactive AUQs) and, even locally, by the AUQ
+wall; a LOCAL real run with the *build* gates auto-answered under the Part-A seam
+(NEVER the ship/merge/deploy gates — the seam's allowlist is `{design-gate,
+qa-audit}`) is the honest proof, and the report makes its coverage legible instead
+of a bare checkmark. It never auto-ships: the sandbox's no-remote bare origin is
+the sole auto-ship backstop, and the seam can never answer a ship/merge/deploy gate.
+
 ### `/CJ_document-release` — the Step 5.5 doc-sync wrapper
 
 **What:** the inline doc-sync step every orchestrator runs at **Step 5.5**,

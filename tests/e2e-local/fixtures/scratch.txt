@@ -1,0 +1,5 @@
+# Scratch fixture for the local-E2E harness (tests/e2e-local/CJ_goal_task/happy-build).
+# The harness's /CJ_goal_task run appends a trivial dated note line below this
+# header inside the sandbox clone — a deliberately benign, non-sensitive, non-doc
+# change used only to exercise the cj_goal build pipeline end to end. This seed
+# file is never modified in the real repo; only the sandbox copy is edited.

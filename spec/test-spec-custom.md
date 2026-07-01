@@ -653,6 +653,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The full verdict matrix of the build-gate auto-answer seam helper (scripts/cj-e2e-gate.sh): flag-only and marker-only both inactive, both-guards + green qa-audit continues, both-guards + findings/empty qa-audit halts (never auto-waive), a non-allowlisted gate id stays inactive, design-gate auto-approves — all deterministic, no Claude."
+  - id: test-e2e-local
+    family: test
+    label: "e2e-local suite — local happy-path E2E harness deterministic half"
+    anchor: "tests/e2e-local.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The DETERMINISTIC (no-Claude) half of the local-E2E harness (scripts/e2e-local.sh + tests/e2e-local/lib/{sandbox,report}.sh): the SKIP path when CJ_E2E_LOCAL is unset OR a prerequisite is absent (exit 0, never reaches claude), the sandbox provision/teardown (a mktemp clone + a .cj-e2e-sandbox marker + a LOCAL bare origin that defeats gh pr create), the materialized report generator on synthetic evidence (DETERMINISTIC-vs-claude-print rows, a json sibling, and a missing-evidence row rendering `unverified` never a false pass), and the gitignore posture (reports/ ignored except a tracked EXAMPLE.md). The REAL /CJ_goal_task run is a LOCAL manual E2E, not asserted here."
   - id: test-setup-hooks
     family: test
     label: "setup-hooks suite — git hook installer"

@@ -28,3 +28,9 @@
 # in a throwaway sandbox checkout; validate.sh Check 29 hard-fails if it appears
 # in the tracked tree.
 .cj-e2e-sandbox
+
+# cj_goal local-E2E run reports (F000071 Part B) — per-run artifacts written by
+# scripts/e2e-local.sh. They are NOT tracked, except the committed EXAMPLE.md
+# sample (so the report format is reviewable in a PR).
+tests/e2e-local/reports/*
+!tests/e2e-local/reports/EXAMPLE.md
