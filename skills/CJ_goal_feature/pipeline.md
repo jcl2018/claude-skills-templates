@@ -117,7 +117,6 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: would write a compact office-hours phase receipt to .cj-goal-feature/<branch>.office-hours.receipt and source the Step 2.7 design-summary digest FROM it (F000053/S000095)"
   echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — audit deferred to post-sync) as SILENT leaf Agent subagents (no AUQ)"
   echo "DRY RUN: would make an idempotent pre-doc-sync commit (Step 3.5; skip on a clean tree), then run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red), then ONE combined read-only post-sync audit subagent (Step 5.6: /CJ_doc_audit + /CJ_test_audit), then the QA-audit checkpoint (Step 3.4) on that POST-sync report"
-  echo "DRY RUN: would run the portability-audit gate (halt-on-red) before /ship (cj-goal-common.sh --phase portability-audit)"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR (the merge stays manual; no deploy)"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute; a verbatim re-run resumes from the recorded phase."
   echo "Suggested resume: /CJ_goal_feature \"$TOPIC\""
@@ -659,8 +658,8 @@ halt marker — do NOT mint a new one), end_state `halted_at_qa`, `pr_url=N/A`,
 
 On green: record the qa boundary, then continue to Step 3.5 (the pre-doc-sync
 commit), then Step 5.5 (Doc-sync), then Step 5.6 (the post-sync audit), then
-Step 3.4 (the QA-audit checkpoint, fed by the post-sync audit), then Step 5.7
-(portability), then Step 4 (/ship).
+Step 3.4 (the QA-audit checkpoint, fed by the post-sync audit), then Step 4
+(/ship).
 
 ### Step 3.5: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
 
@@ -772,8 +771,7 @@ esac
 ```
 
 Only on green or green-noop does control proceed to Step 5.6 (the post-sync
-audit), then Step 3.4 (the QA-audit checkpoint), then the portability gate, then
-Step 4 (/ship).
+audit), then Step 3.4 (the QA-audit checkpoint), then Step 4 (/ship).
 
 ### Step 5.6: Post-sync doc/test audit (NEW — ONE combined read-only subagent)
 
@@ -864,7 +862,7 @@ ship budget; a green digest is a one-glance Continue):
 > {AUDIT_FINDINGS block, verbatim}
 >
 > Options:
-> - Continue — proceed to the portability gate + /ship
+> - Continue — proceed to /ship
 > - Halt — stop the run here; I want to act on these findings first
 
 **On Continue:** if either audit reported findings (`doc:findings:n` or
@@ -876,7 +874,7 @@ work-item tracker journal BEFORE proceeding:
 ```
 
 (on a fully-green digest no waiver line is written — there is nothing to
-waive). Continue to Step 5.7 (portability).
+waive). Continue to Step 4 (/ship).
 
 **On Halt:** append the decline + the family-contract fields to
 `$RESUME_DIR/.resume.log`, write telemetry, and exit:
@@ -902,84 +900,6 @@ always-re-dispatch rule), re-runs the pre-doc-sync commit (idempotent),
 doc-sync, and the post-sync audit, and the checkpoint re-fires on the fresh
 post-sync digest. Canonical gate row: `qa-audit` (order 45) in
 `spec/test-spec-custom.md`.
-
-### Step 5.7: Portability gate (INLINE — halt-on-red before /ship; F000051)
-
-Runs immediately after the Step 5.5 doc-sync handler and immediately before
-`/ship`. The catalog/skills are final after implement; doc-sync only touched
-docs — so this is the last readiness check before the PR, and it keeps the
-verdict fresh for the Step 4.6 PR-body surfacing. The gate is a **pure read**
-(it records NO phase boundary and is unconditionally re-run on every resume),
-so a resume after a `[portability-red]` halt restarts here, not at ship; no
-`last_completed_phase` value is added for it.
-
-Call the shared `cj-goal-common.sh --phase portability-audit --mode feature`
-(the audit is verb-independent; `--mode` is telemetry-only here). It runs the
-`cj-portability-audit.sh` engine under `PORTABILITY_STRICT=1` and classifies the
-result into `ok` / `findings` / `skipped`:
-
-```bash
-_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
-_PORT_RESULT="skipped"; _PORT_VERDICT=""
-if [ -x "$_COMMON" ]; then
-  _PORT_OUT=$(bash "$_COMMON" --phase portability-audit --mode feature 2>/dev/null) && _PORT_RC=0 || _PORT_RC=$?
-  _PORT_RESULT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^PHASE_RESULT=//p' | head -1)
-  _PORT_VERDICT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^VERDICT_LINE=//p' | head -1)
-  [ -z "$_PORT_RESULT" ] && _PORT_RESULT="skipped"
-else
-  echo "[portability] cj-goal-common.sh unreachable — skipping the portability gate (best-effort)"
-fi
-```
-
-- On `PHASE_RESULT=ok`: write `VERDICT_LINE` to the scratch file
-  `.cj-goal-feature/portability-verdict.md` (sibling of
-  `registered-doc-verdicts.md`, gitignored) and continue to Step 4 (/ship):
-
-```bash
-if [ "$_PORT_RESULT" = "ok" ]; then
-  mkdir -p "$_REPO_ROOT/.cj-goal-feature" 2>/dev/null || true
-  printf '### Portability\n\n%s\n' "$_PORT_VERDICT" > "$_REPO_ROOT/.cj-goal-feature/portability-verdict.md"
-  echo "[portability] $_PORT_VERDICT — continuing to /ship"
-fi
-```
-
-- On `PHASE_RESULT=skipped` (engine absent / helper unreachable): echo a visible
-  note and continue to Step 4 — no halt, no scratch write:
-
-```bash
-if [ "$_PORT_RESULT" = "skipped" ]; then
-  echo "[portability] gate skipped (engine absent) — continuing to /ship (best-effort, not halting)"
-fi
-```
-
-- On `PHASE_RESULT=findings`: **HALT** with `[portability-red]` (end_state
-  `halted_at_portability`). A touched skill declares a portability tier it does
-  not honor; no PR is created (the gate halts BEFORE `/ship`), so the findings
-  live in the halt journal:
-
-```bash
-if [ "$_PORT_RESULT" = "findings" ]; then
-  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  mkdir -p "$RESUME_DIR" 2>/dev/null || true
-  printf '%s\n' "$_PORT_OUT" > "$RAW_DIR/portability-raw.txt" 2>/dev/null || true
-  cat >> "$RESUME_DIR/.resume.log" <<EOF
-- $TS [portability-red] cj-goal-common.sh --phase portability-audit returned PHASE_RESULT=findings; halt class halted_at_portability. $_PORT_VERDICT
-  next_action=A touched skill declares a portability tier it does not honor. Relabel its 'portability' in skills-catalog.json to the tier its deps need, OR add the accepted dep to its 'portability_requires'. Then re-run.
-  resume_cmd=/CJ_goal_feature "$TOPIC"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/portability-raw.txt
-EOF
-  echo "Why it stopped: the portability audit found a skill that declares a portability tier it does not honor (a dishonest declaration); the gate blocks the PR until it is reconciled."
-  echo "State preserved: code + doc commits intact; no PR created; resume state at $RESUME_STATE."
-  echo "Next: relabel the skill's 'portability' (or add to 'portability_requires') in skills-catalog.json, then /CJ_goal_feature \"$TOPIC\""
-  jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_portability" \
-    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_feature"}' \
-    >> "$TELEMETRY" 2>/dev/null || true
-  exit 1
-fi
-```
-
-Only on `ok` or `skipped` does control proceed to Step 4 (/ship).
 
 ## Step 4: /ship (INLINE — diff-review AUQ suppressed; opens a PR)
 
@@ -1032,41 +952,26 @@ verdict (`/CJ_goal_feature` here, `/CJ_goal_defect` Step 9.5,
 has a short review window; the verdict also lands in the run output + the scratch
 file + `/ship` Gate #2). The Step 6.7 producer is shared by all three regardless.
 
-The same step ALSO splices the green portability verdict (`### Portability`,
-written by the Step 5.7 gate to `.cj-goal-feature/portability-verdict.md`) into
-the same `## Documentation` section — identical best-effort posture.
-
 ```bash
 _VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
-_PORT_VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/portability-verdict.md"
-if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE" ]; }; then
+if [ -n "$PR_NUMBER" ] && [ -f "$_VERDICT_FILE" ]; then
   # Read the current PR body, then insert-or-replace the
-  # '### Registered-doc requirements' + '### Portability' subsections under
-  # '## Documentation'.
+  # '### Registered-doc requirements' subsection under '## Documentation'.
   _BODY=$(gh pr view "$PR_NUMBER" --json body -q .body 2>/dev/null || echo "")
-  _VERDICTS=""
-  [ -f "$_VERDICT_FILE" ] && _VERDICTS=$(cat "$_VERDICT_FILE")
-  _PORT=""
-  [ -f "$_PORT_VERDICT_FILE" ] && _PORT=$(cat "$_PORT_VERDICT_FILE")
-  # Combine the two blocks (either may be empty) into one insert payload.
-  if [ -n "$_VERDICTS" ] && [ -n "$_PORT" ]; then
-    _INSERT=$(printf '%s\n\n%s' "$_VERDICTS" "$_PORT")
-  else
-    _INSERT="${_VERDICTS}${_PORT}"
-  fi
+  _INSERT=""
+  [ -f "$_VERDICT_FILE" ] && _INSERT=$(cat "$_VERDICT_FILE")
 
   # Idempotent splice (replace-if-present): strip any existing
-  # '### Registered-doc requirements' OR '### Portability' block (each up to the
-  # next '###'/'##' or EOF), then insert the fresh blocks under the
-  # '## Documentation' heading (appending the section if absent). Composed in
-  # temp files + applied via `gh pr edit --body-file` — NEVER `awk -v v="$_INSERT"`
-  # with a multi-line payload: BSD/macOS awk rejects a newline in a -v value
-  # ("newline in string"), which empties the substitution and lets the edit WIPE
-  # the PR body (hit live on PR #259; fixed by T000053).
+  # '### Registered-doc requirements' block (up to the next '###'/'##' or EOF),
+  # then insert the fresh block under the '## Documentation' heading (appending
+  # the section if absent). Composed in temp files + applied via
+  # `gh pr edit --body-file` — NEVER `awk -v v="$_INSERT"` with a multi-line
+  # payload: BSD/macOS awk rejects a newline in a -v value ("newline in
+  # string"), which empties the substitution and lets the edit WIPE the PR body
+  # (hit live on PR #259; fixed by T000053).
   _STRIPPED_FILE=$(mktemp); _INSERT_FILE=$(mktemp); _BODY_FILE=$(mktemp)
   printf '%s\n' "$_BODY" | awk '
     /^### Registered-doc requirements/ {skip=1; next}
-    /^### Portability/ {skip=1; next}
     skip && /^#{2,3} / {skip=0}
     !skip {print}
   ' > "$_STRIPPED_FILE"
@@ -1093,9 +998,9 @@ if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE
   done
   rm -f "$_STRIPPED_FILE" "$_INSERT_FILE" "$_BODY_FILE"
   if [ "$_SPLICED" = "1" ]; then
-    echo "[registered-doc] surfaced verdicts into PR #$PR_NUMBER body (## Documentation → ### Registered-doc requirements + ### Portability)"
+    echo "[registered-doc] surfaced verdicts into PR #$PR_NUMBER body (## Documentation → ### Registered-doc requirements)"
   else
-    echo "[registered-doc] PR-body splice did not verify after retry — verdicts remain in the run output + the scratch files (best-effort, not halting)"
+    echo "[registered-doc] PR-body splice did not verify after retry — verdicts remain in the run output + the scratch file (best-effort, not halting)"
   fi
 else
   echo "[registered-doc] no verdict scratch file (or no PR#) — skipping PR-body surfacing (best-effort, not halting)"
@@ -1235,7 +1140,7 @@ Every exit path (success OR halt) writes a single telemetry line to
 `halted_at_no_arg`, `halted_at_not_isolated`, `halted_at_officehours`,
 `halted_at_design_gate`, `halted_at_scaffold`, `halted_at_impl`,
 `halted_at_qa`, `halted_at_qa_audit`, `halted_at_doc_sync`,
-`halted_at_portability`, `halted_at_ship`.
+`halted_at_ship`.
 
 Add any new halt with: (a) a journal / `.resume.log` entry in the appropriate
 Step, (b) a telemetry write before exit, (c) a row in SKILL.md's halt-taxonomy

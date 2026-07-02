@@ -20,10 +20,7 @@ non-interactive steps, selected by a `--phase` flag. The phases are `worktree`
 `sync` (the pre-build skills-sync — reuses `post-land-sync.sh`'s guarded pull +
 install core so installed skills match trunk at build start), `pr-check` (resolve
 a PR's live state for resume + cleanup gating), `cleanup` (the post-run worktree
-janitor, delegating to `cj-worktree-cleanup.sh`), `portability-audit` (the
-pre-ship portability gate — runs `cj-portability-audit.sh` STRICT and classifies
-the result into `ok` / `findings` / `skipped`, so a dishonest skill portability
-declaration HALTs the run before the PR), and `telemetry` (append one JSONL
+janitor, delegating to `cj-worktree-cleanup.sh`), and `telemetry` (append one JSONL
 receipt to `~/.gstack/analytics/<verb>.jsonl`). **Why:** it factors the
 deterministic machinery out of all three orchestrators so they share one tested
 implementation instead of each re-deriving the worktree/sync/cleanup/telemetry

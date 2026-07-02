@@ -339,7 +339,7 @@ EOF
 # Parse one file's gates[] block into TSV rows:
 #   id<TAB>layer<TAB>order<TAB>disposition<TAB>backing_present<TAB>markers_blob
 # markers_blob is a space-separated list of `mode=value` tokens, where value is
-# either a bracket literal (e.g. [portability-red]) or `enforced_by:<kind>`.
+# either a bracket literal (e.g. [doc-sync-red]) or `enforced_by:<kind>`.
 # Ported intact from the retired scripts/gate-spec.sh _parse_gates. Scoped
 # within the top-level `gates:` block. backing_present is 1 when a `backing:`
 # key was seen (its value can be free text, so only presence is recorded).

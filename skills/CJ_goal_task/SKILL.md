@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_task
-description: "Small-ad-hoc-task-to-reviewable-PR orchestrator (F000054 `task` verb; experimental). The lightweight sibling of /CJ_goal_feature: takes a plain free-text `\"<small task>\"` (refine a doc, add a file, clean up some files, a one-line fix), runs a HARD complexity gate (refuses design-rework topics → routes to /CJ_goal_feature, refuses bug/investigation topics → routes to /CJ_goal_defect, refuses explicit-large-scope topics; HALTs as halted_at_too_complex), creates a `cj-task-*` worktree, then SILENTLY (one checkpoint AUQ — the QA audit findings) bash-scaffolds a `type: task` work-item (T-ID) directly from the topic via scripts/cj-task-scaffold.sh — NO /office-hours, NO design doc, NO pre-existing TODOS row — and dispatches /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — the three-stage audit is deferred to the post-sync point) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (ALWAYS; Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), runs a pre-ship portability gate (cj-goal-common.sh --phase portability-audit; halts [portability-red]), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. PR-stop only (like /CJ_goal_feature): no automatic merge, no /land-and-deploy; the PR is the review. Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + work-item dir + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); QA always re-runs on resume. Consumes scripts/cj-goal-common.sh --mode task for the deterministic worktree / sync / portability / pr-check / cleanup phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_task.jsonl. Halt taxonomy (green_pr_opened, halted_at_too_complex/not_isolated/scaffold/impl/qa/doc_sync/qa_audit/portability/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). Use when: 'do this small task end-to-end', 'refine a doc / add a file / clean up files to a PR', 'fix this small thing and stop at the PR', 'a small ad-hoc cleanup that does not need design or investigation'."
+description: "Small-ad-hoc-task-to-reviewable-PR orchestrator (F000054 `task` verb; experimental). The lightweight sibling of /CJ_goal_feature: takes a plain free-text `\"<small task>\"` (refine a doc, add a file, clean up some files, a one-line fix), runs a HARD complexity gate (refuses design-rework topics → routes to /CJ_goal_feature, refuses bug/investigation topics → routes to /CJ_goal_defect, refuses explicit-large-scope topics; HALTs as halted_at_too_complex), creates a `cj-task-*` worktree, then SILENTLY (one checkpoint AUQ — the QA audit findings) bash-scaffolds a `type: task` work-item (T-ID) directly from the topic via scripts/cj-task-scaffold.sh — NO /office-hours, NO design doc, NO pre-existing TODOS row — and dispatches /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — the three-stage audit is deferred to the post-sync point) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (ALWAYS; Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. PR-stop only (like /CJ_goal_feature): no automatic merge, no /land-and-deploy; the PR is the review. Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + work-item dir + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); QA always re-runs on resume. Consumes scripts/cj-goal-common.sh --mode task for the deterministic worktree / sync / pr-check / cleanup phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_task.jsonl. Halt taxonomy (green_pr_opened, halted_at_too_complex/not_isolated/scaffold/impl/qa/doc_sync/qa_audit/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). Use when: 'do this small task end-to-end', 'refine a doc / add a file / clean up files to a PR', 'fix this small thing and stop at the PR', 'a small ad-hoc cleanup that does not need design or investigation'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -201,13 +201,10 @@ post-sync audit   [INLINE Step 5.6 — NEW; ONE combined READ-ONLY subagent: /CJ
 QA-audit checkpoint   [INLINE Step 4.5 — AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt]
    │   ↳ Halt → HALT (halted_at_qa_audit; [qa-audit-declined]); Continue past findings journals [qa-audit-waived]
    ▼
-portability gate   [INLINE Step 5.7 — cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship]
-   │   ↳ findings → HALT (halted_at_portability; no PR)
-   ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens a PR]
    │
    ▼
-Step 6.6 — registered-doc + portability verdicts → PR body   [post-/ship gh pr edit; best-effort]
+Step 6.6 — registered-doc verdicts → PR body   [post-/ship gh pr edit; best-effort]
    │
    ▼
 STOP at PR   (human reviews + merges on GitHub; /land-and-deploy is a SEPARATE human step)
@@ -240,7 +237,7 @@ wrapping `todo_fix` would re-inherit the nested-subagent wall (an orchestrator
 subagent cannot spawn its own subagent). This skill is flat: it bash-scaffolds
 via `scripts/cj-task-scaffold.sh` (a topic-driven sibling of `todo_fix.sh`'s
 scaffold path) and dispatches implement/qa as depth-≤2 leaf subagents, running
-`/ship` inline. The deterministic worktree / sync / portability / pr-check /
+`/ship` inline. The deterministic worktree / sync / pr-check /
 cleanup phases come from `cj-goal-common.sh --mode task` (shared with the family).
 
 ## Usage
@@ -277,7 +274,7 @@ pipeline file owns: arg parsing, the resume state file
 (`last_completed_phase` + per-phase HEAD SHA + work-item dir + PR number) with
 validate-before-skip, the isolation gate, the hard complexity gate + bash
 scaffold (`scripts/cj-task-scaffold.sh`), the silent implement/qa leaf-subagent
-dispatch, the inline doc-sync + portability gate, the inline `/ship` with the
+dispatch, the inline doc-sync, the inline `/ship` with the
 diff-review AUQ suppressed, the PR-stop, the halt taxonomy, and telemetry.
 
 ## Error Handling
@@ -296,7 +293,6 @@ diff-review AUQ suppressed, the PR-stop, the halt taxonomy, and telemetry.
 | implement subagent crash / red | `[impl-red]` | Inspect subagent output; fix; re-run (resumes from implement) |
 | /CJ_qa-work-item red | `[qa-red]` | Inspect QA output; fix; re-run |
 | Doc-sync red | `[doc-sync-red]` / `[doc-sync-no-config]` / `[doc-sync-non-doc-write]` | Inspect `/CJ_document-release` output; fix; re-run |
-| Portability gate findings | `[portability-red]` (Step 5.7; halt before /ship) | Relabel the skill's `portability` (or `portability_requires`) in skills-catalog.json; re-run |
 | /ship declined / pre-landing review red | `[ship-declined]` | Address feedback; re-run when ready (the PR is the review — the merge stays manual) |
 
 ## Halt-on-Red Taxonomy
@@ -322,7 +318,6 @@ fields: `[<halt-id>]`, `next_action=`, `resume_cmd=`, `pr_url=`, `raw_output_pat
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green |
 | `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing/invalid |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: upstream wrote files outside the doc-only whitelist |
-| `halted_at_portability` | `[portability-red]` | Step 5.7 portability gate: `--phase portability-audit` returned findings; halt BEFORE `/ship`, so no PR |
 | `halted_at_ship` | `[ship-declined]` | /ship declined (merge stays manual) or pre-landing review red |
 | `already_shipped` | (no journal — idempotency exit) | Resume found a MERGED/CLOSED PR for this work |
 

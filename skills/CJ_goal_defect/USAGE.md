@@ -50,9 +50,7 @@ post-sync doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`, dispatched by the
 orchestrator on the POST-sync tree) → the QA-audit checkpoint AUQ (Step 8.5 —
 ALWAYS, on that POST-sync audit report; Continue past findings journals
 `[qa-audit-waived]`, Halt journals `[qa-audit-declined]` / `halted_at_qa_audit`)
-→ a pre-ship portability gate
-(Step 5.7, `cj-goal-common.sh --phase portability-audit`, run STRICT; HALTs on a
-dishonest skill portability declaration before the PR) → `/ship` (Gate #2 always
+→ `/ship` (Gate #2 always
 human) → `/land-and-deploy --suppress-readiness-gate`. A ~80% reshape of the
 retired `/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no
 subagent-spawns-subagent).
@@ -68,10 +66,6 @@ subagent-spawns-subagent).
   top-level
 - Skipping the bug-description and just running the skill — needs a description
   arg to seed the `.inbox/<slug>/DRAFT.md`
-- A touched skill that declares a portability tier it does not honor — the
-  Step 5.7 portability gate HALTs (`halted_at_portability`) before the PR; relabel
-  the skill's `portability` (or add the dep to `portability_requires`) in
-  skills-catalog.json and re-run
 - Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
   only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
 

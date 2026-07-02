@@ -9,7 +9,7 @@
 # F000064 (post-sync-authoritative-audit reorder): doc-sync now runs BEFORE the
 # post-sync doc/test audit + the QA-audit checkpoint, so the canonical pipeline
 # sequence is QA → pre-doc-sync commit → doc-sync → post-sync audit → QA-audit
-# checkpoint → portability → ship. The SOURCE OF TRUTH for the gate order is the
+# checkpoint → ship. The SOURCE OF TRUTH for the gate order is the
 # `gates:` array in spec/test-spec-custom.md (doc-sync order < qa-audit order),
 # cross-checked by validate.sh Check 24. This test asserts the DERIVED ordering
 # in the orchestrator docs.

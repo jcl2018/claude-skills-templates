@@ -133,40 +133,7 @@ Conductor-managed sessions (already inside a worktree) detect + no-op. Opt out o
 - **Fork 1 — base-freshness (in the worktree phase).** Inside `cj-worktree-init.sh`, just before `git worktree add`, when on `main`/`master` with an existing `origin/<branch>` ref, the helper fail-soft fetches and fast-forwards local `main` to the origin tip so the new worktree branches off current trunk. The outcome rides the `note` field of the `created` JSON emit: `ff'd N commits` (was behind), `local main diverged from origin; building on local main` (diverged — no ff, no halt, local commits never dropped), or `freshness skipped (offline)` (fetch failed / no origin ref). Skipped under `--dry-run`. Runs even under `--no-sync` (it is independent of Fork 2). Tests: `tests/cj-worktree-init.test.sh`.
 - **Fork 2 — pre-build skills-sync (a `cj-goal-common.sh --phase sync` step the orchestrator runs BEFORE the worktree block).** Delegates to `post-land-sync.sh`'s guarded pull+install-from-`.source` core so installed skills match trunk at build start (without the worktree-invoked-install foreign-owned-skill skip). Fail-soft exactly like `pr-check`: a guard refusal (`.source` missing / not a git repo / off-main / dirty tracked tree) or an offline pull emits `PHASE_RESULT=skipped` (exit 0), never failed. `--no-sync` short-circuits to `skipped` BEFORE any install (the operator's opt-out for the heavy global-state install + latency); `--dry-run` forwards to `post-land-sync.sh --dry-run`. Stdout fields: `SYNC_RAN`, `VERSION_BEFORE`, `VERSION_AFTER`, `PHASE_RESULT`. Tests: `tests/cj-goal-common-sync.test.sh`.
 
-**Pre-ship portability gate (F000051 / S000091):** a 6th `cj-goal-common.sh`
-phase — `--phase portability-audit` — that the three CJ_goal_* orchestrators run
-**after the Step 5.5 doc-sync handler + the post-sync doc/test audit + the
-QA-audit checkpoint, and immediately before `/ship`** (feature
-`pipeline.md` / defect `pipeline.md` Step 5.7; todo `SKILL.md` Step 5.7, called
-with `--mode feature` like its `--phase sync`). It resolves the engine via
-`resolve_portability_engine()` (sibling-in-scriptdir → manifest `.source`, the
-same idiom as `resolve_worktree_helper` — NOT the `_cj-shared` idiom; the engine
-finds its own catalog via `git rev-parse`), runs `scripts/cj-portability-audit.sh`
-under `PORTABILITY_STRICT=1`, parses `FINDINGS=` (skills-with-findings) +
-`SKILLS_AUDITED=` (total), and emits `PHASE`/`MODE`/`FINDINGS`/`SKILLS_AUDITED`/
-`VERDICT_LINE`/`PHASE_RESULT`. **Unlike Fork 1/2 it is NOT fully fail-soft: a real
-finding HALTS.** `PHASE_RESULT=findings` (non-zero exit) ⇒ the orchestrator HALTs
-with `[portability-red]` / end_state `halted_at_portability` BEFORE any PR is
-created (the verdict + first finding land in the halt journal with `next_action=`
-/ `resume_cmd=` / `pr_url=N/A` / `raw_output_path=`); `PHASE_RESULT=ok` ⇒ the
-clean `VERDICT_LINE` is written to `.cj-goal-feature/portability-verdict.md` and
-spliced into the PR body's `## Documentation` section (a `### Portability` line
-alongside the registered-doc verdicts) by the existing Step 4.6 / 9.5 / 5.6
-surfacing; `PHASE_RESULT=skipped` (engine absent — a broken install, NOT a
-finding) ⇒ a visible note + continue (fail-soft, mirroring `validate.sh` Check
-18's "SKIP: engine absent"). `--dry-run` emits the schema and runs nothing. The
-catalog baseline is clean (`FINDINGS=0`), so the strict gate is green today AND a
-free regression ratchet (any finding is by definition new). This gate is the
-cj_goal-scoped enforcement; `validate.sh` Check 18 is **strict-by-default
-globally** (T000054 flipped it — a portability finding hard-fails every commit,
-CI, and manual `validate.sh` run; `PORTABILITY_STRICT=0` downgrades to advisory
-for a deliberate WIP commit), so the whole repo is the portability ratchet and
-the cj_goal gate is the orchestrated-path belt-and-suspenders.
-`skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh` is NOT modified — the gate is orchestrator-layer.
-Tests: `tests/cj-goal-common-portability.test.sh` + the `--phase portability-audit`
-integration block in `scripts/test.sh`.
-
-**Land/PR recap formatter (F000068 / S000112):** a 7th `cj-goal-common.sh` phase —
+**Land/PR recap formatter (F000068 / S000112):** a `cj-goal-common.sh` phase —
 `--phase recap` — a **pure formatter** that renders the standardized 3-part
 land/PR recap block (see `## Post-land recap`). It takes `--when {before|after}`
 (selects the header) and the content via the existing repeatable `--field`
@@ -619,7 +586,7 @@ skip; both reverse + floor are units-gated so a rules-only consumer repo reports
 cross-check (absorbed from the retired Check 22). The four layers: **local-hook**
 (pre-commit `validate.sh`), **ci** (GitHub Actions), **pipeline-gate** (the
 inline orchestrator halts — isolation / design / QA / doc-sync / qa-audit /
-portability / ship), and **ratchet** (VERSION / portability-baseline /
+ship), and **ratchet** (VERSION / portability-baseline /
 USAGE-freshness). "Gate"
 means a `pipeline-gate` row; `validate.sh`-as-a-whole is the **ci** layer (a set
 of *checks*), never "the gate." Check 24's advisory marker-drift portion

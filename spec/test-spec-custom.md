@@ -68,7 +68,7 @@ live checks sharing a numeral.)
 | Check 25 — README.md in sync with generate-readme.sh | The committed README byte-matches the generator's output, so a catalog-derived README cannot drift. |
 | Warning check — orphan doc directories | Flags per-skill doc directories with no matching catalog entry. |
 | Warning check 3 — orphan template files | Flags template files not referenced by any catalog entry. |
-| portability audit — declared-vs-actual skill dependency lint | The engine behind Check 18 and the strict pre-ship gate. |
+| portability audit — declared-vs-actual skill dependency lint | The engine behind Check 18. |
 
 **Behavioral test suites** — `scripts/test.sh`. The *registered `tests/*.test.sh`
 sub-suites* and the *inline `test.sh` families*:
@@ -86,7 +86,6 @@ sub-suites* and the *inline `test.sh` families*:
 | goal doc-sync wiring suite — symmetric step wiring | Doc-sync step and halt-taxonomy rows present and ordered in orchestrators. |
 | post-land-sync suite — post-merge local sync helper | Sync-helper guards refuse a bad source; dry-run previews without mutating. |
 | goal-common sync suite — pre-build skills-sync phase | Dry-run, opt-out, guard-refusal and real-run paths emit the four-key schema. |
-| goal-common portability suite — pre-ship portability gate | Clean catalog passes, dry-run runs nothing, dishonest declaration yields findings. |
 | cj-id-claim suite — atomic work-item ID claim | Concurrent-race uniqueness, both reap modes, prefix isolation and reuse. |
 | feature-path smoke suite — worktree entry + common phases | Feature worktree entry, the shared helper's phases, and leaf dispatch targets. |
 | doc-spec overlay suite — two-tier merge semantics | Overlay merge, duplicate-path guard, seed byte identity, the Stage-1 battery. |
@@ -99,7 +98,7 @@ sub-suites* and the *inline `test.sh` families*:
 | Inline — catalog + frontmatter + doc-triplet smoke | No duplicate names; frontmatter parses; doc triplets carry required sections. |
 | Inline — advisory-script crash + generator idempotency | Doctor, lint and deps run without crashing; the README generator is idempotent. |
 | Inline — manual skill-creation integration cycle | A scaffolded temp skill stays green; plant-and-restore negatives fire. |
-| Inline — goal-common phase integration | Sync, portability-audit and task-worktree phases end-to-end and hermetic. |
+| Inline — goal-common phase integration | Sync and task-worktree phases end-to-end and hermetic. |
 | Inline — template content + validator portability + orphan negatives | Tracker templates carry sections; validator stands alone; orphan detection fires. |
 | Inline — defect and story regression battery | Shipped defect and story fixes stay fixed (CRLF, merge guard, copy-mode). |
 | Inline — Copilot bundle coverage + round-trip | Bundle completeness, the instructions size budget and the deploy round-trip. |
@@ -152,7 +151,6 @@ The `gates:` array — the inline halts a goal orchestrator runs before its PR, 
 | 40 | qa | all four | failing test rows |
 | 45 | doc-sync | all four | doc drift can't fold into the PR |
 | 50 | qa-audit | all four | operator declines the post-sync audit findings |
-| 60 | portability | all four | a skill lies about its portability tier |
 | 70 | ship | all four | the human ship gate (PR-stop) |
 
 ### Ratchets (cross-cutting — monotonic guards that never regress)
@@ -613,7 +611,7 @@ units:
     skips_when_absent: true
     ratchet: true
     trigger: "pre-commit pr-ci manual"
-    purpose: "The portability engine behind the advisory audit check and the strict pre-ship orchestrator gate: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet."
+    purpose: "The portability engine behind validate.sh Check 18 and the standalone /CJ_portability-audit skill: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet."
   # ---- test family: registered tests/*.test.sh sub-suites ----
   # (source MUST be scripts/test.sh and anchor MUST be the literal runner path —
   #  the forward check proves the file is wired into the hand-wired runner.)
@@ -743,15 +741,6 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Dry-run, opt-out, guard-refusal and real-run paths of the pre-build sync phase all emit the four-key schema, fail-soft and hermetic."
-  - id: test-cj-goal-common-portability
-    family: test
-    label: "goal-common portability suite — pre-ship portability gate"
-    anchor: "tests/cj-goal-common-portability.test.sh"
-    source: scripts/test.sh
-    layer: ci
-    disposition: hard-fail
-    trigger: "pr-ci"
-    purpose: "A clean catalog passes, dry-run runs nothing, a dishonest declaration yields findings, and an absent engine skips fail-soft."
   - id: test-cj-goal-common-recap
     family: test
     label: "goal-common recap suite — land/PR 3-part recap formatter"
@@ -923,7 +912,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Sync, portability-audit and task-worktree phases of the shared goal helper, end-to-end and hermetic."
+    purpose: "Sync and task-worktree phases of the shared goal helper, end-to-end and hermetic."
   - id: testsh-template-content
     family: test
     label: "Inline — template content + validator portability + orphan negatives"
@@ -1179,18 +1168,6 @@ gates:
     disposition: halt
     backing: "orchestrator-level post-sync /CJ_doc_audit + /CJ_test_audit (one combined read-only subagent, run AFTER doc-sync) + the checkpoint AUQ"
     checks: "the operator saw the post-sync doc/test audit findings before the PR budget was spent"
-  # --- universal, same marker in all four ---
-  - id: portability
-    layer: pipeline-gate
-    order: 60
-    markers:
-      feature: "[portability-red]"
-      defect:  "[portability-red]"
-      task:    "[portability-red]"
-      todo:    "[portability-red]"
-    disposition: halt
-    backing: "cj-goal-common.sh --phase portability-audit (PORTABILITY_STRICT=1)"
-    checks: "no touched skill declares a portability tier it does not honor"
   # --- feature/defect/task run a ship gate with a literal marker; todo ships via /land-and-deploy ---
   - id: ship
     layer: pipeline-gate

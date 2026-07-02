@@ -45,10 +45,8 @@ ONE combined READ-ONLY post-sync doc/test audit (`/CJ_doc_audit` +
 QA-audit checkpoint (on that POST-sync audit report — interactive runs: AUQ
 ALWAYS on the AUDIT_FINDINGS digest, Continue past findings journals
 `[qa-audit-waived]`; `--quiet` runs: auto-continue on doc:ok,test:ok, halt
-`[qa-audit-declined]` / `halted_at_qa_audit` on any findings) → a pre-ship
-portability gate (Step 5.7, `cj-goal-common.sh --phase portability-audit --mode
-feature`, run STRICT; HALTs on a dishonest skill portability declaration before
-the PR) → `/ship` (open PR) → `/land-and-deploy` (merge + verify) per drained
+`[qa-audit-declined]` / `halted_at_qa_audit` on any findings) → `/ship` (open PR)
+→ `/land-and-deploy` (merge + verify) per drained
 row. Drain mode
 creates one worktree per TODO inside `scripts/drain-one-todo.sh`; single mode
 creates one `cj-todo-*` worktree on `main` (whose local main is fast-forwarded
@@ -67,10 +65,6 @@ Halt-on-red stops the loop and writes the finding to the tracker journal.
   `~~strikethrough~~ PARTIAL —` annotation or `/CJ_suggest` will re-pick the row
 - Running drain in a session that's already inside a worktree — drain creates
   per-TODO worktrees and parent-session collisions are confusing
-- A touched skill that declares a portability tier it does not honor — the
-  Step 5.7 portability gate HALTs (`halted_at_portability`) before the PR; relabel
-  the skill's `portability` (or add the dep to `portability_requires`) in
-  skills-catalog.json and re-run
 - Expecting `--no-sync` to also skip the base fast-forward — it does not; `--no-sync`
   only suppresses the heavy `skills-deploy install`, Fork-1's local-main ff still runs
   (single-TODO mode); the pre-build sync is fail-soft and never blocks the drain
