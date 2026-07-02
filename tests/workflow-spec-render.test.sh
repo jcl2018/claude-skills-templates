@@ -23,6 +23,14 @@
 #                        entry and FAILS CLOSED (exit non-zero, naming the missing
 #                        workflow) when that entry is removed. This is the
 #                        no-vanish guarantee that replaces retired Check 15c.
+#   T7 (portability)   — the CRLF-jq drill: with a PATH-prepended jq shim that
+#                        appends \r to every output line (simulating a Windows jq
+#                        build, which emits CRLF), --list-orchestrators and
+#                        --validate against the LIVE repo still exit 0 with no
+#                        [workflow-spec-no-config] false-halt and CR-free output.
+#                        Guards the engine's local jq() CRLF-stripping wrapper —
+#                        without it, read -r keeps the trailing \r on each catalog
+#                        name and registry-completeness false-halts on Windows.
 #
 # HERMETIC: T1–T4 render into THROWAWAY temp dirs via the WORKFLOWDOC_OUT override;
 # the live committed tree is never mutated. T5 is read-only against the live tree.
@@ -214,6 +222,47 @@ if [ "$_T6B_RC" -ne 0 ] \
   ok "T6b: removing a CJ_goal_* orchestrator entry → --validate fails closed naming the missing workflow (no-vanish)"
 else
   fail_test "T6b: --validate should fail closed naming CJ_goal_zzz after the entry is removed (rc=$_T6B_RC); output: $_T6B_OUT"
+fi
+
+# ── T7: the CRLF-jq drill — a Windows-style CRLF-emitting jq must not false-halt ─
+# A Windows jq build emits CRLF line endings; without the engine's local jq()
+# CRLF-stripping wrapper, the registry-completeness loop reads each catalog name
+# with a trailing \r ('CJ_goal_todo_fix\r'), finds no matching section, and
+# false-halts [workflow-spec-no-config]. Simulate that jq portably: a PATH-
+# prepended shim that appends \r to every real-jq output line (on Windows, where
+# real jq already emits \r\n, this yields \r\r\n — still fully stripped by the
+# wrapper). Runs against the LIVE repo (real catalog + registry).
+if command -v jq >/dev/null 2>&1; then
+  T7=$(mktemp -d -t wsrender-crlfjq-XXXXXX)
+  _REALJQ=$(command -v jq)
+  cat > "$T7/jq" <<T7EOF
+#!/bin/sh
+"$_REALJQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
+T7EOF
+  chmod +x "$T7/jq"
+  # Shim sanity: it must actually emit a trailing CR (else the drill proves nothing).
+  if printf '["x"]' | "$T7/jq" -r '.[0]' | od -c | grep -q '\\r'; then
+    _T7_OUT=$(PATH="$T7:$PATH" bash "$ENGINE" --list-orchestrators 2>&1)
+    _T7_RC=$?
+    if [ "$_T7_RC" -eq 0 ] \
+       && printf '%s\n' "$_T7_OUT" | grep -qx 'CJ_goal_feature' \
+       && ! printf '%s\n' "$_T7_OUT" | grep -q 'workflow-spec-no-config' \
+       && ! printf '%s' "$_T7_OUT" | od -c | grep -q '\\r'; then
+      ok "T7: --list-orchestrators exits 0 with CR-free output under a CRLF-emitting jq (no registry-completeness false-halt)"
+    else
+      fail_test "T7: --list-orchestrators should exit 0 with CR-free output under a CRLF-emitting jq (rc=$_T7_RC); output: $_T7_OUT"
+    fi
+    if PATH="$T7:$PATH" bash "$ENGINE" --validate >/dev/null 2>&1; then
+      ok "T7: --validate exits 0 under a CRLF-emitting jq"
+    else
+      fail_test "T7: --validate should exit 0 under a CRLF-emitting jq but exited non-zero"
+    fi
+  else
+    fail_test "T7: the CRLF jq shim failed to emit CR (drill inconclusive)"
+  fi
+  rm -rf "$T7"
+else
+  ok "T7: skipped (jq not installed — the registry-completeness loop is vacuous without jq)"
 fi
 
 # Cleanup throwaway temp dirs.

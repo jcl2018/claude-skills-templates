@@ -23,7 +23,13 @@ symlinks are unavailable, so `skills-deploy install` auto-falls-back to
 `_can_symlink` + the manifest `install_kind`. When editing scripts, keep them
 POSIX + LF (`.gitattributes` pins `eol=lf`) and use the portable `date_to_epoch`
 idiom (probe `date --version` → GNU `date -d`, else BSD `date -j -f`), never
-GNU-only `date -d`. The `windows-latest` Git Bash CI job
+GNU-only `date -d`. Strip CR from **jq** output too — a Windows jq build emits
+CRLF, so any `$(jq -r ...)` fed into parsing must go through a CR-stripping
+`jq()` wrapper (`scripts/lib.sh:24` and `scripts/workflow-spec.sh` — the only
+standalone spec engine with jq call sites — each define one; a NEW jq call in
+any other engine must add the same wrapper first; regression drill:
+`tests/workflow-spec-render.test.sh` T7). The
+`windows-latest` Git Bash CI job
 (`.github/workflows/windows.yml`) gates every PR; run the same checks locally
 with `bash scripts/windows-smoke.sh`. Full feature:
 `work-items/features/ops/F000044_windows_wsl2_git_bash_support/`.
