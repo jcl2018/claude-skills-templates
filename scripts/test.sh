@@ -1840,6 +1840,27 @@ else
   fail_test "tests/e2e-local.test.sh failed (rc=$_eel_rc) — run \`bash tests/e2e-local.test.sh\` directly to see"
 fi
 
+# F000072 / S000122: the runners: axis + test-run.sh engine. This runs the engine
+# against TEMP-DIR FIXTURE registries only (the REPO_ROOT / TEST_SPEC_PATH env
+# overrides) — it NEVER invokes the real scripts/test.sh (the workbench's
+# run-test-sh runner IS `bash scripts/test.sh`, so calling it from inside the
+# suite test.sh runs would be a recursion trap). It asserts: --validate accepts a
+# well-formed runners: axis + rejects each violation (dup id, bad tier/platform,
+# empty command, unknown covers, ci/hook rejection); --list-runners +
+# --list-units --with-family; the --dry-run plan; tier gating; the platform guard;
+# rc->outcome mapping; aggregate {pass, fail, all-skipped}; self-gate detection;
+# ledger fields (schema 1); the absent/invalid/no-runners edge paths; covers: all
+# expansion. Registration is MANDATORY — scripts/test.sh discovery is hand-written,
+# NOT glob-based; an unregistered tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/test-run.test.sh (runners: axis + test-run.sh engine — fixture repos)..."
+if bash "$REPO_ROOT/tests/test-run.test.sh" >/dev/null 2>&1; then
+  ok "tests/test-run.test.sh: runners-axis grammar + plan/tier/platform/rc-mapping/aggregate/self-gate/ledger/edge-path/covers-all drills all pass (fixtures only; never runs the real test.sh)"
+else
+  _trs_rc=$?
+  fail_test "tests/test-run.test.sh failed (rc=$_trs_rc) — run \`bash tests/test-run.test.sh\` directly to see"
+fi
+
 # Regression test (F000011 fix, Approach A): the post-merge git hook installed by
 # setup-hooks.sh must redeploy skills (Section 1) but NOT auto-edit work-item
 # trackers. The former Phase-3 lifecycle-gate block dirtied main on every

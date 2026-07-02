@@ -34,3 +34,9 @@
 # sample (so the report format is reviewable in a PR).
 tests/e2e-local/reports/*
 !tests/e2e-local/reports/EXAMPLE.md
+
+# test-run reports + ledgers (F000072 / S000122) — per-run artifacts written by
+# scripts/test-run.sh (<UTC-ts>.md + <UTC-ts>.json). NOT tracked, except the
+# committed EXAMPLE.md sample (so the report/ledger format is reviewable in a PR).
+tests/test-run/reports/*
+!tests/test-run/reports/EXAMPLE.md

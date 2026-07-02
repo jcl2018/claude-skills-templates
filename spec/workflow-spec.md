@@ -749,6 +749,27 @@ advisory check). The full correct-behavior spec is in
 
 - **Scripts · tools · shell:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the deployed shared home); Bash / Read / Grep. Also invoked by `scripts/validate.sh`.
 - **Reads / writes:** reads `skills-catalog.json` (+ optional `portability_requires`) + each audited skill's files; read-only — prints the per-skill verdict table, mutates nothing.
+
+#### CJ_test_run
+
+**Status:** experimental
+**Category:** local-only (runnable in ANY repo the skills are installed for;
+resolves both engines repo-local-first then via the deployed shared home)
+**Source:** `skills/CJ_test_run/SKILL.md` · `skills/CJ_test_run/USAGE.md` ·
+engines `scripts/test-run.sh` + `scripts/test-spec.sh`
+**Invoke when:** you want to actually RUN the repo's tests and get honest
+evidence-derived pass/fail — the "does it pass?" companion to `/CJ_test_audit`'s
+"is it wired?". It runs a deterministic Stage-1 audit pre-step (the four
+`test-spec.sh` engine calls, invalid-halts / valid-with-findings-surfaces /
+absent-skips), then `scripts/test-run.sh` (reads the `runners:` axis, runs the
+selected tier ONCE — default `free`; `--evals`/`--e2e`/`--all` widen it, never a
+surprise model spend), then narrates the `.md` report + `.json` ledger. Registry
+edges are honest (absent → `REGISTRY=absent`; invalid → the passthrough halt;
+zero runners → `SKIP: no runners declared`).
+**Touches:**
+
+- **Scripts · tools · shell:** `scripts/test-run.sh` (the execution engine) + `scripts/test-spec.sh` (`--validate` / `--check-coverage` / `--render-docs --check` / `--check-workflow-coverage` / `--list-runners` / `--list-units --with-family`), both resolved sibling → `$REPO_ROOT/scripts/` → `_cj-shared`; Bash / Read / Grep.
+- **Reads / writes:** reads the merged test-spec registry (`spec/test-spec.md` + `spec/test-spec-custom.md`); executes the declared runners; writes a per-run `tests/test-run/reports/<UTC-ts>.md` + `.json` ledger (gitignored except the committed `EXAMPLE.md`).
 ````
 
 ## utility-audits

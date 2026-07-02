@@ -247,9 +247,9 @@ Row-granularity conventions the extraction grammar honors:
 
 `purpose` and `label` are single-line double-quoted strings (no YAML
 folding). The parser is `scripts/test-spec.sh`
-(`--validate | --list-rules | --list-units | --list-layers | --list-gates |
---list-behaviors | --list-behavior-coverage | --check-coverage | --seed`), an
-awk-only reader; it resolves the general
+(`--validate | --list-rules | --list-units [--with-family] | --list-runners |
+--list-layers | --list-gates | --list-behaviors | --list-behavior-coverage |
+--check-coverage | --seed`), an awk-only reader; it resolves the general
 registry `spec/test-spec.md` first, then a root `test-spec.md` fallback, and
 this overlay next to it. `--validate` additionally lints every `label` +
 `purpose` for the work-item-ID pattern (and every behavior's `statement` +
@@ -313,6 +313,41 @@ linked test *actually proves* the behavior (vs mentions it), whether the `level`
 is right, and whether one broad test over-claims many behaviors is the
 agent-judged `/CJ_test_audit` Stage-2 sub-check's job (findings prefixed
 `stage2/behavior:<id>`).
+
+### The `runners:` array (the execution axis)
+
+Where `units:`/`behaviors:` model WHAT the repo verifies, the `runners:` array
+(F000072, overlay-only + optional-on-schema-1) declares **HOW to run it** — the
+contract becomes executable. `scripts/test-run.sh` reads it (via
+`test-spec.sh --list-runners`) to plan and run the repo's tests and write a
+`.md` report + `.json` ledger; `test-spec.sh --validate` enforces its grammar.
+
+A `runners[]` entry declares one runnable command:
+
+- `id` — stable slug, unique across the `runners:` array, `[a-z0-9-]+`.
+- `command` — a non-empty shell string run ONCE per selected runner (`bash
+  scripts/test.sh`, `npm test`, `make check` — whatever the repo uses).
+- `tier` — the closed cost enum `free | paid | local-only`. Default execution
+  runs only `free`; `--evals` adds `paid`, `--e2e` adds `local-only`, `--all`
+  everything. This is the hard UX law — a default run never surprise-spends.
+- `covers` — a non-empty list of the RUNNABLE families `{validate, test,
+  test-deploy, eval, windows-smoke}` OR the literal `all`. "Runnable" is defined
+  HERE explicitly — it is deliberately NOT the contract's existing "test-bearing"
+  set (which excludes `validate`), to avoid overloading the term. An explicit
+  `ci` or `hook` is REJECTED by `--validate`: those families are
+  **runner-less-by-design** (`ci` runs on GitHub; `hook` is verified installed),
+  and appear in the ledger as family-level rows (`ci-only`; `hook-check:
+  pass|fail`) OUTSIDE the `skipped(<reason>)` enum.
+- `platform` — optional, closed enum `any | windows | posix` (default `any`); a
+  runner whose platform does not match the host is `skipped(platform)`.
+- `note` — optional free text.
+
+The axis is **registry-gated** like `behaviors:` — its absence changes no
+existing behavior. A declared registry with zero `runners:` rows is an honest
+`SKIP: no runners declared` (no report, no ledger, no inference). The workbench
+dogfoods three rows: `run-test-sh` (free; the full suite covering
+validate+test+test-deploy+windows-smoke as ONE row), `run-eval` (paid), and
+`run-e2e-local` (local-only).
 
 ## Machine registry (overlay)
 
@@ -660,6 +695,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The DETERMINISTIC (no-Claude) half of the local-E2E harness (scripts/e2e-local.sh + tests/e2e-local/lib/{sandbox,report}.sh): the SKIP path when CJ_E2E_LOCAL is unset OR a prerequisite is absent (exit 0, never reaches claude), the sandbox provision/teardown (a mktemp clone + a .cj-e2e-sandbox marker + a LOCAL bare origin that defeats gh pr create), the materialized report generator on synthetic evidence (DETERMINISTIC-vs-claude-print rows, a json sibling, and a missing-evidence row rendering `unverified` never a false pass), the gitignore posture (reports/ ignored except a tracked EXAMPLE.md), and the auth gate via fake claude stubs (no key + not-logged-in skips; ANTHROPIC_API_KEY takes the api-key path with no probe; a logged-in-but-probe-401 skips rather than false-pass; a logged-in + probe-ok takes the claude-login path). The REAL /CJ_goal_task run is a LOCAL manual E2E, not asserted here."
+  - id: test-test-run
+    family: test
+    label: "test-run suite — runners: axis grammar + test-run.sh engine (fixture repos)"
+    anchor: "tests/test-run.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The runners: axis + scripts/test-run.sh engine against TEMP-DIR fixture registries (never the real test.sh — a recursion trap): --validate accepts a well-formed runners: axis and rejects each violation (duplicate id, bad tier/platform, empty command, unknown covers family, explicit ci/hook in covers); --list-runners + --list-units --with-family emit the machine-readable forms; the --dry-run plan prints per-runner decisions + uncovered-family/ci-only/hook lines; tier gating (free default; --evals/--e2e/--all widen; unselected = tier-not-selected); the platform guard; rc->outcome mapping with aggregate {pass, fail, all-skipped} (fail => exit 1, all-skipped NEVER pass); self-gate detection (first-line ^SKIP: only); ledger fields (schema 1, timestamp, HEAD sha, repo root, flags, aggregate, per-runner + ci/hook family rows); the absent/invalid/zero-runners edge paths (no report on the last two); and covers: all expansion."
   - id: test-setup-hooks
     family: test
     label: "setup-hooks suite — git hook installer"
@@ -1258,6 +1302,22 @@ behaviors:
     workflow: CJ_goal_todo_fix
     area: workflow-coverage
     purpose: "Reuses the existing CJ_goal_todo_fix preflight-halt eval case as the real Claude-driven run proving the orchestrator runs up to a gstack-independent decision."
+  # ---- the runners: axis + test-run.sh engine (F000072/S000122) ----
+  - id: runners-axis-optional-registry-gated
+    statement: "test-spec.sh --validate accepts a well-formed runners: axis (unique ids, closed tier/platform enums, non-empty command, valid covers) and an axis-less registry validates exactly as before, with ci/hook rejected in covers."
+    level: contract
+    area: execution-axis
+    purpose: "The execution axis is optional + registry-gated; its absence changes nothing, and ci/hook (runner-less-by-design) cannot be covered."
+  - id: test-run-aggregate-evidence-derived
+    statement: "test-run.sh derives its aggregate from captured evidence: any executed runner failing => fail + exit 1; zero executed => all-skipped + exit 0 and NEVER pass; a self-gating runner (rc=0 + first line ^SKIP:) is skipped(self-gated), never counted green."
+    level: integration
+    area: execution-engine
+    purpose: "A skipped tier is never counted green and no false pass is possible — the honest-everywhere posture, generalized from e2e-local.sh."
+  - id: test-run-registry-edges-honest
+    statement: "test-run.sh classifies each registry edge distinctly: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners: rows => 'SKIP: no runners declared' + exit 0 with NO report and NO ledger."
+    level: contract
+    area: execution-engine
+    purpose: "Each edge is machine-classifiable — never inference, never a fabricated ledger, never fake green."
 behavior_coverage:
   - behavior: seed-byte-identical
     unit: test-test-spec
@@ -1310,4 +1370,44 @@ behavior_coverage:
     unit: suite-eval
     source: tests/eval/CJ_goal_todo_fix/halt-size-large/prompt.md
     anchor: "which halt class /CJ_goal_todo_fix emits"
+  # ---- the runners: axis + test-run.sh engine (F000072/S000122) ----
+  - behavior: runners-axis-optional-registry-gated
+    unit: test-test-run
+    source: tests/test-run.test.sh
+    anchor: "axis-less registry validates unchanged"
+  - behavior: test-run-aggregate-evidence-derived
+    unit: test-test-run
+    source: tests/test-run.test.sh
+    anchor: "zero executed => all-skipped + exit 0 (never pass)"
+  - behavior: test-run-registry-edges-honest
+    unit: test-test-run
+    source: tests/test-run.test.sh
+    anchor: "SKIP: no runners declared + exit 0"
+runners:
+  # ---- the runners: axis (F000072): HOW to run this repo's tests ----
+  # Overlay-only + optional; consumed by scripts/test-run.sh (plan / tiered
+  # execution / report + ledger). Each row: id (unique), command (non-empty),
+  # tier {free, paid, local-only}, covers (a runnable-family list or `all`),
+  # optional platform {any, windows, posix} (default any), optional note. An
+  # explicit ci/hook in covers is REJECTED (runner-less-by-design). Default
+  # execution runs only tier: free; --evals adds paid, --e2e adds local-only,
+  # --all everything.
+  - id: run-test-sh
+    command: "bash scripts/test.sh"
+    tier: free
+    covers: [validate, test, test-deploy, eval, windows-smoke]
+    platform: any
+    note: "The full suite. test.sh runs validate.sh, drives test-deploy.sh end-to-end AND runs windows-smoke.sh on ANY host — all four families are covered by this ONE runner; a separate windows-smoke row would double-execute on Windows and mis-report skipped(platform) on POSIX. (test.sh does NOT invoke eval.sh — the eval family is nominally covered here but run-eval owns real eval execution.)"
+  - id: run-eval
+    command: "bash scripts/eval.sh"
+    tier: paid
+    covers: [eval]
+    platform: any
+    note: "The behavioral eval harness — spawns headless claude --print per case (real model spend); runs only under --evals / --all."
+  - id: run-e2e-local
+    command: "CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh"
+    tier: local-only
+    covers: [test]
+    platform: any
+    note: "The local happy-path E2E harness — a real /CJ_goal_task build in a sandbox; self-gates (first-line ^SKIP:) without CJ_E2E_LOCAL + gstack + a claude login; runs only under --e2e / --all."
 ```

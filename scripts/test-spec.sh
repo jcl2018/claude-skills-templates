@@ -32,7 +32,14 @@
 #                      the rendered-field work-item-ID lint (label + purpose).
 #   --list-rules       echo every declared rule id (registry order).
 #   --list-units       echo every declared unit id (registry order; empty when
-#                      no overlay declares units).
+#                      no overlay declares units). --with-family appends a
+#                      tab-separated family column (id<TAB>family) — the form
+#                      test-run.sh consumes for per-family covered-unit counts.
+#   --list-runners     (F000072) echo the parsed runners[] rows machine-readably
+#                      (tab-separated id/command/tier/covers/platform/note; empty
+#                      when no overlay declares runners). The runners: axis is
+#                      OVERLAY-ONLY + OPTIONAL — it declares HOW to run the repo's
+#                      tests, consumed by scripts/test-run.sh.
 #   --list-layers      echo every declared layer id (general layers[]; sorted).
 #   --list-gates       echo every declared gate id (overlay gates[]; sorted;
 #                      empty when no overlay declares gates).
@@ -216,7 +223,7 @@ _parse_rules_file() {
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
     /^rules:/                  { in_rules=1; next }
-    /^(units|layers|gates|behaviors|behavior_coverage):/   { flush(); in_rules=0; next }
+    /^(units|layers|gates|behaviors|behavior_coverage|runners):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -273,7 +280,7 @@ _parse_units_file() {
       cur_purpose=""
     }
     /^units:/                  { in_units=1; next }
-    /^(rules|layers|gates|behaviors|behavior_coverage):/   { flush(); in_units=0; next }
+    /^(rules|layers|gates|behaviors|behavior_coverage|runners):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -314,7 +321,7 @@ _parse_layers_file() {
       cur_id=""; cur_name=""; cur_disp=""
     }
     /^layers:/                 { in_layers=1; next }
-    /^(rules|units|gates|behaviors|behavior_coverage):/    { flush(); in_layers=0; next }
+    /^(rules|units|gates|behaviors|behavior_coverage|runners):/    { flush(); in_layers=0; next }
     !in_layers                 { next }
     /^[[:space:]]*#/           { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -352,7 +359,7 @@ _parse_gates_file() {
       cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
     }
     /^gates:/                  { in_gates=1; next }
-    /^(rules|units|layers|behaviors|behavior_coverage):/   { flush(); in_gates=0; next }
+    /^(rules|units|layers|behaviors|behavior_coverage|runners):/   { flush(); in_gates=0; next }
     !in_gates                  { next }
     # A new gate entry.
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
@@ -428,7 +435,7 @@ _parse_behaviors_file() {
       cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""; cur_workflow=""
     }
     /^behaviors:/                                                { in_b=1; next }
-    /^(rules|units|layers|gates|behavior_coverage):/             { flush(); in_b=0; next }
+    /^(rules|units|layers|gates|behavior_coverage|runners):/             { flush(); in_b=0; next }
     !in_b              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -475,7 +482,7 @@ _parse_behavior_coverage_file() {
       cur_b=""; cur_unit=""; cur_src=""; cur_anchor=""
     }
     /^behavior_coverage:/                              { in_bc=1; next }
-    /^(rules|units|layers|gates|behaviors):/           { flush(); in_bc=0; next }
+    /^(rules|units|layers|gates|behaviors|runners):/           { flush(); in_bc=0; next }
     !in_bc             { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*behavior:/ { flush(); cur_b=$3; next }
@@ -492,6 +499,73 @@ _parse_behavior_coverage() {
   while IFS= read -r _rf; do
     [ -n "$_rf" ] || continue
     _parse_behavior_coverage_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's runners[] block into TSV rows (6 columns):
+#   id, command, tier, covers, platform, note
+# Flag-based, key-anchored — keys on `- id:` like rules/units (a runner HAS an
+# id). command/note are quoted single-line values stripped of the `key: "…"`
+# wrapper; tier/platform are bare tokens; covers is a space-separated list of
+# family tokens (or the literal `all`) rendered from an inline `[a, b]` YAML list
+# OR a `covers: all` scalar. The optional platform/note use the nz()/`-`
+# empty-field placeholder discipline (tab-IFS collapses empty fields otherwise).
+# The `runners:` axis (F000072) is OVERLAY-ONLY and OPTIONAL: it declares HOW to
+# run the repo's tests (command + cost tier + covered families), consumed by
+# scripts/test-run.sh. Its absence changes no existing behavior (registry-gated,
+# the behaviors: precedent).
+_parse_runners_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_id != "") {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_id), nz(cur_cmd), nz(cur_tier), nz(cur_covers), nz(cur_platform), nz(cur_note)
+      }
+      cur_id=""; cur_cmd=""; cur_tier=""; cur_covers=""; cur_platform=""; cur_note=""
+    }
+    /^runners:/                                                    { in_r=1; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage):/     { flush(); in_r=0; next }
+    !in_r              { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
+    /^[[:space:]]*command:/  { cur_cmd=strip($0); next }
+    /^[[:space:]]*tier:/     { cur_tier=$2; next }
+    /^[[:space:]]*platform:/ { cur_platform=$2; next }
+    /^[[:space:]]*note:/     { cur_note=strip($0); next }
+    /^[[:space:]]*covers:/ {
+      # covers is either an inline `[a, b, c]` list OR the scalar `all`.
+      v=$0
+      sub(/^[[:space:]]*covers:[[:space:]]*/, "", v)
+      sub(/[[:space:]]+#.*$/, "", v)         # strip a trailing comment
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+      if (v ~ /^\[/) {
+        gsub(/^\[|\][[:space:]]*$/, "", v)   # drop the [ ] brackets
+        gsub(/,/, " ", v)                    # commas -> spaces
+        gsub(/[[:space:]]+/, " ", v)         # collapse whitespace
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+      }
+      cur_covers=v
+      next
+    }
+    END { if (in_r) flush() }
+  '
+}
+
+# Merged runners TSV across general + overlay (overlay-only in practice — the
+# general seed carries no runners).
+_parse_runners() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_runners_file "$_rf"
   done <<EOF
 $(_registry_files)
 EOF
@@ -531,6 +605,7 @@ EOF
   _GATES=$(_parse_gates)
   _BEHAVIORS=$(_parse_behaviors)
   _BEHAVIOR_COVERAGE=$(_parse_behavior_coverage)
+  _RUNNERS=$(_parse_runners)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -551,6 +626,11 @@ EOF
     _N_B=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_BU=$(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_B" -eq "$_N_BU" ] || emit_halt "duplicate behavior id(s): $(printf '%s\n' "$_BEHAVIORS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_RUNNERS" ]; then
+    _N_RN=$(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_RNU=$(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_RN" -eq "$_N_RNU" ] || emit_halt "duplicate runner id(s): $(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -678,6 +758,59 @@ EOF
       fi
     done <<EOF
 $_BEHAVIORS
+EOF
+  fi
+
+  # Per-runner required keys + closed enums + covers references (F000072). Runs
+  # INDEPENDENT of the units: gate (BEFORE the no-units early return) — a repo may
+  # declare runners with no units. The `runners:` axis declares HOW to run tests:
+  #   id       — unique slug ([a-z0-9-]+)
+  #   command  — non-empty shell string
+  #   tier     — closed enum {free, paid, local-only}
+  #   covers   — non-empty list of RUNNABLE family names {validate, test,
+  #              test-deploy, eval, windows-smoke} OR the literal `all`.
+  #              An explicit `ci`/`hook` is REJECTED (runner-less-by-design).
+  #   platform — optional, closed enum {any, windows, posix} (default any)
+  #   note     — optional free text
+  if [ -n "$_RUNNERS" ]; then
+    while IFS="$(printf '\t')" read -r _rnid _rncmd _rntier _rncovers _rnplat _rnnote; do
+      [ -n "$_rnid" ] || continue
+      # Normalize the `-` empty-field placeholders back to "".
+      [ "$_rncmd" = "-" ] && _rncmd=""
+      [ "$_rntier" = "-" ] && _rntier=""
+      [ "$_rncovers" = "-" ] && _rncovers=""
+      [ "$_rnplat" = "-" ] && _rnplat=""
+      [ "$_rnnote" = "-" ] && _rnnote=""
+      case "$_rnid" in
+        *[!a-z0-9-]*) emit_halt "runner id '$_rnid' is not a slug ([a-z0-9-]+ only)" ;;
+      esac
+      [ -n "$_rncmd" ]   || emit_halt "runner '$_rnid' is missing 'command' (a runner must declare a non-empty shell command)"
+      [ -n "$_rntier" ]  || emit_halt "runner '$_rnid' is missing 'tier'"
+      [ -n "$_rncovers" ] || emit_halt "runner '$_rnid' is missing 'covers' (a runner must cover >=1 runnable family, or the literal 'all')"
+      case "$_rntier" in
+        free|paid|local-only) : ;;
+        *) emit_halt "runner '$_rnid' has tier '$_rntier' outside the closed enum {free, paid, local-only}" ;;
+      esac
+      case "$_rnplat" in
+        ""|any|windows|posix) : ;;
+        *) emit_halt "runner '$_rnid' has platform '$_rnplat' outside the closed enum {any, windows, posix}" ;;
+      esac
+      # covers references: each token is a RUNNABLE family or the literal `all`.
+      # ci/hook are explicitly rejected (runner-less-by-design).
+      if [ "$_rncovers" = "all" ]; then
+        : # the literal `all` = every runnable family
+      else
+        for _cov in $_rncovers; do
+          case "$_cov" in
+            validate|test|test-deploy|eval|windows-smoke) : ;;
+            ci|hook) emit_halt "runner '$_rnid' covers '$_cov' — ci/hook are runner-less-by-design (ci runs on GitHub; hook is verified installed) and cannot be covered by a runner" ;;
+            all) emit_halt "runner '$_rnid' mixes the literal 'all' with named families in covers — use 'all' alone OR a list of named families" ;;
+            *) emit_halt "runner '$_rnid' covers unknown family '$_cov' (runnable families are {validate, test, test-deploy, eval, windows-smoke} or the literal 'all')" ;;
+          esac
+        done
+      fi
+    done <<EOF
+$_RUNNERS
 EOF
   fi
 
@@ -1690,7 +1823,23 @@ case "${1:-}" in
     ;;
   --list-units)
     _run_registry_gates
-    [ -n "$_UNITS" ] && printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $1}'
+    # Bare form: ids only (unchanged). --with-family (F000072): id<TAB>family
+    # columns — the machine-readable form test-run.sh consumes for per-family
+    # covered-unit counts (the bare ids-only form cannot supply the family).
+    if [ "${2:-}" = "--with-family" ]; then
+      [ -n "$_UNITS" ] && printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $1 "\t" $2}'
+    else
+      [ -n "$_UNITS" ] && printf '%s\n' "$_UNITS" | awk -F'\t' 'NF {print $1}'
+    fi
+    exit 0
+    ;;
+  --list-runners)
+    # (F000072) The parsed runners[] rows machine-readably: one row per runner,
+    # tab-separated id, command, tier, covers (space-separated family list or
+    # `all`), platform (`-` when unset), note (`-` when unset). test-run.sh
+    # consumes this to build the plan. Empty when no overlay declares runners.
+    _run_registry_gates
+    [ -n "$_RUNNERS" ] && printf '%s\n' "$_RUNNERS" | awk -F'\t' 'NF {print}'
     exit 0
     ;;
   --list-layers)
@@ -1761,6 +1910,8 @@ Usage:
   test-spec.sh --validate        # REGISTRY=absent/exit 0 when absent; exit 0 OK when valid; halt when invalid
   test-spec.sh --list-rules      # every declared rule id (registry order)
   test-spec.sh --list-units      # every declared unit id (registry order; empty without an overlay)
+  test-spec.sh --list-units --with-family  # id<TAB>family columns (for test-run.sh per-family counts)
+  test-spec.sh --list-runners    # parsed runners[] rows (id/command/tier/covers/platform/note; empty without an overlay)
   test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
@@ -1780,7 +1931,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)
