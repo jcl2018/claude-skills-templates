@@ -422,21 +422,5 @@
     "templates": [],
     "doc_requirement": "The SKILL.md three-stage audit flow (seed delivery; Stage 1 = the existing test-spec.sh --validate + --check-coverage engine calls with stage1/ prefixes, PLUS the renderer-gated --render-docs --check freshness gate and the engine-gated --check-workflow-coverage workflow-coverage gate when the engine carries them; Stage 2 rule-statement + unit purpose/label truthfulness verdicts with cited evidence, including the per-level:workflow-behavior real-run-vs-hollow-prompt substance clause; Stage 3 live-surface coverage-in-substance drift; the REQUIRED standalone fresh-context dispatch + in-QA inline degradation; the per-stage TEST_AUDIT report with STAGE1/2/3_FINDINGS= and UNITS_AUDITED=) matches the current test-spec.sh subcommands and the qa.md Step 8.6 wiring; USAGE.md is current.",
     "status": "experimental"
-  },
-  {
-    "name": "zzz-test-scaffold",
-    "version": "0.1.0",
-    "description": "Test skill for integration testing.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/zzz-test-scaffold/SKILL.md"
-    ],
-    "templates": [],
-    "status": "experimental"
   }
 ]
