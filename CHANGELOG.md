@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.103] - 2026-07-02
+## [6.0.104] - 2026-07-02
 
 ### Changed
 - **F000073 — removed the workbench-only portability-audit gate from the four
@@ -15,7 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `### Portability` line, and overview-chain node are removed from feature / task
   / defect / todo_fix (`pipeline.md` + `SKILL.md` + `USAGE.md`); the gate's unit
   test (`tests/cj-goal-common-portability.test.sh`) + the `test.sh` integration
-  block are dropped (the `task`-enum probe repointed to `--phase sync`); the
+  block are dropped (the `task`-enum probe repointed to `--phase recap`); the
   `spec/test-spec-custom.md` gate/ratchet rows are removed; `spec/workflow-spec.md`
   + the generated workflow/test docs + README are regenerated; and `CLAUDE.md` +
   `docs/philosophy.md` are de-gated. Portability is a workbench-only concern, so
@@ -27,6 +27,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   fixture in `test.sh` are all intact. Portability stays enforced globally via
   Check 18 (pre-commit hook + CI), so removing the redundant gate does not weaken
   the guarantee.
+## [6.0.102] - 2026-07-02
+
+### Fixed
+
+- **The spec engines no longer false-halt under a CRLF-emitting `jq` on Windows Git Bash** (D000038). On Windows, some `jq` builds (e.g. jq 1.7.1) emit CRLF line endings; `scripts/workflow-spec.sh` fed raw `$(jq -r ... skills-catalog.json)` into a `while read` loop, so each catalog name carried a trailing `` — the registry-completeness check then read `CJ_goal_todo_fix`, found no matching `## CJ_goal_todo_fix` section, and false-halted `[workflow-spec-no-config]`. That cascaded into `scripts/test-spec.sh` and turned `validate.sh` Checks 24/26/27/28 red, so the pre-commit hook blocked *every* commit on the machine (Linux CI never saw it — Linux `jq` emits LF). The fix adds the same CR-stripping `jq()` wrapper `scripts/lib.sh` already uses to `workflow-spec.sh` (the only standalone spec engine with `jq` call sites — `doc-spec.sh`/`test-spec.sh` have none), covering every current and future call site while keeping the engine's no-`lib.sh` standalone posture. A `tests/workflow-spec-render.test.sh` T7 drill (a PATH-prepended CRLF-emitting `jq` shim) red-proofs the bug class: it false-halts the pre-fix engine and passes the fixed one.
 
 ## [6.0.101] - 2026-06-30
 

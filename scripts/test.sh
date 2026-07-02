@@ -2146,13 +2146,15 @@ fi
 # --check exit 0 on a fresh tree + exit 1 after a hand-edit / a removal, AND the
 # no-vanish remove-an-entry drill (--validate registry-completeness fails closed
 # when a routable CJ_goal_* orchestrator entry is removed — the retired-Check-15c
-# replacement). Temp-dir + temp-repo isolated; never mutates the live tree or the
-# real catalog. MANDATORY registration — Check 24's reverse sweep hard-fails any
-# unregistered tests/*.test.sh.
+# replacement), AND the CRLF-jq drill (a PATH-prepended CRLF-emitting jq shim must
+# not false-halt registry-completeness — the Windows-jq regression guard for the
+# engine's local jq() wrapper). Temp-dir + temp-repo isolated; never mutates the
+# live tree or the real catalog. MANDATORY registration — Check 24's reverse sweep
+# hard-fails any unregistered tests/*.test.sh.
 echo ""
 echo "Running tests/workflow-spec-render.test.sh (F000069 generated workflow-docs renderer + freshness + no-vanish)..."
 if bash "$REPO_ROOT/tests/workflow-spec-render.test.sh" >/dev/null 2>&1; then
-  ok "tests/workflow-spec-render.test.sh: render stability + ID-free output + --check pass/fail-on-edit/fail-on-missing + the no-vanish drill all pass"
+  ok "tests/workflow-spec-render.test.sh: render stability + ID-free output + --check pass/fail-on-edit/fail-on-missing + the no-vanish drill + the CRLF-jq drill all pass"
 else
   _wsrender_rc=$?
   fail_test "tests/workflow-spec-render.test.sh failed (rc=$_wsrender_rc) — run \`bash tests/workflow-spec-render.test.sh\` directly to see"

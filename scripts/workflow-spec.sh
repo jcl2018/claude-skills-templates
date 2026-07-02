@@ -69,6 +69,13 @@ set -eu
 # Strip CRLF from any command output on Windows. No-op on Unix.
 _strip_cr() { tr -d '\r'; }
 
+# CRLF-stripping jq wrapper (the scripts/lib.sh precedent, redefined locally —
+# this engine deliberately travels alone to _cj-shared and never sources lib.sh).
+# A Windows jq build emits CRLF; a raw $(jq -r ...) consumed by `read -r` leaves
+# a trailing \r on every value (e.g. 'CJ_goal_todo_fix\r'), which false-halts the
+# registry-completeness check. Covers every current and future jq call site.
+jq() { command jq "$@" | tr -d '\r'; }
+
 # Resolve repo root (allows REPO_ROOT override for tests / temp-dir drills).
 REPO_ROOT_RESOLVED="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 # Resolution order: WORKFLOW_SPEC_PATH env override (outermost) ->

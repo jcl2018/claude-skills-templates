@@ -824,13 +824,13 @@ units:
     purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated test catalog from the merged registry, and --render-docs --check exits zero on a fresh render and non-zero after a hand-edit — the freshness primitive behind validate.sh Check 26."
   - id: test-workflow-spec-render
     family: test
-    label: "workflow-spec render suite — generated workflow-docs renderer + freshness primitive + no-vanish drill"
+    label: "workflow-spec render suite — generated workflow-docs renderer + freshness primitive + no-vanish drill + CRLF-jq drill"
     anchor: "tests/workflow-spec-render.test.sh"
     source: scripts/test.sh
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated workflow surface from spec/workflow-spec.md; --render-docs --check exits zero on a fresh render and non-zero after a hand-edit or a missing file; and a remove-an-entry drill proves workflow-spec.sh --validate registry-completeness fails closed (the no-vanish guarantee behind validate.sh Check 27 + the retired Check 15c)."
+    purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated workflow surface from spec/workflow-spec.md; --render-docs --check exits zero on a fresh render and non-zero after a hand-edit or a missing file; a remove-an-entry drill proves workflow-spec.sh --validate registry-completeness fails closed (the no-vanish guarantee behind validate.sh Check 27 + the retired Check 15c); and a CRLF-jq drill (a PATH-prepended jq shim appending CR to every output line) proves --list-orchestrators and --validate stay green under a Windows CRLF-emitting jq — no registry-completeness false-halt."
   - id: test-seed-contracts
     family: test
     label: "seed-contracts suite — forced contract seeding + stale-engine probe + data-loss guard"
