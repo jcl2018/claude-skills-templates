@@ -3,6 +3,31 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.103] - 2026-07-02
+
+### Changed
+- **F000073 — removed the workbench-only portability-audit gate from the four
+  `CJ_goal_*` orchestrators.** The pre-ship gate
+  (`cj-goal-common.sh --phase portability-audit`, halt `[portability-red]` /
+  `halted_at_portability`) is fully extracted: the phase block +
+  `resolve_portability_engine()` + the phase enum/usage are deleted from
+  `cj-goal-common.sh`; the Step 5.7 gate handler, halt-taxonomy rows, PR-body
+  `### Portability` line, and overview-chain node are removed from feature / task
+  / defect / todo_fix (`pipeline.md` + `SKILL.md` + `USAGE.md`); the gate's unit
+  test (`tests/cj-goal-common-portability.test.sh`) + the `test.sh` integration
+  block are dropped (the `task`-enum probe repointed to `--phase sync`); the
+  `spec/test-spec-custom.md` gate/ratchet rows are removed; `spec/workflow-spec.md`
+  + the generated workflow/test docs + README are regenerated; and `CLAUDE.md` +
+  `docs/philosophy.md` are de-gated. Portability is a workbench-only concern, so
+  the portable orchestrators now carry none of it.
+
+### Unchanged (the separate portability test)
+- `validate.sh` Check 18 (strict-by-default), `scripts/cj-portability-audit.sh`
+  (engine), the standalone `/CJ_portability-audit` skill, and the F000047 engine
+  fixture in `test.sh` are all intact. Portability stays enforced globally via
+  Check 18 (pre-commit hook + CI), so removing the redundant gate does not weaken
+  the guarantee.
+
 ## [6.0.101] - 2026-06-30
 
 ### Fixed
