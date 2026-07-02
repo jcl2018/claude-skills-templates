@@ -142,11 +142,11 @@ else
   done
   # S4: the universal markers resolve in ALL four modes' files; the per-mode
   # isolation markers resolve in their declared mode's file (either pipeline.md or SKILL.md).
+  # [doc-sync-red] is the sole remaining universal marker (the portability gate
+  # + its [portability-red] marker were removed in F000073).
   for _dir in CJ_goal_feature CJ_goal_defect CJ_goal_task CJ_goal_todo_fix; do
-    for _m in '[doc-sync-red]'; do
-      { grep -qF "$_m" "$REPO_ROOT/skills/$_dir/pipeline.md" 2>/dev/null || grep -qF "$_m" "$REPO_ROOT/skills/$_dir/SKILL.md" 2>/dev/null; } \
-        || fail_test "S000096: universal marker $_m absent from skills/$_dir/{pipeline.md,SKILL.md}"
-    done
+    { grep -qF '[doc-sync-red]' "$REPO_ROOT/skills/$_dir/pipeline.md" 2>/dev/null || grep -qF '[doc-sync-red]' "$REPO_ROOT/skills/$_dir/SKILL.md" 2>/dev/null; } \
+      || fail_test "S000096: universal marker [doc-sync-red] absent from skills/$_dir/{pipeline.md,SKILL.md}"
   done
   { grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/pipeline.md" 2>/dev/null || grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/SKILL.md" 2>/dev/null; } \
     || fail_test "S000096: isolation marker [feature-not-isolated] absent from the feature mode's files"
