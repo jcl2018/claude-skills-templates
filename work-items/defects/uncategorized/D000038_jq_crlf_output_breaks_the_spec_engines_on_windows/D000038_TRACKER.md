@@ -88,3 +88,9 @@ On Windows Git Bash with a CRLF-emitting jq build (jq 1.7.1 at ~/bin/jq, first i
 - 2026-07-01 [qa-smoke-summary] green: 3/3 non-manual rows green (0 manual rows pending) — test-plan rows run as smoke-equivalent (defect type dispatch) at commit 7a58439
 - 2026-07-01 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b ran inline — T7 extends the already-registered suite tests/workflow-spec-render.test.sh (units row test-workflow-spec-render unchanged); no new docs; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
 - 2026-07-01 [qa-pass] D000038 (defect): green smoke from test-plan rows (3 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
+
+- 2026-07-02T02:07:01Z [qa-audit-declined] operator halted at the post-QA (post-sync) audit checkpoint to fix two findings in-session (stage3/CLAUDE.md jq-wrapper over-claim; stage2/test-workflow-spec-render row omits the T7 drill). AUDITS=doc:findings:1,test:findings:1 preserved at ~/.gstack/analytics/CJ_goal_defect-runs/20260701-173953-1393/post-sync-audit-raw.txt
+  next_action=Apply both one-line fixes, re-render the catalog, then resume: QA re-runs, doc-sync + post-sync audit re-run, checkpoint re-fires.
+  resume_cmd=/CJ_goal_defect "jq CRLF output breaks the spec engines on Windows Git Bash..."
+  pr_url=N/A
+  raw_output_path=~/.gstack/analytics/CJ_goal_defect-runs/20260701-173953-1393/post-sync-audit-raw.txt
