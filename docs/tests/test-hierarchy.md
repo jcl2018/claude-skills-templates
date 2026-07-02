@@ -20,7 +20,7 @@ layers welded together:
 
 1. **A deterministic skeleton** — shell + markdown. Argument parsing, the
    worktree phase, the isolation gate, the phase-dispatch order, the halt
-   taxonomy, doc-sync wiring, the portability gate, telemetry, the PR-body
+   taxonomy, doc-sync wiring, telemetry, the PR-body
    splice, cleanup. Most of it lives in `scripts/cj-goal-common.sh` plus the
    `pipeline.md` prose the agent executes step by step. **All of it is
    deterministic** — no model needed to run it.

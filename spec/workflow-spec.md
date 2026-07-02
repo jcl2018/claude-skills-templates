@@ -150,13 +150,10 @@ post-sync audit   [INLINE Step 5.6 - NEW; ONE combined READ-ONLY subagent: /CJ_d
 QA-audit checkpoint   [INLINE Step 3.4 - AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt]
    |   `- Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
    v
-portability gate   [INLINE Step 5.7 - cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship]
-   |   `- findings -> HALT (halted_at_portability; no PR)
-   v
 /ship   [INLINE - diff-review AUQ suppressed; opens PR; check-version-queue.sh preflight]
    |
    v
-registered-doc + portability verdicts -> PR body   [post-/ship gh pr edit; best-effort]
+registered-doc verdicts -> PR body   [post-/ship gh pr edit; best-effort]
    |
    v
 at-PR recap   [cj-goal-common.sh --phase recap --when after; 3-part Delivered/E2E/Next; advisory, never halts]
@@ -193,11 +190,11 @@ mid-chain without redoing finished phases.
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 3.5) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 3.4 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 3.5) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 3.4 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
-- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode feature`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
+- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `recap`, `--mode feature`), `scripts/cj-worktree-init.sh` (`--caller feature`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 ````
 
 ````touches-docs
@@ -243,13 +240,10 @@ post-sync audit   [INLINE Step 5.6 - NEW; ONE combined READ-ONLY subagent: /CJ_d
 QA-audit checkpoint   [INLINE Step 4.5 - AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt]
    |   `- Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
    v
-portability gate   [INLINE Step 5.7 - cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship]
-   |   `- findings -> HALT (halted_at_portability; no PR)
-   v
 /ship   [INLINE - diff-review AUQ suppressed; opens PR; check-version-queue.sh preflight]
    |
    v
-registered-doc + portability verdicts -> PR body   [post-/ship gh pr edit; best-effort]
+registered-doc verdicts -> PR body   [post-/ship gh pr edit; best-effort]
    |
    v
 at-PR recap   [cj-goal-common.sh --phase recap --when after --mode task; 3-part Delivered/E2E/Next; advisory, never halts]
@@ -276,7 +270,7 @@ subagents (QA defers its three-stage audit via `DEFER_AUDIT: true`), then a
 pre-doc-sync commit (Step 4.4), `/CJ_document-release` folds doc edits into the
 same PR at Step 5.5, the orchestrator runs ONE combined read-only post-sync
 doc/test audit (Step 5.6), the QA-audit checkpoint decides on that POST-sync
-report (Step 4.5), the portability gate runs, and `/ship` opens the PR. It STOPs at the open PR
+report (Step 4.5), and `/ship` opens the PR. It STOPs at the open PR
 (PR-stop only; the same `unsafe-by-construction` reasoning as `/CJ_goal_feature`),
 and the resume state file lets a re-invocation pick up mid-chain.
 ````
@@ -286,11 +280,11 @@ and the resume state file lets a re-invocation pick up mid-chain.
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 4.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 4.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 4.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 4.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
-- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode task`), `skills/CJ_goal_task/scripts/cj-task-scaffold.sh` (the complexity gate + topic-driven `type: task` scaffold), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller task`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
+- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `recap`, `--mode task`), `skills/CJ_goal_task/scripts/cj-task-scaffold.sh` (the complexity gate + topic-driven `type: task` scaffold), `scripts/cj-worktree-init.sh` (`--caller task`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 ````
 
 ````touches-docs
@@ -335,12 +329,9 @@ scaffold .inbox/<slug>/DRAFT.md   (no defect ID yet; idempotent)
    v  QA-audit checkpoint                    (Step 8.5 - AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt)
    |        Halt -> HALT (halted_at_qa_audit); Continue past findings journals [qa-audit-waived]
    |
-   v  portability gate                       (Step 5.7 - cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship)
-   |        findings -> HALT (halted_at_portability; no PR)
-   |
    v  /ship                                  (Gate #2 fires; check-version-queue.sh preflight)
    |
-   v  registered-doc + portability verdicts -> PR body   (post-/ship gh pr edit "$PR_URL"; best-effort)
+   v  registered-doc verdicts -> PR body   (post-/ship gh pr edit "$PR_URL"; best-effort)
    |
    v  before-land recap                      (Step 10 - cj-goal-common.sh --phase recap --when before; 3-part; advisory)
    |
@@ -372,11 +363,11 @@ with `cj-worktree-cleanup.sh` sweeping the now-landed worktree.
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 8.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> portability gate (Step 5.7, `--phase portability-audit`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.6 — ONE combined read-only subagent) -> QA-audit checkpoint (Step 8.5 — AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest; Continue past findings journals `[qa-audit-waived]`, Halt = `[qa-audit-declined]` / halted_at_qa_audit) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
-- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `portability-audit` / `recap`, `--mode defect`), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller defect`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
+- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `recap`, `--mode defect`), `scripts/cj-worktree-init.sh` (`--caller defect`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 ````
 
 ````touches-docs
@@ -421,13 +412,10 @@ post-sync audit   (Step 5.5b - NEW; ONE combined READ-ONLY subagent: /CJ_doc_aud
 QA-audit checkpoint   (AUQ ALWAYS interactive on the POST-sync report; --quiet auto-continues on doc:ok,test:ok / halts on findings)
    |   (Halt -> HALT halted_at_qa_audit; Continue past findings journals [qa-audit-waived])
    v
-portability gate   (Step 5.7 - cj-goal-common.sh --phase portability-audit --mode feature; halt-on-red BEFORE /ship)
-   |   (findings -> HALT halted_at_portability; no PR)
-   v
 /ship   (Gate #2 fires per drained TODO - human approves diff; check-version-queue.sh preflight)
    |
    v
-registered-doc + portability verdicts -> PR body   (post-/ship gh pr edit "$PR_URL"; best-effort)
+registered-doc verdicts -> PR body   (post-/ship gh pr edit "$PR_URL"; best-effort)
    |
    v
 before-land recap   (pipeline.md Step 5.6 - cj-goal-common.sh --phase recap --when before; 3-part; advisory; per drained TODO)
@@ -466,11 +454,11 @@ each diff); on land it hash-verified DONE-marks the row and
 ````
 
 ````touches-steps
-- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 5.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.5b — ONE combined read-only subagent) -> QA-audit checkpoint (interactive: AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest, Continue past findings journals `[qa-audit-waived]`; `--quiet`: auto-continue on doc:ok,test:ok, halt `[qa-audit-declined]` / halted_at_qa_audit on findings) -> portability gate (Step 5.7, `--phase portability-audit --mode feature`; halt-on-red before `/ship`) -> `/ship` -> registered-doc + portability verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory, per drained TODO) -> `/land-and-deploy` -> TODOS.md DONE-mark -> after-land recap (`--phase recap --when after`; 3-part, advisory, per drained TODO) -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
+- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (`DEFER_AUDIT: true`) -> pre-doc-sync commit (Step 5.4) -> doc-sync (Step 5.5) -> post-sync doc/test audit (Step 5.5b — ONE combined read-only subagent) -> QA-audit checkpoint (interactive: AUQ ALWAYS on the POST-sync AUDIT_FINDINGS digest, Continue past findings journals `[qa-audit-waived]`; `--quiet`: auto-continue on doc:ok,test:ok, halt `[qa-audit-declined]` / halted_at_qa_audit on findings) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory, per drained TODO) -> `/land-and-deploy` -> TODOS.md DONE-mark -> after-land recap (`--phase recap --when after`; 3-part, advisory, per drained TODO) -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
 ````
 
 ````touches-scripts
-- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` pre-build skills-sync + `--phase portability-audit` the pre-ship portability gate + `--phase recap` the land/PR 3-part recap formatter), `scripts/cj-portability-audit.sh` (the portability engine, run STRICT via `--phase portability-audit`), `scripts/cj-worktree-init.sh` (`--caller todo`, base-freshness; drain mode creates one worktree per TODO via `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh`), `scripts/cj-worktree-cleanup.sh` (post-land janitor, called directly), `scripts/check-version-queue.sh` (optional `/ship` preflight).
+- **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` pre-build skills-sync + `--phase recap` the land/PR 3-part recap formatter), `scripts/cj-worktree-init.sh` (`--caller todo`, base-freshness; drain mode creates one worktree per TODO via `skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh`), `scripts/cj-worktree-cleanup.sh` (post-land janitor, called directly), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 ````
 
 ````touches-docs
@@ -498,10 +486,7 @@ non-interactive steps, selected by a `--phase` flag. The phases are `worktree`
 `sync` (the pre-build skills-sync — reuses `post-land-sync.sh`'s guarded pull +
 install core so installed skills match trunk at build start), `pr-check` (resolve
 a PR's live state for resume + cleanup gating), `cleanup` (the post-run worktree
-janitor, delegating to `cj-worktree-cleanup.sh`), `portability-audit` (the
-pre-ship portability gate — runs `cj-portability-audit.sh` STRICT and classifies
-the result into `ok` / `findings` / `skipped`, so a dishonest skill portability
-declaration HALTs the run before the PR), and `telemetry` (append one JSONL
+janitor, delegating to `cj-worktree-cleanup.sh`), and `telemetry` (append one JSONL
 receipt to `~/.gstack/analytics/<verb>.jsonl`). **Why:** it factors the
 deterministic machinery out of all three orchestrators so they share one tested
 implementation instead of each re-deriving the worktree/sync/cleanup/telemetry
@@ -843,14 +828,12 @@ classify each EXECUTED hit against the STRICT tier ladder:
 per-skill verdict:  portable  /  portable-with-notes  /  findings:<list>
    |   finding text: "<skill> declared <tier> but depends on <dep> (needs <higher-tier>)"
    v
-three surfaces share the engine:
+two surfaces share the engine:
    |--  /CJ_portability-audit skill          -> rich per-skill verdict table
-   |--  validate.sh advisory check           -> prints findings, EXITS 0 (advisory
-   |                                            by design; PORTABILITY_STRICT=1 -> hard-fail)
-   `--  cj_goal orchestrators' pre-ship gate -> cj-goal-common.sh --phase portability-audit
-                                                runs PORTABILITY_STRICT=1; HALTs the run
-                                                before /ship on a finding (the orchestrated
-                                                path enforces; catalog currently FINDINGS=0)
+   `--  validate.sh Check 18                 -> strict-by-default: a finding hard-fails
+                                                every commit / CI / manual run
+                                                (PORTABILITY_STRICT=0 downgrades to advisory;
+                                                catalog currently FINDINGS=0)
 ```
 
 **Strict tier ladder (each tier's ALLOWED dependency set; the bar is "works in a

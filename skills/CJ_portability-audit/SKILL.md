@@ -41,12 +41,13 @@ that a fresh target repo will not have. (The consumer-side duty it once paired w
 `--no-adjudication`) — no declared-vs-actual mismatches today. The audit is
 **strict-by-default in `validate.sh` Check 18** (a finding hard-fails on every
 commit, CI, and manual `validate.sh` run; `PORTABILITY_STRICT=0` downgrades it to
-advisory for a deliberate WIP commit), AND a **HARD GATE on the `cj_goal`
-orchestrated path** as of F000051: each of the three
-`cj_goal` orchestrators runs `scripts/cj-goal-common.sh --phase portability-audit`
-(the engine under `PORTABILITY_STRICT=1`) before `/ship` and HALTs with
-`[portability-red]` on any finding. So a finding is advisory globally but blocking
-on the orchestrated build path.
+advisory for a deliberate WIP commit). So a portability finding hard-fails the
+whole repo — Check 18 is the ratchet that keeps the catalog's declared tiers
+honest. Portability is deliberately **not** wired into the `cj_goal` orchestrators:
+it is a workbench-only concern (it audits `skills-catalog.json`, which only this
+repo ships), so the portable build pipelines carry no portability gate — this
+standalone audit plus Check 18 own it. (The former F000051 cj_goal pre-ship gate
+was removed by F000073.)
 
 The full correct-behavior contract — the tier ladder, the EXECUTED-vs-documented
 rule, the carve-outs, and the expected-findings table — is written verbatim in
@@ -189,10 +190,9 @@ clean, idempotent read.
 
 Pass-through engine flags (advanced): `--skill <name>` (audit one skill),
 `--catalog <path>` (audit a custom catalog). `PORTABILITY_STRICT=1` env flips the
-exit code to non-zero when findings remain (the hard-fail path the `cj_goal`
-orchestrators already use via `cj-goal-common.sh --phase portability-audit` —
-F000051 — and the path `validate.sh` Check 18 now defaults to (strict-by-default;
-`PORTABILITY_STRICT=0` downgrades it to advisory).
+exit code to non-zero when findings remain — the hard-fail path `validate.sh`
+Check 18 defaults to (strict-by-default; `PORTABILITY_STRICT=0` downgrades it to
+advisory).
 
 ## Error handling
 

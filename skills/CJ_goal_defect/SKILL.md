@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_defect
-description: "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent; with DEFER_AUDIT: true so the three-stage audit is deferred to the post-sync point), makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release (Step 5.5 doc-sync; halt-on-red), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (Step 8.5 — ALWAYS; Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), runs a pre-ship portability gate (cj-goal-common.sh --phase portability-audit; halts [portability-red] on a dishonest skill portability declaration before the PR), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'."
+description: "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent; with DEFER_AUDIT: true so the three-stage audit is deferred to the post-sync point), makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release (Step 5.5 doc-sync; halt-on-red), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (Step 8.5 — ALWAYS; Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -209,9 +209,6 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID; idempotent — same phrase resumes t
    ▼  QA-audit checkpoint                      (Step 8.5 — AUQ, ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest)
    │        Halt → HALT (halted_at_qa_audit; [qa-audit-declined]); Continue past findings journals [qa-audit-waived]
    │
-   ▼  portability gate                         (Step 5.7 — cj-goal-common.sh --phase portability-audit; halt-on-red BEFORE /ship)
-   │        findings → HALT (halted_at_portability; no PR; relabel skill portability + re-run)
-   │
    ▼  /ship                                    (Gate #2 fires; halt on [ship-declined])
    │
    ▼  Step 9.5: surface registered-doc verdicts → PR body   (post-/ship gh pr edit "$PR_URL"; best-effort; NEVER halts)
@@ -309,7 +306,6 @@ promotion, artifact writes, the chain dispatch, and telemetry.
 | DONE_WITH_CONCERNS | `[investigate-unverified]` | Manual verification + manual /ship if appropriate; draft retained |
 | Blast radius >5 files | `[investigate-blast-radius]` (pre-write halt) | Decompose into multiple bugs; manual /investigate per chunk |
 | /CJ_qa-work-item red | `[qa-red]` (re-use existing CJ_qa-work-item marker) | Inspect QA output; fix; re-run |
-| Portability gate findings | `[portability-red]` (Step 5.7; halt before /ship) | Relabel the skill's `portability` (or add to `portability_requires`) in skills-catalog.json so it honestly matches its deps; re-run |
 | /ship Gate #2 declined | `[ship-declined]` | Address operator feedback; re-run when ready |
 | /land-and-deploy red | `[land-and-deploy-red]` (CI / merge / canary) | Inspect run output; fix + re-invoke |
 
@@ -350,7 +346,6 @@ substantive end-states it inherits unchanged:
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green (upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) |
 | `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum (a simply-absent doc-spec.md self-bootstraps, not halts) |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist (upstream-misbehaved) |
-| `halted_at_portability` | `[portability-red]` | Step 5.7 portability gate: `cj-goal-common.sh --phase portability-audit` returned `PHASE_RESULT=findings` — a touched skill declares a portability tier it does not honor. Halt is BEFORE `/ship`, so no PR is created. (`skipped`/engine-absent never halts.) |
 | `halted_at_ship` | `[ship-declined]` | /ship Gate #2 declined or pre-landing review red |
 | `halted_at_deploy` | `[land-and-deploy-red]` | /land-and-deploy red (CI / merge / canary) |
 

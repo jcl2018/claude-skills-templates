@@ -55,14 +55,12 @@ classify each EXECUTED hit against the STRICT tier ladder:
 per-skill verdict:  portable  /  portable-with-notes  /  findings:<list>
    |   finding text: "<skill> declared <tier> but depends on <dep> (needs <higher-tier>)"
    v
-three surfaces share the engine:
+two surfaces share the engine:
    |--  /CJ_portability-audit skill          -> rich per-skill verdict table
-   |--  validate.sh advisory check           -> prints findings, EXITS 0 (advisory
-   |                                            by design; PORTABILITY_STRICT=1 -> hard-fail)
-   `--  cj_goal orchestrators' pre-ship gate -> cj-goal-common.sh --phase portability-audit
-                                                runs PORTABILITY_STRICT=1; HALTs the run
-                                                before /ship on a finding (the orchestrated
-                                                path enforces; catalog currently FINDINGS=0)
+   `--  validate.sh Check 18                 -> strict-by-default: a finding hard-fails
+                                                every commit / CI / manual run
+                                                (PORTABILITY_STRICT=0 downgrades to advisory;
+                                                catalog currently FINDINGS=0)
 ```
 
 **Strict tier ladder (each tier's ALLOWED dependency set; the bar is "works in a

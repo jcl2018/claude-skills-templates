@@ -104,7 +104,6 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   [ -n "$_SCAFFOLD" ] && bash "$_SCAFFOLD" --topic "$TOPIC" --dry-run 2>&1 | sed 's/^/DRY RUN: /'
   echo "DRY RUN: on gate PASS, would dispatch /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — audit deferred to post-sync) as SILENT leaf Agent subagents (no AUQ)"
   echo "DRY RUN: would make an idempotent pre-doc-sync commit (Step 4.4; skip on a clean tree), then run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red), then ONE combined read-only post-sync audit subagent (Step 5.6: /CJ_doc_audit + /CJ_test_audit), then the QA-audit checkpoint (Step 4.5) on that POST-sync report"
-  echo "DRY RUN: would run the portability-audit gate (halt-on-red) before /ship"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute."
   echo "Suggested resume: /CJ_goal_task \"$TOPIC\""
@@ -424,8 +423,7 @@ halt marker), end_state `halted_at_qa`, `pr_url=N/A`,
 
 On green: record the qa boundary, then continue to Step 4.4 (the pre-doc-sync
 commit), then Step 5.5 (Doc-sync), then Step 5.6 (the post-sync audit), then
-Step 4.5 (the QA-audit checkpoint, fed by the post-sync audit), then Step 5.7
-(portability), then Step 6 (/ship).
+Step 4.5 (the QA-audit checkpoint, fed by the post-sync audit), then Step 6 (/ship).
 
 ## Step 4.4: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
 
@@ -472,7 +470,7 @@ Each halt writes the family contract journal entry (`next_action=` / `resume_cmd
 / `pr_url=N/A` / `raw_output_path=$RAW_DIR/doc-sync-raw.txt`) + a telemetry line
 with the matching end_state, then exits. Only on green / green-noop does control
 proceed to Step 5.6 (the post-sync audit), then Step 4.5 (the QA-audit
-checkpoint), then the portability gate.
+checkpoint), then `/ship`.
 
 ## Step 5.6: Post-sync doc/test audit (NEW — ONE combined read-only subagent)
 
@@ -562,7 +560,7 @@ an AskUserQuestion ALWAYS — findings or not:
 > {AUDIT_FINDINGS block, verbatim}
 >
 > Options:
-> - Continue — proceed to the portability gate + /ship
+> - Continue — proceed to /ship
 > - Halt — stop the run here; I want to act on these findings first
 
 **On Continue:** if either audit reported findings, append the auditable
@@ -570,8 +568,8 @@ waiver line `- $TS [qa-audit-waived] operator continued past audit findings
 at the post-QA (post-sync) checkpoint: AUDITS=...` to the work-item tracker
 journal (a fully-green digest writes nothing). Then, since this waiver line is an
 uncommitted NON-DOC tracker change, commit it (`git add -A && git commit`, or
-no-op on a clean tree) so the portability gate + `/ship` see a clean tree.
-Continue to Step 5.7 (portability).
+no-op on a clean tree) so `/ship` sees a clean tree.
+Continue to Step 6 (/ship).
 
 **On Halt:** append `- $TS [qa-audit-declined] operator halted at the
 post-QA (post-sync) audit checkpoint.` + the family-contract fields
@@ -581,52 +579,6 @@ post-sync audit re-run, and the checkpoint re-fires;
 `raw_output_path=$RAW_DIR/post-sync-audit-raw.txt`) to `$RESUME_DIR/.resume.log`,
 write a telemetry line with end_state `halted_at_qa_audit`, and exit 1. The
 checkpoint is a pure read of the post-sync audit (no phase boundary recorded).
-
-## Step 5.7: Portability gate (INLINE — halt-on-red before /ship)
-
-Identical to `/CJ_goal_feature` Step 5.7 (the audit is verb-independent; `--mode
-task` is telemetry-only). Call `cj-goal-common.sh --phase portability-audit
---mode task`:
-
-```bash
-_COMMON="$_REPO_ROOT/scripts/cj-goal-common.sh"
-_PORT_RESULT="skipped"; _PORT_VERDICT=""
-if [ -x "$_COMMON" ]; then
-  _PORT_OUT=$(bash "$_COMMON" --phase portability-audit --mode task 2>/dev/null) && _PORT_RC=0 || _PORT_RC=$?
-  _PORT_RESULT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^PHASE_RESULT=//p' | head -1)
-  _PORT_VERDICT=$(printf '%s\n' "$_PORT_OUT" | sed -n 's/^VERDICT_LINE=//p' | head -1)
-  [ -z "$_PORT_RESULT" ] && _PORT_RESULT="skipped"
-else
-  echo "[portability] cj-goal-common.sh unreachable — skipping the portability gate (best-effort)"
-fi
-
-if [ "$_PORT_RESULT" = "ok" ]; then
-  mkdir -p "$_REPO_ROOT/.cj-goal-task" 2>/dev/null || true
-  printf '### Portability\n\n%s\n' "$_PORT_VERDICT" > "$_REPO_ROOT/.cj-goal-task/portability-verdict.md"
-  echo "[portability] $_PORT_VERDICT — continuing to /ship"
-elif [ "$_PORT_RESULT" = "skipped" ]; then
-  echo "[portability] gate skipped (engine absent) — continuing to /ship (best-effort, not halting)"
-else
-  # PHASE_RESULT=findings → HALT halted_at_portability (BEFORE /ship; no PR).
-  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  printf '%s\n' "$_PORT_OUT" > "$RAW_DIR/portability-raw.txt" 2>/dev/null || true
-  cat >> "$RESUME_DIR/.resume.log" <<EOF
-- $TS [portability-red] --phase portability-audit returned findings; halt class halted_at_portability. $_PORT_VERDICT
-  next_action=A touched skill declares a portability tier it does not honor. Relabel its 'portability' (or add to 'portability_requires') in skills-catalog.json. Then re-run.
-  resume_cmd=/CJ_goal_task "$TOPIC"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/portability-raw.txt
-EOF
-  echo "Why it stopped: the portability audit found a skill that declares a tier it does not honor; the gate blocks the PR until it is reconciled."
-  echo "Next: relabel the skill's 'portability' in skills-catalog.json, then /CJ_goal_task \"$TOPIC\""
-  jq -nc --arg ts "$TS" --arg run_id "$RUN_ID" --arg end_state "halted_at_portability" \
-    --arg topic "$TOPIC" '{ts:$ts,run_id:$run_id,end_state:$end_state,topic:$topic,parent_skill:"CJ_goal_task"}' \
-    >> "$TELEMETRY" 2>/dev/null || true
-  exit 1
-fi
-```
-
-Only on `ok` or `skipped` does control proceed to Step 6.
 
 ## Step 6: /ship (INLINE — diff-review AUQ suppressed; opens a PR)
 
@@ -652,15 +604,14 @@ a dirty-tree refusal, a version-queue collision) — those pass through.
 There is **no automatic merge and no `/land-and-deploy`** — the pipeline STOPs at
 the PR. The merge + deploy are separate human steps.
 
-## Step 6.6: Surface registered-doc + portability verdicts into the PR body (best-effort; NEVER halts)
+## Step 6.6: Surface registered-doc verdicts into the PR body (best-effort; NEVER halts)
 
 Identical to `/CJ_goal_feature` Step 4.6. The Step 5.5 doc-sync wrapper (the
 shared `/CJ_document-release` Step 6.7 producer) wrote the registered-doc verdict
 block to the LITERAL `.cj-goal-feature/registered-doc-verdicts.md` — the producer
-hardcodes that path, it is NOT verb-renamed (T000044) — and the Step 5.7 gate
-wrote `.cj-goal-task/portability-verdict.md`. Read both scratch
-files and `gh pr edit <PR#>` to insert-or-replace a `### Registered-doc
-requirements` + `### Portability` subsection under the PR body's `##
+hardcodes that path, it is NOT verb-renamed (T000044). Read that scratch
+file and `gh pr edit <PR#>` to insert-or-replace a `### Registered-doc
+requirements` subsection under the PR body's `##
 Documentation` section. Best-effort: a failed `gh pr edit` (or a missing scratch
 file) logs a one-line note and control proceeds to Step 7. There is NO upstream
 `/ship` modification.
@@ -668,18 +619,10 @@ file) logs a one-line note and control proceeds to Step 7. There is NO upstream
 ```bash
 # The shared /CJ_document-release producer writes registered-doc verdicts to the
 # LITERAL .cj-goal-feature/ path (not verb-renamed), so read from there (T000044).
-# The portability verdict is written by THIS pipeline's Step 5.7 to .cj-goal-task/.
 _VERDICT_FILE="$_REPO_ROOT/.cj-goal-feature/registered-doc-verdicts.md"
-_PORT_VERDICT_FILE="$_REPO_ROOT/.cj-goal-task/portability-verdict.md"
-if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE" ]; }; then
+if [ -n "$PR_NUMBER" ] && [ -f "$_VERDICT_FILE" ]; then
   _BODY=$(gh pr view "$PR_NUMBER" --json body -q .body 2>/dev/null || echo "")
-  _VERDICTS=""; [ -f "$_VERDICT_FILE" ] && _VERDICTS=$(cat "$_VERDICT_FILE")
-  _PORT=""; [ -f "$_PORT_VERDICT_FILE" ] && _PORT=$(cat "$_PORT_VERDICT_FILE")
-  if [ -n "$_VERDICTS" ] && [ -n "$_PORT" ]; then
-    _INSERT=$(printf '%s\n\n%s' "$_VERDICTS" "$_PORT")
-  else
-    _INSERT="${_VERDICTS}${_PORT}"
-  fi
+  _INSERT=$(cat "$_VERDICT_FILE")
   # Idempotent splice composed in temp files + applied via `gh pr edit
   # --body-file` — NEVER `awk -v v="$_INSERT"` with a multi-line payload: BSD/macOS
   # awk rejects a newline in a -v value ("newline in string"), which empties the
@@ -687,7 +630,6 @@ if [ -n "$PR_NUMBER" ] && { [ -f "$_VERDICT_FILE" ] || [ -f "$_PORT_VERDICT_FILE
   _STRIPPED_FILE=$(mktemp); _INSERT_FILE=$(mktemp); _BODY_FILE=$(mktemp)
   printf '%s\n' "$_BODY" | awk '
     /^### Registered-doc requirements/ {skip=1; next}
-    /^### Portability/ {skip=1; next}
     skip && /^#{2,3} / {skip=0}
     !skip {print}
   ' > "$_STRIPPED_FILE"
@@ -834,7 +776,7 @@ helper degrades to the prose above. No `validate.sh` check asserts it fired.
   never scaffolds.
 - **QA always re-runs on resume** (never phase-skipped).
 - **Halt-on-red end-to-end.** Any red status from scaffold, implement, qa,
-  doc-sync, portability, or `/ship` stops the chain.
+  doc-sync or `/ship` stops the chain.
 - **PR-stop.** No automatic merge, no `/land-and-deploy`. The PR is the human gate.
 - **Depth ≤ 2.** implement / qa are leaf subagents; the scaffold is bash and
   `/ship` runs inline. No subagent-spawns-subagent path.

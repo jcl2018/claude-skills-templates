@@ -54,11 +54,11 @@ Surface 1 = this skill (rich report, engine resolved repo-local-first then via
 `.source`). Surface 2 = `validate.sh` Check 18 — **strict-by-default** since
 T000054 (a finding hard-fails every commit, CI, and manual `validate.sh` run;
 `PORTABILITY_STRICT=0` downgrades it to advisory for a deliberate WIP commit).
-Surface 3 = the `cj_goal` orchestrated path, where the engine runs under
-`PORTABILITY_STRICT=1` via `cj-goal-common.sh --phase portability-audit` and is a
-HARD GATE — the build HALTs with `[portability-red]` before `/ship` on any finding
-(F000051). The catalog is currently clean (`FINDINGS=0`), so a finding is blocking
-both globally (Check 18) and on the orchestrated build path. The full
+There are only these two surfaces: portability is a workbench-only concern, so it
+is deliberately **not** wired into the `cj_goal` orchestrators — the former F000051
+cj_goal pre-ship gate was removed by F000073, leaving Check 18 as the enforcement
+and this skill as the on-demand report. The catalog is currently clean
+(`FINDINGS=0`), so a finding is blocking globally via Check 18. The full
 correct-behavior contract lives in `docs/workflow.md` (`### /CJ_portability-audit`).
 
 ## Common pitfalls
@@ -78,7 +78,7 @@ correct-behavior contract lives in `docs/workflow.md` (`### /CJ_portability-audi
   when findings remain. Read the `FINDINGS=<n>` tail (and the verdict table), not
   the exit code. `PORTABILITY_STRICT=1` makes the engine exit non-zero on a
   finding — which is what `validate.sh` Check 18 (strict-by-default since T000054)
-  and the `cj_goal` gate rely on.
+  relies on.
 - **Running it in a non-workbench repo.** The engine reads the repo's
   `skills-catalog.json` + `skills/` source tree, which exist only in the
   workbench clone — so the skill is `workbench`-scoped by construction. Run it

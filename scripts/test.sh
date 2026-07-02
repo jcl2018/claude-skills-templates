@@ -137,16 +137,16 @@ else
   for _l in local-hook ci pipeline-gate ratchet; do
     bash "$_S96_TS" --list-layers 2>/dev/null | grep -qx "$_l" || fail_test "S000096: --list-layers missing layer '$_l'"
   done
-  for _g in isolation qa doc-sync portability ship; do
+  for _g in isolation qa doc-sync ship; do
     bash "$_S96_TS" --list-gates 2>/dev/null | grep -qx "$_g" || fail_test "S000096: --list-gates missing gate '$_g'"
   done
   # S4: the universal markers resolve in ALL four modes' files; the per-mode
   # isolation markers resolve in their declared mode's file (either pipeline.md or SKILL.md).
+  # [doc-sync-red] is the sole remaining universal marker (the portability gate
+  # + its [portability-red] marker were removed in F000073).
   for _dir in CJ_goal_feature CJ_goal_defect CJ_goal_task CJ_goal_todo_fix; do
-    for _m in '[portability-red]' '[doc-sync-red]'; do
-      { grep -qF "$_m" "$REPO_ROOT/skills/$_dir/pipeline.md" 2>/dev/null || grep -qF "$_m" "$REPO_ROOT/skills/$_dir/SKILL.md" 2>/dev/null; } \
-        || fail_test "S000096: universal marker $_m absent from skills/$_dir/{pipeline.md,SKILL.md}"
-    done
+    { grep -qF '[doc-sync-red]' "$REPO_ROOT/skills/$_dir/pipeline.md" 2>/dev/null || grep -qF '[doc-sync-red]' "$REPO_ROOT/skills/$_dir/SKILL.md" 2>/dev/null; } \
+      || fail_test "S000096: universal marker [doc-sync-red] absent from skills/$_dir/{pipeline.md,SKILL.md}"
   done
   { grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/pipeline.md" 2>/dev/null || grep -qF '[feature-not-isolated]' "$REPO_ROOT/skills/CJ_goal_feature/SKILL.md" 2>/dev/null; } \
     || fail_test "S000096: isolation marker [feature-not-isolated] absent from the feature mode's files"
@@ -819,39 +819,14 @@ else
 fi
 rm -rf "$_SYNC_TMP"
 
-# Step 6b (F000051 / S000091): exercise the new `--phase portability-audit` gate
-# end-to-end inside the integration cycle — the parallel-edit to the integration
-# fixture for the new shared phase (the implement-subagent blind spot prior
-# new-phase work hit). Runs the REAL repo engine against the live (clean) catalog
-# (read-only; the audit mutates nothing) + asserts the --dry-run schema.
-echo ""
-echo "Integration test (F000051 / S000091): --phase portability-audit end-to-end (real engine, clean catalog)..."
-# Clean catalog: PHASE_RESULT=ok, FINDINGS=0, a clean VERDICT_LINE, exit 0.
-_PORT_OK=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode feature 2>&1) && _PORT_OK_RC=0 || _PORT_OK_RC=$?
-if [ "$_PORT_OK_RC" -eq 0 ] \
-   && printf '%s\n' "$_PORT_OK" | grep -qE '^PHASE=portability-audit$' \
-   && printf '%s\n' "$_PORT_OK" | grep -qE '^PHASE_RESULT=ok$' \
-   && printf '%s\n' "$_PORT_OK" | grep -qE '^FINDINGS=0$' \
-   && printf '%s\n' "$_PORT_OK" | grep -qE '^VERDICT_LINE=Portability: all [0-9]+ skills honestly declared'; then
-  ok "Integration: --phase portability-audit on clean catalog → ok/exit0/FINDINGS=0 + clean VERDICT_LINE"
-else
-  fail_test "Integration: --phase portability-audit clean run wrong (rc=$_PORT_OK_RC); output: $_PORT_OK"
-fi
-# --dry-run: PHASE_RESULT=ok, empty FINDINGS=, runs the engine NOT at all.
-_PORT_DRY=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode feature --dry-run 2>&1)
-if printf '%s\n' "$_PORT_DRY" | grep -qE '^PHASE_RESULT=ok$' \
-   && printf '%s\n' "$_PORT_DRY" | grep -qE '^FINDINGS=$'; then
-  ok "Integration: --phase portability-audit --dry-run → ok + empty FINDINGS= (engine not run)"
-else
-  fail_test "Integration: --phase portability-audit --dry-run wrong; output: $_PORT_DRY"
-fi
-
 # F000054: cj-goal-common.sh must accept --mode task (the new `task` verb). Smoke
-# it through a mode-agnostic phase (portability-audit --dry-run) so the enum edit
-# is guarded directly; an invalid mode would exit 1 with [common-usage-mode].
+# it through the `recap` phase (a pure formatter — hermetic, no git/manifest/env
+# dependency) so the enum edit is guarded directly; an invalid mode would exit 1
+# with [common-usage-mode]. (Not `sync`: that phase delegates to post-land-sync.sh
+# and returns PHASE_RESULT=skipped on a fresh CI runner with no manifest.)
 echo ""
 echo "Integration test (F000054): cj-goal-common.sh accepts --mode task..."
-_TASK_MODE=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase portability-audit --mode task --dry-run 2>&1) && _TASK_MODE_RC=0 || _TASK_MODE_RC=$?
+_TASK_MODE=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase recap --mode task --dry-run 2>&1) && _TASK_MODE_RC=0 || _TASK_MODE_RC=$?
 if [ "$_TASK_MODE_RC" -eq 0 ] \
    && printf '%s\n' "$_TASK_MODE" | grep -qE '^MODE=task$' \
    && printf '%s\n' "$_TASK_MODE" | grep -qE '^PHASE_RESULT=ok$'; then
@@ -2035,22 +2010,6 @@ if bash "$REPO_ROOT/tests/cj-goal-common-sync.test.sh" >/dev/null 2>&1; then
 else
   _cgcs_rc=$?
   fail_test "tests/cj-goal-common-sync.test.sh failed (rc=$_cgcs_rc) — run \`bash tests/cj-goal-common-sync.test.sh\` directly to see"
-fi
-
-# Regression test (F000051 / S000091): scripts/cj-goal-common.sh
-# `--phase portability-audit` (the pre-ship portability gate) — clean catalog →
-# ok/exit 0; --dry-run → ok/exit 0 running nothing; dishonest-declaration fixture
-# → findings/non-zero; engine-absent → skipped/exit 0 (fail-soft). Hermetic — the
-# fixture + engine-absent cases run a COPY of cj-goal-common.sh against a
-# controlled sibling engine + a HOME-overridden temp manifest; never mutates the
-# real ~/.claude and the engine audit is read-only.
-echo ""
-echo "Running tests/cj-goal-common-portability.test.sh (F000051 --phase portability-audit gate)..."
-if bash "$REPO_ROOT/tests/cj-goal-common-portability.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-common-portability.test.sh: clean→ok / dry-run→ok-runs-nothing / findings-fixture→findings-nonzero / engine-absent→skipped; fail-soft"
-else
-  _cgcp_rc=$?
-  fail_test "tests/cj-goal-common-portability.test.sh failed (rc=$_cgcp_rc) — run \`bash tests/cj-goal-common-portability.test.sh\` directly to see"
 fi
 
 # Regression test (F000068 / S000112): scripts/cj-goal-common.sh `--phase recap`

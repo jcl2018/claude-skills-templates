@@ -67,8 +67,8 @@ silent / no-AUQ), minus the scaffold step (3.1):
 
 Only on QA green does control proceed to Step 5.4 (the pre-doc-sync commit),
 then Step 5.5 (Doc-sync), then Step 5.5b (the post-sync audit), then the
-QA-audit checkpoint (consuming the post-sync report; SKILL.md), then Step 5.7
-(portability), then `/ship`. Both subagents are depth-≤2 leaves (they do NOT
+QA-audit checkpoint (consuming the post-sync report; SKILL.md), then `/ship`.
+Both subagents are depth-≤2 leaves (they do NOT
 spawn further subagents — the F000027 wall).
 
 ### Step 5.4: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
@@ -178,8 +178,7 @@ esac
 ```
 
 Only on green or green-noop does control proceed to Step 5.5b (the post-sync
-audit), then the QA-audit checkpoint (SKILL.md), then the Step 5.7 portability
-gate, then `/ship` Gate #2.
+audit), then the QA-audit checkpoint (SKILL.md), then `/ship` Gate #2.
 
 ### Step 5.5b: Post-sync doc/test audit (NEW — ONE combined read-only subagent)
 
@@ -340,7 +339,7 @@ if [ -x "$_COMMON" ]; then
 fi
 ```
 
-(`--mode feature` matches this pipeline's `--phase sync`/`portability-audit` calls
+(`--mode feature` matches this pipeline's `--phase sync` calls
 — the block shape is verb-neutral and `--mode` is labelling-only.) **Prose fallback
 (helper absent):** emit the same 3-part block as prose under an
 `=== About to land ===` header (do NOT halt — the recap is advisory; a missing

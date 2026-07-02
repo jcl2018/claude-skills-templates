@@ -188,8 +188,8 @@ every step, not only the end; evaluate the trajectory (what the agent actually
 did), not just the final artifact, and keep the verifier independent of the
 doer. *In the workbench:* `/CJ_personal-workflow check` runs at every phase
 boundary, QA executes the work-item's test rows rather than merely checking a
-TEST-SPEC exists, and a pre-ship portability gate halts the run before a PR is
-ever opened. The concrete map of this principle — every verification surface, at
+TEST-SPEC exists, and a post-QA audit checkpoint surfaces doc/test drift before a
+PR is ever opened. The concrete map of this principle — every verification surface, at
 which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is the
 `spec/test-spec.md` registry (its `layers[]` map + the overlay's `gates[]`); the
 **CI/CD topic** below is the layered model this principle resolves to.
@@ -239,7 +239,7 @@ kind of guarantee:
   gates the PR.
 - **pipeline-gate** — runs *during* a cj_goal orchestrator run. It owns the claim
   that this run did the right thing before it reached the PR: the inline halts for
-  isolation, design-summary approval, QA, doc-sync, portability, and ship. These
+  isolation, design-summary approval, QA, doc-sync, and ship. These
   are the halts the word "gate" is reserved for.
 - **ratchet** — runs inside ci and the orchestrator. It owns monotonic
   properties that must never regress: VERSION never goes backwards, the
@@ -251,7 +251,7 @@ at exactly one layer, never re-checked at three layers with three vocabularies.
 That is what makes the question *"what stops a broken change, and at which
 layer?"* answerable from a single place: a structurally broken change is stopped
 by **ci**, a process-broken change (built in-place, never designed, never tested,
-undocumented, portability-dishonest, or self-merging) by a **pipeline-gate**, and
+undocumented, or self-merging) by a **pipeline-gate**, and
 a regression of a monotonic property by a **ratchet**.
 
 The concrete, machine-checked map of all four layers and every gate — the prose,

@@ -55,10 +55,10 @@ post-sync doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`, dispatched by the
 orchestrator on the POST-sync tree) → the QA-audit checkpoint AUQ (Step 4.5
 — ALWAYS, on that POST-sync audit report; Continue past findings journals
 `[qa-audit-waived]`, Halt journals `[qa-audit-declined]` / `halted_at_qa_audit`)
-→ portability gate (Step 5.7, halt-on-red) → `/ship` (with the
+→ `/ship` (with the
 diff-review AUQ suppressed) → STOP at the open PR. The PR is the human review;
 `/land-and-deploy` is a separate manual step. The deterministic worktree / sync /
-portability / pr-check / cleanup phases come from `cj-goal-common.sh --mode task`.
+pr-check / cleanup phases come from `cj-goal-common.sh --mode task`.
 
 ## Common pitfalls
 

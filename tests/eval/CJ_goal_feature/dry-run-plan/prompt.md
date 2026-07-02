@@ -1,4 +1,4 @@
-Run `/CJ_goal_feature --dry-run "add a per-repo cache for tracker frontmatter reads"` inside the fixture working directory. `--dry-run` previews the planned chain (worktree → /office-hours → scaffold → implement → qa → doc-sync → audit → portability → /ship) and exits BEFORE any mutation — it writes nothing, spawns no subagents, and never reaches the gstack `/office-hours` or `/ship` skills (the clean gstack-independent path).
+Run `/CJ_goal_feature --dry-run "add a per-repo cache for tracker frontmatter reads"` inside the fixture working directory. `--dry-run` previews the planned chain (worktree → /office-hours → scaffold → implement → qa → doc-sync → audit → /ship) and exits BEFORE any mutation — it writes nothing, spawns no subagents, and never reaches the gstack `/office-hours` or `/ship` skills (the clean gstack-independent path).
 
 Drive the workflow through its preamble + the `--dry-run` chain-plan preview. Determine the end_state it emits and report it as a JSON object with this exact shape:
 
