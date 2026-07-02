@@ -82,3 +82,9 @@ On Windows Git Bash with a CRLF-emitting jq build (jq 1.7.1 at ~/bin/jq, first i
 
 ## Journal
 - 2026-07-02T01:15:37Z [auto-scaffolded] /CJ_goal_defect captured the bug as draft .inbox/jq_crlf_output_breaks_the_spec_engines_on_windows, then promoted to D000038 after /investigate populated the root cause. Domain defaulted to 'uncategorized'.
+- 2026-07-01 [qa-smoke] R1 (T7 CRLF drill): green — `bash tests/workflow-spec-render.test.sh` RESULT: PASS incl. both T7 OK lines (--list-orchestrators CR-free rc=0, no [workflow-spec-no-config]; --validate rc=0)
+- 2026-07-01 [qa-smoke] R2 (live engine): green — `bash scripts/workflow-spec.sh --list-orchestrators` printed the 4 CJ_goal_* orchestrator names, rc=0 on the affected Windows machine (real CRLF jq first in PATH)
+- 2026-07-01 [qa-smoke] R3 (cascade repaired): green — `bash scripts/test-spec.sh --validate` OK schema_version=1; `bash scripts/validate.sh` Checks 24 (coverage rows=82 findings=0) / 26 / 27 / 28 all PASS, Errors: 0, Warnings: 0, RESULT: PASS, rc=0
+- 2026-07-01 [qa-smoke-summary] green: 3/3 non-manual rows green (0 manual rows pending) — test-plan rows run as smoke-equivalent (defect type dispatch) at commit 7a58439
+- 2026-07-01 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b ran inline — T7 extends the already-registered suite tests/workflow-spec-render.test.sh (units row test-workflow-spec-render unchanged); no new docs; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
+- 2026-07-01 [qa-pass] D000038 (defect): green smoke from test-plan rows (3 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
