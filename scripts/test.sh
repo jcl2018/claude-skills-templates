@@ -820,11 +820,13 @@ fi
 rm -rf "$_SYNC_TMP"
 
 # F000054: cj-goal-common.sh must accept --mode task (the new `task` verb). Smoke
-# it through a mode-agnostic phase (sync --dry-run) so the enum edit is guarded
-# directly; an invalid mode would exit 1 with [common-usage-mode].
+# it through the `recap` phase (a pure formatter — hermetic, no git/manifest/env
+# dependency) so the enum edit is guarded directly; an invalid mode would exit 1
+# with [common-usage-mode]. (Not `sync`: that phase delegates to post-land-sync.sh
+# and returns PHASE_RESULT=skipped on a fresh CI runner with no manifest.)
 echo ""
 echo "Integration test (F000054): cj-goal-common.sh accepts --mode task..."
-_TASK_MODE=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase sync --mode task --dry-run 2>&1) && _TASK_MODE_RC=0 || _TASK_MODE_RC=$?
+_TASK_MODE=$(bash "$REPO_ROOT/scripts/cj-goal-common.sh" --phase recap --mode task --dry-run 2>&1) && _TASK_MODE_RC=0 || _TASK_MODE_RC=$?
 if [ "$_TASK_MODE_RC" -eq 0 ] \
    && printf '%s\n' "$_TASK_MODE" | grep -qE '^MODE=task$' \
    && printf '%s\n' "$_TASK_MODE" | grep -qE '^PHASE_RESULT=ok$'; then
