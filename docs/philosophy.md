@@ -364,6 +364,7 @@ map for *using* it. Every `CJ_` front door converges on the same downstream chai
 | "Are my skills' `portability` labels honest?" | `/CJ_portability-audit` |
 | "Do this repo's docs follow its doc contract?" | `/CJ_doc_audit` |
 | "Are this repo's tests aligned with its test contract?" | `/CJ_test_audit` |
+| "Do this repo's tests pass?" (run them, not just audit wiring) | `/CJ_test_run` |
 | Triage a Claude best-practice URL | `/CJ_improve-queue evaluate <url>` |
 
 Internal phase-step skills are dispatched transitively by the orchestrators — do
