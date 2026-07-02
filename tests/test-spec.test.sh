@@ -338,12 +338,22 @@ _rebuild_fixture() {
     [ -e "$_tf" ] || continue
     : > "$_FIX/tests/$(basename "$_tf")"
   done
-  # The dogfood behaviors[] (F000066) anchor their semantic evidence in
-  # tests/test-spec.test.sh; the reverse sweep only needs each test file to
-  # EXIST (it greps scripts/test.sh for the runner path, not the file body), so
-  # copying the real test-spec.test.sh content keeps the fixture's behavior
-  # coverage clean WITHOUT affecting the units reverse sweep.
-  cp "$REPO_ROOT/tests/test-spec.test.sh" "$_FIX/tests/test-spec.test.sh"
+  # Behaviors[] anchor their semantic evidence (grep -F strings) inside the BODY
+  # of the tests/*.test.sh file named as their behavior_coverage.source (F000066
+  # dogfood behaviors -> test-spec.test.sh; F000072 execution-axis behaviors ->
+  # test-run.test.sh). The reverse units sweep only needs each test file to EXIST
+  # (it greps scripts/test.sh for the runner path, not the body), so the empty
+  # stubs above suffice there — but the behavior anchor-greps-live check needs the
+  # real body. Copy the real content of every tests/*.test.sh named as a
+  # behavior_coverage source so the fixture baseline stays coverage-clean as new
+  # behaviors (and their anchor source files) are added.
+  while IFS= read -r _btf; do
+    [ -n "$_btf" ] || continue
+    [ -f "$REPO_ROOT/$_btf" ] || continue
+    cp "$REPO_ROOT/$_btf" "$_FIX/$_btf"
+  done <<EOF
+$(awk '/^behavior_coverage:/{inb=1} inb && /^[[:space:]]*source:[[:space:]]*tests\/[^ ]*\.test\.sh[[:space:]]*$/{print $2}' "$OVERLAY" | sort -u)
+EOF
   # The workflow-coverage behaviors[] (F000070) anchor their semantic evidence
   # in the eval-case prompt.md files (behavior_coverage.source). Copy each
   # referenced prompt with its body so the behavior-coverage source-exists +

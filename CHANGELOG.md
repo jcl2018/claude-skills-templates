@@ -3,11 +3,19 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.103] - 2026-07-02
+
+### Added
+
+- **`/CJ_test_run` — a skill that EXECUTES the repo's tests and reports real pass/fail** (F000072/S000122), the executor companion to the static `/CJ_test_audit`: the audit answers "are the declared tests WIRED?", `/CJ_test_run` answers "do they PASS?". It runs the deterministic Stage-1 audit as a pre-step, then executes the repo's runners declared in a NEW optional **`runners:` overlay axis** in `spec/test-spec-custom.md` (each row: `id` / `command` / `tier {free,paid,local-only}` / `covers` [runnable families or `all` = `{validate,test,test-deploy,eval,windows-smoke}`; `ci`/`hook` rejected] / optional `platform` / `note`). Cost-tiered so there's no surprise model spend: a default run executes only `tier: free`; `--evals` adds the paid eval tier, `--e2e` the local-only E2E, `--all` everything. Every run writes a per-run `.md` report + a `.json` **ledger** (`schema: 1`; runner → rc → covered families → HEAD SHA) under `tests/test-run/reports/` — the first citable evidence artifact for the contract's own `suite-green` rule. Verdicts are runner-granularity and evidence-derived (aggregate `{pass, fail, all-skipped}`; a skipped tier is never `pass`); a registry with no `runners:` rows yields an honest `SKIP: no runners declared`, never a fake green. Standalone in any repo, like the audit verbs. New engine `scripts/test-run.sh` + the `runners:` parser (`--list-runners`, `--list-units --with-family`) in `scripts/test-spec.sh`; fixture-only unit suite `tests/test-run.test.sh`. The audit-side ledger-freshness handshake + diff-driven `--changed` selection are deferred follow-ups.
+
 ## [6.0.102] - 2026-07-02
 
 ### Fixed
 
-- **The spec engines no longer false-halt under a CRLF-emitting `jq` on Windows Git Bash** (D000038). On Windows, some `jq` builds (e.g. jq 1.7.1) emit CRLF line endings; `scripts/workflow-spec.sh` fed raw `$(jq -r ... skills-catalog.json)` into a `while read` loop, so each catalog name carried a trailing `` — the registry-completeness check then read `CJ_goal_todo_fix`, found no matching `## CJ_goal_todo_fix` section, and false-halted `[workflow-spec-no-config]`. That cascaded into `scripts/test-spec.sh` and turned `validate.sh` Checks 24/26/27/28 red, so the pre-commit hook blocked *every* commit on the machine (Linux CI never saw it — Linux `jq` emits LF). The fix adds the same CR-stripping `jq()` wrapper `scripts/lib.sh` already uses to `workflow-spec.sh` (the only standalone spec engine with `jq` call sites — `doc-spec.sh`/`test-spec.sh` have none), covering every current and future call site while keeping the engine's no-`lib.sh` standalone posture. A `tests/workflow-spec-render.test.sh` T7 drill (a PATH-prepended CRLF-emitting `jq` shim) red-proofs the bug class: it false-halts the pre-fix engine and passes the fixed one.
+- **The spec engines no longer false-halt under a CRLF-emitting `jq` on Windows Git Bash** (D000038). On Windows, some `jq` builds (e.g. jq 1.7.1) emit CRLF line endings; `scripts/workflow-spec.sh` fed raw `$(jq -r ... skills-catalog.json)` into a `while read` loop, so each catalog name carried a trailing `
+` — the registry-completeness check then read `CJ_goal_todo_fix
+`, found no matching `## CJ_goal_todo_fix` section, and false-halted `[workflow-spec-no-config]`. That cascaded into `scripts/test-spec.sh` and turned `validate.sh` Checks 24/26/27/28 red, so the pre-commit hook blocked *every* commit on the machine (Linux CI never saw it — Linux `jq` emits LF). The fix adds the same CR-stripping `jq()` wrapper `scripts/lib.sh` already uses to `workflow-spec.sh` (the only standalone spec engine with `jq` call sites — `doc-spec.sh`/`test-spec.sh` have none), covering every current and future call site while keeping the engine's no-`lib.sh` standalone posture. A `tests/workflow-spec-render.test.sh` T7 drill (a PATH-prepended CRLF-emitting `jq` shim) red-proofs the bug class: it false-halts the pre-fix engine and passes the fixed one.
 
 ## [6.0.101] - 2026-06-30
 

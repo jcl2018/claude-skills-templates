@@ -17,3 +17,4 @@ are invoked transitively by the orchestrators — do not route to them directly.
 - "evaluate this URL", "is this a good Claude pattern", "should we adopt this", "check this Anthropic article", "add this pattern to TODOS" -> /CJ_improve-queue evaluate <url>
 - "audit this repo's docs", "check doc hygiene", "does this repo follow its doc contract", "check doc-spec alignment" -> /CJ_doc_audit
 - "audit this repo's tests", "are tests aligned with the test spec", "check the test coverage contract", "check test-spec alignment" -> /CJ_test_audit
+- "run the tests", "do the tests pass", "execute the test suite", "run the test suite", "does it pass" -> /CJ_test_run

@@ -422,5 +422,27 @@
     "templates": [],
     "doc_requirement": "The SKILL.md three-stage audit flow (seed delivery; Stage 1 = the existing test-spec.sh --validate + --check-coverage engine calls with stage1/ prefixes, PLUS the renderer-gated --render-docs --check freshness gate and the engine-gated --check-workflow-coverage workflow-coverage gate when the engine carries them; Stage 2 rule-statement + unit purpose/label truthfulness verdicts with cited evidence, including the per-level:workflow-behavior real-run-vs-hollow-prompt substance clause; Stage 3 live-surface coverage-in-substance drift; the REQUIRED standalone fresh-context dispatch + in-QA inline degradation; the per-stage TEST_AUDIT report with STAGE1/2/3_FINDINGS= and UNITS_AUDITED=) matches the current test-spec.sh subcommands and the qa.md Step 8.6 wiring; USAGE.md is current.",
     "status": "experimental"
+  },
+  {
+    "name": "CJ_test_run",
+    "version": "0.1.0",
+    "description": "Execute a repo's test contract and report evidence-derived pass/fail — the 'does it pass?' companion to /CJ_test_audit's 'is it wired?'. Runs a deterministic Stage-1 audit pre-step (the four test-spec.sh engine calls — --validate / --check-coverage / --render-docs --check / --check-workflow-coverage — printed verbatim, with the invalid-registry-HALTS / valid-with-findings-surface-and-continue / absent-registry-SKIP split), then scripts/test-run.sh which reads the runners: axis of the merged test-spec registry and runs the selected tier's runners ONCE each (default tier: free; --evals adds paid, --e2e adds local-only, --all everything — a default run NEVER touches a model), then narrates the materialized report (tests/test-run/reports/<UTC-ts>.md) + machine-readable ledger (.json: schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/covered-families). Aggregate is the closed enum {pass, fail, all-skipped}: any executed runner failing => fail + exit 1; >=1 green and none failed => pass; zero executed => all-skipped (NEVER rendered pass). Registry edges are honest: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners => 'SKIP: no runners declared' + exit 0 (no report, no ledger, no inference). Runnable in ANY repo the skills are installed for; engines resolve sibling-in-scriptdir -> $REPO_ROOT/scripts/ -> deployed _cj-shared. Use when: 'run the tests', 'do the tests pass', 'execute the test suite'.",
+    "source": "local",
+    "depends": {
+      "skills": [],
+      "tools": [
+        "Bash",
+        "Read",
+        "Glob",
+        "Grep"
+      ]
+    },
+    "portability": "local-only",
+    "files": [
+      "skills/CJ_test_run/SKILL.md"
+    ],
+    "templates": [],
+    "doc_requirement": "The SKILL.md flow (Stage-1 pre-step = the four test-spec.sh engine calls printed verbatim with the invalid-HALTS / valid-with-findings-surface-and-continue / absent-SKIP split; then test-run.sh with forwarded --dry-run/--evals/--e2e/--all flags; then report + ledger narration) matches scripts/test-run.sh's behavior and subcommands; the engine-resolution chain (sibling -> $REPO_ROOT/scripts -> _cj-shared) and the cost-tier default (free only) are accurate; USAGE.md is current.",
+    "status": "experimental"
   }
 ]
