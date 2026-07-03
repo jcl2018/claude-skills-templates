@@ -703,7 +703,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "The runners: axis + scripts/test-run.sh engine against TEMP-DIR fixture registries (never the real test.sh — a recursion trap): --validate accepts a well-formed runners: axis and rejects each violation (duplicate id, bad tier/platform, empty command, unknown covers family, explicit ci/hook in covers); --list-runners + --list-units --with-family emit the machine-readable forms; the --dry-run plan prints per-runner decisions + uncovered-family/ci-only/hook lines; tier gating (free default; --evals/--e2e/--all widen; unselected = tier-not-selected); the platform guard; rc->outcome mapping with aggregate {pass, fail, all-skipped} (fail => exit 1, all-skipped NEVER pass); self-gate detection (first-line ^SKIP: only); ledger fields (schema 1, timestamp, HEAD sha, repo root, flags, aggregate, per-runner + ci/hook family rows); the absent/invalid/zero-runners edge paths (no report on the last two); and covers: all expansion."
+    purpose: "The runners: axis + scripts/test-run.sh engine against TEMP-DIR fixture registries (never the real test.sh — a recursion trap): --validate accepts a well-formed runners: axis and rejects each violation (duplicate id, bad tier/platform, empty command, unknown covers family, explicit ci/hook in covers); --list-runners + --list-units --with-family emit the machine-readable forms; the --dry-run plan prints per-runner decisions + uncovered-family/ci-only/hook lines; tier gating (free default; --evals/--e2e/--all widen; unselected = tier-not-selected); the platform guard; rc->outcome mapping with aggregate {pass, fail, all-skipped} (fail => exit 1, all-skipped NEVER pass); self-gate detection (first-line ^SKIP: only); ledger fields (schema 1, timestamp, HEAD sha, repo root, flags, aggregate, per-runner + ci/hook family rows); the absent/invalid/zero-runners edge paths (no report on the last two); and covers: all expansion. ALSO the additive category-mode selection: --category <workflow|CI> + single-test-NAME runs reusing the docs/tests name, tier-gated (paid/local-only skip on the default free tier), --category+name mutual-exclusion + unknown-name exit 2, the mode: category ledger, additivity of the runners: flow when neither --category nor a name is passed, and the inactive-when-no-categories note."
   - id: test-setup-hooks
     family: test
     label: "setup-hooks suite — git hook installer"
@@ -829,7 +829,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills."
+    purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills. ALSO the additive category axis (Section 10): --list-categories (+ --names/--category filters) with pre-existing-subcommand additivity, --seed carrying the category prose, --check-structure's five a-e checks (findings-not-crash) + --seed-docs idempotency + stale-INDEX refresh + inactive-when-no-axis, and the closed {workflow, CI} category-enum HALT."
   - id: test-cj-audit-skills
     family: test
     label: "audit-skills suite — seed delivery + audit engines"
