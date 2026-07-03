@@ -1,0 +1,112 @@
+name: Audit Nightly
+
+# Nightly agent-judged doc/test audit for the skill workbench (F000076).
+#
+# Runs /CJ_doc_audit + /CJ_test_audit headless via `claude --print` over main and
+# files findings to a single GitHub issue (label: audit-drift). This is the
+# relocated home of the (advisory) Stage-2/3 audit that used to tax every
+# CJ_goal_* build on the critical path — the per-PR deterministic gate
+# (validate.sh in validate.yml + the pre-commit hook) is unchanged and still
+# catches Stage-1 drift on every PR. Cost-bounded by AUDIT_BUDGET_USD in
+# scripts/audit-nightly.sh; the script SKIPs (exit 0) with no ANTHROPIC_API_KEY.
+#
+# Advisory by construction: a claude/gh hiccup is reported, never failed. Manual
+# runs: gh workflow run audit-nightly.yml
+# Context: work-items/features/cj_goal/F000076_*/
+#
+# Hardening (mirrors eval-nightly.yml):
+# - concurrency: prevents cron + manual double-spend.
+# - defaults: shell bash guarantees -eo pipefail.
+# - Secret pre-check fails fast if ANTHROPIC_API_KEY is unset (vs a silent skip).
+# - claude CLI pinned to @^2 (same-major) to blunt yanked-from-latest supply risk.
+
+on:
+  schedule:
+    # 09:37 UTC daily — after windows-nightly (08:23) + eval-nightly (09:17);
+    # offset from :00 to dodge GitHub Actions top-of-hour cron contention.
+    - cron: '37 9 * * *'
+  workflow_dispatch:
+
+# contents: read to check out; issues: write to file/update/close the drift issue.
+permissions:
+  contents: read
+  issues: write
+
+# Serialize cron + manual triggers so two runs never double-spend the budget.
+concurrency:
+  group: audit-nightly
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    # The audit is one bounded claude run; 20 min is generous headroom.
+    timeout-minutes: 20
+
+    env:
+      # Repo secret. Set via: gh secret set ANTHROPIC_API_KEY
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Default token, scoped by the permissions block above. gh (in the script)
+      # reads GH_TOKEN; the script unsets it inside the claude subshell so the
+      # model-driven run can never read it.
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Install claude CLI
+        # Pinned to @^2 (same-major range); the secret is in env, so postinstall
+        # scripts run with API access — bump the major deliberately after review.
+        run: |
+          npm install -g @anthropic-ai/claude-code@^2
+          echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify claude CLI + secret
+        run: |
+          claude --version
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ERROR: ANTHROPIC_API_KEY is empty. Set the secret via:" >&2
+            echo "  gh secret set ANTHROPIC_API_KEY" >&2
+            exit 1
+          fi
+
+      - name: Run nightly doc/test audit
+        # audit-nightly.sh runs the audits, parses the two findings counts, writes
+        # audit-nightly-report.md, and files/updates/closes the audit-drift issue.
+        # It is advisory: it exits 0 even on a model/gh hiccup, so the run stays
+        # green unless the infra itself (checkout/install) breaks.
+        run: bash scripts/audit-nightly.sh | tee audit-output.txt
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-nightly-report
+          path: audit-nightly-report.md
+          if-no-files-found: ignore
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Nightly doc/test audit"
+            echo ""
+            if [ -f audit-output.txt ]; then
+              line=$(grep -E '^AUDIT_NIGHTLY:' audit-output.txt | tail -1 | tr -d '`' || true)
+              skip=$(grep -E '^SKIP:' audit-output.txt | tail -1 | tr -d '`' || true)
+              echo '```'
+              echo "${line:-${skip:-"(no AUDIT_NIGHTLY line — see the run log)"}}"
+              echo '```'
+            else
+              echo "_(audit-output.txt missing — the audit step did not run)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -44,9 +44,12 @@ never migrates a format).
   `spec/` and seed-delivers `spec/test-spec.md` (`seeded: yes`) — the portable
   5-rule general contract, with the coverage cross-check honestly reported as
   inactive until the repo declares `units:` rows.
-- Inside `/CJ_qa-work-item` Step 8.6d (a cj_goal run): the QA agent executes
-  ALL THREE STAGES inline (the nested-subagent wall) and lifts the per-stage
-  report into the QA RESULT's `AUDITS=` field for the post-QA checkpoint.
+- Standalone `/CJ_qa-work-item` Step 8.6d (no `DEFER_AUDIT: true`): the QA agent
+  executes ALL THREE STAGES inline (the nested-subagent wall) and lifts the
+  per-stage report into the QA RESULT's `AUDITS=` field. On a cj_goal
+  orchestrator run QA carries `DEFER_AUDIT: true`, so these stages are skipped on
+  the build path — the agent-judged audit runs nightly in CI
+  (`.github/workflows/audit-nightly.yml`) instead.
 - After adding/renaming tests or validator checks: Stage 1's coverage
   cross-check catches orphaned units rows, unregistered test files (the
   silent-skip class), and extraction-grammar rot; Stage 2 catches a unit
@@ -126,14 +129,16 @@ Standalone, Stages 2+3 are REQUIRED to run in ONE fresh-context subagent
 (prompt = repo root + engine path + Stage-1 report + protocols only; when
 both audits run together the same subagent may judge both). The report prints
 findings PER STAGE (`STAGE1/2/3_FINDINGS=` + `UNITS_AUDITED=` + three
-`--- stage N ---` sections); findings never crash or halt — in a cj_goal run
-the operator decides at the post-QA checkpoint.
+`--- stage N ---` sections); findings never crash or halt — on the cj_goal
+build path this audit does not run inline (nightly CI covers it); standalone,
+the operator reads the report directly.
 
 ## Common pitfalls
 
-- **Expecting the audit to halt a pipeline.** It never does. QA findings ride
-  a GREEN RESULT; the orchestrator's checkpoint AUQ owns the Continue/Halt
-  decision (waivers journal as `[qa-audit-waived]`).
+- **Expecting the audit to halt a pipeline.** It never does. Standalone, QA
+  findings ride a GREEN RESULT and the operator reads them; on the cj_goal
+  build path the inline audit is skipped entirely and the nightly CI audit
+  surfaces findings out of band.
 - **Reading the "coverage cross-check inactive" note as a failure.** It is the
   honest rules-only state of a seeded consumer repo — declare `units:` rows in
   `spec/test-spec-custom.md` to activate the deterministic checks.
@@ -170,8 +175,8 @@ the operator decides at the post-QA checkpoint.
   (`spec/doc-spec.md` + `spec/doc-spec-custom.md`); its Stage 1 engine is the
   `doc-spec.sh --check-on-disk` subcommand.
 - `/CJ_qa-work-item` — refreshes the overlay (Step 8.6a) then runs this audit
-  inline (Step 8.6d); its RESULT carries the per-stage findings to the
-  cj_goal checkpoint.
+  inline (Step 8.6d) standalone; on a cj_goal run it carries `DEFER_AUDIT: true`
+  and skips the inline audit (nightly CI covers it).
 - `/CJ_document-release` — stub-scaffolds a declared-but-missing
   `spec/test-spec.md` via `test-spec.sh --seed` (a generic stub would be a
   present-but-invalid registry and hard-halt this audit).

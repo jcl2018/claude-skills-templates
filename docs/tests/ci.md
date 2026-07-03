@@ -11,6 +11,7 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
+| audit-nightly workflow — nightly doc/test audit | ci | hard-fail | nightly manual | `.github/workflows/audit-nightly.yml` · `name: Audit Nightly` | Runs /CJ_doc_audit + /CJ_test_audit headless (scripts/audit-nightly.sh) on a nightly schedule + manual dispatch, filing findings to the audit-drift GitHub issue — the relocated home of the advisory agent-judged audit, off the CJ_goal_* build hot path (CI-nightly cadence). |
 | eval-nightly workflow — scheduled evals | ci | hard-fail | nightly manual | `.github/workflows/eval-nightly.yml` · `name: Eval Nightly` | Runs the behavioral eval harness on a daily schedule, with a manual dispatch trigger. |
 | validate workflow — PR gate | ci | hard-fail | pr-ci | `.github/workflows/validate.yml` · `name: Validate Skills` | Runs the validator, the full test suite and shellcheck on every pull request. |
 | windows workflow — Git Bash smoke gate | ci | hard-fail | pr-ci push-main | `.github/workflows/windows.yml` · `name: Windows (Git Bash)` | Runs the fast Windows smoke (windows-smoke.sh) under Git Bash on every pull request and push to main — the CI-push cadence; the slow skills-deploy suite moved to the nightly workflow. |

@@ -714,8 +714,8 @@ rows that exist but did not run pre-ship for structural reasons:
 
 **On `E2E_VERDICT = green`:** silent path. Continue to Step 8.6 (the audit
 block), then Step 9. NO AskUserQuestion (Premise: AUQ only on red/ambiguous,
-autoplan-style — the post-QA audit checkpoint is the ORCHESTRATOR's AUQ, not
-this skill's).
+autoplan-style — a standalone run's audit findings are advisory and ride the
+RESULT; there is no build-path audit checkpoint).
 
 **On `E2E_VERDICT = red`:**
 
@@ -760,12 +760,12 @@ from rotting: the contract is updated, then verified); the AUDITS are
 
 ### 8.6.0 — Defer detection (`DEFER_AUDIT: true`)
 
-The cj_goal orchestrators run the three-stage audit at the authoritative
-**post-sync** point (after `/CJ_document-release`), not here. They signal that
-intent to QA with the literal directive `DEFER_AUDIT: true` embedded in the QA
-Agent-tool dispatch PROMPT (NOT an argv flag — `/CJ_qa-work-item` is dispatched
-as a subagent prompt, so the carrier is a greppable literal string in the
-pipeline.md prompt templates, not a CLI flag).
+The cj_goal orchestrators do NOT run the three-stage agent-judged audit inline —
+it runs nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
+(F000076). They signal "skip the inline audit" to QA with the literal directive
+`DEFER_AUDIT: true` embedded in the QA Agent-tool dispatch PROMPT (NOT an argv
+flag — `/CJ_qa-work-item` is dispatched as a subagent prompt, so the carrier is a
+greppable literal string in the pipeline.md prompt templates, not a CLI flag).
 
 At the START of this block, set `DEFER_AUDIT` by inspecting the dispatch
 context (the ROLE/TASK prompt this QA run was invoked with):
@@ -783,17 +783,13 @@ must land here pre-sync.
 **Verdict semantics (load-bearing).** Audit findings do NOT flip the QA
 RESULT red. Tests own the green/red verdict (the existing `[qa-red]` gate);
 Step 9 still transitions Phase-2 gates on test-green; findings ride the
-`AUDITS=` field of a green RESULT plus the fenced `AUDIT_FINDINGS` block. The
-post-QA checkpoint in the calling cj_goal orchestrator owns the
-Continue/Halt decision — this is what makes the checkpoint reachable at all
-(a red RESULT would halt at the existing qa gate and the operator would never
-see the findings prompt). At that checkpoint, **Continue past findings**
-writes an explicit `[qa-audit-waived]` journal line to the tracker (the
-waiver is auditable); **Halt** journals `[qa-audit-declined]`. Both lines are
-written by the ORCHESTRATOR at its checkpoint, not by this skill. When
-`DEFER_AUDIT = true`, this skill emits no audit findings at all — the
-orchestrator runs the post-sync audit itself and the checkpoint decision is
-fed by THAT report.
+`AUDITS=` field of a green RESULT plus the fenced `AUDIT_FINDINGS` block, for the
+operator to read at the end of a standalone run. When `DEFER_AUDIT = true` (an
+orchestrator-driven run) this skill emits no audit findings at all — the cj_goal
+orchestrators no longer run an inline audit; the agent-judged doc/test audit runs
+nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
+(F000076). (Standalone runs still audit inline — see below — and there is no
+orchestrator checkpoint on either path.)
 
 **Subagent posture.** This skill usually runs AS a leaf subagent, and a
 subagent cannot spawn subagents (the nested-subagent wall) — so 8.6c/8.6d
@@ -832,8 +828,8 @@ spec-update: doc-spec-custom <added: paths | changed: paths | none>
 ### 8.6c — Run `/CJ_doc_audit` (inline in subagent context)
 
 **Deferral guard.** If `DEFER_AUDIT = true` (from Step 8.6.0): SKIP this
-sub-step entirely. The orchestrator runs the post-sync `/CJ_doc_audit` itself.
-Do not run the engine, do not judge any stage, do not capture a report. Proceed
+sub-step entirely. The agent-judged audit runs nightly in CI (audit-nightly.yml),
+not on the build path. Do not run the engine, do not judge any stage, do not capture a report. Proceed
 to 8.6d (which is also skipped) and then to the Extended RESULT contract, where
 the deferred path sets `AUDITS=deferred` and emits NO `AUDIT_FINDINGS` block.
 
@@ -850,9 +846,9 @@ Capture its full per-stage report (the `DOC_AUDIT:` / `FINDINGS=` /
 ### 8.6d — Run `/CJ_test_audit` (inline in subagent context)
 
 **Deferral guard.** If `DEFER_AUDIT = true` (from Step 8.6.0): SKIP this
-sub-step entirely (the same as 8.6c). The orchestrator runs the post-sync
-`/CJ_test_audit` itself. Proceed to the Extended RESULT contract's deferred
-path.
+sub-step entirely (the same as 8.6c). The agent-judged audit runs nightly in CI
+(audit-nightly.yml), not on the build path. Proceed to the Extended RESULT
+contract's deferred path.
 
 Otherwise (`DEFER_AUDIT = false` — standalone run):
 
@@ -883,11 +879,11 @@ RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates
 
 (for defect/task the existing per-type RESULT shape gains the same trailing
 `AUDITS=deferred,spec_updates:<summary>` field). **Emit NO `AUDIT_FINDINGS`
-block** — the orchestrator runs the post-sync audit and emits the findings
-report itself. Append one journal entry recording the deferral:
+block** — the agent-judged audit runs nightly in CI, not on the build path.
+Append one journal entry recording the skip:
 
 ```
-- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b ran inline; 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit)
+- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b ran inline; 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agent-judged audit runs nightly in CI)
 ```
 
 Then continue to Step 9 (transition criteria UNCHANGED — the deferral does not
@@ -908,10 +904,10 @@ RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=doc:<ok|findings:n>,t
 `findings:<n>` from its `FINDINGS=` line; `spec_updates:` is a compact
 summary of 8.6a/8.6b (e.g. `test-spec-custom+3,doc-spec-custom:none`).
 
-Immediately after the RESULT line, emit the fenced report block the
-orchestrator prints VERBATIM at its checkpoint. This is the **full audit
-report**, not a headline digest — the operator reads the audit evidence at
-the checkpoint itself without digging into raw output (operator decision
+Immediately after the RESULT line, emit the fenced report block for the operator
+to read at the end of this standalone run. This is the **full audit
+report**, not a headline digest — the operator reads the audit evidence
+directly without digging into raw output (operator decision
 2026-06-12, at this gate's first live firing). It carries, in order: the two
 spec-update lines, then EACH audit's complete PER-STAGE report — the headline
 (`DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` + the `STAGE1_FINDINGS=`/
@@ -967,7 +963,7 @@ seeded: <yes|no>
 Append one journal entry to the tracker recording the inline block ran:
 
 ```
-- {YYYY-MM-DD} [qa-audit] AUDITS=doc:<...>,test:<...>,spec_updates:<...> (Step 8.6a-d; findings ride the green RESULT — checkpoint decision belongs to the orchestrator)
+- {YYYY-MM-DD} [qa-audit] AUDITS=doc:<...>,test:<...>,spec_updates:<...> (Step 8.6a-d; findings ride the green RESULT — standalone run; the operator reviews them)
 ```
 
 Then continue to Step 9 — Step 9's transition criteria are UNCHANGED (audit
@@ -1135,7 +1131,7 @@ QA COMPLETE: {WORK_ITEM_ID}
 
 Smoke:    {SMOKE_VERDICT} ({N_green}/{N_total_non_manual}, {N_manual} manual)
 E2E:      {E2E_VERDICT} ({SUBAGENT_DURATION_S}s)
-Audits:   doc:{ok|findings:n}, test:{ok|findings:n}, spec_updates:{summary}   (Step 8.6 — findings ride green; checkpoint decides)
+Audits:   doc:{ok|findings:n}, test:{ok|findings:n}, spec_updates:{summary}   (Step 8.6 — findings ride green; standalone: the operator reviews)
 Deferred: {N_DEFERRED} (post-ship: {N_POST_SHIP}, parent-inline-cap: {N_CAP})
 Phase 2:  {gates transitioned | unchanged}
 
@@ -1150,10 +1146,10 @@ and no parent-inline cap deferrals — the common case). When non-zero, it
 makes post-ship rows visible to the user so they remember to verify
 those ACs after merge.
 
-When the Step 8.6 audits were deferred (`DEFER_AUDIT = true` — an
+When the Step 8.6 audits were skipped (`DEFER_AUDIT = true` — an
 orchestrator-driven run), the `Audits:` line reads
-`deferred, spec_updates:{summary}   (Step 8.6c/8.6d deferred to the
-orchestrator's post-sync audit; 8.6a/8.6b ran inline)` instead of the
+`deferred, spec_updates:{summary}   (8.6c/8.6d skipped via DEFER_AUDIT — the
+agent-judged audit runs nightly in CI; 8.6a/8.6b ran inline)` instead of the
 per-audit `doc:`/`test:` status. The standalone (non-deferred) run prints
 the per-audit status shape shown above.
 

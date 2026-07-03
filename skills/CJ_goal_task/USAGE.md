@@ -3,7 +3,7 @@ skill-name: "CJ_goal_task"
 version: 0.1.0
 status: experimental
 created: "2026-06-07"
-last-updated: "2026-06-13T08:50:59Z"
+last-updated: "2026-07-03T20:06:32Z"
 ---
 
 # Skill Usage: CJ_goal_task
@@ -40,23 +40,22 @@ last-updated: "2026-06-13T08:50:59Z"
 
 `cj_goal_task` is `/CJ_goal_feature` with the design phase swapped for an
 automatic gate, and `/CJ_goal_todo_fix` minus the TODOS-row requirement. It is the
-**most autonomous** verb up to the PR-stop: **one AskUserQuestion** on
-the happy path — the post-QA audit checkpoint. The flow is: pre-build
-skills-sync → `cj-task-*` worktree (with
+**most autonomous** verb up to the PR-stop: **no AskUserQuestion** on the happy
+path (the former inline audit checkpoint is gone — see below). The flow is:
+pre-build skills-sync → `cj-task-*` worktree (with
 base-freshness) → isolation gate → a **hard complexity gate** (in
 `scripts/cj-task-scaffold.sh`) that REFUSES design/bug/large topics and otherwise
 silently bash-scaffolds a `type: task` work-item (T-ID) from the topic → silent
-`/CJ_implement-from-spec` → `/CJ_qa-work-item` leaf subagents (with the audits
-DEFERRED — the orchestrator passes a literal `DEFER_AUDIT: true` directive so QA
-skips its Step 8.6c/8.6d doc/test audits and returns `AUDITS=deferred`, while
+`/CJ_implement-from-spec` → `/CJ_qa-work-item` leaf subagents (with the inline
+audits SKIPPED — the orchestrator passes a literal `DEFER_AUDIT: true` directive
+so QA skips its Step 8.6c/8.6d doc/test audits and returns `AUDITS=deferred`, while
 still running the 8.6a/8.6b spec-overlay writes) → an idempotent pre-doc-sync
-commit → `/CJ_document-release` (Step 5.5 doc-sync) → ONE combined READ-ONLY
-post-sync doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`, dispatched by the
-orchestrator on the POST-sync tree) → the QA-audit checkpoint AUQ (Step 4.5
-— ALWAYS, on that POST-sync audit report; Continue past findings journals
-`[qa-audit-waived]`, Halt journals `[qa-audit-declined]` / `halted_at_qa_audit`)
-→ `/ship` (with the
-diff-review AUQ suppressed) → STOP at the open PR. The PR is the human review;
+commit → `/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (with the
+diff-review AUQ suppressed) → STOP at the open PR. The agent-judged doc/test audit
+(`/CJ_doc_audit` + `/CJ_test_audit`) no longer runs on the build path or gates the
+ship; it runs NIGHTLY in CI (`.github/workflows/audit-nightly.yml`), filing
+findings to a GitHub issue. The deterministic per-PR gate (`validate.sh` /
+pre-commit) is unchanged. The PR is the human review;
 `/land-and-deploy` is a separate manual step. The deterministic worktree / sync /
 pr-check / cleanup phases come from `cj-goal-common.sh --mode task`.
 
@@ -85,10 +84,9 @@ pr-check / cleanup phases come from `cj-goal-common.sh --mode task`.
 - `/CJ_goal_todo_fix` — sibling verb for draining existing `TODOS.md` rows
 - `/CJ_implement-from-spec` — silent leaf subagent (Step 3)
 - `/CJ_qa-work-item` — silent leaf subagent (Step 4); when orchestrator-driven it
-  DEFERS its Step 8.6c/8.6d audits (`DEFER_AUDIT: true`), and the orchestrator
-  runs ONE combined read-only post-sync `/CJ_doc_audit` + `/CJ_test_audit` AFTER
-  doc-sync, which feeds the Step 4.5 checkpoint (standalone `/CJ_qa-work-item`
-  still runs them inline)
+  SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT: true`) — the agent-judged
+  `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI, not on the build path
+  (standalone `/CJ_qa-work-item` still runs them inline)
 - `/CJ_document-release` — inline Step 5.5 doc-sync wrapper
 - `/ship` (upstream gstack) — inline final step; opens the PR with diff-review AUQ
   suppressed

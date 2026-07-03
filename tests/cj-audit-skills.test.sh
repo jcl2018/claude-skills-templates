@@ -191,18 +191,23 @@ if grep -qF 'STAGE1_FINDINGS=' "$_QA" && grep -qF 'STAGE3_FINDINGS=' "$_QA" \
 else
   fail_test "qa.md: AUDIT_FINDINGS block template missing the per-stage shape"
 fi
-if grep -qF '[qa-audit-waived]' "$_QA" && grep -qF '[qa-audit-declined]' "$_QA"; then
-  ok "qa.md: waiver/decline journal-line contract documented"
+# F000076: the inline QA-audit checkpoint was removed (the agent-judged audit
+# runs nightly in CI, audit-nightly.yml). qa.md keeps the DEFER_AUDIT skip + the
+# standalone AUDIT_FINDINGS contract asserted above, but the checkpoint
+# waiver/decline markers must NOT survive in qa.md or the 4 orchestrators.
+if grep -qE '\[qa-audit-waived\]|\[qa-audit-declined\]' "$_QA"; then
+  fail_test "qa.md: stale [qa-audit-waived]/[qa-audit-declined] checkpoint marker (removed in F000076)"
 else
-  fail_test "qa.md: [qa-audit-waived]/[qa-audit-declined] contract missing"
+  ok "qa.md: no stale QA-audit checkpoint waiver/decline markers (audit moved to CI-nightly)"
 fi
-# All four orchestrators carry the checkpoint marker (Check 22's surface)
 for _mode_file in "skills/CJ_goal_feature/pipeline.md" "skills/CJ_goal_defect/pipeline.md" \
-                  "skills/CJ_goal_task/pipeline.md" "skills/CJ_goal_todo_fix/SKILL.md"; do
+                  "skills/CJ_goal_task/pipeline.md" "skills/CJ_goal_todo_fix/pipeline.md" \
+                  "skills/CJ_goal_feature/SKILL.md" "skills/CJ_goal_defect/SKILL.md" \
+                  "skills/CJ_goal_task/SKILL.md" "skills/CJ_goal_todo_fix/SKILL.md"; do
   if grep -qF '[qa-audit-declined]' "$REPO_ROOT/$_mode_file"; then
-    ok "$_mode_file carries the literal [qa-audit-declined] checkpoint marker"
+    fail_test "$_mode_file carries a stale [qa-audit-declined] checkpoint marker (removed in F000076)"
   else
-    fail_test "$_mode_file missing the [qa-audit-declined] marker"
+    ok "$_mode_file: no stale [qa-audit-declined] checkpoint marker"
   fi
 done
 

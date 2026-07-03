@@ -188,8 +188,11 @@ every step, not only the end; evaluate the trajectory (what the agent actually
 did), not just the final artifact, and keep the verifier independent of the
 doer. *In the workbench:* `/CJ_personal-workflow check` runs at every phase
 boundary, QA executes the work-item's test rows rather than merely checking a
-TEST-SPEC exists, and a post-QA audit checkpoint surfaces doc/test drift before a
-PR is ever opened. The concrete map of this principle — every verification surface, at
+TEST-SPEC exists, and the deterministic per-PR gate (`validate.sh` at the commit
+hook, CI on the PR) blocks a broken change before it ever lands. The
+agent-judged doc/test audit that surfaces deeper drift no longer sits on the
+build path — it runs nightly in CI (filing findings to a GitHub issue) and on
+demand via the standalone `/CJ_doc_audit` + `/CJ_test_audit` verbs. The concrete map of this principle — every verification surface, at
 which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is the
 `spec/test-spec.md` registry (its `layers[]` map + the overlay's `gates[]`); the
 **CI/CD topic** below is the layered model this principle resolves to.

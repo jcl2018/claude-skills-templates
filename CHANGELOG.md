@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.108] - 2026-07-03
+## [6.0.109] - 2026-07-03
 
 ### Changed
 - **F000077 — per-test docs are now the authoritative What/How/Why front door,
@@ -16,6 +16,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `--seed-docs` stub template now seeds the three sections; the 7 existing category
   docs are filled. The flat `docs/tests/<family>.md` family render is KEPT as the
   linked units-detail drill-down (no join key, no orphaned units, no schema change).
+
+## [6.0.108] - 2026-07-03
+
+### Changed
+- **F000076 — slim the cj_goal build gate: the agent-judged doc/test audit moves
+  from the inline per-build path to a nightly CI job.** The four `CJ_goal_*`
+  orchestrators (feature/task/defect/todo_fix) no longer run the inline post-sync
+  `/CJ_doc_audit` + `/CJ_test_audit` audit or the QA-audit checkpoint AUQ — ~5–8 min
+  off every build's critical path; the build tail is now QA → pre-doc-sync commit →
+  doc-sync (Step 5.5) → `/ship`. That audit was already advisory (findings never
+  flipped QA red) and its deterministic Stage-1 already re-runs per-PR in
+  `validate.sh`, so the agent-judged part is relocated to a new nightly sweep of
+  `main`: `.github/workflows/audit-nightly.yml` + `scripts/audit-nightly.sh` run
+  both audit skills headless via `claude --print` and file findings to one
+  `audit-drift` GitHub issue (the runner SKIPs cleanly without `ANTHROPIC_API_KEY`,
+  so `test.sh` + secret-less forks never spend). `DEFER_AUDIT: true` stays as the
+  "QA skips the inline audit" switch. **Unchanged:** the deterministic per-PR gate
+  (`validate.sh` + `validate.yml` + pre-commit hook), standalone `/CJ_qa-work-item`'s
+  inline audit, and `/CJ_doc_audit` + `/CJ_test_audit`. Removed the `qa-audit`
+  pipeline-gate (order 50), `halted_at_qa_audit`, and the
+  `[qa-audit-declined]`/`[qa-audit-waived]` markers. Tradeoff: a doc/test drift a PR
+  introduces is now caught by the next nightly run (within 24h) rather than at
+  merge — nothing structural slips, since the deterministic contract still gates
+  every PR. Work item `F000076` (story S000126).
 
 ## [6.0.107] - 2026-07-03
 

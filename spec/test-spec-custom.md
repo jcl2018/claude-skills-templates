@@ -127,6 +127,7 @@ nightly):
 | windows workflow — Git Bash smoke gate | Runs the fast Windows smoke under Git Bash on PR + push-main (CI-push cadence). |
 | windows-nightly workflow — nightly skills-deploy suite | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest nightly + on dispatch (CI-nightly cadence). |
 | eval-nightly workflow — scheduled evals | Runs the behavioral eval harness daily, with a manual dispatch trigger. |
+| audit-nightly workflow — nightly doc/test audit | Runs /CJ_doc_audit + /CJ_test_audit headless daily and files findings to a GitHub issue (advisory; CI-nightly cadence). |
 
 ### Handled by `local-hook` (at `git commit`, before code leaves the machine)
 
@@ -151,7 +152,6 @@ The `gates:` array — the inline halts a goal orchestrator runs before its PR, 
 | 30 | complexity | task | topic too big for a task |
 | 40 | qa | all four | failing test rows |
 | 45 | doc-sync | all four | doc drift can't fold into the PR |
-| 50 | qa-audit | all four | operator declines the post-sync audit findings |
 | 70 | ship | all four | the human ship gate (PR-stop) |
 
 ### Ratchets (cross-cutting — monotonic guards that never regress)
@@ -687,6 +687,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The full verdict matrix of the build-gate auto-answer seam helper (scripts/cj-e2e-gate.sh): flag-only and marker-only both inactive, both-guards + green qa-audit continues, both-guards + findings/empty qa-audit halts (never auto-waive), a non-allowlisted gate id stays inactive, design-gate auto-approves — all deterministic, no Claude."
+  - id: test-audit-nightly
+    family: test
+    label: "audit-nightly suite — nightly doc/test audit runner deterministic half"
+    anchor: "tests/audit-nightly.test.sh"
+    source: scripts/test.sh
+    layer: ci
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The DETERMINISTIC (no-Claude, no-network) half of scripts/audit-nightly.sh — the relocated nightly agent-judged audit: SKIP without a model key, the --dry-run plan, the two-count findings parse + report emission, and the create/update/none-clean GitHub-issue decision — all with claude + gh stubbed on PATH."
   - id: test-e2e-local
     family: test
     label: "e2e-local suite — local happy-path E2E harness deterministic half"
@@ -1113,6 +1122,15 @@ units:
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Runs the behavioral eval harness on a daily schedule, with a manual dispatch trigger."
+  - id: ci-audit-nightly
+    family: ci
+    label: "audit-nightly workflow — nightly doc/test audit"
+    anchor: "name: Audit Nightly"
+    source: .github/workflows/audit-nightly.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "nightly manual"
+    purpose: "Runs /CJ_doc_audit + /CJ_test_audit headless (scripts/audit-nightly.sh) on a nightly schedule + manual dispatch, filing findings to the audit-drift GitHub issue — the relocated home of the advisory agent-judged audit, off the CJ_goal_* build hot path (CI-nightly cadence)."
   # ---- hook family: git hooks installed by scripts/setup-hooks.sh ----
   - id: hook-pre-commit
     family: hook
@@ -1197,8 +1215,9 @@ gates:
     disposition: halt
     backing: "/CJ_qa-work-item leaf subagent"
     checks: "the work-item's test rows pass"
-  # --- universal, same marker in all four: doc-sync runs BEFORE the qa-audit
-  #     checkpoint (F000064 reorder), so the checkpoint decides on post-sync docs ---
+  # --- universal, same marker in all four: doc-sync folds doc drift into the
+  #     same code PR (Step 5.5), just before /ship (F000076 removed the trailing
+  #     post-sync audit + qa-audit checkpoint — that audit now runs in CI-nightly) ---
   - id: doc-sync
     layer: pipeline-gate
     order: 45
@@ -1210,18 +1229,6 @@ gates:
     disposition: halt
     backing: "/CJ_document-release (Step 5.5 doc-sync)"
     checks: "doc drift is folded into the same PR (registry parses; declared docs current)"
-  # --- universal, same marker in all four: the post-sync audit-findings checkpoint ---
-  - id: qa-audit
-    layer: pipeline-gate
-    order: 50
-    markers:
-      feature: "[qa-audit-declined]"
-      defect:  "[qa-audit-declined]"
-      task:    "[qa-audit-declined]"
-      todo:    "[qa-audit-declined]"
-    disposition: halt
-    backing: "orchestrator-level post-sync /CJ_doc_audit + /CJ_test_audit (one combined read-only subagent, run AFTER doc-sync) + the checkpoint AUQ"
-    checks: "the operator saw the post-sync doc/test audit findings before the PR budget was spent"
   # --- feature/defect/task run a ship gate with a literal marker; todo ships via /land-and-deploy ---
   - id: ship
     layer: pipeline-gate
