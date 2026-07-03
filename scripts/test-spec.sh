@@ -1563,7 +1563,7 @@ EOF
     # collision-safe (the delimiters prevent a shorter name matching inside a longer one).
     while IFS="$(printf '\t')" read -r _ctname _ctcat _rest; do
       [ -n "$_ctname" ] || continue
-      _cs_needle_name=$(printf '`%s`' "$_ctname")
+      _cs_needle_name="\`$_ctname\`"   # the index Name column renders the name backtick-wrapped
       _cs_needle_path="tests/$_ctcat/$_ctname.md"
       if ! grep -qF -- "$_cs_needle_name" "$_cs_index" \
          && ! grep -qF -- "$_cs_needle_path" "$_cs_index"; then
