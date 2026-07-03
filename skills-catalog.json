@@ -444,21 +444,5 @@
     "templates": [],
     "doc_requirement": "The SKILL.md flow (Stage-1 pre-step = the four test-spec.sh engine calls printed verbatim with the invalid-HALTS / valid-with-findings-surface-and-continue / absent-SKIP split; then test-run.sh with forwarded --dry-run/--evals/--e2e/--all flags; then report + ledger narration) matches scripts/test-run.sh's behavior and subcommands; the engine-resolution chain (sibling -> $REPO_ROOT/scripts -> _cj-shared) and the cost-tier default (free only) are accurate; USAGE.md is current.",
     "status": "experimental"
-  },
-  {
-    "name": "zzz-test-scaffold",
-    "version": "0.1.0",
-    "description": "Test skill for integration testing.",
-    "source": "local",
-    "depends": {
-      "skills": [],
-      "tools": []
-    },
-    "portability": "standalone",
-    "files": [
-      "skills/zzz-test-scaffold/SKILL.md"
-    ],
-    "templates": [],
-    "status": "experimental"
   }
 ]

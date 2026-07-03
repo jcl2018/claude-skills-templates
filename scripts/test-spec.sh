@@ -50,10 +50,11 @@
 #                      scripts/test-run.sh for category/name selection. ADDITIVE:
 #                      it coexists with units:/behaviors:/runners:.
 #   --check-structure  (F000074) the five category-structure checks a-e:
-#                      (a) tests/ exists, (b) tests/workflow/ + tests/CI/
-#                      subfolders, (c) categories: declares the workflow + CI
-#                      tests, (d) one docs/tests/<category>/<name>.md per declared
-#                      test, (e) a docs/tests/ INDEX referencing every test.
+#                      (a) tests/ exists, (b) a tests/<category>/ subfolder per
+#                      DISTINCT declared category (V2 {workflow, CI-push,
+#                      CI-nightly}), (c) categories: declares those tests, (d) one
+#                      docs/tests/<category>/<name>.md per declared test, (e) a
+#                      docs/tests/ INDEX referencing every test.
 #                      Findings-are-the-product: each unmet check prints a
 #                      `FINDING: structure/<id>` line but the engine exits 0. No
 #                      categories: axis => the "not adopted / inactive" note.
@@ -1453,10 +1454,10 @@ EOF
 # or rewrites test SCRIPTS (the physical reorganization is a one-time FEATURE
 # migration, deferred). The five checks (the operator's a-e):
 #   (a) a tests/ folder exists and holds the repo's test scripts;
-#   (b) tests/ is split into per-category subfolders — V1 requires at least
-#       tests/workflow/ AND tests/CI/;
-#   (c) spec/test-spec.md exists and the categories: axis declares the necessary
-#       tests, scoped to the workflow + CI categories for V1;
+#   (b) tests/ is split into per-category subfolders — one tests/<category>/ per
+#       DISTINCT declared category (V2 {workflow, CI-push, CI-nightly});
+#   (c) spec/test-spec.md exists and the categories: axis declares those tests,
+#       one per distinct declared category;
 #   (d) docs/tests/<category>/ exists for each required category, with exactly ONE
 #       .md per declared test (docs/tests/<category>/<name>.md);
 #   (e) docs/tests/ carries a test-list INDEX table referencing every declared
