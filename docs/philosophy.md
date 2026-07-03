@@ -347,6 +347,69 @@ satisfy its requirement?" — is a recurring advisory audit rather than a false
 green. Convention gets you a doc set; machinery gets you a doc set you can
 trust.
 
+## Topic: Shipping discipline — earn the merge
+
+The Harness topic is how the loop *behaves*; the CI/CD topic is the *layers* a
+change passes through. This topic is the discipline that carries a change *across*
+those layers honestly — the standard the build-to-land lifecycle holds itself to
+when a green local run tempts you to ship early. The model, and the operator
+driving it, are optimists; these principles are how the work stays trustworthy
+when the optimism is wrong.
+
+### 1. Reproduce the real gate — a partial pass is not a pass
+
+The gate that decides the merge is the one that runs on the PR, not the fastest
+check you happened to run. Reproduce it *exactly* and *to completion* before you
+push; a standalone drill that skips the slow path proves the drill, not the code.
+*In the workbench:* the PR job runs `validate.sh`, the full `test.sh` suite, and
+`shellcheck` (which fails on *any* finding, even an info-level one), so a bug that
+a fast fixture skips — a `grep -c || echo 0` that double-counts, a backtick inside
+a single-quoted format that trips `SC2016` — only surfaces when you run all three
+locally first, instead of after CI has rejected the push twice.
+
+### 2. Adversarially verify your own work — a green happy path proves the demo
+
+Independent skepticism catches what the author cannot. Spawn a fresh-context
+reviewer whose job is to *break* the change, then re-verify each finding
+adversarially so only real defects survive. *In the workbench:* before a build's
+PR opens, a review fans out over the diff and every finding is re-checked by a
+second agent trying to refute it, catching latent defects — an unanchored match
+that silently false-passes, a seed step that never refreshes a stale index — that
+every happy-path check had waved through.
+
+### 3. Findings are the product — report every gap, never crash
+
+A verifier that dies on the first problem hides the rest and reads as a bug; one
+that reports every gap and still exits clean lets you fix the whole set in one
+pass and can never be mistaken for a false green. *In the workbench:* the audits
+and structural checks emit a `FINDING:` line per gap and exit 0 regardless — a
+broken contract *is* the report, not a stack trace, and a missing piece is a named
+line the operator can act on.
+
+### 4. Land additively — stage the risky half for its own increment
+
+A change that coexists with what exists and keeps every gate green is safer than a
+big-bang replacement that turns them all red at once. Ship the foundation
+additively and defer the destructive step — moving files, removing the old
+grammar, re-expressing the gates — to its own reviewed increment. *In the
+workbench:* a new contract axis is added *beside* the old one, existing checks
+unchanged and no files relocated, so the foundation lands green while the
+migration waits for a later, separately reviewed run.
+
+### 5. Fix before you land — a red gate is a stop, not a suggestion
+
+When review or CI surfaces a defect, fix it, re-verify against the *same* gate,
+and only then merge; never ship on red, and never let a convenience flag decide
+the merge for you. *In the workbench:* the merge convention confirms the PR reads
+`MERGED` before any branch cleanup and refuses `gh pr merge --auto` (which exits 0
+even when the merge failed), so a CI failure routes back to fix-and-re-verify
+rather than sliding through on a misread exit code.
+
+These five are the discipline behind the CI/CD layers: the layers are *where* a
+change is checked; this is *how* you carry it across them without lying to
+yourself. A build is not done when it runs — it is done when it survives the gate
+it will actually be judged by.
+
 ## Decision tree: which CJ_ skill do I call?
 
 The Deployment topic is about *how the workbench is built*. This is the routing
