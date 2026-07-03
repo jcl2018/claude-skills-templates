@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [6.0.108] - 2026-07-03
 
 ### Changed
-- **F000076 — per-test docs are now the authoritative What/How/Why front door,
+- **F000077 — per-test docs are now the authoritative What/How/Why front door,
   enforced generally.** Each `docs/tests/<category>/<name>.md` must carry `## What
   it is` / `## How to run` / `## Explanation` (cross-linking its family doc for the
   per-unit detail). The requirement is a GENERAL rule in the portable

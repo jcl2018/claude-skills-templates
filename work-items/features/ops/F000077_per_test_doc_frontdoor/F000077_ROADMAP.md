@@ -1,6 +1,6 @@
 ---
 type: roadmap
-parent: F000076
+parent: F000077
 title: "Per-test category docs as the authoritative What/How/Why front door, enforced generally — Roadmap"
 date: 2026-07-03
 author: chang
@@ -44,7 +44,7 @@ Check 26 rewrite — a single, low-risk feature.
 
 | User-Story | Title | Status |
 |-----------|-------|--------|
-| [S000126](S000126_per_test_frontdoor_enforcement/S000126_TRACKER.md) | Per-test doc front-door enforcement (seed rule + template + fill + check + skills + registry + tests) | Open |
+| [S000127](S000127_per_test_frontdoor_enforcement/S000127_TRACKER.md) | Per-test doc front-door enforcement (seed rule + template + fill + check + skills + registry + tests) | Open |
 
 ## Delivery Timeline
 
@@ -52,7 +52,7 @@ Check 26 rewrite — a single, low-risk feature.
 
 | # | Milestone | Target Date | Status | Owner | Notes | Blocked By |
 |---|-----------|-------------|--------|-------|-------|------------|
-| 1 | Ship S000126 (all 8 deliverables from the design) | — | Not Started | chang | Single-story feature; seed rule + template + 7-doc fill + content check + cj_test skills + registry + tests | — |
+| 1 | Ship S000127 (all 8 deliverables from the design) | — | Not Started | chang | Single-story feature; seed rule + template + 7-doc fill + content check + cj_test skills + registry + tests | — |
 | 2 | End-to-end pipeline run (`validate.sh` + full `test.sh` + shellcheck green; `/CJ_test_audit` green on the docs) | — | Not Started | chang | ubuntu CI authoritative; Windows Git-Bash CI gate + local `windows-smoke.sh` | #1 |
 
 ### Delivery History
@@ -67,7 +67,7 @@ Check 26 rewrite — a single, low-risk feature.
 
 ```
 F000074 category contract ----+
-                              |--> #1 Ship S000126 --> #2 E2E pipeline green
+                              |--> #1 Ship S000127 --> #2 E2E pipeline green
 F000075 CI-push/CI-nightly ---+
 ```
 
@@ -77,5 +77,5 @@ F000075 CI-push/CI-nightly ---+
 
 | Question | Next check |
 |----------|-----------|
-| Exact section headings (`## What it is` / `## How to run` / `## Explanation`)? | Confirm at start of S000126 implement — the content check is heading-anchored. |
+| Exact section headings (`## What it is` / `## How to run` / `## Explanation`)? | Confirm at start of S000127 implement — the content check is heading-anchored. |
 | The 7 docs' exact category subdirs (CI-push / CI-nightly / workflow) after F000075? | Enumerate from `test-spec.sh --list-categories` before authoring; do not hardcode. |

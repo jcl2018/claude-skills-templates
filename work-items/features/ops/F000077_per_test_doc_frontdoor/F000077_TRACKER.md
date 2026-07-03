@@ -1,7 +1,7 @@
 ---
 name: "Per-test category docs as the authoritative What/How/Why front door, enforced generally"
 type: feature
-id: "F000076"
+id: "F000077"
 status: active
 created: "2026-07-03"
 updated: "2026-07-03"

@@ -1,6 +1,6 @@
 ---
 type: design
-parent: F000076
+parent: F000077
 title: "Per-test category docs as the authoritative What/How/Why front door, enforced generally — Feature Design"
 version: 1
 status: Draft
@@ -45,7 +45,7 @@ land as a single user-story.
 
 | Concern | User-story | Artifact |
 |---------|-----------|----------|
-| Portable seed rule (edit in lockstep) + `--seed-docs` template enrichment + one-time fill of the 7 docs + `--check-structure` content check + `/CJ_test_audit` Stage 1/2 + `/CJ_test_run` surfacing + `spec/doc-spec-custom.md` requirement rows + skills/catalog docs + tests | S000126 | [S000126_per_test_frontdoor_enforcement/S000126_TRACKER.md](S000126_per_test_frontdoor_enforcement/S000126_TRACKER.md) |
+| Portable seed rule (edit in lockstep) + `--seed-docs` template enrichment + one-time fill of the 7 docs + `--check-structure` content check + `/CJ_test_audit` Stage 1/2 + `/CJ_test_run` surfacing + `spec/doc-spec-custom.md` requirement rows + skills/catalog docs + tests | S000127 | [S000127_per_test_frontdoor_enforcement/S000127_TRACKER.md](S000127_per_test_frontdoor_enforcement/S000127_TRACKER.md) |
 
 ## Big decisions
 
@@ -66,7 +66,7 @@ land as a single user-story.
 
 | Risk / Question | Next check |
 |-----------------|-----------|
-| Exact section headings (`## What it is` / `## How to run` / `## Explanation`) — the content check keys off these. | Confirm wording at the start of implement (S000126 SPEC); the check is heading-anchored. |
+| Exact section headings (`## What it is` / `## How to run` / `## Explanation`) — the content check keys off these. | Confirm wording at the start of implement (S000127 SPEC); the check is heading-anchored. |
 | Editing the seed in two files could drift the `cmp -s` byte-identity. | `tests/test-spec.test.sh` `cmp -s` case run during QA; edit both copies in the same commit. |
 | The 7 category docs' exact category subdirs (CI-push vs CI-nightly vs workflow) must match the live `categories:` axis after F000075. | Enumerate from `test-spec.sh --list-categories` at implement time before authoring; do not hardcode from memory. |
 | POSIX + LF + portable-date + CR-stripped jq discipline in `scripts/test-spec.sh` edits. | shellcheck + Windows Git-Bash CI (`windows.yml`) gate; run `bash scripts/windows-smoke.sh` locally. |
@@ -98,8 +98,8 @@ land as a single user-story.
 
 <!-- Cross-links to related artifacts. -->
 
-- Parent tracker: [F000076_TRACKER.md](F000076_TRACKER.md)
-- Roadmap: [F000076_ROADMAP.md](F000076_ROADMAP.md)
-- Child user-story: [S000126_per_test_frontdoor_enforcement/S000126_TRACKER.md](S000126_per_test_frontdoor_enforcement/S000126_TRACKER.md)
+- Parent tracker: [F000077_TRACKER.md](F000077_TRACKER.md)
+- Roadmap: [F000077_ROADMAP.md](F000077_ROADMAP.md)
+- Child user-story: [S000127_per_test_frontdoor_enforcement/S000127_TRACKER.md](S000127_per_test_frontdoor_enforcement/S000127_TRACKER.md)
 - Source design: `~/.gstack/projects/jcl2018-claude-skills-templates/chang-claude-eloquent-cohen-54b476-design-20260703-121305.md`
 - Depends on: F000074 (category contract) + F000075 (CI-push/CI-nightly cadence split)

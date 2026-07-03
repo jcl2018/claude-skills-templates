@@ -275,7 +275,7 @@ fi
 - Engine without `--check-workflow-coverage` (an older deployed engine) — skip
   cleanly with a one-line note; not a finding (the gate simply isn't present).
 
-**Category-structure checks + doc-stub seeding (F000074/F000076 — portable, any repo).**
+**Category-structure checks + doc-stub seeding (F000074/F000077 — portable, any repo).**
 When the engine supports `--check-structure` (the category-based test contract),
 ALSO run the six structural checks (a–f) as part of Stage 1, then seed any
 missing category docs idempotently. This is the category axis's deterministic
@@ -432,7 +432,7 @@ the linked test at each `behavior_coverage` row's `source`/`anchor`, then judge
 Every behavior touched by the current change MUST be checked; spot-coverage of
 the rest is acceptable but call out any obviously vague/over-claimed row.
 
-**4.4 — Per per-test category DOC** (F000076; enumerate via `--list-categories`,
+**4.4 — Per per-test category DOC** (F000077; enumerate via `--list-categories`,
 present only when the overlay declares the `categories:` axis — skip this half
 cleanly with a one-line note when `--list-categories` is empty). The per-test doc
 `docs/tests/<category>/<name>.md` is the authoritative What/How/Why front door;

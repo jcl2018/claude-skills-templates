@@ -1,6 +1,6 @@
 ---
 type: design
-parent: S000126
+parent: S000127
 title: "Per-test doc front-door enforcement — Design"
 version: 1
 status: Draft
@@ -10,7 +10,7 @@ reviewers: []
 ---
 
 <!-- This is an atomic user-story deriving from the parent feature's /office-hours
-     session. Sections are kept complete but brief; the parent F000076_DESIGN.md
+     session. Sections are kept complete but brief; the parent F000077_DESIGN.md
      carries the full cross-story rationale. -->
 
 ## Problem
@@ -20,7 +20,7 @@ surface but are thin, seeded stubs and are unenforced — no rule requires a tes
 doc to say what it is, how to run it, and why. This story makes each such doc the
 authoritative What/How/Why front door via a GENERAL portable rule, while keeping
 the generated family docs as linked units-detail. See parent
-[F000076_DESIGN.md](../F000076_DESIGN.md) for the full problem framing.
+[F000077_DESIGN.md](../F000077_DESIGN.md) for the full problem framing.
 
 ## Shape of the solution
 
@@ -67,7 +67,7 @@ requirements; (8) update both cj_test skills' docs + catalog + tests.
 
 ## Pointers
 
-- Parent tracker: [S000126_TRACKER.md](S000126_TRACKER.md)
-- Spec: [S000126_SPEC.md](S000126_SPEC.md)
-- Test spec: [S000126_TEST-SPEC.md](S000126_TEST-SPEC.md)
-- Parent feature design: [../F000076_DESIGN.md](../F000076_DESIGN.md)
+- Parent tracker: [S000127_TRACKER.md](S000127_TRACKER.md)
+- Spec: [S000127_SPEC.md](S000127_SPEC.md)
+- Test spec: [S000127_TEST-SPEC.md](S000127_TEST-SPEC.md)
+- Parent feature design: [../F000077_DESIGN.md](../F000077_DESIGN.md)

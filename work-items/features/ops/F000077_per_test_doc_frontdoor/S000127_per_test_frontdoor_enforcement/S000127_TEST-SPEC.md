@@ -1,7 +1,7 @@
 ---
 type: test-spec
-parent: S000126
-feature: F000076
+parent: S000127
+feature: F000077
 title: "Per-test doc front-door enforcement — Test Specification"
 version: 1
 status: Draft

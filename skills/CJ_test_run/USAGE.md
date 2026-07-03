@@ -74,7 +74,7 @@ maps `name → command`, and runs exactly those tests under the same cost tiers,
 writing a `mode: category` ledger; with no `--category` and no name the runners
 flow runs unchanged. Because the `name → command` selection reuses the
 `docs/tests/<category>/<name>.md` name, a single-name run surfaces/links that
-per-test doc's `## How to run` front door (F000076) — the executed command and the
+per-test doc's `## How to run` front door (F000077) — the executed command and the
 documented command are the same `categories:` row, so they can't drift apart. Every run writes a `.md` report + a
 `.json` ledger (schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/
 covered-families) — the first citable evidence artifact for the contract's own

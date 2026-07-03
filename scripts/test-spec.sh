@@ -49,7 +49,7 @@
 #                      -> tests, one row per named test), consumed by
 #                      scripts/test-run.sh for category/name selection. ADDITIVE:
 #                      it coexists with units:/behaviors:/runners:.
-#   --check-structure  (F000074/F000076) the six category-structure checks a-f:
+#   --check-structure  (F000074/F000077) the six category-structure checks a-f:
 #                      (a) tests/ exists, (b) a tests/<category>/ subfolder per
 #                      DISTINCT declared category (V2 {workflow, CI-push,
 #                      CI-nightly}), (c) categories: declares those tests, (d) one
@@ -1449,7 +1449,7 @@ EOF
   return 0
 }
 
-# ---- --check-structure: the six category-structure checks a-f (F000074/F000076) ----
+# ---- --check-structure: the six category-structure checks a-f (F000074/F000077) ----
 # The category-based test contract's structural conformance engine — the same
 # findings-are-the-product posture as --check-coverage, but keyed off the
 # `categories:` axis. Standalone-safe in ANY repo: it REPORTS gaps, NEVER moves
@@ -2396,7 +2396,7 @@ case "${1:-}" in
     exit 0
     ;;
   --check-structure)
-    # (F000074/F000076) The six category-structure checks a-f. Findings-are-the-product:
+    # (F000074/F000077) The six category-structure checks a-f. Findings-are-the-product:
     # each unmet check prints a `FINDING: structure/<id>` line but the engine
     # exits 0 (a broken structure IS the report). An absent categories: axis
     # prints the "not adopted / inactive" note + exits 0.

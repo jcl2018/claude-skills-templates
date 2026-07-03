@@ -1,11 +1,11 @@
 ---
 name: "Per-test doc front-door enforcement (seed rule + template + fill + check + skills + registry + tests)"
 type: user-story
-id: "S000126"
+id: "S000127"
 status: active
 created: "2026-07-03"
 updated: "2026-07-03"
-parent: "F000076"
+parent: "F000077"
 repo: "E:/projects/claude-skills-templates/.claude/worktrees/eloquent-cohen-54b476"
 branch: "claude/eloquent-cohen-54b476"
 blocked_by: ""
@@ -104,7 +104,7 @@ blocked_by: ""
 
 <!-- Chronological entries with dates and commit SHAs. -->
 
-- 2026-07-03: Created. Sole child of F000076 — enforce the per-test-doc What/How/Why front door as a general portable rule, keeping the family render as linked units-detail.
+- 2026-07-03: Created. Sole child of F000077 — enforce the per-test-doc What/How/Why front door as a general portable rule, keeping the family render as linked units-detail.
 
 ## PRs
 
@@ -147,7 +147,7 @@ blocked_by: ""
 - 2026-07-03 [impl-finding] e2e-local has no `docs/tests/<family>.md` family doc (it is a local-only harness, not a units family). Summary: its `## Explanation` cross-links the `docs/tests/test-hierarchy.md` explainer instead and explains why no family doc applies; the doc-spec row for it notes "(or explains why none applies)".
 - 2026-07-03 [impl-finding] `--auto` was passed but the change is 12 files incl. sensitive surfaces (scripts/test-spec.sh, skills-catalog.json, validators) — well past the ≤2-file/non-sensitive triviality bar, so the skill's safety override demotes to propose-mode. Summary: proceeded directly under the orchestrator's explicit feature-build authorization (SPEC-approved sensitive-surface change; no interactive AUQ available to this runner).
 - 2026-07-03 [impl] Implemented all 8 deliverables: lockstep seed-rule edit (spec/test-spec.md + --seed heredoc, cmp -s green), enriched --seed-docs template, filled 7 category docs, check (f) in --check-structure, /CJ_test_audit Stage-1 wiring + Stage-2 Step 4.4 truthfulness judgment, /CJ_test_run doc surfacing (wording), doc-spec rows 72-78, both skills' SKILL/USAGE + catalog, and test-spec.test.sh S4/S5/S5b. Self-checks green: `test-spec.test.sh` PASS, `--validate`, `--check-structure` (a-f findings=0), `--render-docs --check`, `cmp -s <(--seed) spec/test-spec.md`.
-- 2026-07-03 [impl-pass] S000126: implementation complete. Phase 2 implementer-owned gates transitioned (Todos + Files sections). QA-owned gates (Acceptance criteria verified met / Smoke tests pass) left for /CJ_qa-work-item.
+- 2026-07-03 [impl-pass] S000127: implementation complete. Phase 2 implementer-owned gates transitioned (Todos + Files sections). QA-owned gates (Acceptance criteria verified met / Smoke tests pass) left for /CJ_qa-work-item.
 - 2026-07-03 [qa-smoke] S1 (AC-1): green — `tests/test-spec.test.sh` PASS (exit 0); `cmp -s <(test-spec.sh --seed) spec/test-spec.md` byte-identical (seed-rule edit stayed in lockstep).
 - 2026-07-03 [qa-smoke] S2 (AC-4): green — `tests/test-spec.test.sh` PASS; content-check present/missing-section fixtures (S5 case) pass.
 - 2026-07-03 [qa-smoke] S3 (AC-4): green — `tests/test-spec.test.sh` PASS; no-categories fixture (S5b) reports content-check inactive, exit 0, no crash.
@@ -155,6 +155,6 @@ blocked_by: ""
 - 2026-07-03 [qa-smoke] S5 (AC-7): red — `bash scripts/validate.sh` exits 1. S5's declared checks 15/15a/16/24/26 ALL PASS, but Check 25 (README.md in sync with generate-readme.sh) FAILS: the catalog description edits for CJ_test_audit + CJ_test_run (an intended deliverable) left README.md stale. Deterministic (direct cmp, not the jq-CRLF flake). Fix: `bash scripts/generate-readme.sh > README.md`. NOTE: doc-sync (/CJ_document-release) hand-edits README prose but does NOT run generate-readme.sh, so this is not auto-fixed downstream — the CI validate.yml gate would fail at PR time.
 - 2026-07-03 [qa-smoke-summary] red: 4/5 non-manual rows green (0 manual). S1-S4 green (test-spec.test.sh PASS); S5 red (validate.sh Check 25 — README stale vs generate-readme.sh, an intended catalog-description change not regenerated).
 - 2026-07-03 [qa-e2e-info] E1-E4 verified green as evidence (informational — Phase 2 gates NOT transitioned due to smoke-red S5): E1 all 7 category docs carry filled What-it-is/How-to-run/Explanation + resolvable family cross-links; E2 /CJ_test_audit Stage-2 (Step 4.4) judges per-test-doc How-to-run truthfulness with cited evidence; E3 /CJ_test_run surfaces/links the per-test doc How-to-run (SKILL.md/USAGE.md wording); E4 both skills' SKILL/USAGE + catalog descriptions describe the enforced front-door model. shellcheck clean (exit 0).
-- 2026-07-03 [qa-red] S000126: SMOKE red (S5 validate.sh Check 25 — README.md stale vs generate-readme.sh). QA-owned Phase 2 gates NOT transitioned. Feature implementation is otherwise correct/complete (test-spec.test.sh PASS; Checks 15/15a/24/26/27/28 + --check-structure a-f + seed byte-identity + family render all green; E1-E4 green; shellcheck clean). Single remediation before merge: `bash scripts/generate-readme.sh > README.md`.
+- 2026-07-03 [qa-red] S000127: SMOKE red (S5 validate.sh Check 25 — README.md stale vs generate-readme.sh). QA-owned Phase 2 gates NOT transitioned. Feature implementation is otherwise correct/complete (test-spec.test.sh PASS; Checks 15/15a/24/26/27/28 + --check-structure a-f + seed byte-identity + family render all green; E1-E4 green; shellcheck clean). Single remediation before merge: `bash scripts/generate-readme.sh > README.md`.
 - 2026-07-03 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom:none,doc-spec-custom:none (Step 8.6a/8.6b assessed inline — no new tests/*.test.sh surface and no NEW repo docs, so no overlay rows needed; --check-coverage rows=83 findings=0 confirms overlays consistent. 8.6c/8.6d DEFERRED via DEFER_AUDIT — orchestrator runs the post-sync audit).
 - 2026-07-03 [qa-fix+reverify] Orchestrator fixed the sole QA-red (Check 25 README-stale, from the intended CJ_test_audit/CJ_test_run catalog-description edit): regenerated `README.md` from `scripts/generate-readme.sh` (a 2-cell diff), then re-ran `bash scripts/validate.sh` → GREEN (Errors:0, Warnings:0). QA verdict is now GREEN: seed byte-identity, `--check-structure` a-f (incl. content check (f)), `--render-docs --check`, `README == generate-readme`, and `tests/test-spec.test.sh` all pass. Phase 2 QA-owned gates (Acceptance criteria verified met / Smoke tests pass) TRANSITIONED. Full `test.sh` deferred to ubuntu CI (authoritative full-suite gate on the slow local env). Tree pollution-free (no zzz/STRAY).

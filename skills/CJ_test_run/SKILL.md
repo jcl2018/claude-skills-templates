@@ -185,7 +185,7 @@ On a real (non-dry-run) execution with ≥1 runner row, `test-run.sh` writes a
 - Any Stage-1 findings surfaced in Step 2 (they rode along; call them out so the
   operator sees "the suite passed BUT the catalog is stale" as one picture).
 
-**Per-test doc surfacing (category / single-name mode; F000076).** In category
+**Per-test doc surfacing (category / single-name mode; F000077).** In category
 mode — especially a single-name run (`/CJ_test_run <name>`) — the selected test's
 `docs/tests/<category>/<name>.md` IS its authoritative What/How/Why front door,
 and its `## How to run` section is the canonical statement of the command. When

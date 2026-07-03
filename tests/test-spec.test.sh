@@ -931,11 +931,11 @@ else
 fi
 
 # ============================================================================
-# 10. Category axis (F000074/F000076) — the ADDITIVE category-based test contract.
+# 10. Category axis (F000074/F000077) — the ADDITIVE category-based test contract.
 #     S1: new category subcommands work AND the pre-existing subcommands stay
 #         green (additivity). S2: --seed carries the category-axis prose. S3:
 #         --check-structure reports the six checks a-f as findings-not-crashes
-#         (exit 0 always). S4/S5 (F000076): the enriched --seed-docs stub carries
+#         (exit 0 always). S4/S5 (F000077): the enriched --seed-docs stub carries
 #         the three front-door sections (What it is / How to run / Explanation) and
 #         check (f) FINDINGs a doc missing a section / passes a complete doc /
 #         is inactive with no axis. Plus: category validation (closed enums),
@@ -1061,7 +1061,7 @@ else
   fail_test "S3: --seed-docs mutated a test script (must never move scripts)"
 fi
 
-# S4 (F000076): the enriched --seed-docs stub template carries the three front-door
+# S4 (F000077): the enriched --seed-docs stub template carries the three front-door
 # section headings (What it is / How to run / Explanation) so a freshly-seeded doc
 # PASSES check (f) out of the box. (The _CATD docs were just seeded above.)
 _S4_DOC="$_CATD/docs/tests/CI-push/ci-one.md"
@@ -1070,12 +1070,12 @@ if [ -f "$_S4_DOC" ] \
    && grep -qE '^## How to run[[:space:]]*$' "$_S4_DOC" \
    && grep -qE '^## Explanation[[:space:]]*$' "$_S4_DOC" \
    && grep -qF 'docs/tests/<family>.md' "$_S4_DOC"; then
-  ok "S4 (F000076): --seed-docs stub carries the three front-door sections + a family-doc cross-link pointer"
+  ok "S4 (F000077): --seed-docs stub carries the three front-door sections + a family-doc cross-link pointer"
 else
-  fail_test "S4 (F000076): seeded stub is missing a front-door section or the family cross-link ($_S4_DOC)"
+  fail_test "S4 (F000077): seeded stub is missing a front-door section or the family cross-link ($_S4_DOC)"
 fi
 
-# S5 (F000076): check (f) content check — a per-test doc missing a required section
+# S5 (F000077): check (f) content check — a per-test doc missing a required section
 # is a FINDING; a complete doc passes; the whole check is inactive with no axis.
 # Reuse the _CATD fixture (already seeded + clean at check-structure). Blank a
 # section out of ONE seeded doc, then assert structure/f FINDINGs for exactly that
@@ -1088,9 +1088,9 @@ if [ "$_S5_RC" -eq 0 ] \
    && printf '%s\n' "$_S5_OUT" | grep -qF "FINDING: structure/f — per-test doc docs/tests/CI-push/ci-one.md is missing the front-door section(s): '## Explanation'" \
    && printf '%s\n' "$_S5_OUT" | grep -qF "check: structure/f — PASS (docs/tests/workflow/wf-one.md" \
    && printf '%s\n' "$_S5_OUT" | grep -qF 'STRUCTURE: findings='; then
-  ok "S5 (F000076): check (f) FINDINGs a per-test doc missing '## Explanation' while complete docs still PASS (exit 0)"
+  ok "S5 (F000077): check (f) FINDINGs a per-test doc missing '## Explanation' while complete docs still PASS (exit 0)"
 else
-  fail_test "S5 (F000076): check (f) content check wrong for a missing section (rc=$_S5_RC): $_S5_OUT"
+  fail_test "S5 (F000077): check (f) content check wrong for a missing section (rc=$_S5_RC): $_S5_OUT"
 fi
 # Re-seed the blanked doc back to full (present => skip won't restore it, so remove
 # then re-seed) and confirm check (f) is clean again — proves complete docs pass.
@@ -1098,12 +1098,12 @@ rm -f "$_S5_DOC"
 _catrun --seed-docs >/dev/null 2>&1
 _S5_OUT2=$(_catrun --check-structure); _S5_RC2=$?
 if [ "$_S5_RC2" -eq 0 ] && printf '%s\n' "$_S5_OUT2" | grep -qF 'OK structure'; then
-  ok "S5 (F000076): a re-seeded (complete) per-test doc passes check (f) — OK structure, findings=0"
+  ok "S5 (F000077): a re-seeded (complete) per-test doc passes check (f) — OK structure, findings=0"
 else
-  fail_test "S5 (F000076): re-seeded complete doc did not pass check (f) (rc=$_S5_RC2): $_S5_OUT2"
+  fail_test "S5 (F000077): re-seeded complete doc did not pass check (f) (rc=$_S5_RC2): $_S5_OUT2"
 fi
 
-# S5b (F000076): check (f) is inactive with NO categories: axis (rolls up with the
+# S5b (F000077): check (f) is inactive with NO categories: axis (rolls up with the
 # rest of --check-structure's inactive path — the whole engine reports the honest
 # 'not adopted' note, so (f) never fires on a rules-only repo). Asserted via the
 # dedicated _NOCAT fixture below; here we just confirm the no-axis run prints no
@@ -1112,9 +1112,9 @@ _S5B=$(REPO_ROOT="$_CATD" TEST_SPEC_PATH="$_CATD/spec/test-spec.md" TEST_SPEC_CU
 if [ "$_S5B_RC" -eq 0 ] \
    && printf '%s\n' "$_S5B" | grep -qF 'category contract not adopted / inactive' \
    && ! printf '%s\n' "$_S5B" | grep -qF 'structure/f'; then
-  ok "S5b (F000076): check (f) inactive with no categories: axis (no structure/f finding; the 'not adopted' note prints)"
+  ok "S5b (F000077): check (f) inactive with no categories: axis (no structure/f finding; the 'not adopted' note prints)"
 else
-  fail_test "S5b (F000076): check (f) fired or wrong output with no categories axis (rc=$_S5B_RC): $_S5B"
+  fail_test "S5b (F000077): check (f) fired or wrong output with no categories axis (rc=$_S5B_RC): $_S5B"
 fi
 
 # S3 (F000075 KEY DECISION): --check-structure derives the required per-category
