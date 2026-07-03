@@ -127,11 +127,10 @@ truth enumerated first, then each contract doc cross-walked; `docs/workflow.md` 
 `docs/workflows/` are recognized as a GENERATED surface sourced from
 `spec/workflow-spec.md`, never an orphan/drift) are agent-judged and, standalone,
 REQUIRED to run in one fresh-context subagent. On cj_goal orchestrator paths QA
-defers this audit (`DEFER_AUDIT: true`) and the orchestrator runs it ONCE post-sync
-(after `/CJ_document-release`) as part of the combined read-only post-sync audit
-subagent, feeding the post-QA checkpoint with the docs that will actually ship;
-standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE (a subagent cannot
-spawn subagents).
+skips this inline audit (`DEFER_AUDIT: true`) and it is NOT re-run on the build
+path — the agent-judged audit runs nightly in CI (`.github/workflows/audit-nightly.yml`),
+off the build path; standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE
+(a subagent cannot spawn subagents).
 
 **Touches:**
 
@@ -168,10 +167,10 @@ Stage 1 is the existing engine calls (`test-spec.sh --validate` +
 against the source at its anchor; Stage 3 enumerates the live verification
 surfaces and judges coverage-in-substance. Standalone, Stages 2+3 run in one
 fresh-context subagent (shared with `/CJ_doc_audit` when both run). On cj_goal
-orchestrator paths QA defers this audit (`DEFER_AUDIT: true`) and the orchestrator
-runs it ONCE post-sync (after `/CJ_document-release`) as part of the same combined
-read-only post-sync audit subagent, feeding the post-QA checkpoint; standalone
-`/CJ_qa-work-item` Step 8.6d still runs it INLINE.
+orchestrator paths QA skips this inline audit (`DEFER_AUDIT: true`) and it is NOT
+re-run on the build path — the agent-judged audit runs nightly in CI
+(`.github/workflows/audit-nightly.yml`); standalone `/CJ_qa-work-item` Step 8.6d
+still runs it INLINE.
 
 **Touches:**
 

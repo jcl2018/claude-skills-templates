@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_task
-description: "Small-ad-hoc-task-to-reviewable-PR orchestrator (F000054 `task` verb; experimental). The lightweight sibling of /CJ_goal_feature: takes a plain free-text `\"<small task>\"` (refine a doc, add a file, clean up some files, a one-line fix), runs a HARD complexity gate (refuses design-rework topics → routes to /CJ_goal_feature, refuses bug/investigation topics → routes to /CJ_goal_defect, refuses explicit-large-scope topics; HALTs as halted_at_too_complex), creates a `cj-task-*` worktree, then SILENTLY (one checkpoint AUQ — the QA audit findings) bash-scaffolds a `type: task` work-item (T-ID) directly from the topic via scripts/cj-task-scaffold.sh — NO /office-hours, NO design doc, NO pre-existing TODOS row — and dispatches /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — the three-stage audit is deferred to the post-sync point) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (ALWAYS; Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. PR-stop only (like /CJ_goal_feature): no automatic merge, no /land-and-deploy; the PR is the review. Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + work-item dir + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); QA always re-runs on resume. Consumes scripts/cj-goal-common.sh --mode task for the deterministic worktree / sync / pr-check / cleanup phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_task.jsonl. Halt taxonomy (green_pr_opened, halted_at_too_complex/not_isolated/scaffold/impl/qa/doc_sync/qa_audit/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). Use when: 'do this small task end-to-end', 'refine a doc / add a file / clean up files to a PR', 'fix this small thing and stop at the PR', 'a small ad-hoc cleanup that does not need design or investigation'."
+description: "Small-ad-hoc-task-to-reviewable-PR orchestrator (F000054 `task` verb; experimental). The lightweight sibling of /CJ_goal_feature: takes a plain free-text `\"<small task>\"` (refine a doc, add a file, clean up some files, a one-line fix), runs a HARD complexity gate (refuses design-rework topics → routes to /CJ_goal_feature, refuses bug/investigation topics → routes to /CJ_goal_defect, refuses explicit-large-scope topics; HALTs as halted_at_too_complex), creates a `cj-task-*` worktree, then SILENTLY (no AUQ) bash-scaffolds a `type: task` work-item (T-ID) directly from the topic via scripts/cj-task-scaffold.sh — NO /office-hours, NO design doc, NO pre-existing TODOS row — and dispatches /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs nightly in CI via audit-nightly.yml, off the build path) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. PR-stop only (like /CJ_goal_feature): no automatic merge, no /land-and-deploy; the PR is the review. Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + work-item dir + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); QA always re-runs on resume. Consumes scripts/cj-goal-common.sh --mode task for the deterministic worktree / sync / pr-check / cleanup phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_task.jsonl. Halt taxonomy (green_pr_opened, halted_at_too_complex/not_isolated/scaffold/impl/qa/doc_sync/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). Use when: 'do this small task end-to-end', 'refine a doc / add a file / clean up files to a PR', 'fix this small thing and stop at the PR', 'a small ad-hoc cleanup that does not need design or investigation'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -185,21 +185,15 @@ HARD complexity gate + scaffold   [INLINE — scripts/cj-task-scaffold.sh --topi
    │   ↳ explicit-large-scope  → HALT (halted_at_too_complex; suggest /CJ_goal_feature)
    │   on PASS → scaffold a `type: task` work-item (T-ID) from the topic
    ▼  record scaffold boundary → resume state file (last_completed_phase + HEAD SHA + work-item dir)
-   ▼  SILENT depth-≤2 leaf Agent subagents (one checkpoint AUQ below)
-/CJ_implement-from-spec  →  /CJ_qa-work-item [DEFER_AUDIT: true — audit deferred to post-sync]
+   ▼  SILENT depth-≤2 leaf Agent subagents (no AUQ)
+/CJ_implement-from-spec  →  /CJ_qa-work-item [DEFER_AUDIT: true — QA skips the inline audit; nightly CI covers it]
    │
    ▼
 pre-doc-sync commit   [INLINE Step 4.4 — NEW; idempotent: commit QA-green code + 8.6a/8.6b overlays, skip on clean tree]
    │
    ▼
 /CJ_document-release   [INLINE Step 5.5 — doc-sync folds doc edits into the PR; halt-on-red]
-   │
-   ▼
-post-sync audit   [INLINE Step 5.6 — NEW; ONE combined READ-ONLY subagent: /CJ_doc_audit + /CJ_test_audit over the post-sync tree]
-   │
-   ▼
-QA-audit checkpoint   [INLINE Step 4.5 — AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt]
-   │   ↳ Halt → HALT (halted_at_qa_audit; [qa-audit-declined]); Continue past findings journals [qa-audit-waived]
+   │   (the agent-judged doc/test audit runs nightly in CI — audit-nightly.yml — not inline; F000076)
    ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens a PR]
    │
@@ -314,7 +308,6 @@ fields: `[<halt-id>]`, `next_action=`, `resume_cmd=`, `pr_url=`, `raw_output_pat
 | `halted_at_scaffold` | `[scaffold-red]` | `cj-task-scaffold.sh` could not scaffold (template missing / write error) |
 | `halted_at_impl` | `[impl-red]` | implement leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_qa` | `[qa-red]` | /CJ_qa-work-item red |
-| `halted_at_qa_audit` | `[qa-audit-declined]` | Step 4.5 QA-audit checkpoint: operator chose Halt on the POST-sync AUDIT_FINDINGS digest (the Step 5.6 doc/test audit run AFTER doc-sync; the spec-overlay updates rode the QA RESULT). Continue past findings journals `[qa-audit-waived]`. Fires ALWAYS after QA green → pre-doc-sync commit → doc-sync → the post-sync audit — the one AUQ in the chain, and now decides on the docs that will ship. |
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green |
 | `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing/invalid |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: upstream wrote files outside the doc-only whitelist |

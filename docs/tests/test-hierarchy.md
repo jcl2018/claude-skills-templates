@@ -83,8 +83,12 @@ ceiling). The first piece of the local answer has now landed: a **dormant
 build-gate auto-answer seam** (`scripts/cj-e2e-gate.sh`, a pure deterministic
 verdict helper, plus uniform prose in the four cj_goal pipelines) that — only
 under a double hard guard (`CJ_GOAL_E2E_AUTO=1` **and** a `.cj-e2e-sandbox`
-marker) — auto-answers ONLY the two cj_goal *build* gates (design-gate,
-qa-audit), never the ship/merge/deploy gates. It is CI-green and fully
+marker) — auto-answers ONLY the cj_goal *build* gates, never the
+ship/merge/deploy gates. (The helper still allowlists `design-gate` and
+`qa-audit`, but the agent-judged doc/test audit has since moved to a nightly CI
+job, so the `qa-audit` checkpoint no longer fires on any build path — only
+`design-gate`, feature-only, is a live seam gate today; the now-dormant
+`qa-audit` arm is a tracked cleanup follow-up.) It is CI-green and fully
 unit-tested (`tests/cj-e2e-gate.test.sh`), and changes no normal run's behavior
 (the helper prints `inactive`). The follow-on has now landed: a local-only
 **harness** (`scripts/e2e-local.sh`) that drives a real `/CJ_goal_task` build

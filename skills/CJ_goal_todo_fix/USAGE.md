@@ -3,7 +3,7 @@ skill-name: "CJ_goal_todo_fix"
 version: 2.2.0
 status: active
 created: "2026-06-01"
-last-updated: "2026-07-01T00:43:43Z"
+last-updated: "2026-07-03T20:06:32Z"
 ---
 
 # Skill Usage: CJ_goal_todo_fix
@@ -36,18 +36,17 @@ pull + `skills-deploy install` from `.source`, fail-soft) — so the drain runs
 against current skills — plus the `skills-update-check` advisory it newly gained
 (F000045). It then chains `/CJ_suggest` (rank) → bash T-task scaffold →
 `/CJ_implement-from-spec` → `/CJ_qa-work-item` (impl→qa leaf Agent subagents,
-halt-on-red between; with the audits DEFERRED — the orchestrator passes a literal
-`DEFER_AUDIT: true` directive so QA skips its Step 8.6c/8.6d doc/test audits and
-returns `AUDITS=deferred`, while still running the 8.6a/8.6b spec-overlay writes)
-→ an idempotent pre-doc-sync commit → `/CJ_document-release` (Step 5.5 doc-sync) →
-ONE combined READ-ONLY post-sync doc/test audit (`/CJ_doc_audit` +
-`/CJ_test_audit`, dispatched by the orchestrator on the POST-sync tree) → the
-QA-audit checkpoint (on that POST-sync audit report — interactive runs: AUQ
-ALWAYS on the AUDIT_FINDINGS digest, Continue past findings journals
-`[qa-audit-waived]`; `--quiet` runs: auto-continue on doc:ok,test:ok, halt
-`[qa-audit-declined]` / `halted_at_qa_audit` on any findings) → `/ship` (open PR)
-→ `/land-and-deploy` (merge + verify) per drained
-row. Drain mode
+halt-on-red between; with the inline audits SKIPPED — the orchestrator passes a
+literal `DEFER_AUDIT: true` directive so QA skips its Step 8.6c/8.6d doc/test
+audits and returns `AUDITS=deferred`, while still running the 8.6a/8.6b
+spec-overlay writes) → an idempotent pre-doc-sync commit → `/CJ_document-release`
+(Step 5.5 doc-sync) → `/ship` (open PR) → `/land-and-deploy` (merge + verify) per
+drained row. The agent-judged doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`)
+no longer runs on the drain path or gates the ship; it runs NIGHTLY in CI
+(`.github/workflows/audit-nightly.yml`), filing findings to a GitHub issue. The
+`--quiet` mode therefore auto-continues past QA (halt-on-red between impl/qa still
+applies). The deterministic per-PR gate (`validate.sh` / pre-commit) is unchanged.
+Drain mode
 creates one worktree per TODO inside `scripts/drain-one-todo.sh`; single mode
 creates one `cj-todo-*` worktree on `main` (whose local main is fast-forwarded
 to trunk first, Fork 1). The pre-build sync is mode-independent (runs for both
@@ -73,7 +72,7 @@ Halt-on-red stops the loop and writes the finding to the tracker journal.
 
 - `/CJ_suggest` — ranks TODOS.md rows; drain mode calls it with `--for-skill cj-goal`
 - `/CJ_implement-from-spec` — dispatched per drained TODO (leaf Agent subagent) to write the code
-- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between; when orchestrator-driven it DEFERS its Step 8.6c/8.6d audits (`DEFER_AUDIT: true`), and the orchestrator runs ONE combined read-only post-sync `/CJ_doc_audit` + `/CJ_test_audit` AFTER doc-sync, which feeds the QA-audit checkpoint (standalone `/CJ_qa-work-item` still runs them inline)
+- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between; when orchestrator-driven it SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT: true`) — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI, not on the drain path (standalone `/CJ_qa-work-item` still runs them inline)
 - `/ship` (upstream gstack) — opens PR with Gate #2 diff-review AUQ
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/schedule` (upstream gstack) — pair with `--quiet` for cron-style drains

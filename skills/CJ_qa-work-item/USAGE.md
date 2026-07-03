@@ -3,7 +3,7 @@ skill-name: "CJ_qa-work-item"
 version: 1.0.0
 status: experimental
 created: "2026-06-01"
-last-updated: "2026-06-13T07:50:02Z"
+last-updated: "2026-07-03T20:06:32Z"
 ---
 
 # Skill Usage: CJ_qa-work-item
@@ -38,22 +38,23 @@ behavior:
   overlays (`spec/test-spec-custom.md` units, `spec/doc-spec-custom.md` rows).
   These run on every green path regardless of any defer directive — they must
   land pre-sync so the orchestrator's commit + doc-sync fold them into the PR.
-- **8.6c/8.6d — three-stage AUDITS (deferrable):** Step 8.6.0 checks the
+- **8.6c/8.6d — three-stage AUDITS (skippable inline):** Step 8.6.0 checks the
   dispatch prompt for the literal `DEFER_AUDIT: true` directive (the
   orchestrator-to-QA defer signal — a greppable string, NOT an argv flag, since
   QA is dispatched as a subagent prompt). Standalone (no directive): run
   `/CJ_doc_audit` + `/CJ_test_audit` inline and emit the `AUDIT_FINDINGS` block,
   exactly as before — standalone QA is the last doc-mutating point, so the
   inline audit stays. Orchestrator-driven (`DEFER_AUDIT: true`): SKIP 8.6c/8.6d,
-  report `AUDITS=deferred`, emit no `AUDIT_FINDINGS` — the orchestrator runs the
-  audit at the authoritative post-sync point.
+  report `AUDITS=deferred`, emit no `AUDIT_FINDINGS` — the orchestrator does NOT
+  re-run the audit on the build path; the agent-judged doc/test audit now runs
+  NIGHTLY in CI (`.github/workflows/audit-nightly.yml`), off the build path.
 
-Audit findings ride the green RESULT's `AUDITS=` field + (when not deferred) a
-fenced `AUDIT_FINDINGS` block — they never flip QA red; the calling cj_goal
-orchestrator's post-QA checkpoint AUQ owns the Continue/Halt decision. Output is
-structured (gate transitions + journal entries + the extended RESULT);
-orchestrators read the result and either advance, prompt the checkpoint, or halt
-the pipeline.
+Audit findings ride the green RESULT's `AUDITS=` field + (when not skipped) a
+fenced `AUDIT_FINDINGS` block — they never flip QA red. Standalone, the operator
+reads the `AUDIT_FINDINGS` block directly; under `DEFER_AUDIT: true` the
+orchestrator advances past QA and the nightly CI audit surfaces any findings.
+Output is structured (gate transitions + journal entries + the extended RESULT);
+orchestrators read the result and either advance or halt the pipeline.
 
 ## Common pitfalls
 
@@ -65,7 +66,7 @@ the pipeline.
   artifact the operator reviews
 - Expecting audit findings (Step 8.6) to make QA red — they ride the GREEN
   RESULT by design; a red RESULT would halt at the qa gate and the operator
-  would never see the findings checkpoint
+  would never see the `AUDIT_FINDINGS` block
 - Adding a new `tests/*.test.sh` in the work-item without letting 8.6a add its
   `units:` row — the test audit (and validate.sh Check 24) flags it
 
@@ -76,5 +77,5 @@ the pipeline.
   inline; standalone they answer the same questions in any repo
 - `/CJ_personal-workflow` — runs at boundaries to confirm Phase 2 completeness
 - `/CJ_goal_feature` + `/CJ_goal_defect` + `/CJ_goal_task` + `/CJ_goal_todo_fix`
-  — top-level orchestrators that call QA as the final pre-ship leaf subagent and
-  surface the post-QA audit checkpoint
+  — top-level orchestrators that call QA as the final pre-ship leaf subagent with
+  `DEFER_AUDIT: true` (the inline audit is skipped; nightly CI covers it)

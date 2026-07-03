@@ -1822,6 +1822,19 @@ else
   fail_test "tests/cj-e2e-gate.test.sh failed (rc=$_ceg_rc) — run \`bash tests/cj-e2e-gate.test.sh\` directly to see"
 fi
 
+# The nightly doc/test audit runner (F000076) relocates the advisory Stage-2/3
+# audit off the CJ_goal_* build hot path. Its deterministic half (SKIP-without-key,
+# dry-run, findings-parse, issue create/update/none) is exercised here with claude
+# + gh stubbed on PATH — no model, no network, no spend in a normal test.sh.
+echo ""
+echo "Running tests/audit-nightly.test.sh (nightly doc/test audit runner — deterministic half, claude+gh stubbed)..."
+if bash "$REPO_ROOT/tests/audit-nightly.test.sh" >/dev/null 2>&1; then
+  ok "tests/audit-nightly.test.sh: SKIP-without-key + dry-run + findings-parse + issue create/update/none all pass (no model, no network)"
+else
+  _an_rc=$?
+  fail_test "tests/audit-nightly.test.sh failed (rc=$_an_rc) — run \`bash tests/audit-nightly.test.sh\` directly to see"
+fi
+
 # F000071 Part B / S000121: the local-E2E harness (scripts/e2e-local.sh +
 # tests/e2e-local/lib/{sandbox,report}.sh). This runs the harness's DETERMINISTIC
 # half only (no Claude, no gstack, no API key): the SKIP path (flag unset →
@@ -1960,16 +1973,16 @@ else
   fail_test "tests/cj-document-release-config.test.sh failed (rc=$_cdrc_rc) — run \`bash tests/cj-document-release-config.test.sh\` directly to see"
 fi
 
-# Regression test (F000035 + F000064): all 4 cj_goal orchestrators (CJ_goal_feature,
+# Regression test (F000035 + F000076): all 4 cj_goal orchestrators (CJ_goal_feature,
 # CJ_goal_defect, CJ_goal_task, CJ_goal_todo_fix) have the Step 5.5 doc-sync
 # subsection wired into pipeline.md AND both [doc-sync-red] / [doc-sync-non-doc-write]
-# halt-taxonomy rows in SKILL.md, with the F000064 post-sync run-order (qa-audit
-# checkpoint BEFORE doc-sync in the table's run-order listing; before ship) AND
-# the post-sync audit semantics ("AFTER doc-sync" in the halted_at_qa_audit row).
+# halt-taxonomy rows in SKILL.md, AND (F000076) NO inline qa-audit checkpoint
+# machinery survives in any pipeline.md/SKILL.md (the agent-judged audit moved to
+# the nightly audit-nightly.yml CI job; the build tail is doc-sync -> /ship).
 echo ""
-echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035/F000064 4-way symmetric Step 5.5 wiring + post-sync order)..."
+echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035/F000076 4-way symmetric Step 5.5 wiring + no-checkpoint guard)..."
 if bash "$REPO_ROOT/tests/cj-goal-doc-sync-wiring.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-doc-sync-wiring.test.sh: Step 5.5 + halt-taxonomy rows present in all 4 cj_goal orchestrators with the post-sync ordering"
+  ok "tests/cj-goal-doc-sync-wiring.test.sh: Step 5.5 + halt-taxonomy rows present in all 4 cj_goal orchestrators; no inline qa-audit checkpoint survives"
 else
   _cgdsw_rc=$?
   fail_test "tests/cj-goal-doc-sync-wiring.test.sh failed (rc=$_cgdsw_rc) — run \`bash tests/cj-goal-doc-sync-wiring.test.sh\` directly to see"

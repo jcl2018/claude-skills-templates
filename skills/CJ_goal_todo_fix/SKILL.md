@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_todo_fix
-description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item (DEFER_AUDIT: true) + a pre-doc-sync commit + /CJ_document-release + a post-sync doc/test audit + the QA-audit checkpoint + /ship + /land-and-deploy. The post-QA checkpoint surfaces the POST-sync doc/test audit digest (ONE combined read-only subagent run AFTER doc-sync) per drained TODO: interactive runs AUQ ALWAYS (Continue past findings journals [qa-audit-waived]; Halt journals [qa-audit-declined] / halted_at_qa_audit); --quiet auto-continues on doc:ok,test:ok and halts on any findings. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers. /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
+description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item (DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs nightly in CI) + a pre-doc-sync commit + /CJ_document-release + /ship + /land-and-deploy, per drained TODO. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers (suppresses the Phase-3 drain-summary AUQ + start-of-run banner, emits scheduled_run: true, still STOPs the loop on halt-on-red). /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
 version: 2.2.0
 allowed-tools:
   - Bash
@@ -82,16 +82,18 @@ Per-TODO chain (both modes share this):
 
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
-   → /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — audit deferred to post-sync] (leaf Agent subagents, halt-on-red between)
+   → /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — QA skips the inline agent-judged audit; nightly CI covers it] (leaf Agent subagents, halt-on-red between)
    → pre-doc-sync commit (Step 5.4 — NEW; idempotent: commit QA-green fix + 8.6a/8.6b overlays, skip on clean tree)
    → /CJ_document-release (Step 5.5 doc-sync)
-   → post-sync audit (Step 5.5b — NEW; ONE combined READ-ONLY subagent: /CJ_doc_audit + /CJ_test_audit over the post-sync tree)
-   → QA-audit checkpoint (interactive: AUQ ALWAYS on the POST-sync report; --quiet: auto-continue on doc:ok,test:ok, halt [qa-audit-declined] on findings)
    → /ship Gate #2
    → Step 5.6: surface registered-doc verdicts → PR body (post-/ship gh pr edit "$PR_URL"; best-effort)
    → /land-and-deploy → TODOS.md DONE-mark
    → worktree cleanup (best-effort; cj-worktree-cleanup.sh --caller todo) → telemetry line
 ```
+
+The agent-judged doc/test audit no longer runs inline on the build path — it runs
+nightly in CI (`.github/workflows/audit-nightly.yml`) over `main`, off the drain
+path (F000076).
 
 Worktree cleanup is best-effort, post-land, and **never halts the run** — todo
 calls `cj-worktree-cleanup.sh --caller todo` directly (it does NOT route through
@@ -107,74 +109,11 @@ The T-task scaffold runs in pure bash (`todo_fix.sh:608-693` — ID picker +
 3.2-3.3 pattern, minus the scaffold step). Both run as depth-≤2 leaf Agent
 subagents (silent / no-AUQ); a non-green RESULT from either HALTs the chain
 (`halted_at_impl` / `halted_at_qa`). QA is dispatched with `DEFER_AUDIT: true`, so
-it defers the three-stage audit; the orchestrator then runs the pre-doc-sync
-commit (pipeline.md Step 5.4), doc-sync (Step 5.5), and the post-sync audit
-(Step 5.5b) BEFORE running the **QA-audit checkpoint** (below) on that POST-sync
-report.
-
-## QA-audit findings checkpoint (per drained TODO — AFTER Step 5.5 doc-sync + the Step 5.5b post-sync audit)
-
-Identical contract to `/CJ_goal_feature` Step 3.4 (canonical gate row:
-`qa-audit`, order 45, in `spec/test-spec-custom.md`). The checkpoint consumes the
-**post-sync** audit (pipeline.md Step 5.5b), NOT a pre-sync QA RESULT field: that
-combined read-only subagent emits
-`AUDITS=doc:<ok|findings:n>,test:<ok|findings:n>` plus the fenced `AUDIT_FINDINGS`
-block (`/CJ_doc_audit` + `/CJ_test_audit` over the post-doc-sync tree). The two
-spec-overlay updates rode the QA RESULT inline at qa.md 8.6a/8.6b (they shipped in
-the pre-doc-sync commit).
-
-**Build-gate auto-answer seam (the dormant local-E2E seam — F000071 Part A).**
-BEFORE the per-mode branch below, run the deterministic verdict helper on the
-post-sync audit digest, then branch on its one-line stdout:
-
-```bash
-_E2E_GATE="$_REPO_ROOT/scripts/cj-e2e-gate.sh"
-_E2E_VERDICT="AUTO=inactive"
-[ -x "$_E2E_GATE" ] && _E2E_VERDICT=$(bash "$_E2E_GATE" --gate qa-audit --digest "$AUDITS" 2>/dev/null || echo "AUTO=inactive")
-```
-
-(`$AUDITS` is the compact `doc:<ok|findings:n>,test:<ok|findings:n>` digest from
-the post-sync audit. The helper is dormant unless BOTH `CJ_GOAL_E2E_AUTO=1` AND a
-`.cj-e2e-sandbox` marker hold AND the gate is in the `{design-gate, qa-audit}`
-allowlist — so on any normal run it prints `AUTO=inactive` and nothing changes.)
-
-- `AUTO=continue` — the seam is active and the post-sync digest is fully green
-  (`doc:ok` AND `test:ok`): SKIP the AUQ, print a loud
-  `[E2E-AUTO] qa-audit auto-continued on a green digest — no human gate fired`
-  banner, write NO waiver line (a green digest waives nothing), and proceed to
-  the next step exactly as a `--quiet` green-continue would.
-- `AUTO=halt` — the seam is active but the digest carries findings: take the
-  `[qa-audit-declined]` Halt path (end_state `halted_at_qa_audit`), exactly as
-  `--quiet` halts on findings. The seam NEVER auto-waives findings.
-- `AUTO=inactive` — the seam is dormant (the normal run): fall through to the
-  per-mode branch below unchanged.
-
-This GENERALIZES this verb's existing `--quiet` green-continue into ONE path,
-two triggers: the qa-audit auto-continue condition is now
-`QUIET=1 OR (the helper prints AUTO=continue)`, both honoring the same green-only
-predicate (continue only on `doc:ok,test:ok`; halt on findings; never
-auto-waive). A normal run (no `--quiet`, no `CJ_GOAL_E2E_AUTO`/marker) is
-behavior-unchanged — the helper prints `inactive` and the per-mode branch below
-runs as before.
-
-- **Interactive runs (no `--quiet`):** surface an AskUserQuestion **ALWAYS**
-  — findings or not — showing the post-sync `AUDITS=` digest + the `AUDIT_FINDINGS`
-  block, options **Continue** (→ /ship; if findings>0 append
-  `- $TS [qa-audit-waived] operator continued past audit findings at the
-  post-QA (post-sync) checkpoint: AUDITS=...` to the T-task tracker journal, then
-  commit that tracker line so the tree stays clean) / **Halt**
-  (append `- $TS [qa-audit-declined] operator halted at the post-QA (post-sync)
-  audit checkpoint.` + the family fields `next_action=` / `resume_cmd=` /
-  `pr_url=N/A` / `raw_output_path=`; telemetry `end_state=halted_at_qa_audit`;
-  STOP the chain).
-- **`--quiet` runs (cron / `/schedule`):** NO AUQ. Auto-continue when the
-  digest is fully green (`doc:ok` AND `test:ok`); on ANY findings, halt with
-  `[qa-audit-declined]` + `end_state=halted_at_qa_audit` (no waiver is ever
-  auto-written — a waiver requires a human).
-
-The checkpoint is a pure read of the post-sync audit (no phase boundary recorded);
-a resume re-runs QA → pre-doc-sync commit (idempotent) → doc-sync → the post-sync
-audit, and the checkpoint re-fires on the fresh post-sync digest.
+it SKIPS the inline three-stage agent-judged audit (that audit now runs nightly in
+CI — `.github/workflows/audit-nightly.yml` — off the build path, F000076); the
+orchestrator then runs the pre-doc-sync commit (pipeline.md Step 5.4) and doc-sync
+(Step 5.5) BEFORE `/ship` → `/land-and-deploy`. There is no inline post-sync audit
+and no QA-audit checkpoint on the drain path.
 
 Net new logic vs the upstream phase skills: pre-flight gate stack, TODOS.md
 parser (handles both `## Active work` and domain-grouped shapes), T-task
@@ -225,7 +164,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true] (leaf subagents, halt-on-red) → pre-doc-sync commit (Step 5.4) → /CJ_document-release (Step 5.5) → post-sync audit (Step 5.5b; ONE combined read-only subagent) → QA-audit checkpoint on the POST-sync report (AUQ / --quiet auto-decide) → /ship → /land-and-deploy
+      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — inline audit skipped; nightly CI covers it] (leaf subagents, halt-on-red) → pre-doc-sync commit (Step 5.4) → /CJ_document-release (Step 5.5) → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."
@@ -255,7 +194,6 @@ The sensitive-surface auto-default joins `halted_at_preflight` in the continue
 set because under bash there is no AUQ tool — the gate fires regardless of
 whether a human is present, so `/loop` should defer the row (skip-list) and
 keep iterating. Substantive halts (`halted_at_impl`, `halted_at_qa`,
-`halted_at_qa_audit`,
 `halted_at_ship`, `halted_at_deploy`, `halted_at_sensitive_surface_user_declined`
 (reserved for future interactive AUQ; not emitted in v1.1), `halted_at_resolve`,
 `halted_at_scaffold`, `halted_at_todos_md`) stop the loop. Per-session
@@ -437,7 +375,6 @@ Per-TODO end states (single-TODO mode and inside drain mode's per-iteration):
 | `halted_at_scaffold` | /CJ_personal-workflow check refused the scaffolded dir | STOP |
 | `halted_at_impl` | /CJ_implement-from-spec leaf subagent returned non-green | STOP |
 | `halted_at_qa` | /CJ_qa-work-item leaf subagent returned non-green | STOP |
-| `halted_at_qa_audit` | QA-audit checkpoint declined ([qa-audit-declined] — interactive Halt, or `--quiet` auto-halt on any doc/test audit findings; Continue past findings journals [qa-audit-waived]) | STOP |
 | `halted_at_doc_sync` | Step 5.5 doc-sync: /CJ_document-release returned non-green ([doc-sync-red] — upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) | STOP |
 | `halted_at_doc_sync_no_config` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum ([doc-sync-no-config]; a simply-absent doc-spec.md self-bootstraps, not halts) | STOP |
 | `halted_at_doc_sync_non_doc_write` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist ([doc-sync-non-doc-write] — upstream-misbehaved) | STOP |
