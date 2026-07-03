@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_run
-last-updated: "2026-07-03T00:45:00Z"
+last-updated: "2026-07-03T20:01:48Z"
 ---
 
 # Using /CJ_test_run
@@ -28,7 +28,9 @@ Stage-1 audit as a pre-step.
   bare NAME runs the single test of that name (reusing the
   `docs/tests/<category>/<name>.md` name), honoring the same cost tiers as the
   runners flow. The `CI` category is split by cadence into `CI-push` (runs on
-  every push / PR) and `CI-nightly` (runs nightly).
+  every push / PR) and `CI-nightly` (runs nightly). A single-name run also
+  surfaces/links that test's `docs/tests/<category>/<name>.md` front door — its
+  `## How to run` section is the canonical command, so the run and the doc agree.
 
 ## When NOT to use
 
@@ -70,7 +72,10 @@ or a bare test NAME selects from the `categories:` axis
 (`test-spec.sh --list-categories`),
 maps `name → command`, and runs exactly those tests under the same cost tiers,
 writing a `mode: category` ledger; with no `--category` and no name the runners
-flow runs unchanged. Every run writes a `.md` report + a
+flow runs unchanged. Because the `name → command` selection reuses the
+`docs/tests/<category>/<name>.md` name, a single-name run surfaces/links that
+per-test doc's `## How to run` front door (F000076) — the executed command and the
+documented command are the same `categories:` row, so they can't drift apart. Every run writes a `.md` report + a
 `.json` ledger (schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/
 covered-families) — the first citable evidence artifact for the contract's own
 `suite-green` rule. The aggregate is a closed enum `{pass, fail, all-skipped}`:

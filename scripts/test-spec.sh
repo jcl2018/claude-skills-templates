@@ -49,12 +49,14 @@
 #                      -> tests, one row per named test), consumed by
 #                      scripts/test-run.sh for category/name selection. ADDITIVE:
 #                      it coexists with units:/behaviors:/runners:.
-#   --check-structure  (F000074) the five category-structure checks a-e:
+#   --check-structure  (F000074/F000076) the six category-structure checks a-f:
 #                      (a) tests/ exists, (b) a tests/<category>/ subfolder per
 #                      DISTINCT declared category (V2 {workflow, CI-push,
 #                      CI-nightly}), (c) categories: declares those tests, (d) one
 #                      docs/tests/<category>/<name>.md per declared test, (e) a
-#                      docs/tests/ INDEX referencing every test.
+#                      docs/tests/ INDEX referencing every test, (f) each per-test
+#                      doc carries the three front-door sections (## What it is /
+#                      ## How to run / ## Explanation).
 #                      Findings-are-the-product: each unmet check prints a
 #                      `FINDING: structure/<id>` line but the engine exits 0. No
 #                      categories: axis => the "not adopted / inactive" note.
@@ -1447,12 +1449,12 @@ EOF
   return 0
 }
 
-# ---- --check-structure: the five category-structure checks a-e (F000074) ----
+# ---- --check-structure: the six category-structure checks a-f (F000074/F000076) ----
 # The category-based test contract's structural conformance engine — the same
 # findings-are-the-product posture as --check-coverage, but keyed off the
 # `categories:` axis. Standalone-safe in ANY repo: it REPORTS gaps, NEVER moves
 # or rewrites test SCRIPTS (the physical reorganization is a one-time FEATURE
-# migration, deferred). The five checks (the operator's a-e):
+# migration, deferred). The six checks (the operator's a-f):
 #   (a) a tests/ folder exists and holds the repo's test scripts;
 #   (b) tests/ is split into per-category subfolders — one tests/<category>/ per
 #       DISTINCT declared category (V2 {workflow, CI-push, CI-nightly});
@@ -1461,7 +1463,10 @@ EOF
 #   (d) docs/tests/<category>/ exists for each required category, with exactly ONE
 #       .md per declared test (docs/tests/<category>/<name>.md);
 #   (e) docs/tests/ carries a test-list INDEX table referencing every declared
-#       test by name.
+#       test by name;
+#   (f) each per-test doc CONTENTS the three front-door section headings
+#       (`## What it is` / `## How to run` / `## Explanation`) — the deterministic
+#       half of the GENERAL front-door rule (Stage 2 judges the content's truth).
 # Each unmet check prints a `FINDING: structure/<id> — ...` line; findings NEVER
 # crash the engine (exit 0 always) — a broken structure IS the report. When the
 # `categories:` axis is ABSENT the engine prints a named `category contract not
@@ -1480,7 +1485,7 @@ _check_structure() {
 
   # Inactive gate: no categories: axis => the honest "not adopted" note.
   if [ -z "$_CATEGORIES" ]; then
-    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (name/category/command/tier/doc/purpose) to activate the five structural checks"
+    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (name/category/command/tier/doc/purpose) to activate the six structural checks"
     echo "STRUCTURE: findings=0 (inactive)"
     return 0
   fi
@@ -1586,11 +1591,38 @@ EOF
     echo "check: structure/e — index present at docs/$_STRUCT_INDEX_REL"
   fi
 
+  # (f) per-test doc CONTENT — the authoritative front door (GENERAL rule in
+  # spec/test-spec.md): each declared test's docs/tests/<category>/<name>.md must
+  # carry the three literal section headings `## What it is`, `## How to run`, and
+  # `## Explanation`. This is the deterministic half of the front-door rule; the
+  # agent-judged TRUTHFULNESS of the content is /CJ_test_audit Stage 2. A doc that
+  # is ABSENT is already a check-(d) finding — (f) judges CONTENT only when the doc
+  # exists, so the two checks don't double-count a missing file. Findings are the
+  # product (exit 0 always); the headings must match the seed template + the 7
+  # filled docs exactly (`## What it is` / `## How to run` / `## Explanation`).
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctcmd _cttier _ctdoc _ctpurpose; do
+    [ -n "$_ctname" ] || continue
+    _cs_docpath="$_CS_DOCS/tests/$_ctcat/$_ctname.md"
+    [ -f "$_cs_docpath" ] || continue   # missing doc is a check-(d) finding, not (f)
+    _cs_missing=""
+    grep -qE '^## What it is[[:space:]]*$' "$_cs_docpath" || _cs_missing="$_cs_missing '## What it is'"
+    grep -qE '^## How to run[[:space:]]*$' "$_cs_docpath" || _cs_missing="$_cs_missing '## How to run'"
+    grep -qE '^## Explanation[[:space:]]*$' "$_cs_docpath" || _cs_missing="$_cs_missing '## Explanation'"
+    if [ -n "$_cs_missing" ]; then
+      echo "FINDING: structure/f — per-test doc docs/tests/$_ctcat/$_ctname.md is missing the front-door section(s):$_cs_missing (each per-test doc must carry '## What it is', '## How to run', and '## Explanation' — the authoritative front door; run /CJ_test_audit to seed a stub, then fill it)"
+      _CS_FINDINGS=$((_CS_FINDINGS + 1))
+    else
+      echo "check: structure/f — PASS (docs/tests/$_ctcat/$_ctname.md carries What it is / How to run / Explanation)"
+    fi
+  done <<EOF
+$_CATEGORIES
+EOF
+
   if [ "$_CS_FINDINGS" -gt 0 ]; then
     echo "STRUCTURE: findings=$_CS_FINDINGS (category structural gaps — findings are the product; the audit may seed missing docs, never move scripts)"
     return 0
   fi
-  echo "OK structure — the five category-structure checks (a-e) pass (findings=0)"
+  echo "OK structure — the six category-structure checks (a-f) pass (findings=0)"
   return 0
 }
 
@@ -1606,13 +1638,24 @@ EOF
 # Render a single category-test doc stub to stdout. $1=name $2=category
 # $3=command $4=tier $5=purpose. Deterministic; ID-free by the rendered-field
 # lint on command/purpose (masked defensively for symmetry with --render-docs).
+#
+# The stub is the authoritative per-test front door (the GENERAL rule in
+# spec/test-spec.md): it carries the three required section headings — `## What it
+# is`, `## How to run`, `## Explanation` — so a freshly-seeded doc PASSES the
+# check(f) content check out of the box, and the seeded prose already tells the
+# operator to link the relevant docs/tests/<family>.md units-detail page. There is
+# no categories -> units join key by design, so the stub cannot name the exact
+# family doc for the operator; the `## Explanation` seed points at the family-doc
+# catalog and asks the author to fill in the specific cross-link.
 _render_category_doc_stub() {
   _rcd_name="$1"; _rcd_cat="$2"; _rcd_cmd="$3"; _rcd_tier="$4"; _rcd_purpose="$5"
   echo "# Test: \`$_rcd_name\` (\`$_rcd_cat\` category)"
   echo ""
-  echo "<!-- SEEDED STUB — one doc per category test."
-  echo "     Seeded by /CJ_test_audit from the spec/test-spec-custom.md categories: axis."
-  echo "     Safe to edit: the audit seeds this only when absent (idempotent; present => skip). -->"
+  echo "<!-- SEEDED STUB — the authoritative per-test front door (What it is / How"
+  echo "     to run / Explanation). Seeded by /CJ_test_audit from the"
+  echo "     spec/test-spec-custom.md categories: axis. Safe to edit: the audit seeds"
+  echo "     this only when absent (idempotent; present => skip). Fill each section and"
+  echo "     link the relevant docs/tests/<family>.md units-detail page. -->"
   echo ""
   echo "| Field | Value |"
   echo "|-------|-------|"
@@ -1621,12 +1664,12 @@ _render_category_doc_stub() {
   echo "| Command | \`$(_mask_ids "$_rcd_cmd")\` |"
   echo "| Tier | \`$_rcd_tier\` |"
   echo ""
-  echo "## Purpose"
+  echo "## What it is"
   echo ""
   if [ -n "$_rcd_purpose" ] && [ "$_rcd_purpose" != "-" ]; then
     _mask_ids "$_rcd_purpose"; echo ""
   else
-    echo "_(no purpose declared in the contract — add one to the \`categories:\` row.)_"
+    echo "_(describe in one or two sentences what this test verifies — seed it from the \`purpose\` in the \`categories:\` row.)_"
   fi
   echo ""
   echo "## How to run"
@@ -1637,6 +1680,13 @@ _render_category_doc_stub() {
   echo ""
   echo "Run via the category contract: \`/CJ_test_run $_rcd_name\` (single test) or"
   echo "\`/CJ_test_run --category $_rcd_cat\` (the whole category)."
+  echo ""
+  echo "## Explanation"
+  echo ""
+  echo "_(why this test exists / what it proves. Cross-link the relevant"
+  echo "\`docs/tests/<family>.md\` units-detail page(s) — see the catalog at"
+  echo "[docs/test-catalog.md](../../test-catalog.md) — for the per-unit breakdown"
+  echo "behind this front door.)_"
 }
 
 # Render the docs/tests/index.md INDEX table to stdout, referencing every declared
@@ -2172,16 +2222,38 @@ doc filename AND the `/CJ_test_run` argument), `category`
 (`free | paid | local-only`), an optional `doc` (the
 `docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
 
-`test-spec.sh --check-structure` mechanizes five structural checks when the
+`test-spec.sh --check-structure` mechanizes six structural checks when the
 `categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
 **(b)** `tests/` is split into per-category subfolders (one `tests/<category>/`
 per DISTINCT category the overlay actually declares — so a repo that declares no
 nightly test is never forced to create an empty `tests/CI-nightly/`); **(c)** the
 `categories:` axis declares at least one test in each declared category; **(d)**
 one `docs/tests/<category>/<name>.md` per declared test; **(e)** a `docs/tests/`
-INDEX table references every test by name. Each unmet check is a `FINDING:` —
+INDEX table references every test by name; **(f)** each per-test doc actually
+CONTENTS the three front-door sections (below). Each unmet check is a `FINDING:` —
 findings are the product, never a crash. A repo with no `categories:` axis reports
 "category contract not adopted / inactive" and stays green.
+
+**The per-test doc is the authoritative front door (GENERAL rule).** Each
+declared category test's `docs/tests/<category>/<name>.md` is the ONE place a
+maintainer opens to understand and run that test, so it MUST document three
+things, under these literal section headings:
+
+- **`## What it is`** — one or two sentences: what this test verifies.
+- **`## How to run`** — the exact command (matching the category's `command`) and
+  the `/CJ_test_run <name>` / `/CJ_test_run --category <cat>` invocation.
+- **`## Explanation`** — why the test exists / what it proves, cross-linking the
+  relevant `docs/tests/<family>.md` units-detail page(s) for the per-unit
+  breakdown.
+
+The flat family docs (`docs/tests/<family>.md`, GENERATED by `--render-docs`) are
+KEPT unchanged as that linked units-detail drill-down — the per-test doc is the
+front door, the family doc is the detail behind it. `--seed-docs` seeds a fresh
+per-test stub already carrying the three headings (present ⇒ skip preserves any
+authored content), check **(f)** enforces their presence deterministically, and
+`/CJ_test_audit` Stage 2 judges the content is TRUTHFUL (the how-to-run matches
+the command; the what/why are accurate) — the doc-level catch for the
+anchor-greps-while-the-doc-rots gap.
 
 **The category axis is ADDITIVE and COEXISTS with the `units:`/`behaviors:`/
 `runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED
@@ -2324,7 +2396,7 @@ case "${1:-}" in
     exit 0
     ;;
   --check-structure)
-    # (F000074) The five category-structure checks a-e. Findings-are-the-product:
+    # (F000074/F000076) The six category-structure checks a-f. Findings-are-the-product:
     # each unmet check prints a `FINDING: structure/<id>` line but the engine
     # exits 0 (a broken structure IS the report). An absent categories: axis
     # prints the "not adopted / inactive" note + exits 0.
@@ -2410,7 +2482,7 @@ Usage:
   test-spec.sh --list-units --with-family  # id<TAB>family columns (for test-run.sh per-family counts)
   test-spec.sh --list-runners    # parsed runners[] rows (id/command/tier/covers/platform/note; empty without an overlay)
   test-spec.sh --list-categories # parsed categories[] rows (name/category/command/tier/doc/purpose; empty without an overlay). --names for names only; --category <c> to filter
-  test-spec.sh --check-structure # the five category-structure checks a-e (findings-are-the-product; inactive when no categories: axis)
+  test-spec.sh --check-structure # the six category-structure checks a-f (findings-are-the-product; inactive when no categories: axis)
   test-spec.sh --seed-docs       # idempotently seed docs/tests/<category>/<name>.md stubs + docs/tests/index.md (present => skip; never moves scripts)
   test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
