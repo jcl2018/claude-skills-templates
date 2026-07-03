@@ -1123,7 +1123,10 @@ categories:
 ADD1EOF
 _cataddrun() { REPO_ROOT="$_CATADD" TEST_SPEC_PATH="$_CATADD/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATADD/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
 _cataddrun --seed-docs >/dev/null 2>&1        # first seed: index has wf-a + ci-a
-_ADD_IDX_BEFORE=$(grep -cF 'ci-added' "$_CATADD/docs/tests/index.md" 2>/dev/null || echo 0)
+# NB: pipe through wc -l (not `grep -c ... || echo 0`) — grep -c prints "0" AND exits 1
+# on zero matches, so `|| echo 0` would append a second "0", and `[ "0\n0" -eq 0 ]`
+# throws "integer expression expected". `grep -F | wc -l` yields a single clean count.
+_ADD_IDX_BEFORE=$(grep -F 'ci-added' "$_CATADD/docs/tests/index.md" 2>/dev/null | wc -l | tr -d ' ')
 # Declare a THIRD test after the first seed; the next --seed-docs must reconcile it in.
 cat > "$_CATADD/spec/test-spec-custom.md" <<'ADD2EOF'
 # overlay
