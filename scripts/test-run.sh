@@ -33,7 +33,7 @@
 # Usage:
 #   test-run.sh --dry-run [--evals] [--e2e] [--all]   # print the plan; execute nothing
 #   test-run.sh [--evals] [--e2e] [--all]             # execute + write report + ledger
-#   test-run.sh --category <workflow|CI> [--dry-run]  # (F000074) run one category's tests
+#   test-run.sh --category <workflow|CI-push|CI-nightly> [--dry-run]  # (F000074) run one category's tests
 #   test-run.sh <name> [--dry-run]                    # (F000074) run the single test of that name
 #   test-run.sh --help
 #
@@ -86,7 +86,7 @@ fi
 DRY_RUN=0
 SEL_PAID=0
 SEL_LOCAL=0
-SEL_CATEGORY=""   # (F000074) --category <workflow|CI>: run one category's tests
+SEL_CATEGORY=""   # (F000074) --category <workflow|CI-push|CI-nightly>: run one category's tests
 SEL_NAME=""       # (F000074) a bare positional: run the single test of that name
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -96,7 +96,7 @@ while [ $# -gt 0 ]; do
     --all)     SEL_PAID=1; SEL_LOCAL=1; shift ;;
     --category)
       shift
-      [ $# -gt 0 ] || { echo "test-run.sh: --category needs a value (workflow|CI)" >&2; exit 2; }
+      [ $# -gt 0 ] || { echo "test-run.sh: --category needs a value (workflow|CI-push|CI-nightly)" >&2; exit 2; }
       SEL_CATEGORY="$1"; shift ;;
     --help|-h)
       sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
@@ -221,8 +221,8 @@ _run_category_mode() {
     _CM_LABEL="name=$SEL_NAME"
   else
     case "$SEL_CATEGORY" in
-      workflow|CI) : ;;
-      *) echo "test-run.sh: --category '$SEL_CATEGORY' is outside the V1 taxonomy {workflow, CI}" >&2; exit 2 ;;
+      workflow|CI-push|CI-nightly) : ;;
+      *) echo "test-run.sh: --category '$SEL_CATEGORY' is outside the V2 taxonomy {workflow, CI-push, CI-nightly}" >&2; exit 2 ;;
     esac
     _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v c="$SEL_CATEGORY" 'NF && $2 == c {print $1"\t"$2"\t"$3"\t"$4}')
     if [ -z "$_CM_SEL" ]; then

@@ -1,4 +1,4 @@
-# Test: `validate` (`CI` category)
+# Test: `validate` (`CI-push` category)
 
 <!-- SEEDED STUB — one doc per category test.
      Seeded by /CJ_test_audit from the spec/test-spec-custom.md categories: axis.
@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | Name | `validate` |
-| Category | `CI` |
+| Category | `CI-push` |
 | Command | `bash scripts/validate.sh` |
 | Tier | `free` |
 
@@ -22,4 +22,4 @@ bash scripts/validate.sh
 ```
 
 Run via the category contract: `/CJ_test_run validate` (single test) or
-`/CJ_test_run --category CI` (the whole category).
+`/CJ_test_run --category CI-push` (the whole category).

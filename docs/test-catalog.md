@@ -13,7 +13,7 @@ catalog is a rendered view kept fresh by `validate.sh` Check 26.
 
 | Family | Units | Page |
 |--------|-------|------|
-| `ci` | 3 | [docs/tests/ci.md](tests/ci.md) |
+| `ci` | 4 | [docs/tests/ci.md](tests/ci.md) |
 | `eval` | 1 | [docs/tests/eval.md](tests/eval.md) |
 | `hook` | 2 | [docs/tests/hook.md](tests/hook.md) |
 | `test` | 44 | [docs/tests/test.md](tests/test.md) |

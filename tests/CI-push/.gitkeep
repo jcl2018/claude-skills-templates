@@ -1,0 +1,11 @@
+# tests/CI-push/ — the `CI-push` category dir (F000074 category-based test
+# contract; taxonomy V2 F000075).
+#
+# V2 FOUNDATION: this dir establishes the on-disk category layout the contract
+# declares (spec/test-spec-custom.md categories:), so /CJ_test_audit's
+# --check-structure (b) check passes. `CI-push` = the deploy-gate tests that run
+# on every push / PR (validate / suite / test-deploy / windows-smoke). The
+# PHYSICAL move of those test scripts INTO this dir is a DEFERRED follow-up — this
+# PR only lands the taxonomy split. Test-script discovery in scripts/test.sh + the
+# anchor paths still point at the current flat locations; do NOT move scripts here
+# until the deferred migration.

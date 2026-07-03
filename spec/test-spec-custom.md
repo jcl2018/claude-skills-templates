@@ -124,7 +124,8 @@ nightly):
 | Check / Unit | What it asserts |
 |---|---|
 | validate workflow — PR gate | Runs the validator, full test suite and shellcheck on every PR. |
-| windows workflow — Git Bash gate | Runs the Windows smoke and skills-deploy suite under Git Bash on PR + push-main. |
+| windows workflow — Git Bash smoke gate | Runs the fast Windows smoke under Git Bash on PR + push-main (CI-push cadence). |
+| windows-nightly workflow — nightly skills-deploy suite | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest nightly + on dispatch (CI-nightly cadence). |
 | eval-nightly workflow — scheduled evals | Runs the behavioral eval harness daily, with a manual dispatch trigger. |
 
 ### Handled by `local-hook` (at `git commit`, before code leaves the machine)
@@ -829,7 +830,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills. ALSO the additive category axis (Section 10): --list-categories (+ --names/--category filters) with pre-existing-subcommand additivity, --seed carrying the category prose, --check-structure's five a-e checks (findings-not-crash) + --seed-docs idempotency + stale-INDEX refresh + inactive-when-no-axis, and the closed {workflow, CI} category-enum HALT."
+    purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills. ALSO the additive category axis (Section 10): --list-categories (+ --names/--category filters) with pre-existing-subcommand additivity, --seed carrying the category prose, --check-structure's five a-e checks (findings-not-crash; folders derived from the distinct declared categories) + --seed-docs idempotency + stale-INDEX refresh + inactive-when-no-axis, and the closed {workflow, CI-push, CI-nightly} V2 category-enum HALT."
   - id: test-cj-audit-skills
     family: test
     label: "audit-skills suite — seed delivery + audit engines"
@@ -1087,13 +1088,22 @@ units:
     purpose: "Runs the validator, the full test suite and shellcheck on every pull request."
   - id: ci-windows
     family: ci
-    label: "windows workflow — Git Bash gate"
+    label: "windows workflow — Git Bash smoke gate"
     anchor: "name: Windows (Git Bash)"
     source: .github/workflows/windows.yml
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci push-main"
-    purpose: "Runs the Windows smoke and the skills-deploy suite under Git Bash on every pull request and push to main."
+    purpose: "Runs the fast Windows smoke (windows-smoke.sh) under Git Bash on every pull request and push to main — the CI-push cadence; the slow skills-deploy suite moved to the nightly workflow."
+  - id: ci-windows-nightly
+    family: ci
+    label: "windows-nightly workflow — nightly skills-deploy suite"
+    anchor: "name: Windows Nightly (skills-deploy suite)"
+    source: .github/workflows/windows-nightly.yml
+    layer: ci
+    disposition: hard-fail
+    trigger: "nightly manual"
+    purpose: "Runs the full skills-deploy suite (test-deploy.sh) on windows-latest under Git Bash on a nightly schedule, with a manual dispatch trigger — the CI-nightly cadence windows-deploy test."
   - id: ci-eval-nightly
     family: ci
     label: "eval-nightly workflow — scheduled evals"
@@ -1411,17 +1421,21 @@ runners:
     platform: any
     note: "The local happy-path E2E harness — a real /CJ_goal_task build in a sandbox; self-gates (first-line ^SKIP:) without CJ_E2E_LOCAL + gstack + a claude login; runs only under --e2e / --all."
 categories:
-  # ---- the categories: axis (F000074): the category-based test contract ----
+  # ---- the categories: axis (F000074; taxonomy V2 F000075): the category-based
+  # test contract ----
   # ADDITIVE + optional; the PRIMARY axis of the category model (category ->
   # tests), consumed by /CJ_test_audit (--check-structure) + /CJ_test_run
   # (--category / single-name). Each row: name (unique slug — IS the
   # docs/tests/<category>/<name>.md filename AND the /CJ_test_run argument),
-  # category {workflow, CI}, command (how to run it), tier {free, paid,
-  # local-only}, optional doc pointer, optional purpose. V1 taxonomy is the
-  # closed set {workflow, CI}. This axis COEXISTS with units:/behaviors:/runners:
-  # (their removal + the physical test-script move into tests/<category>/ are a
-  # deferred follow-up); the scripts are NOT moved in this PR, so the `command`
-  # values point at their current flat paths.
+  # category {workflow, CI-push, CI-nightly}, command (how to run it), tier
+  # {free, paid, local-only}, optional doc pointer, optional purpose. V2 taxonomy
+  # is the closed set {workflow, CI-push, CI-nightly} — the CI category split by
+  # cadence (the category name IS the cadence, so --category CI-push /
+  # --category CI-nightly is the whole selection API, no new flag). This axis
+  # COEXISTS with units:/behaviors:/runners: (their removal + the physical
+  # test-script move into tests/<category>/ are a deferred follow-up); the scripts
+  # are NOT moved in this PR, so the `command` values point at their current flat
+  # paths.
   #
   # workflow — deterministic end-to-end workflow tests (what proves a whole
   #            user-facing workflow runs): the cj_goal eval cases + the local
@@ -1438,31 +1452,39 @@ categories:
     tier: local-only
     doc: "docs/tests/workflow/e2e-local.md"
     purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary."
-  # CI — tests required at each deployment / the deploy gate (what must be green
-  #      to ship): the validator, the full behavioral suite, the deploy-install
-  #      suite, and the Windows Git Bash smoke.
+  # CI-push — deploy-gate tests that run on EVERY push / PR (the fast merge
+  #           signal): the validator, the full behavioral suite, the deploy-install
+  #           suite, and the Windows Git Bash smoke.
   - name: validate
-    category: CI
+    category: CI-push
     command: "bash scripts/validate.sh"
     tier: free
-    doc: "docs/tests/CI/validate.md"
+    doc: "docs/tests/CI-push/validate.md"
     purpose: "The repo validator (the ci layer): all numbered + error + warning checks against the catalog, docs, and spec family."
   - name: suite
-    category: CI
+    category: CI-push
     command: "bash scripts/test.sh"
     tier: free
-    doc: "docs/tests/CI/suite.md"
+    doc: "docs/tests/CI-push/suite.md"
     purpose: "The full behavioral test suite — runs validate.sh, every registered tests/*.test.sh sub-suite, test-deploy.sh, and windows-smoke.sh."
   - name: test-deploy
-    category: CI
+    category: CI-push
     command: "bash scripts/test-deploy.sh"
     tier: free
-    doc: "docs/tests/CI/test-deploy.md"
-    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift)."
+    doc: "docs/tests/CI-push/test-deploy.md"
+    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host push-cadence run."
   - name: windows
-    category: CI
+    category: CI-push
     command: "bash scripts/windows-smoke.sh"
     tier: free
-    doc: "docs/tests/CI/windows.md"
-    purpose: "The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution)."
+    doc: "docs/tests/CI-push/windows.md"
+    purpose: "The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution) — the fast per-PR Windows signal."
+  # CI-nightly — deploy-gate tests deferred to a nightly schedule (heavier checks
+  #              off the PR path): the Windows-native skills-deploy suite.
+  - name: windows-deploy
+    category: CI-nightly
+    command: "bash scripts/test-deploy.sh"
+    tier: free
+    doc: "docs/tests/CI-nightly/windows-deploy.md"
+    purpose: "The skills-deploy end-to-end suite on windows-latest, run nightly (windows-nightly.yml) — same script as the push-cadence test-deploy, but a distinct CI context (platform + cadence); locally it runs on the host platform (no platform: field yet)."
 ```

@@ -569,9 +569,10 @@ fi
 rm -rf "$FX"
 
 # =============================================================================
-# S5 (F000074): category-mode selection — --category / single-name, cost tiers,
-# --dry-run, and additivity (the runners flow is unchanged when neither is used).
-echo "== S5: category-mode selection (--category / single name / --dry-run) =="
+# S5 (F000074; taxonomy V2 F000075): category-mode selection — --category /
+# single-name, cost tiers, --dry-run, additivity, and the V2 CI-push/CI-nightly
+# cadence split (the runners flow is unchanged when neither selection is used).
+echo "== S5: category-mode selection (--category CI-push|CI-nightly / single name / --dry-run) =="
 FXC=$(_mk_fixture <<'EOF'
 # overlay
 ```yaml
@@ -589,30 +590,50 @@ categories:
     doc: "docs/tests/workflow/wf-a.md"
     purpose: "a paid workflow test"
   - name: ci-a
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-a.md"
-    purpose: "a free CI test"
+    doc: "docs/tests/CI-push/ci-a.md"
+    purpose: "a free push-cadence CI test"
   - name: ci-b
-    category: CI
+    category: CI-push
     command: "echo FAIL: ci-b boom; false"
     tier: free
-    doc: "docs/tests/CI/ci-b.md"
-    purpose: "a free CI test that fails"
+    doc: "docs/tests/CI-push/ci-b.md"
+    purpose: "a free push-cadence CI test that fails"
+  - name: nightly-a
+    category: CI-nightly
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI-nightly/nightly-a.md"
+    purpose: "a free nightly-cadence CI test"
 ```
 EOF
 )
 
-# --category CI --dry-run: plans BOTH CI tests as will-run (free tier), runs nothing.
-_DRY=$(_tr "$FXC" --category CI --dry-run 2>&1); _DRY_RC=$?
+# --category CI-push --dry-run: plans BOTH CI-push tests as will-run (free tier), runs nothing.
+_DRY=$(_tr "$FXC" --category CI-push --dry-run 2>&1); _DRY_RC=$?
 if [ "$_DRY_RC" -eq 0 ] \
-   && printf '%s\n' "$_DRY" | grep -qF 'test: ci-a (CI)' \
+   && printf '%s\n' "$_DRY" | grep -qF 'test: ci-a (CI-push)' \
    && printf '%s\n' "$_DRY" | grep -qF 'decision: will-run' \
+   && ! printf '%s\n' "$_DRY" | grep -qF 'nightly-a' \
    && printf '%s\n' "$_DRY" | grep -qF 'no test executed, no report or ledger'; then
-  ok "S5: --category CI --dry-run plans the CI tests as will-run; executes nothing"
+  ok "S5: --category CI-push --dry-run plans only the CI-push tests as will-run; executes nothing"
 else
-  fail_test "S5: --category CI --dry-run wrong (rc=$_DRY_RC): $_DRY"
+  fail_test "S5: --category CI-push --dry-run wrong (rc=$_DRY_RC): $_DRY"
+fi
+
+# --category CI-nightly --dry-run: plans ONLY the nightly test (the cadence split
+# selects a different set than CI-push), runs nothing.
+_DRYN=$(_tr "$FXC" --category CI-nightly --dry-run 2>&1); _DRYN_RC=$?
+if [ "$_DRYN_RC" -eq 0 ] \
+   && printf '%s\n' "$_DRYN" | grep -qF 'test: nightly-a (CI-nightly)' \
+   && printf '%s\n' "$_DRYN" | grep -qF 'decision: will-run' \
+   && ! printf '%s\n' "$_DRYN" | grep -qF 'ci-a' \
+   && printf '%s\n' "$_DRYN" | grep -qF 'no test executed, no report or ledger'; then
+  ok "S5: --category CI-nightly --dry-run plans only the nightly test (V2 cadence split); executes nothing"
+else
+  fail_test "S5: --category CI-nightly --dry-run wrong (rc=$_DRYN_RC): $_DRYN"
 fi
 
 # --category workflow --dry-run on a DEFAULT (free) run: the paid workflow test is
@@ -640,20 +661,20 @@ else
 fi
 rm -f "$_ONE_LEDGER" "$FXC/tests/test-run/reports/20260101T000000Z.md"
 
-# --category CI execute: ci-a passes, ci-b fails -> aggregate fail + exit 1.
-_CIRUN=$(_tr "$FXC" --category CI 2>&1); _CIRUN_RC=$?
+# --category CI-push execute: ci-a passes, ci-b fails -> aggregate fail + exit 1.
+_CIRUN=$(_tr "$FXC" --category CI-push 2>&1); _CIRUN_RC=$?
 _CI_LEDGER="$FXC/tests/test-run/reports/20260101T000000Z.json"
 if [ "$_CIRUN_RC" -eq 1 ] && [ -f "$_CI_LEDGER" ] \
    && [ "$(jq -r '.aggregate' "$_CI_LEDGER")" = "fail" ]; then
-  ok "S5: --category CI execute derives aggregate fail (a real failing test) + exit 1"
+  ok "S5: --category CI-push execute derives aggregate fail (a real failing test) + exit 1"
 else
-  fail_test "S5: --category CI execute did not fail as expected (rc=$_CIRUN_RC): $_CIRUN"
+  fail_test "S5: --category CI-push execute did not fail as expected (rc=$_CIRUN_RC): $_CIRUN"
 fi
 rm -f "$_CI_LEDGER" "$FXC/tests/test-run/reports/20260101T000000Z.md"
 
 # Error paths: unknown name (exit 2) + mutual exclusion (exit 2).
 _UNK=$(_tr "$FXC" nonesuch --dry-run 2>&1); _UNK_RC=$?
-_MEX=$(_tr "$FXC" --category CI ci-a --dry-run 2>&1); _MEX_RC=$?
+_MEX=$(_tr "$FXC" --category CI-push ci-a --dry-run 2>&1); _MEX_RC=$?
 if [ "$_UNK_RC" -eq 2 ] && printf '%s\n' "$_UNK" | grep -qF "no category test named 'nonesuch'" \
    && [ "$_MEX_RC" -eq 2 ] && printf '%s\n' "$_MEX" | grep -qF 'mutually exclusive'; then
   ok "S5: unknown name + --category-with-name are named exit-2 errors"
@@ -688,13 +709,40 @@ runners:
 ```
 EOF
 )
-_INA=$(_tr "$FXNC" --category CI 2>&1); _INA_RC=$?
+_INA=$(_tr "$FXNC" --category CI-push 2>&1); _INA_RC=$?
 if [ "$_INA_RC" -eq 0 ] && printf '%s\n' "$_INA" | grep -qF 'category contract not adopted / inactive'; then
   ok "S5: --category on a no-categories repo => 'not adopted / inactive' + exit 0"
 else
   fail_test "S5: category-inactive path wrong (rc=$_INA_RC): $_INA"
 fi
 rm -rf "$FXNC"
+
+# Negative enum-rejection (F000075): a --category value outside the V2 taxonomy
+# {workflow, CI-push, CI-nightly} is a named exit-2 error. The old test asserted
+# the V1 message {workflow, CI}; it now asserts the V2 message (and the legacy
+# bare `CI` is correctly rejected).
+FXENUM=$(_mk_fixture <<'EOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: ci-a
+    category: CI-push
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI-push/ci-a.md"
+    purpose: "a free push-cadence CI test"
+```
+EOF
+)
+_ENUM=$(_tr "$FXENUM" --category CI --dry-run 2>&1); _ENUM_RC=$?
+if [ "$_ENUM_RC" -eq 2 ] \
+   && printf '%s\n' "$_ENUM" | grep -qF 'outside the V2 taxonomy {workflow, CI-push, CI-nightly}'; then
+  ok "S5: --category with a value outside the V2 taxonomy (legacy bare 'CI') is a named exit-2 error"
+else
+  fail_test "S5: V2 enum-rejection message wrong (rc=$_ENUM_RC): $_ENUM"
+fi
+rm -rf "$FXENUM"
 
 # =============================================================================
 if [ "$ERRORS" -eq 0 ]; then

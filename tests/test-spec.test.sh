@@ -943,21 +943,25 @@ echo "--- 10. category axis (F000074): subcommands + structure + seed-docs ---"
 # S1 (additivity): the LIVE overlay declares categories AND every pre-existing
 # subcommand still exits 0 unchanged.
 _CAT_LIVE=$(bash "$HELPER" --list-categories 2>/dev/null); _CAT_LIVE_RC=$?
-if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	CI	' \
+if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	CI-push	' \
+   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^windows-deploy	CI-nightly	' \
    && printf '%s\n' "$_CAT_LIVE" | grep -qE '^e2e-local	workflow	'; then
-  ok "S1: --list-categories lists the declared workflow + CI category tests"
+  ok "S1: --list-categories lists the declared workflow + CI-push + CI-nightly category tests (V2)"
 else
-  fail_test "S1: --list-categories did not list the expected category rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
+  fail_test "S1: --list-categories did not list the expected V2 category rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
 fi
-# --names + --category filters.
+# --names + --category filters (V2: CI-push holds validate; CI-nightly holds windows-deploy).
 _CAT_NAMES=$(bash "$HELPER" --list-categories --names 2>/dev/null)
-_CAT_CI=$(bash "$HELPER" --list-categories --category CI 2>/dev/null | awk -F'\t' '{print $1}')
+_CAT_CIPUSH=$(bash "$HELPER" --list-categories --category CI-push 2>/dev/null | awk -F'\t' '{print $1}')
+_CAT_CINIGHTLY=$(bash "$HELPER" --list-categories --category CI-nightly 2>/dev/null | awk -F'\t' '{print $1}')
 if printf '%s\n' "$_CAT_NAMES" | grep -qx 'windows' \
-   && printf '%s\n' "$_CAT_CI" | grep -qx 'validate' \
-   && ! printf '%s\n' "$_CAT_CI" | grep -qx 'e2e-local'; then
-  ok "S1: --list-categories --names / --category <c> filter correctly"
+   && printf '%s\n' "$_CAT_CIPUSH" | grep -qx 'validate' \
+   && ! printf '%s\n' "$_CAT_CIPUSH" | grep -qx 'e2e-local' \
+   && printf '%s\n' "$_CAT_CINIGHTLY" | grep -qx 'windows-deploy' \
+   && ! printf '%s\n' "$_CAT_CINIGHTLY" | grep -qx 'validate'; then
+  ok "S1: --list-categories --names / --category <c> filter correctly (V2 CI-push / CI-nightly)"
 else
-  fail_test "S1: --list-categories filters wrong (names='$_CAT_NAMES' CI='$_CAT_CI')"
+  fail_test "S1: --list-categories filters wrong (names='$_CAT_NAMES' CI-push='$_CAT_CIPUSH' CI-nightly='$_CAT_CINIGHTLY')"
 fi
 # Additivity: the four pre-existing subcommands still exit 0 on the LIVE merge.
 _ADD_OK=1
@@ -970,17 +974,21 @@ done
 # S2: --seed carries the category-axis prose (and the seed still validates).
 _SEED_OUT=$(bash "$HELPER" --seed 2>/dev/null)
 if printf '%s\n' "$_SEED_OUT" | grep -qF 'The category axis (optional, overlay-only)' \
-   && printf '%s\n' "$_SEED_OUT" | grep -qF 'V1 taxonomy is the closed set'; then
-  ok "S2: --seed carries the portable category-axis prose (workflow + CI)"
+   && printf '%s\n' "$_SEED_OUT" | grep -qF 'V2 taxonomy is the closed set' \
+   && printf '%s\n' "$_SEED_OUT" | grep -qF '{workflow, CI-push, CI-nightly}'; then
+  ok "S2: --seed carries the portable V2 category-axis prose (workflow + CI-push + CI-nightly)"
 else
-  fail_test "S2: --seed is missing the category-axis prose"
+  fail_test "S2: --seed is missing the V2 category-axis prose"
 fi
 
 # S3 + validation + seed-docs idempotency: a hermetic temp repo with a category
 # overlay. The general seed + a tiny 2-row overlay (one workflow, one CI).
 _CATD=$(mk_tmp)
-mkdir -p "$_CATD/spec" "$_CATD/tests/workflow" "$_CATD/tests/CI" "$_CATD/docs"
-: > "$_CATD/tests/CI/x.test.sh"   # (a) at least one test script on disk
+# V2 (F000075): the fixture declares workflow + CI-push + CI-nightly and creates
+# the matching per-category tests/ subfolders. The derive-from-declared subset
+# case (no CI-nightly) is exercised separately below (_CATSUBSET).
+mkdir -p "$_CATD/spec" "$_CATD/tests/workflow" "$_CATD/tests/CI-push" "$_CATD/tests/CI-nightly" "$_CATD/docs"
+: > "$_CATD/tests/CI-push/x.test.sh"   # (a) at least one test script on disk
 bash "$HELPER" --seed > "$_CATD/spec/test-spec.md"
 cat > "$_CATD/spec/test-spec-custom.md" <<'CATEOF'
 # overlay
@@ -994,23 +1002,32 @@ categories:
     doc: "docs/tests/workflow/wf-one.md"
     purpose: "a workflow test"
   - name: ci-one
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-one.md"
-    purpose: "a CI test"
+    doc: "docs/tests/CI-push/ci-one.md"
+    purpose: "a push-cadence CI test"
+  - name: nightly-one
+    category: CI-nightly
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI-nightly/nightly-one.md"
+    purpose: "a nightly-cadence CI test"
 ```
 CATEOF
 _catrun() { REPO_ROOT="$_CATD" TEST_SPEC_PATH="$_CATD/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATD/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
 
 # S3: --check-structure reports checks (a-e) and ALWAYS exits 0. Before seeding
-# docs: (d)/(e) findings for the missing docs, but (a)/(b)/(c) pass.
+# docs: (d)/(e) findings for the missing docs, but (a)/(b)/(c) pass — and (b) now
+# passes for all THREE declared V2 categories.
 _ST_BEFORE=$(_catrun --check-structure); _ST_BEFORE_RC=$?
 if [ "$_ST_BEFORE_RC" -eq 0 ] \
    && printf '%s\n' "$_ST_BEFORE" | grep -qF 'check: structure/b — PASS (tests/workflow/ exists)' \
+   && printf '%s\n' "$_ST_BEFORE" | grep -qF 'check: structure/b — PASS (tests/CI-push/ exists)' \
+   && printf '%s\n' "$_ST_BEFORE" | grep -qF 'check: structure/b — PASS (tests/CI-nightly/ exists)' \
    && printf '%s\n' "$_ST_BEFORE" | grep -qF 'FINDING: structure/d' \
    && printf '%s\n' "$_ST_BEFORE" | grep -qF 'FINDING: structure/e'; then
-  ok "S3: --check-structure reports checks a-e (b passes, d/e findings) and exits 0 (findings are the product)"
+  ok "S3: --check-structure reports checks a-e over V2 categories (b passes for all three, d/e findings) and exits 0"
 else
   fail_test "S3: --check-structure wrong before seeding (rc=$_ST_BEFORE_RC): $_ST_BEFORE"
 fi
@@ -1019,25 +1036,64 @@ fi
 _SD1=$(_catrun --seed-docs)
 _SD2=$(_catrun --seed-docs)
 if printf '%s\n' "$_SD1" | grep -qF 'seeded: docs/tests/workflow/wf-one.md' \
+   && printf '%s\n' "$_SD1" | grep -qF 'seeded: docs/tests/CI-nightly/nightly-one.md' \
    && printf '%s\n' "$_SD1" | grep -qF 'seeded: docs/tests/index.md' \
    && printf '%s\n' "$_SD2" | grep -qF 'SEED-DOCS: seeded=0' \
    && printf '%s\n' "$_SD2" | grep -qF 'idempotent'; then
-  ok "S3: --seed-docs seeds per-test stubs + INDEX; the re-run is idempotent (seeded=0)"
+  ok "S3: --seed-docs seeds per-test stubs (incl. CI-nightly) + INDEX; the re-run is idempotent (seeded=0)"
 else
   fail_test "S3: --seed-docs not idempotent (run1='$_SD1' run2='$_SD2')"
 fi
 # After seeding: --check-structure is clean (all five checks pass, findings=0).
 _ST_AFTER=$(_catrun --check-structure); _ST_AFTER_RC=$?
 if [ "$_ST_AFTER_RC" -eq 0 ] && printf '%s\n' "$_ST_AFTER" | grep -qF 'OK structure'; then
-  ok "S3: --check-structure is clean (OK structure, findings=0) after seeding docs + with category subfolders present"
+  ok "S3: --check-structure is clean (OK structure, findings=0) after seeding docs + with V2 category subfolders present"
 else
   fail_test "S3: --check-structure not clean after seeding (rc=$_ST_AFTER_RC): $_ST_AFTER"
 fi
 # NEVER moves scripts: the one test script on disk is untouched.
-if [ -f "$_CATD/tests/CI/x.test.sh" ]; then
+if [ -f "$_CATD/tests/CI-push/x.test.sh" ]; then
   ok "S3: --seed-docs never moved/removed the on-disk test script (standalone-safe)"
 else
   fail_test "S3: --seed-docs mutated a test script (must never move scripts)"
+fi
+
+# S3 (F000075 KEY DECISION): --check-structure derives the required per-category
+# folders from the DISTINCT DECLARED categories — a repo declaring only
+# workflow + CI-push must NOT be forced to create an empty tests/CI-nightly/ (and
+# the check must not FINDING for a category the repo never declares).
+_CATSUBSET=$(mk_tmp)
+mkdir -p "$_CATSUBSET/spec" "$_CATSUBSET/tests/workflow" "$_CATSUBSET/tests/CI-push" "$_CATSUBSET/docs"
+: > "$_CATSUBSET/tests/CI-push/x.test.sh"
+bash "$HELPER" --seed > "$_CATSUBSET/spec/test-spec.md"
+cat > "$_CATSUBSET/spec/test-spec-custom.md" <<'SUBSETEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: wf-a
+    category: workflow
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/wf-a.md"
+    purpose: "a workflow test"
+  - name: ci-a
+    category: CI-push
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI-push/ci-a.md"
+    purpose: "a push-cadence CI test"
+```
+SUBSETEOF
+_catsubsetrun() { REPO_ROOT="$_CATSUBSET" TEST_SPEC_PATH="$_CATSUBSET/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATSUBSET/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
+_catsubsetrun --seed-docs >/dev/null 2>&1
+_ST_SUBSET=$(_catsubsetrun --check-structure); _ST_SUBSET_RC=$?
+if [ "$_ST_SUBSET_RC" -eq 0 ] \
+   && printf '%s\n' "$_ST_SUBSET" | grep -qF 'OK structure' \
+   && ! printf '%s\n' "$_ST_SUBSET" | grep -qF 'CI-nightly'; then
+  ok "S3: --check-structure derives folders from DECLARED categories (workflow+CI-push repo needs no empty tests/CI-nightly/; no spurious CI-nightly finding)"
+else
+  fail_test "S3: derive-from-declared regression — a workflow+CI-push repo was forced to have CI-nightly (rc=$_ST_SUBSET_RC): $_ST_SUBSET"
 fi
 
 # check(e) anchored-match (F000074 adversarial-review fix): a declared name that is
@@ -1046,8 +1102,8 @@ fi
 # genuinely missing index row). Build ci / ci-extended / wf, seed docs, then craft an
 # index that references ci-extended + wf but NOT ci; check(e) must FINDING for ci.
 _CATSUB=$(mk_tmp)
-mkdir -p "$_CATSUB/spec" "$_CATSUB/tests/workflow" "$_CATSUB/tests/CI" "$_CATSUB/docs"
-: > "$_CATSUB/tests/CI/x.test.sh"
+mkdir -p "$_CATSUB/spec" "$_CATSUB/tests/workflow" "$_CATSUB/tests/CI-push" "$_CATSUB/docs"
+: > "$_CATSUB/tests/CI-push/x.test.sh"
 bash "$HELPER" --seed > "$_CATSUB/spec/test-spec.md"
 cat > "$_CATSUB/spec/test-spec-custom.md" <<'SUBEOF'
 # overlay
@@ -1055,16 +1111,16 @@ cat > "$_CATSUB/spec/test-spec-custom.md" <<'SUBEOF'
 schema_version: 1
 categories:
   - name: ci
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci.md"
+    doc: "docs/tests/CI-push/ci.md"
     purpose: "short-name CI test"
   - name: ci-extended
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-extended.md"
+    doc: "docs/tests/CI-push/ci-extended.md"
     purpose: "long-name CI test"
   - name: wf
     category: workflow
@@ -1083,7 +1139,7 @@ cat > "$_CATSUB/docs/tests/index.md" <<'IDXEOF'
 
 | Name | Category | Tier | Doc |
 |------|----------|------|-----|
-| `ci-extended` | `CI` | free | [docs/tests/CI/ci-extended.md](tests/CI/ci-extended.md) |
+| `ci-extended` | `CI-push` | free | [docs/tests/CI-push/ci-extended.md](tests/CI-push/ci-extended.md) |
 | `wf` | `workflow` | free | [docs/tests/workflow/wf.md](tests/workflow/wf.md) |
 IDXEOF
 _SUBOUT=$(_catsubrun --check-structure); _SUBRC=$?
@@ -1099,8 +1155,8 @@ fi
 # --seed-docs (the seed-when-absent-only path left the index permanently stale and
 # --check-structure's "run /CJ_test_audit to refresh" remediation a no-op).
 _CATADD=$(mk_tmp)
-mkdir -p "$_CATADD/spec" "$_CATADD/tests/workflow" "$_CATADD/tests/CI" "$_CATADD/docs"
-: > "$_CATADD/tests/CI/x.test.sh"
+mkdir -p "$_CATADD/spec" "$_CATADD/tests/workflow" "$_CATADD/tests/CI-push" "$_CATADD/docs"
+: > "$_CATADD/tests/CI-push/x.test.sh"
 bash "$HELPER" --seed > "$_CATADD/spec/test-spec.md"
 cat > "$_CATADD/spec/test-spec-custom.md" <<'ADD1EOF'
 # overlay
@@ -1114,10 +1170,10 @@ categories:
     doc: "docs/tests/workflow/wf-a.md"
     purpose: "wf a"
   - name: ci-a
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-a.md"
+    doc: "docs/tests/CI-push/ci-a.md"
     purpose: "ci a"
 ```
 ADD1EOF
@@ -1140,16 +1196,16 @@ categories:
     doc: "docs/tests/workflow/wf-a.md"
     purpose: "wf a"
   - name: ci-a
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-a.md"
+    doc: "docs/tests/CI-push/ci-a.md"
     purpose: "ci a"
   - name: ci-added
-    category: CI
+    category: CI-push
     command: "true"
     tier: free
-    doc: "docs/tests/CI/ci-added.md"
+    doc: "docs/tests/CI-push/ci-added.md"
     purpose: "added later"
 ```
 ADD2EOF
@@ -1157,7 +1213,7 @@ _ADDOUT=$(_cataddrun --seed-docs)
 _ADDCHK=$(_cataddrun --check-structure); _ADDCHK_RC=$?
 if [ "$_ADD_IDX_BEFORE" -eq 0 ] \
    && printf '%s\n' "$_ADDOUT" | grep -qF 'refreshed: docs/tests/index.md' \
-   && grep -qF 'tests/CI/ci-added.md' "$_CATADD/docs/tests/index.md" \
+   && grep -qF 'tests/CI-push/ci-added.md' "$_CATADD/docs/tests/index.md" \
    && [ "$_ADDCHK_RC" -eq 0 ] \
    && printf '%s\n' "$_ADDCHK" | grep -qF 'OK structure'; then
   ok "S3: --seed-docs reconciles a stale INDEX when a category test is added later (self-healing; --check-structure remediation actionable)"
@@ -1177,7 +1233,7 @@ else
   fail_test "S3: inactive path wrong (rc=$_INACT_RC): $_INACT"
 fi
 
-# Category validation: a bad category value (outside {workflow, CI}) HALTS --validate.
+# Category validation: a bad category value (outside {workflow, CI-push, CI-nightly}) HALTS --validate.
 _BADCAT=$(mk_tmp)
 mkdir -p "$_BADCAT/spec"
 bash "$HELPER" --seed > "$_BADCAT/spec/test-spec.md"
@@ -1193,8 +1249,8 @@ categories:
 ```
 BADEOF
 _BADOUT=$(REPO_ROOT="$_BADCAT" TEST_SPEC_PATH="$_BADCAT/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_BADCAT/spec/test-spec-custom.md" bash "$HELPER" --validate 2>&1); _BADRC=$?
-if [ "$_BADRC" -ne 0 ] && printf '%s\n' "$_BADOUT" | grep -qF 'outside the closed V1 enum {workflow, CI}'; then
-  ok "S3: a category outside {workflow, CI} HALTS --validate (closed enum enforced)"
+if [ "$_BADRC" -ne 0 ] && printf '%s\n' "$_BADOUT" | grep -qF 'outside the closed V2 enum {workflow, CI-push, CI-nightly}'; then
+  ok "S3: a category outside {workflow, CI-push, CI-nightly} HALTS --validate (closed V2 enum enforced)"
 else
   fail_test "S3: bad category value did not halt --validate (rc=$_BADRC): $_BADOUT"
 fi

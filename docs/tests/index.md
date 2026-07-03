@@ -6,9 +6,10 @@
 
 | Name | Category | Tier | Doc |
 |------|----------|------|-----|
-| `suite` | `CI` | free | [docs/tests/CI/suite.md](tests/CI/suite.md) |
-| `test-deploy` | `CI` | free | [docs/tests/CI/test-deploy.md](tests/CI/test-deploy.md) |
-| `validate` | `CI` | free | [docs/tests/CI/validate.md](tests/CI/validate.md) |
-| `windows` | `CI` | free | [docs/tests/CI/windows.md](tests/CI/windows.md) |
+| `windows-deploy` | `CI-nightly` | free | [docs/tests/CI-nightly/windows-deploy.md](tests/CI-nightly/windows-deploy.md) |
+| `suite` | `CI-push` | free | [docs/tests/CI-push/suite.md](tests/CI-push/suite.md) |
+| `test-deploy` | `CI-push` | free | [docs/tests/CI-push/test-deploy.md](tests/CI-push/test-deploy.md) |
+| `validate` | `CI-push` | free | [docs/tests/CI-push/validate.md](tests/CI-push/validate.md) |
+| `windows` | `CI-push` | free | [docs/tests/CI-push/windows.md](tests/CI-push/windows.md) |
 | `e2e-local` | `workflow` | local-only | [docs/tests/workflow/e2e-local.md](tests/workflow/e2e-local.md) |
 | `goal-task-eval` | `workflow` | paid | [docs/tests/workflow/goal-task-eval.md](tests/workflow/goal-task-eval.md) |

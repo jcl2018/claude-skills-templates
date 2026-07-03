@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-07-02T14:30:00Z"
+last-updated: "2026-07-03T00:45:00Z"
 ---
 
 # Using /CJ_test_audit
@@ -79,10 +79,13 @@ gate (the same owner `validate.sh` Check 28 calls), so a documented-but-untested
 `CJ_goal_*` orchestrator (a missing `level: workflow` behavior or an orphan
 `workflow:` link) is caught standalone in any repo; AND, when the engine carries
 it, `--check-structure` — the category-based test contract's five structural
-checks a–e (a `tests/` folder, per-category `tests/workflow/` + `tests/CI/`
-subfolders, a category-scoped spec, one `docs/tests/<category>/<name>.md` per
-declared test, a `docs/tests/index.md` INDEX), preceded by an idempotent
-`--seed-docs` that seeds missing per-test doc stubs + the index (present ⇒ skip)
+checks a–e (a `tests/` folder, one per-category `tests/<category>/` subfolder for
+each DISTINCT declared category — taxonomy V2 `{workflow, CI-push, CI-nightly}`,
+derived from the overlay's declared categories so a repo that declares no nightly
+test is never forced to create an empty `tests/CI-nightly/`, a category-scoped
+spec, one `docs/tests/<category>/<name>.md` per declared test, a
+`docs/tests/index.md` INDEX), preceded by an idempotent `--seed-docs` that seeds
+missing per-test doc stubs + the index (present ⇒ skip)
 but NEVER moves test scripts — findings are the product (exit 0 always), and an
 unadopted repo reports the honest "category contract not adopted / inactive" note.
 Findings carry the `stage1/` prefix.
