@@ -1410,4 +1410,59 @@ runners:
     covers: [test]
     platform: any
     note: "The local happy-path E2E harness — a real /CJ_goal_task build in a sandbox; self-gates (first-line ^SKIP:) without CJ_E2E_LOCAL + gstack + a claude login; runs only under --e2e / --all."
+categories:
+  # ---- the categories: axis (F000074): the category-based test contract ----
+  # ADDITIVE + optional; the PRIMARY axis of the category model (category ->
+  # tests), consumed by /CJ_test_audit (--check-structure) + /CJ_test_run
+  # (--category / single-name). Each row: name (unique slug — IS the
+  # docs/tests/<category>/<name>.md filename AND the /CJ_test_run argument),
+  # category {workflow, CI}, command (how to run it), tier {free, paid,
+  # local-only}, optional doc pointer, optional purpose. V1 taxonomy is the
+  # closed set {workflow, CI}. This axis COEXISTS with units:/behaviors:/runners:
+  # (their removal + the physical test-script move into tests/<category>/ are a
+  # deferred follow-up); the scripts are NOT moved in this PR, so the `command`
+  # values point at their current flat paths.
+  #
+  # workflow — deterministic end-to-end workflow tests (what proves a whole
+  #            user-facing workflow runs): the cj_goal eval cases + the local
+  #            happy-path E2E harness.
+  - name: goal-task-eval
+    category: workflow
+    command: "bash scripts/eval.sh CJ_goal_task"
+    tier: paid
+    doc: "docs/tests/workflow/goal-task-eval.md"
+    purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex)."
+  - name: e2e-local
+    category: workflow
+    command: "CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh"
+    tier: local-only
+    doc: "docs/tests/workflow/e2e-local.md"
+    purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary."
+  # CI — tests required at each deployment / the deploy gate (what must be green
+  #      to ship): the validator, the full behavioral suite, the deploy-install
+  #      suite, and the Windows Git Bash smoke.
+  - name: validate
+    category: CI
+    command: "bash scripts/validate.sh"
+    tier: free
+    doc: "docs/tests/CI/validate.md"
+    purpose: "The repo validator (the ci layer): all numbered + error + warning checks against the catalog, docs, and spec family."
+  - name: suite
+    category: CI
+    command: "bash scripts/test.sh"
+    tier: free
+    doc: "docs/tests/CI/suite.md"
+    purpose: "The full behavioral test suite — runs validate.sh, every registered tests/*.test.sh sub-suite, test-deploy.sh, and windows-smoke.sh."
+  - name: test-deploy
+    category: CI
+    command: "bash scripts/test-deploy.sh"
+    tier: free
+    doc: "docs/tests/CI/test-deploy.md"
+    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift)."
+  - name: windows
+    category: CI
+    command: "bash scripts/windows-smoke.sh"
+    tier: free
+    doc: "docs/tests/CI/windows.md"
+    purpose: "The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution)."
 ```

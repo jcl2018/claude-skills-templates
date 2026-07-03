@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-06-13T00:00:00Z"
+last-updated: "2026-07-02T14:30:00Z"
 ---
 
 # Using /CJ_test_audit
@@ -77,8 +77,15 @@ the generated `docs/tests/` test-catalog freshness gate (the same owner
 repo — AND `--check-workflow-coverage` — the forward+reverse workflow-coverage
 gate (the same owner `validate.sh` Check 28 calls), so a documented-but-untested
 `CJ_goal_*` orchestrator (a missing `level: workflow` behavior or an orphan
-`workflow:` link) is caught standalone in any repo. Findings carry the
-`stage1/` prefix.
+`workflow:` link) is caught standalone in any repo; AND, when the engine carries
+it, `--check-structure` — the category-based test contract's five structural
+checks a–e (a `tests/` folder, per-category `tests/workflow/` + `tests/CI/`
+subfolders, a category-scoped spec, one `docs/tests/<category>/<name>.md` per
+declared test, a `docs/tests/index.md` INDEX), preceded by an idempotent
+`--seed-docs` that seeds missing per-test doc stubs + the index (present ⇒ skip)
+but NEVER moves test scripts — findings are the product (exit 0 always), and an
+unadopted repo reports the honest "category contract not adopted / inactive" note.
+Findings carry the `stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence
 (`suite-green` names the freshest full-suite run; `new-code-tested` names the

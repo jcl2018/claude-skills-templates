@@ -930,6 +930,272 @@ else
   fail_test "behavior gate not independent of units (rc=$_B_INDEP_RC): $_B_INDEP"
 fi
 
+# ============================================================================
+# 10. Category axis (F000074) — the ADDITIVE category-based test contract.
+#     S1: new category subcommands work AND the pre-existing subcommands stay
+#         green (additivity). S2: --seed carries the category-axis prose. S3:
+#         --check-structure reports the five checks a-e as findings-not-crashes
+#         (exit 0 always). Plus: category validation (closed enums), idempotent
+#         --seed-docs, and inactive-when-no-axis. Temp-dir isolated throughout.
+# ============================================================================
+echo "--- 10. category axis (F000074): subcommands + structure + seed-docs ---"
+
+# S1 (additivity): the LIVE overlay declares categories AND every pre-existing
+# subcommand still exits 0 unchanged.
+_CAT_LIVE=$(bash "$HELPER" --list-categories 2>/dev/null); _CAT_LIVE_RC=$?
+if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	CI	' \
+   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^e2e-local	workflow	'; then
+  ok "S1: --list-categories lists the declared workflow + CI category tests"
+else
+  fail_test "S1: --list-categories did not list the expected category rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
+fi
+# --names + --category filters.
+_CAT_NAMES=$(bash "$HELPER" --list-categories --names 2>/dev/null)
+_CAT_CI=$(bash "$HELPER" --list-categories --category CI 2>/dev/null | awk -F'\t' '{print $1}')
+if printf '%s\n' "$_CAT_NAMES" | grep -qx 'windows' \
+   && printf '%s\n' "$_CAT_CI" | grep -qx 'validate' \
+   && ! printf '%s\n' "$_CAT_CI" | grep -qx 'e2e-local'; then
+  ok "S1: --list-categories --names / --category <c> filter correctly"
+else
+  fail_test "S1: --list-categories filters wrong (names='$_CAT_NAMES' CI='$_CAT_CI')"
+fi
+# Additivity: the four pre-existing subcommands still exit 0 on the LIVE merge.
+_ADD_OK=1
+for _sub in --validate --check-coverage "--render-docs --check" --check-workflow-coverage; do
+  # shellcheck disable=SC2086
+  bash "$HELPER" $_sub >/dev/null 2>&1 || { _ADD_OK=0; fail_test "S1 additivity: pre-existing '$_sub' no longer exits 0 with the category axis present"; }
+done
+[ "$_ADD_OK" -eq 1 ] && ok "S1 additivity: --validate / --check-coverage / --render-docs --check / --check-workflow-coverage all still exit 0"
+
+# S2: --seed carries the category-axis prose (and the seed still validates).
+_SEED_OUT=$(bash "$HELPER" --seed 2>/dev/null)
+if printf '%s\n' "$_SEED_OUT" | grep -qF 'The category axis (optional, overlay-only)' \
+   && printf '%s\n' "$_SEED_OUT" | grep -qF 'V1 taxonomy is the closed set'; then
+  ok "S2: --seed carries the portable category-axis prose (workflow + CI)"
+else
+  fail_test "S2: --seed is missing the category-axis prose"
+fi
+
+# S3 + validation + seed-docs idempotency: a hermetic temp repo with a category
+# overlay. The general seed + a tiny 2-row overlay (one workflow, one CI).
+_CATD=$(mk_tmp)
+mkdir -p "$_CATD/spec" "$_CATD/tests/workflow" "$_CATD/tests/CI" "$_CATD/docs"
+: > "$_CATD/tests/CI/x.test.sh"   # (a) at least one test script on disk
+bash "$HELPER" --seed > "$_CATD/spec/test-spec.md"
+cat > "$_CATD/spec/test-spec-custom.md" <<'CATEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: wf-one
+    category: workflow
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/wf-one.md"
+    purpose: "a workflow test"
+  - name: ci-one
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci-one.md"
+    purpose: "a CI test"
+```
+CATEOF
+_catrun() { REPO_ROOT="$_CATD" TEST_SPEC_PATH="$_CATD/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATD/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
+
+# S3: --check-structure reports checks (a-e) and ALWAYS exits 0. Before seeding
+# docs: (d)/(e) findings for the missing docs, but (a)/(b)/(c) pass.
+_ST_BEFORE=$(_catrun --check-structure); _ST_BEFORE_RC=$?
+if [ "$_ST_BEFORE_RC" -eq 0 ] \
+   && printf '%s\n' "$_ST_BEFORE" | grep -qF 'check: structure/b — PASS (tests/workflow/ exists)' \
+   && printf '%s\n' "$_ST_BEFORE" | grep -qF 'FINDING: structure/d' \
+   && printf '%s\n' "$_ST_BEFORE" | grep -qF 'FINDING: structure/e'; then
+  ok "S3: --check-structure reports checks a-e (b passes, d/e findings) and exits 0 (findings are the product)"
+else
+  fail_test "S3: --check-structure wrong before seeding (rc=$_ST_BEFORE_RC): $_ST_BEFORE"
+fi
+
+# --seed-docs seeds the missing docs + INDEX; a re-run is idempotent (all skip).
+_SD1=$(_catrun --seed-docs)
+_SD2=$(_catrun --seed-docs)
+if printf '%s\n' "$_SD1" | grep -qF 'seeded: docs/tests/workflow/wf-one.md' \
+   && printf '%s\n' "$_SD1" | grep -qF 'seeded: docs/tests/index.md' \
+   && printf '%s\n' "$_SD2" | grep -qF 'SEED-DOCS: seeded=0' \
+   && printf '%s\n' "$_SD2" | grep -qF 'idempotent'; then
+  ok "S3: --seed-docs seeds per-test stubs + INDEX; the re-run is idempotent (seeded=0)"
+else
+  fail_test "S3: --seed-docs not idempotent (run1='$_SD1' run2='$_SD2')"
+fi
+# After seeding: --check-structure is clean (all five checks pass, findings=0).
+_ST_AFTER=$(_catrun --check-structure); _ST_AFTER_RC=$?
+if [ "$_ST_AFTER_RC" -eq 0 ] && printf '%s\n' "$_ST_AFTER" | grep -qF 'OK structure'; then
+  ok "S3: --check-structure is clean (OK structure, findings=0) after seeding docs + with category subfolders present"
+else
+  fail_test "S3: --check-structure not clean after seeding (rc=$_ST_AFTER_RC): $_ST_AFTER"
+fi
+# NEVER moves scripts: the one test script on disk is untouched.
+if [ -f "$_CATD/tests/CI/x.test.sh" ]; then
+  ok "S3: --seed-docs never moved/removed the on-disk test script (standalone-safe)"
+else
+  fail_test "S3: --seed-docs mutated a test script (must never move scripts)"
+fi
+
+# check(e) anchored-match (F000074 adversarial-review fix): a declared name that is
+# a SUBSTRING of another declared name in the index must still be flagged when its
+# own row is missing — the old unanchored `grep -F "$name"` false-PASSed (masking a
+# genuinely missing index row). Build ci / ci-extended / wf, seed docs, then craft an
+# index that references ci-extended + wf but NOT ci; check(e) must FINDING for ci.
+_CATSUB=$(mk_tmp)
+mkdir -p "$_CATSUB/spec" "$_CATSUB/tests/workflow" "$_CATSUB/tests/CI" "$_CATSUB/docs"
+: > "$_CATSUB/tests/CI/x.test.sh"
+bash "$HELPER" --seed > "$_CATSUB/spec/test-spec.md"
+cat > "$_CATSUB/spec/test-spec-custom.md" <<'SUBEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: ci
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci.md"
+    purpose: "short-name CI test"
+  - name: ci-extended
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci-extended.md"
+    purpose: "long-name CI test"
+  - name: wf
+    category: workflow
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/wf.md"
+    purpose: "a workflow test"
+```
+SUBEOF
+_catsubrun() { REPO_ROOT="$_CATSUB" TEST_SPEC_PATH="$_CATSUB/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATSUB/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
+_catsubrun --seed-docs >/dev/null 2>&1
+# Craft an index referencing ci-extended + wf but NOT ci (ci survives only as a
+# substring of ci-extended's row) — the old unanchored grep would false-PASS.
+cat > "$_CATSUB/docs/tests/index.md" <<'IDXEOF'
+# Test list — by category
+
+| Name | Category | Tier | Doc |
+|------|----------|------|-----|
+| `ci-extended` | `CI` | free | [docs/tests/CI/ci-extended.md](tests/CI/ci-extended.md) |
+| `wf` | `workflow` | free | [docs/tests/workflow/wf.md](tests/workflow/wf.md) |
+IDXEOF
+_SUBOUT=$(_catsubrun --check-structure); _SUBRC=$?
+if [ "$_SUBRC" -eq 0 ] \
+   && printf '%s\n' "$_SUBOUT" | grep -qF "FINDING: structure/e — declared category test 'ci' is not referenced"; then
+  ok "S3: check(e) flags a missing index row even when the name is a substring of another declared test (no unanchored-grep false-PASS)"
+else
+  fail_test "S3: check(e) substring false-PASS regression (rc=$_SUBRC): $_SUBOUT"
+fi
+
+# --seed-docs stale-INDEX refresh (F000074 adversarial-review fix): a category test
+# declared AFTER the first seed must be reconciled into the INDEX on the next
+# --seed-docs (the seed-when-absent-only path left the index permanently stale and
+# --check-structure's "run /CJ_test_audit to refresh" remediation a no-op).
+_CATADD=$(mk_tmp)
+mkdir -p "$_CATADD/spec" "$_CATADD/tests/workflow" "$_CATADD/tests/CI" "$_CATADD/docs"
+: > "$_CATADD/tests/CI/x.test.sh"
+bash "$HELPER" --seed > "$_CATADD/spec/test-spec.md"
+cat > "$_CATADD/spec/test-spec-custom.md" <<'ADD1EOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: wf-a
+    category: workflow
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/wf-a.md"
+    purpose: "wf a"
+  - name: ci-a
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci-a.md"
+    purpose: "ci a"
+```
+ADD1EOF
+_cataddrun() { REPO_ROOT="$_CATADD" TEST_SPEC_PATH="$_CATADD/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_CATADD/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
+_cataddrun --seed-docs >/dev/null 2>&1        # first seed: index has wf-a + ci-a
+_ADD_IDX_BEFORE=$(grep -cF 'ci-added' "$_CATADD/docs/tests/index.md" 2>/dev/null || echo 0)
+# Declare a THIRD test after the first seed; the next --seed-docs must reconcile it in.
+cat > "$_CATADD/spec/test-spec-custom.md" <<'ADD2EOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: wf-a
+    category: workflow
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/wf-a.md"
+    purpose: "wf a"
+  - name: ci-a
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci-a.md"
+    purpose: "ci a"
+  - name: ci-added
+    category: CI
+    command: "true"
+    tier: free
+    doc: "docs/tests/CI/ci-added.md"
+    purpose: "added later"
+```
+ADD2EOF
+_ADDOUT=$(_cataddrun --seed-docs)
+_ADDCHK=$(_cataddrun --check-structure); _ADDCHK_RC=$?
+if [ "$_ADD_IDX_BEFORE" -eq 0 ] \
+   && printf '%s\n' "$_ADDOUT" | grep -qF 'refreshed: docs/tests/index.md' \
+   && grep -qF 'tests/CI/ci-added.md' "$_CATADD/docs/tests/index.md" \
+   && [ "$_ADDCHK_RC" -eq 0 ] \
+   && printf '%s\n' "$_ADDCHK" | grep -qF 'OK structure'; then
+  ok "S3: --seed-docs reconciles a stale INDEX when a category test is added later (self-healing; --check-structure remediation actionable)"
+else
+  fail_test "S3: stale-index not refreshed after adding a category test (before=$_ADD_IDX_BEFORE add='$_ADDOUT' chk_rc=$_ADDCHK_RC): $_ADDCHK"
+fi
+
+# Inactive-when-no-axis: a rules-only repo (no categories:) reports the honest
+# "not adopted / inactive" note and exits 0 (never misleading findings).
+_NOCAT=$(mk_tmp)
+mkdir -p "$_NOCAT/spec"
+bash "$HELPER" --seed > "$_NOCAT/spec/test-spec.md"
+_INACT=$(REPO_ROOT="$_NOCAT" TEST_SPEC_PATH="$_NOCAT/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_NOCAT/spec/test-spec-custom.md" bash "$HELPER" --check-structure); _INACT_RC=$?
+if [ "$_INACT_RC" -eq 0 ] && printf '%s\n' "$_INACT" | grep -qF 'category contract not adopted / inactive'; then
+  ok "S3: no categories: axis => 'not adopted / inactive' note + exit 0 (never misleading findings)"
+else
+  fail_test "S3: inactive path wrong (rc=$_INACT_RC): $_INACT"
+fi
+
+# Category validation: a bad category value (outside {workflow, CI}) HALTS --validate.
+_BADCAT=$(mk_tmp)
+mkdir -p "$_BADCAT/spec"
+bash "$HELPER" --seed > "$_BADCAT/spec/test-spec.md"
+cat > "$_BADCAT/spec/test-spec-custom.md" <<'BADEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: bad-one
+    category: nope
+    command: "true"
+    tier: free
+```
+BADEOF
+_BADOUT=$(REPO_ROOT="$_BADCAT" TEST_SPEC_PATH="$_BADCAT/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_BADCAT/spec/test-spec-custom.md" bash "$HELPER" --validate 2>&1); _BADRC=$?
+if [ "$_BADRC" -ne 0 ] && printf '%s\n' "$_BADOUT" | grep -qF 'outside the closed V1 enum {workflow, CI}'; then
+  ok "S3: a category outside {workflow, CI} HALTS --validate (closed enum enforced)"
+else
+  fail_test "S3: bad category value did not halt --validate (rc=$_BADRC): $_BADOUT"
+fi
+
 echo
 if [ "$ERRORS" -eq 0 ]; then
   echo "PASS: test-spec"

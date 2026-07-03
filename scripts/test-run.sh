@@ -33,7 +33,15 @@
 # Usage:
 #   test-run.sh --dry-run [--evals] [--e2e] [--all]   # print the plan; execute nothing
 #   test-run.sh [--evals] [--e2e] [--all]             # execute + write report + ledger
+#   test-run.sh --category <workflow|CI> [--dry-run]  # (F000074) run one category's tests
+#   test-run.sh <name> [--dry-run]                    # (F000074) run the single test of that name
 #   test-run.sh --help
+#
+# Category selection (F000074) maps a category or a single test NAME to the
+# declared command(s) via the categories: axis of the merged registry (reusing the
+# docs/tests/<category>/<name>.md name), honoring the SAME cost tiers (default =
+# free only). It is ADDITIVE: with no --category and no positional name, the
+# runners: flow runs unchanged.
 #
 # Env overrides (for hermetic fixtures): REPO_ROOT / TEST_SPEC_PATH /
 # TEST_SPEC_CUSTOM_PATH (forwarded to test-spec.sh), TEST_RUN_TS (fix the report
@@ -78,25 +86,47 @@ fi
 DRY_RUN=0
 SEL_PAID=0
 SEL_LOCAL=0
+SEL_CATEGORY=""   # (F000074) --category <workflow|CI>: run one category's tests
+SEL_NAME=""       # (F000074) a bare positional: run the single test of that name
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --evals)   SEL_PAID=1; shift ;;
     --e2e)     SEL_LOCAL=1; shift ;;
     --all)     SEL_PAID=1; SEL_LOCAL=1; shift ;;
+    --category)
+      shift
+      [ $# -gt 0 ] || { echo "test-run.sh: --category needs a value (workflow|CI)" >&2; exit 2; }
+      SEL_CATEGORY="$1"; shift ;;
     --help|-h)
-      sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
-    *) echo "test-run.sh: unknown arg: $1 (see --help)" >&2; exit 2 ;;
+    --*) echo "test-run.sh: unknown arg: $1 (see --help)" >&2; exit 2 ;;
+    *)
+      # A bare positional is a single test NAME (F000074 category selection).
+      [ -z "$SEL_NAME" ] || { echo "test-run.sh: only one single-test name may be given (got '$SEL_NAME' and '$1')" >&2; exit 2; }
+      SEL_NAME="$1"; shift ;;
   esac
 done
+
+# --category and a single name are mutually exclusive (two different selections).
+if [ -n "$SEL_CATEGORY" ] && [ -n "$SEL_NAME" ]; then
+  echo "test-run.sh: --category and a single test name are mutually exclusive — pass one or the other" >&2
+  exit 2
+fi
+# CATEGORY_MODE is on when either category-selection form is used.
+CATEGORY_MODE=0
+[ -n "$SEL_CATEGORY" ] && CATEGORY_MODE=1
+[ -n "$SEL_NAME" ] && CATEGORY_MODE=1
 
 # The flags string recorded in the ledger (canonical order).
 FLAGS=""
 [ "$DRY_RUN" = "1" ] && FLAGS="$FLAGS --dry-run"
 [ "$SEL_PAID" = "1" ] && FLAGS="$FLAGS --evals"
 [ "$SEL_LOCAL" = "1" ] && FLAGS="$FLAGS --e2e"
+[ -n "$SEL_CATEGORY" ] && FLAGS="$FLAGS --category $SEL_CATEGORY"
+[ -n "$SEL_NAME" ] && FLAGS="$FLAGS $SEL_NAME"
 FLAGS="${FLAGS# }"
 [ -n "$FLAGS" ] || FLAGS="(default)"
 
@@ -120,7 +150,10 @@ fi
 # Valid registry. Read the runners rows (tab-separated id/command/tier/covers/
 # platform/note). Empty output => zero runners declared.
 RUNNERS_TSV=$(bash "$TEST_SPEC_SH" --list-runners 2>/dev/null || true)
-if [ -z "$RUNNERS_TSV" ]; then
+# The zero-runners SKIP is the RUNNERS-flow terminal only — in CATEGORY_MODE the
+# categories: axis (not runners:) drives selection, so an empty runners: list must
+# NOT short-circuit a --category / single-name run.
+if [ -z "$RUNNERS_TSV" ] && [ "$CATEGORY_MODE" != "1" ]; then
   echo "SKIP: no runners declared (the runners: axis of spec/test-spec-custom.md is empty; declare runners to make the contract executable) — no report or ledger written"
   exit 0
 fi
@@ -160,6 +193,175 @@ _tier_selected() {
   esac
 }
 
+# ---- CATEGORY MODE (F000074): --category <cat> / single test NAME selection ---
+# The category-based selection path: map a category or a single test name to the
+# declared command(s) via the categories: axis of the merged registry (via
+# test-spec.sh --list-categories), then plan (--dry-run) or execute exactly those
+# tests, honoring cost tiers (default = free tier only, no surprise model spend).
+# It is ADDITIVE: it runs ONLY when --category or a positional name is passed;
+# otherwise the runners: flow below is unchanged. Reuses _tier_selected. Writes a
+# category-shaped report + ledger under tests/test-run/reports/ (ledger schema 1,
+# mode: category). Every outcome is evidence-derived (rc); a skipped-tier test is
+# NEVER counted green; a self-gate (rc 0 + first line ^SKIP:) is skipped(self-gated).
+_run_category_mode() {
+  # Read the category rows: name<TAB>category<TAB>command<TAB>tier<TAB>doc<TAB>purpose.
+  _CM_ROWS=$(bash "$TEST_SPEC_SH" --list-categories 2>/dev/null || true)
+  if [ -z "$_CM_ROWS" ]; then
+    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests to use --category / single-name selection"
+    exit 0
+  fi
+
+  # Build the SELECTED subset (name<TAB>category<TAB>command<TAB>tier).
+  if [ -n "$SEL_NAME" ]; then
+    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v n="$SEL_NAME" 'NF && $1 == n {print $1"\t"$2"\t"$3"\t"$4}')
+    if [ -z "$_CM_SEL" ]; then
+      echo "test-run.sh: no category test named '$SEL_NAME' (see: test-spec.sh --list-categories --names)" >&2
+      exit 2
+    fi
+    _CM_LABEL="name=$SEL_NAME"
+  else
+    case "$SEL_CATEGORY" in
+      workflow|CI) : ;;
+      *) echo "test-run.sh: --category '$SEL_CATEGORY' is outside the V1 taxonomy {workflow, CI}" >&2; exit 2 ;;
+    esac
+    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v c="$SEL_CATEGORY" 'NF && $2 == c {print $1"\t"$2"\t"$3"\t"$4}')
+    if [ -z "$_CM_SEL" ]; then
+      echo "SKIP: category '$SEL_CATEGORY' declares no tests — nothing to run"
+      exit 0
+    fi
+    _CM_LABEL="category=$SEL_CATEGORY"
+  fi
+
+  # ---- PLAN (--dry-run): print per-test command/tier/decision; execute nothing.
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "=== test-run CATEGORY PLAN ($_CM_LABEL; flags: $FLAGS) ==="
+    echo "registry: valid   selection: $_CM_LABEL"
+    echo ""
+    while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_cmd _cm_tier; do
+      [ -n "$_cm_name" ] || continue
+      if _tier_selected "$_cm_tier"; then _cm_dec="will-run"; else _cm_dec="skip(tier-not-selected)"; fi
+      echo "test: $_cm_name ($_cm_cat)"
+      echo "  command:  $_cm_cmd"
+      echo "  tier:     $_cm_tier"
+      echo "  decision: $_cm_dec"
+    done <<EOF
+$_CM_SEL
+EOF
+    echo ""
+    echo "(--dry-run: no test executed, no report or ledger written)"
+    exit 0
+  fi
+
+  # ---- EXECUTE: run each selected + tier-selected test ONCE; derive outcomes.
+  _cm_ts="${TEST_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ)}"
+  _cm_reports="${TEST_RUN_REPORTS_DIR:-$REPO_ROOT_RESOLVED/tests/test-run/reports}"
+  _cm_head=$(git -C "$REPO_ROOT_RESOLVED" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  _cm_json=""            # comma-joined test objects
+  _cm_md_rows=""         # markdown table rows
+  _cm_fail_blocks=""     # verbatim FAIL tails
+  _cm_executed=0; _cm_green=0; _cm_failed=0
+  _cm_json_str() { printf '%s' "$1" | jq -Rs .; }
+
+  echo "=== test-run CATEGORY EXECUTE ($_CM_LABEL; flags: $FLAGS) ==="
+  echo "registry: valid   selection: $_CM_LABEL   HEAD: $_cm_head"
+  echo ""
+
+  while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_cmd _cm_tier; do
+    [ -n "$_cm_name" ] || continue
+    if ! _tier_selected "$_cm_tier"; then
+      _cm_out="skipped:tier-not-selected"
+      echo "  SKIP $_cm_name ($_cm_tier) — tier-not-selected"
+      _cm_obj=$(printf '{"name": %s, "category": %s, "command": %s, "tier": %s, "rc": null, "outcome": %s}' \
+        "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$(_cm_json_str "$_cm_out")")
+      _cm_json="${_cm_json:+$_cm_json,}$_cm_obj"
+      _cm_md_rows="$_cm_md_rows
+| $_cm_name | $_cm_cat | \`$_cm_cmd\` | $_cm_tier | — | skipped(tier-not-selected) |"
+      continue
+    fi
+    echo "  RUN  $_cm_name ($_cm_tier): $_cm_cmd"
+    _cm_o=$( (cd "$REPO_ROOT_RESOLVED" && eval "$_cm_cmd") 2>&1 ) && _cm_rc=0 || _cm_rc=$?
+    _cm_first=$(printf '%s\n' "$_cm_o" | head -1)
+    if [ "$_cm_rc" -eq 0 ] && printf '%s' "$_cm_first" | grep -q '^SKIP:'; then
+      _cm_out="skipped:self-gated"
+      echo "       -> skipped(self-gated): $_cm_first"
+    elif [ "$_cm_rc" -eq 0 ]; then
+      _cm_out="pass"; _cm_executed=$((_cm_executed + 1)); _cm_green=$((_cm_green + 1))
+      echo "       -> pass (rc=0)"
+    else
+      _cm_out="fail"; _cm_executed=$((_cm_executed + 1)); _cm_failed=$((_cm_failed + 1))
+      echo "       -> FAIL (rc=$_cm_rc)"
+      _cm_f=$(printf '%s\n' "$_cm_o" | grep -iE '^\s*(FAIL|ERROR)' || true)
+      [ -n "$_cm_f" ] || _cm_f=$(printf '%s\n' "$_cm_o" | tail -20)
+      _cm_fail_blocks="$_cm_fail_blocks
+
+### $_cm_name — FAIL (rc=$_cm_rc)
+\`\`\`
+$_cm_f
+\`\`\`"
+    fi
+    _cm_rcj="$_cm_rc"; printf '%s' "$_cm_out" | grep -q '^skipped:' && _cm_rcj="null"
+    _cm_obj=$(printf '{"name": %s, "category": %s, "command": %s, "tier": %s, "rc": %s, "outcome": %s}' \
+      "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$_cm_rcj" "$(_cm_json_str "$_cm_out")")
+    _cm_json="${_cm_json:+$_cm_json,}$_cm_obj"
+    _cm_md_rows="$_cm_md_rows
+| $_cm_name | $_cm_cat | \`$_cm_cmd\` | $_cm_tier | $_cm_rcj | $_cm_out |"
+  done <<EOF
+$_CM_SEL
+EOF
+
+  # Aggregate (evidence-derived, same closed enum as the runners flow).
+  if [ "$_cm_failed" -gt 0 ]; then _cm_agg="fail"; _cm_exit=1
+  elif [ "$_cm_executed" -ge 1 ] && [ "$_cm_green" -ge 1 ]; then _cm_agg="pass"; _cm_exit=0
+  else _cm_agg="all-skipped"; _cm_exit=0
+  fi
+
+  mkdir -p "$_cm_reports"
+  _cm_report_md="$_cm_reports/$_cm_ts.md"
+  _cm_ledger="$_cm_reports/$_cm_ts.json"
+  {
+    echo "# test-run report (category mode) — $_cm_ts"
+    echo "Selection: $_CM_LABEL"
+    echo "Aggregate: $_cm_agg"
+    echo "Flags:     $FLAGS"
+    echo "HEAD:      $_cm_head"
+    echo ""
+    echo "## Tests"
+    echo "| name | category | command | tier | rc | outcome |"
+    echo "|------|----------|---------|------|----|---------|"
+    printf '%s\n' "$_cm_md_rows" | sed '/^$/d'
+    if [ -n "$_cm_fail_blocks" ]; then
+      echo ""
+      echo "## Failures (verbatim)"
+      printf '%s\n' "$_cm_fail_blocks"
+    fi
+    echo ""
+    echo "## Legend"
+    echo "outcome pass/fail = the test executed (rc derived). skipped(<reason>) = not executed"
+    echo "(tier-not-selected / self-gated). all-skipped aggregate is NEVER rendered pass."
+  } > "$_cm_report_md"
+  {
+    printf '{\n'
+    printf '  "schema": 1,\n'
+    printf '  "mode": "category",\n'
+    printf '  "timestamp": %s,\n' "$(_cm_json_str "$_cm_ts")"
+    printf '  "head_sha": %s,\n' "$(_cm_json_str "$_cm_head")"
+    printf '  "selection": %s,\n' "$(_cm_json_str "$_CM_LABEL")"
+    printf '  "flags": %s,\n' "$(_cm_json_str "$FLAGS")"
+    printf '  "aggregate": %s,\n' "$(_cm_json_str "$_cm_agg")"
+    printf '  "tests": [%s]\n' "$_cm_json"
+    printf '}\n'
+  } > "$_cm_ledger"
+  if command -v jq >/dev/null 2>&1; then
+    jq empty "$_cm_ledger" 2>/dev/null || echo "test-run.sh: WARNING — category ledger is not valid JSON ($_cm_ledger)" >&2
+  fi
+
+  echo ""
+  echo "aggregate: $_cm_agg (executed=$_cm_executed green=$_cm_green failed=$_cm_failed)"
+  echo "report: $_cm_report_md"
+  echo "ledger: $_cm_ledger"
+  exit "$_cm_exit"
+}
+
 # Expand a runner's covers into the concrete family list (`all` -> every runnable).
 _expand_covers() {
   case "$1" in
@@ -197,6 +399,15 @@ _all_covered_families() {
 $RUNNERS_TSV
 EOF
 }
+
+# ---- CATEGORY-MODE dispatch (F000074) ----------------------------------------
+# When --category or a single test name was passed, run the category-based
+# selection path and EXIT — the runners: flow below is not reached. Additive:
+# a normal (no --category, no name) invocation falls straight through to the
+# runners flow, behavior-unchanged.
+if [ "$CATEGORY_MODE" = "1" ]; then
+  _run_category_mode
+fi
 
 # ---- PLAN --------------------------------------------------------------------
 # For each runner: resolved command, tier, platform guard, covered families,

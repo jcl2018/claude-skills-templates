@@ -1,7 +1,7 @@
 ---
 name: CJ_test_run
-description: "Execute a repo's test contract and report evidence-derived pass/fail — the 'does it pass?' companion to /CJ_test_audit's 'is it wired?'. Runs a deterministic Stage-1 audit pre-step (the four test-spec.sh engine calls — --validate / --check-coverage / --render-docs --check / --check-workflow-coverage — printed verbatim, with the invalid-registry-HALTS / valid-with-findings-surface-and-continue / absent-registry-SKIP split), then scripts/test-run.sh which reads the runners: axis of the merged test-spec registry and runs the selected tier's runners ONCE each (default tier: free; --evals adds paid, --e2e adds local-only, --all everything — a default run NEVER touches a model), then narrates the materialized report (tests/test-run/reports/<UTC-ts>.md) + machine-readable ledger (.json: schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/covered-families). Aggregate is the closed enum {pass, fail, all-skipped}: any executed runner failing => fail + exit 1; >=1 green and none failed => pass; zero executed => all-skipped (NEVER rendered pass). Registry edges are honest: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners => 'SKIP: no runners declared' + exit 0 (no report, no ledger, no inference). Runnable in ANY repo the skills are installed for; engines resolve sibling-in-scriptdir -> $REPO_ROOT/scripts/ -> deployed _cj-shared. Use when: 'run the tests', 'do the tests pass', 'execute the test suite'."
-version: 0.1.0
+description: "Execute a repo's test contract and report evidence-derived pass/fail — the 'does it pass?' companion to /CJ_test_audit's 'is it wired?'. Runs a deterministic Stage-1 audit pre-step (the four test-spec.sh engine calls — --validate / --check-coverage / --render-docs --check / --check-workflow-coverage — printed verbatim, with the invalid-registry-HALTS / valid-with-findings-surface-and-continue / absent-registry-SKIP split), then scripts/test-run.sh which reads the runners: axis of the merged test-spec registry and runs the selected tier's runners ONCE each (default tier: free; --evals adds paid, --e2e adds local-only, --all everything — a default run NEVER touches a model), then narrates the materialized report (tests/test-run/reports/<UTC-ts>.md) + machine-readable ledger (.json: schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/covered-families). Aggregate is the closed enum {pass, fail, all-skipped}: any executed runner failing => fail + exit 1; >=1 green and none failed => pass; zero executed => all-skipped (NEVER rendered pass). Registry edges are honest: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners => 'SKIP: no runners declared' + exit 0 (no report, no ledger, no inference). Two selection modes: the default runners mode runs the whole tiered suite; category mode (--category <workflow|CI> or a single test NAME) runs exactly the category's / named test's command(s) from the categories: axis, reusing the docs/tests/<category>/<name>.md name and honoring the SAME cost tiers (a default run touches no paid model; a paid/local-only test is skip(tier-not-selected) without --evals/--e2e/--all); an unadopted repo reports 'category contract not adopted / inactive'. Runnable in ANY repo the skills are installed for; engines resolve sibling-in-scriptdir -> $REPO_ROOT/scripts/ -> deployed _cj-shared. Use when: 'run the tests', 'do the tests pass', 'execute the test suite'."
+version: 0.2.0
 allowed-tools:
   - Bash
   - Read
@@ -41,7 +41,11 @@ tests are WIRED, never that they PASS). The test CONTRACT itself defines what
 runs: the `runners:` axis of the merged two-tier test-spec registry declares HOW
 to run the repo's tests (command + cost tier + covered families), so any adopting
 repo — `npm test`, `make check`, whatever — gets real execution from the same
-portable engine, not a hardcoded table.
+portable engine, not a hardcoded table. **Two selection modes (F000074):** the
+default runners mode runs the whole tiered suite; **category mode** (`--category
+<workflow|CI>` or a single test NAME) runs exactly the category's / the named
+test's command(s) from the `categories:` axis, reusing the
+`docs/tests/<category>/<name>.md` name and honoring the SAME cost tiers.
 
 The flow is three parts, in order:
 
@@ -127,11 +131,23 @@ invalid registry halts; findings on a valid registry surface and continue.)
 
 ## Step 3: Execute (test-run.sh with forwarded flags)
 
-Forward the operator's tier flags (`--dry-run`, `--evals`, `--e2e`, `--all`) to
-`test-run.sh` unchanged. Default (no flags) runs only `tier: free`.
+Forward the operator's flags to `test-run.sh` unchanged. Two selection modes:
+
+- **Runners mode (default).** With no `--category` and no single test name,
+  `test-run.sh` runs the `runners:` axis (the full tiered suite). Tier flags
+  (`--dry-run`, `--evals`, `--e2e`, `--all`) apply; default (no flags) runs only
+  `tier: free`.
+- **Category mode (F000074).** `--category <workflow|CI>` runs every declared test
+  in that category; a bare positional NAME runs the single test of that name
+  (reusing the `docs/tests/<category>/<name>.md` name). Selection maps `name →
+  command` via the `categories:` axis; the SAME cost tiers apply (a default run
+  touches no paid model — a `paid`/`local-only` category test is
+  `skip(tier-not-selected)` unless `--evals`/`--e2e`/`--all` is passed).
+  `--category` and a single name are mutually exclusive.
 
 ```bash
-# $ARGS = the flags the operator passed to /CJ_test_run (default: none).
+# $ARGS = the flags/args the operator passed to /CJ_test_run (default: none).
+#   e.g. (none) | --dry-run | --evals | --category workflow | windows | --category CI --dry-run
 bash "$TEST_RUN_SH" $ARGS
 _run_rc=$?
 ```
@@ -140,11 +156,15 @@ _run_rc=$?
 - absent → `REGISTRY=absent` + exit 0 (should not reach here — Step 2 stops on absent)
 - invalid → `[test-spec-no-config]` passthrough + exit 1 (should not reach here — Step 2 halts)
 - valid with zero `runners:` rows → `SKIP: no runners declared` + exit 0, NO
-  report, NO ledger. Narrate that honestly: the contract is adopted but declares
-  no runners, so there is nothing to execute.
+  report, NO ledger (runners mode only). Narrate that honestly: the contract is
+  adopted but declares no runners, so there is nothing to execute.
+- category mode with no `categories:` axis → `category contract not adopted /
+  inactive` + exit 0. Narrate: the repo hasn't adopted the category contract.
+- category mode: unknown test name / a category outside `{workflow, CI}` / mixing
+  `--category` with a name → exit 2 with a named error. Surface it verbatim.
 
-On `--dry-run`, `test-run.sh` prints the plan and writes nothing — narrate the
-plan and stop.
+On `--dry-run` (either mode), `test-run.sh` prints the plan and writes nothing —
+narrate the plan and stop.
 
 ## Step 4: Narrate the report + ledger
 
@@ -165,11 +185,15 @@ self-gated) is exit 0 but is NEVER rendered `pass`.
 ## Usage
 
 ```
-/CJ_test_run                 # Stage-1 pre-step, then run tier: free, then narrate
-/CJ_test_run --dry-run       # Stage-1 pre-step, then print the plan (execute nothing)
-/CJ_test_run --evals         # + paid tier (evals — real model spend)
-/CJ_test_run --e2e           # + local-only tier (the local E2E harness)
-/CJ_test_run --all           # every tier
+/CJ_test_run                      # Stage-1 pre-step, then run the runners: suite (tier: free), then narrate
+/CJ_test_run --dry-run            # Stage-1 pre-step, then print the plan (execute nothing)
+/CJ_test_run --evals              # + paid tier (evals — real model spend)
+/CJ_test_run --e2e                # + local-only tier (the local E2E harness)
+/CJ_test_run --all                # every tier
+/CJ_test_run --category workflow  # (F000074) run every test in the workflow category
+/CJ_test_run --category CI        # (F000074) run every test in the CI category
+/CJ_test_run windows              # (F000074) run the single test named "windows" (docs/tests/CI/windows.md)
+/CJ_test_run --category CI --dry-run  # print the category plan (execute nothing)
 ```
 
 Routing phrases: "run the tests", "do the tests pass", "execute the test suite".
@@ -182,5 +206,9 @@ Routing phrases: "run the tests", "do the tests pass", "execute the test suite".
 | Engines not found | "Error: /CJ_test_run cannot resolve its engines (test-spec.sh / test-run.sh)." | Run `skills-deploy install` or check the repo structure |
 | Registry absent | `SKIP: no test-spec registry — nothing to run or audit` | Adopt the contract (`test-spec.sh --seed`) if you want a test run |
 | Registry invalid | the verbatim `[test-spec-no-config] <reason>` line | Fix the registry, then re-run |
-| Zero runners | `SKIP: no runners declared` | Add `runners:` rows to `spec/test-spec-custom.md` |
+| Zero runners | `SKIP: no runners declared` (runners mode only) | Add `runners:` rows to `spec/test-spec-custom.md` |
 | A runner failed | aggregate `fail` + exit 1 + verbatim FAIL lines in the report | Fix the failing runner's tests; re-run |
+| No categories axis (category mode) | `category contract not adopted / inactive` + exit 0 | Add a `categories:` axis to `spec/test-spec-custom.md` |
+| Unknown test name (category mode) | `no category test named '<name>'` + exit 2 | Check `test-spec.sh --list-categories --names` |
+| Bad category / `--category` + name together | named error + exit 2 | Pass one selection: `--category workflow\|CI` OR a single name |
+| A category test failed | aggregate `fail` + exit 1 + verbatim FAIL lines in the report | Fix the failing test; re-run |

@@ -40,6 +40,27 @@
 #                      when no overlay declares runners). The runners: axis is
 #                      OVERLAY-ONLY + OPTIONAL — it declares HOW to run the repo's
 #                      tests, consumed by scripts/test-run.sh.
+#   --list-categories  (F000074) echo the parsed categories[] rows machine-readably
+#                      (tab-separated name/category/command/tier/doc/purpose;
+#                      empty when no overlay declares categories). --names prints
+#                      just the names; --category <c> filters to one category.
+#                      The categories: axis is OVERLAY-ONLY + OPTIONAL — the
+#                      PRIMARY axis of the category-based test contract (category
+#                      -> tests, one row per named test), consumed by
+#                      scripts/test-run.sh for category/name selection. ADDITIVE:
+#                      it coexists with units:/behaviors:/runners:.
+#   --check-structure  (F000074) the five category-structure checks a-e:
+#                      (a) tests/ exists, (b) tests/workflow/ + tests/CI/
+#                      subfolders, (c) categories: declares the workflow + CI
+#                      tests, (d) one docs/tests/<category>/<name>.md per declared
+#                      test, (e) a docs/tests/ INDEX referencing every test.
+#                      Findings-are-the-product: each unmet check prints a
+#                      `FINDING: structure/<id>` line but the engine exits 0. No
+#                      categories: axis => the "not adopted / inactive" note.
+#   --seed-docs        (F000074) idempotently seed a docs/tests/<category>/<name>.md
+#                      stub per declared category test + docs/tests/index.md
+#                      (present => skip; never overwrites a hand-edited doc; NEVER
+#                      moves test scripts). The audit-side seeding helper.
 #   --list-layers      echo every declared layer id (general layers[]; sorted).
 #   --list-gates       echo every declared gate id (overlay gates[]; sorted;
 #                      empty when no overlay declares gates).
@@ -223,7 +244,7 @@ _parse_rules_file() {
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
     /^rules:/                  { in_rules=1; next }
-    /^(units|layers|gates|behaviors|behavior_coverage|runners):/   { flush(); in_rules=0; next }
+    /^(units|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -280,7 +301,7 @@ _parse_units_file() {
       cur_purpose=""
     }
     /^units:/                  { in_units=1; next }
-    /^(rules|layers|gates|behaviors|behavior_coverage|runners):/   { flush(); in_units=0; next }
+    /^(rules|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -321,7 +342,7 @@ _parse_layers_file() {
       cur_id=""; cur_name=""; cur_disp=""
     }
     /^layers:/                 { in_layers=1; next }
-    /^(rules|units|gates|behaviors|behavior_coverage|runners):/    { flush(); in_layers=0; next }
+    /^(rules|units|gates|behaviors|behavior_coverage|runners|categories):/    { flush(); in_layers=0; next }
     !in_layers                 { next }
     /^[[:space:]]*#/           { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -359,7 +380,7 @@ _parse_gates_file() {
       cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
     }
     /^gates:/                  { in_gates=1; next }
-    /^(rules|units|layers|behaviors|behavior_coverage|runners):/   { flush(); in_gates=0; next }
+    /^(rules|units|layers|behaviors|behavior_coverage|runners|categories):/   { flush(); in_gates=0; next }
     !in_gates                  { next }
     # A new gate entry.
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
@@ -435,7 +456,7 @@ _parse_behaviors_file() {
       cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""; cur_workflow=""
     }
     /^behaviors:/                                                { in_b=1; next }
-    /^(rules|units|layers|gates|behavior_coverage|runners):/             { flush(); in_b=0; next }
+    /^(rules|units|layers|gates|behavior_coverage|runners|categories):/             { flush(); in_b=0; next }
     !in_b              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -482,7 +503,7 @@ _parse_behavior_coverage_file() {
       cur_b=""; cur_unit=""; cur_src=""; cur_anchor=""
     }
     /^behavior_coverage:/                              { in_bc=1; next }
-    /^(rules|units|layers|gates|behaviors|runners):/           { flush(); in_bc=0; next }
+    /^(rules|units|layers|gates|behaviors|runners|categories):/           { flush(); in_bc=0; next }
     !in_bc             { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*behavior:/ { flush(); cur_b=$3; next }
@@ -533,7 +554,7 @@ _parse_runners_file() {
       cur_id=""; cur_cmd=""; cur_tier=""; cur_covers=""; cur_platform=""; cur_note=""
     }
     /^runners:/                                                    { in_r=1; next }
-    /^(rules|units|layers|gates|behaviors|behavior_coverage):/     { flush(); in_r=0; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|categories):/     { flush(); in_r=0; next }
     !in_r              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -566,6 +587,62 @@ _parse_runners() {
   while IFS= read -r _rf; do
     [ -n "$_rf" ] || continue
     _parse_runners_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's categories[] block into TSV rows (6 columns):
+#   name, category, command, tier, doc, purpose
+# Flag-based, key-anchored — UNLIKE every other block, a category row keys on
+# `- name:` (the stable slug that IS the doc filename + the /CJ_test_run
+# argument), not `- id:`. command/doc/purpose are quoted single-line values
+# stripped of the `key: "…"` wrapper; category/tier are bare tokens.
+#
+# The `categories:` axis (F000074) is the category-based test contract's PRIMARY
+# axis: category -> tests, one row per named test. It is ADDITIVE + OPTIONAL —
+# it COEXISTS with units:/behaviors:/runners: (the removal of those is a deferred
+# follow-up), and its absence changes no existing behavior (registry-gated, the
+# behaviors:/runners: precedent). The general --seed carries the portable V1
+# taxonomy prose; a repo's specific category tests live in the overlay.
+# The optional doc/purpose use the nz()/`-` empty-field placeholder discipline
+# (tab-IFS collapses empty fields otherwise).
+_parse_categories_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_name != "") {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_name), nz(cur_cat), nz(cur_cmd), nz(cur_tier), nz(cur_doc), nz(cur_purpose)
+      }
+      cur_name=""; cur_cat=""; cur_cmd=""; cur_tier=""; cur_doc=""; cur_purpose=""
+    }
+    /^categories:/                                                          { in_c=1; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners):/       { flush(); in_c=0; next }
+    !in_c              { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*name:/ { flush(); cur_name=$3; next }
+    /^[[:space:]]*category:/ { cur_cat=$2; next }
+    /^[[:space:]]*command:/  { cur_cmd=strip($0); next }
+    /^[[:space:]]*tier:/     { cur_tier=$2; next }
+    /^[[:space:]]*doc:/      { cur_doc=strip($0); next }
+    /^[[:space:]]*purpose:/  { cur_purpose=strip($0); next }
+    END { if (in_c) flush() }
+  '
+}
+
+# Merged categories TSV across general + overlay (overlay-only in practice — the
+# general seed carries the taxonomy prose, not repo category rows).
+_parse_categories() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_categories_file "$_rf"
   done <<EOF
 $(_registry_files)
 EOF
@@ -606,6 +683,7 @@ EOF
   _BEHAVIORS=$(_parse_behaviors)
   _BEHAVIOR_COVERAGE=$(_parse_behavior_coverage)
   _RUNNERS=$(_parse_runners)
+  _CATEGORIES=$(_parse_categories)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -631,6 +709,11 @@ EOF
     _N_RN=$(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_RNU=$(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_RN" -eq "$_N_RNU" ] || emit_halt "duplicate runner id(s): $(printf '%s\n' "$_RUNNERS" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_CATEGORIES" ]; then
+    _N_CT=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_CTU=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_CT" -eq "$_N_CTU" ] || emit_halt "duplicate category test name(s): $(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -811,6 +894,52 @@ EOF
       fi
     done <<EOF
 $_RUNNERS
+EOF
+  fi
+
+  # Per-category required keys + closed enums + the rendered-field work-item-ID
+  # lint (F000074). Runs INDEPENDENT of the units: gate (BEFORE the no-units early
+  # return) — the category axis coexists with, and does not depend on, units. The
+  # `categories:` axis declares the category-based test contract's primary rows:
+  #   name     — unique slug ([a-z0-9-]+); IS the docs/tests/<category>/<name>.md
+  #              filename AND the /CJ_test_run argument
+  #   category — closed V1 enum {workflow, CI}
+  #   command  — non-empty shell string (how to run it)
+  #   tier     — closed enum {free, paid, local-only}
+  #   doc      — optional docs/tests/<category>/<name>.md pointer
+  #   purpose  — optional short description
+  # command/purpose are the rendered-field ID lint targets (like a unit's
+  # label/purpose); name/category/tier/doc are structural.
+  if [ -n "$_CATEGORIES" ]; then
+    while IFS="$(printf '\t')" read -r _ctname _ctcat _ctcmd _cttier _ctdoc _ctpurpose; do
+      [ -n "$_ctname" ] || continue
+      # Normalize the `-` empty-field placeholders back to "".
+      [ "$_ctcat" = "-" ] && _ctcat=""
+      [ "$_ctcmd" = "-" ] && _ctcmd=""
+      [ "$_cttier" = "-" ] && _cttier=""
+      [ "$_ctdoc" = "-" ] && _ctdoc=""
+      [ "$_ctpurpose" = "-" ] && _ctpurpose=""
+      case "$_ctname" in
+        *[!a-z0-9-]*) emit_halt "category test name '$_ctname' is not a slug ([a-z0-9-]+ only; it IS the doc filename + the /CJ_test_run argument)" ;;
+      esac
+      [ -n "$_ctcat" ]  || emit_halt "category test '$_ctname' is missing 'category'"
+      [ -n "$_ctcmd" ]  || emit_halt "category test '$_ctname' is missing 'command' (a category test must declare a non-empty shell command)"
+      [ -n "$_cttier" ] || emit_halt "category test '$_ctname' is missing 'tier'"
+      case "$_ctcat" in
+        workflow|CI) : ;;
+        *) emit_halt "category test '$_ctname' has category '$_ctcat' outside the closed V1 enum {workflow, CI}" ;;
+      esac
+      case "$_cttier" in
+        free|paid|local-only) : ;;
+        *) emit_halt "category test '$_ctname' has tier '$_cttier' outside the closed enum {free, paid, local-only}" ;;
+      esac
+      # Rendered-field work-item-ID lint: command + purpose are the fields a
+      # generated view renders (and the audit skills quote); they must be ID-free.
+      if printf '%s %s' "$_ctcmd" "$_ctpurpose" | grep -qE '[FSTD][0-9]{6}'; then
+        emit_halt "category test '$_ctname' carries a work-item ID in a rendered field (command/purpose must be ID-free)"
+      fi
+    done <<EOF
+$_CATEGORIES
 EOF
   fi
 
@@ -1317,6 +1446,271 @@ EOF
   return 0
 }
 
+# ---- --check-structure: the five category-structure checks a-e (F000074) ----
+# The category-based test contract's structural conformance engine — the same
+# findings-are-the-product posture as --check-coverage, but keyed off the
+# `categories:` axis. Standalone-safe in ANY repo: it REPORTS gaps, NEVER moves
+# or rewrites test SCRIPTS (the physical reorganization is a one-time FEATURE
+# migration, deferred). The five checks (the operator's a-e):
+#   (a) a tests/ folder exists and holds the repo's test scripts;
+#   (b) tests/ is split into per-category subfolders — V1 requires at least
+#       tests/workflow/ AND tests/CI/;
+#   (c) spec/test-spec.md exists and the categories: axis declares the necessary
+#       tests, scoped to the workflow + CI categories for V1;
+#   (d) docs/tests/<category>/ exists for each required category, with exactly ONE
+#       .md per declared test (docs/tests/<category>/<name>.md);
+#   (e) docs/tests/ carries a test-list INDEX table referencing every declared
+#       test by name.
+# Each unmet check prints a `FINDING: structure/<id> — ...` line; findings NEVER
+# crash the engine (exit 0 always) — a broken structure IS the report. When the
+# `categories:` axis is ABSENT the engine prints a named `category contract not
+# adopted / inactive` note + exits 0 (the units-gated-inactive precedent), never
+# misleading findings.
+#
+# The category doc-index path (default docs/tests/index.md) is where check (e)
+# looks for the INDEX table + where the audit seeds it. TESTDOC_OUT overrides the
+# docs root for temp-dir drills (shared with --render-docs).
+_STRUCT_DOCS_DEFAULT() { echo "${TESTDOC_OUT:-$REPO_ROOT_RESOLVED/docs}"; }
+_STRUCT_INDEX_REL="tests/index.md"
+
+_check_structure() {
+  _CS_FINDINGS=0
+  _CS_DOCS=$(_STRUCT_DOCS_DEFAULT)
+
+  # Inactive gate: no categories: axis => the honest "not adopted" note.
+  if [ -z "$_CATEGORIES" ]; then
+    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (name/category/command/tier/doc/purpose) to activate the five structural checks"
+    echo "STRUCTURE: findings=0 (inactive)"
+    return 0
+  fi
+
+  # (a) tests/ folder exists and holds >=1 test script.
+  _CS_TESTS_DIR="$REPO_ROOT_RESOLVED/tests"
+  if [ ! -d "$_CS_TESTS_DIR" ]; then
+    echo "FINDING: structure/a — no tests/ folder at the repo root (the category contract expects a tests/ dir holding the repo's test scripts)"
+    _CS_FINDINGS=$((_CS_FINDINGS + 1))
+  else
+    _CS_NTESTS=$(find "$_CS_TESTS_DIR" -type f -name '*.test.sh' 2>/dev/null | grep -c . || true)
+    if [ "${_CS_NTESTS:-0}" -eq 0 ]; then
+      echo "check: structure/a — tests/ exists but holds no *.test.sh scripts (informational; the repo may use a different test-file convention)"
+    else
+      echo "check: structure/a — PASS (tests/ exists, $_CS_NTESTS test script(s))"
+    fi
+  fi
+
+  # (b) per-category subfolders — V1 requires tests/workflow/ AND tests/CI/.
+  for _cs_cat in workflow CI; do
+    if [ ! -d "$_CS_TESTS_DIR/$_cs_cat" ]; then
+      echo "FINDING: structure/b — required per-category subfolder tests/$_cs_cat/ is missing (V1 requires tests/workflow/ AND tests/CI/); NOTE: the audit reports this — it never moves test scripts (the physical reorganization is a deferred one-time migration)"
+      _CS_FINDINGS=$((_CS_FINDINGS + 1))
+    else
+      echo "check: structure/b — PASS (tests/$_cs_cat/ exists)"
+    fi
+  done
+
+  # (c) spec/test-spec.md exists AND categories: declares >=1 test in each of the
+  # V1 categories (workflow + CI). The general file existence is guaranteed by
+  # _run_registry_gates (this runs after it), so check the per-category coverage.
+  echo "check: structure/c — PASS (spec/test-spec.md present; categories: axis declared)"
+  for _cs_cat in workflow CI; do
+    _cs_n=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$_cs_cat" '$2 == c' | grep -c . || true)
+    if [ "${_cs_n:-0}" -eq 0 ]; then
+      echo "FINDING: structure/c — the categories: axis declares ZERO tests in the '$_cs_cat' category (V1 scopes the contract to workflow + CI; declare >=1 category test per required category)"
+      _CS_FINDINGS=$((_CS_FINDINGS + 1))
+    else
+      echo "check: structure/c — PASS ('$_cs_cat' category: $_cs_n declared test(s))"
+    fi
+  done
+
+  # (d) docs/tests/<category>/ exists for each required category, with exactly ONE
+  # .md per declared test (docs/tests/<category>/<name>.md).
+  for _cs_cat in workflow CI; do
+    _cs_catdir="$_CS_DOCS/tests/$_cs_cat"
+    if [ ! -d "$_cs_catdir" ]; then
+      echo "FINDING: structure/d — docs/tests/$_cs_cat/ is missing (each required category needs a docs subfolder with one .md per declared test); run /CJ_test_audit to seed the stubs"
+      _CS_FINDINGS=$((_CS_FINDINGS + 1))
+    fi
+  done
+  # Per declared test: its docs/tests/<category>/<name>.md must exist.
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctcmd _cttier _ctdoc _ctpurpose; do
+    [ -n "$_ctname" ] || continue
+    _cs_docpath="$_CS_DOCS/tests/$_ctcat/$_ctname.md"
+    if [ ! -f "$_cs_docpath" ]; then
+      echo "FINDING: structure/d — declared category test '$_ctname' ($_ctcat) has no doc at docs/tests/$_ctcat/$_ctname.md (exactly one .md per declared test); run /CJ_test_audit to seed the stub"
+      _CS_FINDINGS=$((_CS_FINDINGS + 1))
+    else
+      echo "check: structure/d — PASS (docs/tests/$_ctcat/$_ctname.md exists)"
+    fi
+  done <<EOF
+$_CATEGORIES
+EOF
+
+  # (e) docs/tests/ carries a test-list INDEX table referencing every declared
+  # test by name.
+  _cs_index="$_CS_DOCS/$_STRUCT_INDEX_REL"
+  if [ ! -f "$_cs_index" ]; then
+    echo "FINDING: structure/e — the docs/tests/ INDEX table (docs/$_STRUCT_INDEX_REL) is missing (it must reference every declared category test by name); run /CJ_test_audit to seed it"
+    _CS_FINDINGS=$((_CS_FINDINGS + 1))
+  else
+    # Every declared test must be referenced in the index. Match a WHOLE
+    # reference — the backtick-wrapped name (the index Name column) OR its unique
+    # doc path (the Doc column) — NOT a bare substring. A bare `grep -F "$name"`
+    # false-PASSes when one declared name is a substring of another that IS in the
+    # index (e.g. `ci` vs `ci-extended`), or when the name appears only in prose /
+    # a comment, silently masking a genuinely missing index row — a
+    # findings-are-the-product regression in the false-negative direction. Both the
+    # backtick form (`name`) and the path form (tests/<cat>/<name>.md) are
+    # collision-safe (the delimiters prevent a shorter name matching inside a longer one).
+    while IFS="$(printf '\t')" read -r _ctname _ctcat _rest; do
+      [ -n "$_ctname" ] || continue
+      _cs_needle_name=$(printf '`%s`' "$_ctname")
+      _cs_needle_path="tests/$_ctcat/$_ctname.md"
+      if ! grep -qF -- "$_cs_needle_name" "$_cs_index" \
+         && ! grep -qF -- "$_cs_needle_path" "$_cs_index"; then
+        echo "FINDING: structure/e — declared category test '$_ctname' is not referenced in the docs/tests/ INDEX (docs/$_STRUCT_INDEX_REL); run /CJ_test_audit to refresh the index"
+        _CS_FINDINGS=$((_CS_FINDINGS + 1))
+      fi
+    done <<EOF
+$_CATEGORIES
+EOF
+    echo "check: structure/e — index present at docs/$_STRUCT_INDEX_REL"
+  fi
+
+  if [ "$_CS_FINDINGS" -gt 0 ]; then
+    echo "STRUCTURE: findings=$_CS_FINDINGS (category structural gaps — findings are the product; the audit may seed missing docs, never move scripts)"
+    return 0
+  fi
+  echo "OK structure — the five category-structure checks (a-e) pass (findings=0)"
+  return 0
+}
+
+# ---- Category-doc render + idempotent stub seeding (F000074) ----
+# The audit-side companion to --check-structure: seed a missing
+# docs/tests/<category>/<name>.md stub per declared category test + a
+# docs/tests/index.md INDEX table, IDEMPOTENTLY (present => skip). Never moves or
+# rewrites test scripts, never overwrites an existing doc (a hand-edited stub is
+# preserved). Writes only under the docs root (TESTDOC_OUT override for drills).
+# Returns 0; prints one `seeded:` / `skip:` line per file so the caller can show
+# the audit's idempotency.
+
+# Render a single category-test doc stub to stdout. $1=name $2=category
+# $3=command $4=tier $5=purpose. Deterministic; ID-free by the rendered-field
+# lint on command/purpose (masked defensively for symmetry with --render-docs).
+_render_category_doc_stub() {
+  _rcd_name="$1"; _rcd_cat="$2"; _rcd_cmd="$3"; _rcd_tier="$4"; _rcd_purpose="$5"
+  echo "# Test: \`$_rcd_name\` (\`$_rcd_cat\` category)"
+  echo ""
+  echo "<!-- SEEDED STUB — one doc per category test."
+  echo "     Seeded by /CJ_test_audit from the spec/test-spec-custom.md categories: axis."
+  echo "     Safe to edit: the audit seeds this only when absent (idempotent; present => skip). -->"
+  echo ""
+  echo "| Field | Value |"
+  echo "|-------|-------|"
+  echo "| Name | \`$_rcd_name\` |"
+  echo "| Category | \`$_rcd_cat\` |"
+  echo "| Command | \`$(_mask_ids "$_rcd_cmd")\` |"
+  echo "| Tier | \`$_rcd_tier\` |"
+  echo ""
+  echo "## Purpose"
+  echo ""
+  if [ -n "$_rcd_purpose" ] && [ "$_rcd_purpose" != "-" ]; then
+    _mask_ids "$_rcd_purpose"; echo ""
+  else
+    echo "_(no purpose declared in the contract — add one to the \`categories:\` row.)_"
+  fi
+  echo ""
+  echo "## How to run"
+  echo ""
+  echo "\`\`\`bash"
+  _mask_ids "$_rcd_cmd"; echo ""
+  echo "\`\`\`"
+  echo ""
+  echo "Run via the category contract: \`/CJ_test_run $_rcd_name\` (single test) or"
+  echo "\`/CJ_test_run --category $_rcd_cat\` (the whole category)."
+}
+
+# Render the docs/tests/index.md INDEX table to stdout, referencing every declared
+# category test by name. Deterministic: sorted by category then name (LC_ALL=C).
+_render_category_index() {
+  echo "# Test list — by category"
+  echo ""
+  echo "<!-- SEEDED / REFRESHED by /CJ_test_audit from the spec/test-spec-custom.md"
+  echo "     categories: axis. The index references every declared category test by"
+  echo "     name; each name links to its docs/tests/<category>/<name>.md page. -->"
+  echo ""
+  echo "| Name | Category | Tier | Doc |"
+  echo "|------|----------|------|-----|"
+  printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF' | LC_ALL=C sort -t"$(printf '\t')" -k2,2 -k1,1 | \
+  while IFS="$(printf '\t')" read -r _ci_name _ci_cat _ci_cmd _ci_tier _ci_doc _ci_purpose; do
+    [ -n "$_ci_name" ] || continue
+    [ "$_ci_tier" = "-" ] && _ci_tier=""
+    echo "| \`$_ci_name\` | \`$_ci_cat\` | $_ci_tier | [docs/tests/$_ci_cat/$_ci_name.md](tests/$_ci_cat/$_ci_name.md) |"
+  done
+}
+
+# Seed missing category docs + the index idempotently. $1 = docs root.
+_seed_category_docs() {
+  _sc_docs="$1"
+  _sc_seeded=0
+  _sc_skipped=0
+  # Per declared test: seed docs/tests/<category>/<name>.md when absent.
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctcmd _cttier _ctdoc _ctpurpose; do
+    [ -n "$_ctname" ] || continue
+    [ "$_ctcmd" = "-" ] && _ctcmd=""
+    [ "$_ctpurpose" = "-" ] && _ctpurpose=""
+    _sc_path="$_sc_docs/tests/$_ctcat/$_ctname.md"
+    if [ -f "$_sc_path" ]; then
+      echo "skip: docs/tests/$_ctcat/$_ctname.md already exists (idempotent — not overwritten)"
+      _sc_skipped=$((_sc_skipped + 1))
+    else
+      mkdir -p "$_sc_docs/tests/$_ctcat"
+      _render_category_doc_stub "$_ctname" "$_ctcat" "$_ctcmd" "$_cttier" "$_ctpurpose" > "$_sc_path"
+      echo "seeded: docs/tests/$_ctcat/$_ctname.md"
+      _sc_seeded=$((_sc_seeded + 1))
+    fi
+  done <<EOF
+$_CATEGORIES
+EOF
+  # The INDEX is a GENERATED aggregate (a catalog of the declared category tests),
+  # not hand-authored content like the per-test stubs — so RECONCILE it to the
+  # current declared set on every run, idempotently: render to a temp and overwrite
+  # only when the content differs. A re-run with no contract change writes nothing
+  # (skip; git stays clean), but a category test declared AFTER the first seed is
+  # added on the next run — so --check-structure's "run /CJ_test_audit to refresh the
+  # index" remediation is actually actionable (the previous seed-when-absent-only
+  # path left a stale-but-present index permanently unfixable). The temp lives in the
+  # same dir as the target so the mv is atomic and same-filesystem (no cross-drive copy).
+  _sc_index="$_sc_docs/$_STRUCT_INDEX_REL"
+  mkdir -p "$_sc_docs/tests"
+  _sc_index_tmp=$(mktemp "$_sc_docs/tests/.catindex.XXXXXX")
+  _render_category_index > "$_sc_index_tmp"
+  if [ -f "$_sc_index" ] && cmp -s "$_sc_index_tmp" "$_sc_index"; then
+    echo "skip: docs/$_STRUCT_INDEX_REL already current (idempotent — no change)"
+    _sc_skipped=$((_sc_skipped + 1))
+    rm -f "$_sc_index_tmp"
+  elif [ -f "$_sc_index" ]; then
+    mv "$_sc_index_tmp" "$_sc_index"
+    echo "refreshed: docs/$_STRUCT_INDEX_REL (reconciled to the declared category tests)"
+    _sc_seeded=$((_sc_seeded + 1))
+  else
+    mv "$_sc_index_tmp" "$_sc_index"
+    echo "seeded: docs/$_STRUCT_INDEX_REL"
+    _sc_seeded=$((_sc_seeded + 1))
+  fi
+  echo "SEED-DOCS: seeded=$_sc_seeded skipped=$_sc_skipped"
+  return 0
+}
+
+# --seed-docs entry: no-op-with-note when the categories: axis is absent.
+_seed_category_docs_entry() {
+  if [ -z "$_CATEGORIES" ]; then
+    echo "category contract not adopted / inactive — no categories: axis; nothing to seed"
+    echo "SEED-DOCS: seeded=0 skipped=0 (inactive)"
+    return 0
+  fi
+  _seed_category_docs "$(_STRUCT_DOCS_DEFAULT)"
+}
+
 # ---- --classify / --reconcile: contract-file generation detection + migration ----
 # (F000065/S000109) The SYMMETRIC partner of doc-spec.sh's classify/reconcile.
 #
@@ -1585,12 +1979,25 @@ EOF
     # them from the orphan sweep. Keep this list narrow + explicit (space-
     # separated, repo-relative under docs/).
     _HANDAUTHORED_TESTDOCS="tests/test-hierarchy.md"
+    # The FAMILY render only emits FLAT docs/tests/<family>.md pages. The category
+    # axis (F000074) owns a DIFFERENT surface under the same tree — the per-category
+    # SUBDIRS docs/tests/<category>/<name>.md + the docs/tests/index.md INDEX,
+    # seeded by --seed-docs, not by this family render. Exempt those from the
+    # family orphan sweep so a category doc is never mis-flagged as a stale family
+    # page: any path with a directory component under tests/ (i.e. tests/<cat>/...)
+    # or the index is category-owned, not family-owned.
     if [ -d "$_RD_DOCS/tests" ]; then
       while IFS= read -r _disk; do
         [ -n "$_disk" ] || continue
         _rel="${_disk#"$_RD_DOCS/"}"
         case " $_HANDAUTHORED_TESTDOCS " in
           *" $_rel "*) continue ;;  # hand-authored page, not registry-generated
+        esac
+        # Category-axis paths (a nested tests/<category>/<name>.md, or the
+        # tests/index.md INDEX) are owned by --seed-docs, not the family render.
+        case "$_rel" in
+          tests/index.md) continue ;;
+          tests/*/*) continue ;;   # a per-category subdir doc (tests/<cat>/<name>.md)
         esac
         if [ ! -f "$_RD_TMP/docs/$_rel" ]; then
           echo "FINDING: render — docs/$_rel exists on disk but no longer maps to a registry family (run: scripts/test-spec.sh --render-docs)"
@@ -1726,6 +2133,45 @@ substance judgment is the agent-judged test audit's job (`/CJ_test_audit`
 Stage 2) — load-bearing, because the deterministic half alone merely relocates
 the blind spot from untested code to vague behavior prose.
 
+## The category axis (optional, overlay-only)
+
+A repo MAY organize its tests by **category** — one clean noun that threads five
+surfaces: the folder a test lives in (`tests/<category>/`), the contract section
+that declares it, the doc that describes it (`docs/tests/<category>/<name>.md`),
+the index row that references it, and the argument that runs it
+(`/CJ_test_run --category <cat>` or `/CJ_test_run <name>`). Audit and run share
+ONE vocabulary; a newcomer can look at `tests/` and see what kinds of tests exist.
+
+The **V1 taxonomy is the closed set `{workflow, CI}`**:
+
+- **`workflow`** — deterministic end-to-end workflow tests (what proves a whole
+  user-facing workflow runs).
+- **`CI`** — tests required at each deployment / the deploy gate (what must be
+  green to ship).
+
+An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
+(**optional-on-schema-1**, overlay-only — the machine block in this general file
+is unchanged). Each row declares one named test: `name` (a stable slug — it IS the
+doc filename AND the `/CJ_test_run` argument), `category` (`workflow | CI`),
+`command` (how to run it), `tier` (`free | paid | local-only`), an optional `doc`
+(the `docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
+
+`test-spec.sh --check-structure` mechanizes five structural checks when the
+`categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
+**(b)** `tests/` is split into per-category subfolders (V1 requires `tests/workflow/`
++ `tests/CI/`); **(c)** the `categories:` axis declares the `workflow` + `CI` tests;
+**(d)** one `docs/tests/<category>/<name>.md` per declared test; **(e)** a
+`docs/tests/` INDEX table references every test by name. Each unmet check is a
+`FINDING:` — findings are the product, never a crash. A repo with no `categories:`
+axis reports "category contract not adopted / inactive" and stays green.
+
+**The category axis is ADDITIVE and COEXISTS with the `units:`/`behaviors:`/
+`runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED
+missing doc stubs (`--seed-docs`, idempotent — present ⇒ skip), but NEVER moves or
+rewrites test scripts: physically reorganizing a repo's tests into
+`tests/<category>/` is a one-time migration, not a run-time audit action, so the
+audit stays standalone-safe on a repo it does not own.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
@@ -1842,6 +2288,39 @@ case "${1:-}" in
     [ -n "$_RUNNERS" ] && printf '%s\n' "$_RUNNERS" | awk -F'\t' 'NF {print}'
     exit 0
     ;;
+  --list-categories)
+    # (F000074) The parsed categories[] rows machine-readably: one row per named
+    # category test, tab-separated name, category, command, tier, doc (`-` when
+    # unset), purpose (`-` when unset). test-run.sh consumes this for
+    # category/name selection. `--names` prints just the names (registry order),
+    # `--category <c>` filters to one category. Empty when no overlay declares
+    # categories.
+    _run_registry_gates
+    if [ "${2:-}" = "--names" ]; then
+      [ -n "$_CATEGORIES" ] && printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF {print $1}'
+    elif [ "${2:-}" = "--category" ] && [ -n "${3:-}" ]; then
+      [ -n "$_CATEGORIES" ] && printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$3" 'NF && $2 == c {print}'
+    else
+      [ -n "$_CATEGORIES" ] && printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF {print}'
+    fi
+    exit 0
+    ;;
+  --check-structure)
+    # (F000074) The five category-structure checks a-e. Findings-are-the-product:
+    # each unmet check prints a `FINDING: structure/<id>` line but the engine
+    # exits 0 (a broken structure IS the report). An absent categories: axis
+    # prints the "not adopted / inactive" note + exits 0.
+    _run_registry_gates
+    _check_structure
+    ;;
+  --seed-docs)
+    # (F000074) Idempotently seed a docs/tests/<category>/<name>.md stub per
+    # declared category test + the docs/tests/index.md INDEX (present => skip;
+    # never overwrite a hand-edited doc; never move test scripts). The audit-side
+    # seeding helper /CJ_test_audit calls; exits 0 (an absent axis is a no-op note).
+    _run_registry_gates
+    _seed_category_docs_entry
+    ;;
   --list-layers)
     _run_registry_gates
     [ -n "$_LAYERS" ] && printf '%s\n' "$_LAYERS" | awk -F'\t' 'NF {print $1}' | sort -u
@@ -1912,6 +2391,9 @@ Usage:
   test-spec.sh --list-units      # every declared unit id (registry order; empty without an overlay)
   test-spec.sh --list-units --with-family  # id<TAB>family columns (for test-run.sh per-family counts)
   test-spec.sh --list-runners    # parsed runners[] rows (id/command/tier/covers/platform/note; empty without an overlay)
+  test-spec.sh --list-categories # parsed categories[] rows (name/category/command/tier/doc/purpose; empty without an overlay). --names for names only; --category <c> to filter
+  test-spec.sh --check-structure # the five category-structure checks a-e (findings-are-the-product; inactive when no categories: axis)
+  test-spec.sh --seed-docs       # idempotently seed docs/tests/<category>/<name>.md stubs + docs/tests/index.md (present => skip; never moves scripts)
   test-spec.sh --list-layers     # every declared layer id (general layers[]; sorted)
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
@@ -1931,7 +2413,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)
