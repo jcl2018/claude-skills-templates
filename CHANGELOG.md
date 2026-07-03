@@ -3,6 +3,23 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.107] - 2026-07-03
+
+### Changed
+- **F000075 — CI split into push vs nightly cadence categories; the slow Windows
+  deploy suite moved to nightly.** The category-based test contract's taxonomy is
+  bumped V1 `{workflow, CI}` → V2 `{workflow, CI-push, CI-nightly}`: the category
+  name now IS the cadence, so `/CJ_test_run --category CI-push|CI-nightly` selects
+  by when-a-test-runs with no new flag, and `/CJ_test_audit --check-structure`
+  derives its required `tests/<category>/` folders from the categories a repo
+  actually declares (so a repo with no nightly test is never forced to create an
+  empty `tests/CI-nightly/`). On the CI side, `.github/workflows/windows.yml` keeps
+  only the fast `windows-smoke.sh` on every PR (the `CI-push` cadence), while a new
+  `.github/workflows/windows-nightly.yml` runs the slow `test-deploy.sh` on
+  `windows-latest` nightly (the `CI-nightly` cadence) — PRs stop paying for the
+  slow Windows deploy suite; native-Windows deploy regressions surface nightly
+  (per-PR POSIX coverage of `test-deploy.sh` via `test.sh` on ubuntu is unchanged).
+
 ## [6.0.106] - 2026-07-02
 
 ### Added
