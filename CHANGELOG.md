@@ -3,6 +3,20 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.108] - 2026-07-03
+
+### Changed
+- **F000076 — per-test docs are now the authoritative What/How/Why front door,
+  enforced generally.** Each `docs/tests/<category>/<name>.md` must carry `## What
+  it is` / `## How to run` / `## Explanation` (cross-linking its family doc for the
+  per-unit detail). The requirement is a GENERAL rule in the portable
+  `spec/test-spec.md` (byte-identical to `test-spec.sh --seed`), enforced by a new
+  `test-spec.sh --check-structure` content check (f) + `/CJ_test_audit` (Stage-1
+  structural + Stage-2 truthfulness), and surfaced by `/CJ_test_run <name>`. The
+  `--seed-docs` stub template now seeds the three sections; the 7 existing category
+  docs are filled. The flat `docs/tests/<family>.md` family render is KEPT as the
+  linked units-detail drill-down (no join key, no orphaned units, no schema change).
+
 ## [6.0.107] - 2026-07-03
 
 ### Changed
