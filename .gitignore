@@ -35,6 +35,11 @@
 tests/e2e-local/reports/*
 !tests/e2e-local/reports/EXAMPLE.md
 
+# nightly doc/test audit report (F000076) — scripts/audit-nightly.sh writes this
+# per-run (uploaded as a CI artifact / used as the drift-issue body). NOT tracked.
+audit-nightly-report.md
+audit-output.txt
+
 # test-run reports + ledgers (F000072 / S000122) — per-run artifacts written by
 # scripts/test-run.sh (<UTC-ts>.md + <UTC-ts>.json). NOT tracked, except the
 # committed EXAMPLE.md sample (so the report/ledger format is reviewable in a PR).

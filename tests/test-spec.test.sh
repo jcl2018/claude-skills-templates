@@ -125,7 +125,7 @@ else
 fi
 _GATES=$(bash "$HELPER" --list-gates 2>/dev/null)
 if printf '%s\n' "$_GATES" | grep -qx 'isolation' \
-   && printf '%s\n' "$_GATES" | grep -qx 'qa-audit' \
+   && printf '%s\n' "$_GATES" | grep -qx 'qa' \
    && printf '%s\n' "$_GATES" | grep -qx 'doc-sync' \
    && printf '%s\n' "$_GATES" | grep -qx 'ship'; then
   ok "--list-gates enumerates the per-mode pipeline gates"

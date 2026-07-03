@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_feature
-description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive design phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then shows a design-summary approval gate in chat (a concise digest of the APPROVED doc + a single go/no-go before the autonomous build budget is spent — Abort HALTs as halted_at_design_gate and preserves the doc for resume), then SILENTLY (one checkpoint AUQ — the QA audit findings — past the gate) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — the three-stage audit is deferred to the post-sync point) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), runs ONE combined read-only post-sync doc/test audit (Step 5.6), surfaces the post-QA audit checkpoint AUQ on that POST-sync report (ALWAYS — Continue past findings journals [qa-audit-waived], Halt journals [qa-audit-declined] / halted_at_qa_audit), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob; the design-summary gate re-fires on resume while still parked at the office-hours boundary and is skipped once the build has progressed. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/design_gate/scaffold/impl/qa/doc_sync/qa_audit/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
+description: "One-line-topic-to-reviewable-PR feature orchestrator (F000027 `feature` verb; experimental). Takes a plain feature topic, creates a `cj-feat-*` worktree, runs /office-hours INLINE (the one interactive design phase; emits an APPROVED design doc — on not-APPROVED/abandoned it HALTs), then shows a design-summary approval gate in chat (a concise digest of the APPROVED doc + a single go/no-go before the autonomous build budget is spent — Abort HALTs as halted_at_design_gate and preserves the doc for resume), then SILENTLY (no AUQ past the design gate) dispatches /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — QA skips the inline agent-judged audit; that audit now runs nightly in CI via audit-nightly.yml, off the build path) as depth-≤2 leaf Agent subagents, makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release INLINE (Step 5.5 doc-sync), and runs /ship INLINE with the diff-review AUQ suppressed to open a PR — then STOPs at the PR. The PR is the architecture gate (human review). No plan-review phase, no automatic merge, no /land-and-deploy (deploy is a separate human step). Strengthened resume: a state file records `last_completed_phase` + per-phase HEAD SHA + PR number and validates-before-skipping (recorded SHA must be ancestor-of/equal-to current HEAD AND any open PR must still be OPEN, else the affected phase restarts); office-hours resume re-locates the doc by the RECORDED PATH and re-confirms `Status: APPROVED` rather than a blind newest-glob; the design-summary gate re-fires on resume while still parked at the office-hours boundary and is skipped once the build has progressed. Consumes scripts/cj-goal-common.sh --mode feature for the deterministic worktree + pr-check phases; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_feature.jsonl. Halt taxonomy (green_pr_opened, halted_at_officehours/design_gate/scaffold/impl/qa/doc_sync/ship, already_shipped) with next_action= / resume_cmd= / pr_url= journal entries. --dry-run previews the chain plan without mutation. Workbench-only (macOS). An automatic merge-and-deploy path is unsafe-by-construction here (the handoff-gate denylist blocks exactly the skill surfaces every feature touches) and is parked, not deferred. Use when: 'build this feature end-to-end from a topic', 'one-line idea to a reviewable PR', 'scaffold + implement + qa from a topic and stop at the PR'."
 version: 0.2.0
 allowed-tools:
   - Bash
@@ -199,21 +199,15 @@ capture doc path → resume state file: last_completed_phase + HEAD SHA + PR#
    ▼
 design-summary approval gate   [INLINE AUQ — digest of the APPROVED doc + go/no-go]
    │   ↳ Abort → HALT (halted_at_design_gate; doc preserved; re-run re-shows the gate)
-   ▼  Approve & build →  SILENT depth-≤2 leaf Agent subagents (one checkpoint AUQ below)
-/CJ_scaffold-work-item  →  /CJ_implement-from-spec  →  /CJ_qa-work-item [DEFER_AUDIT: true — audit deferred to post-sync]
+   ▼  Approve & build →  SILENT depth-≤2 leaf Agent subagents (no AUQ past the design gate)
+/CJ_scaffold-work-item  →  /CJ_implement-from-spec  →  /CJ_qa-work-item [DEFER_AUDIT: true — QA skips the inline audit; nightly CI covers it]
    │
    ▼
-pre-doc-sync commit   [INLINE Step 3.5 — NEW; idempotent: commit QA-green code + 8.6a/8.6b overlays, skip on clean tree]
+pre-doc-sync commit   [INLINE Step 3.5 — idempotent: commit QA-green code + 8.6a/8.6b overlays, skip on clean tree]
    │
    ▼
 /CJ_document-release   [INLINE Step 5.5 — doc-sync folds doc edits into the PR; halt-on-red]
-   │
-   ▼
-post-sync audit   [INLINE Step 5.6 — NEW; ONE combined READ-ONLY subagent: /CJ_doc_audit + /CJ_test_audit over the post-sync tree]
-   │
-   ▼
-QA-audit checkpoint   [INLINE Step 3.4 — AUQ ALWAYS; consumes the POST-sync AUDIT_FINDINGS digest; Continue / Halt]
-   │   ↳ Halt → HALT (halted_at_qa_audit; [qa-audit-declined]); Continue past findings journals [qa-audit-waived]
+   │   (the agent-judged doc/test audit runs nightly in CI — audit-nightly.yml — not inline; F000076)
    ▼
 /ship   [INLINE — diff-review AUQ suppressed; opens a PR]
    │
@@ -368,7 +362,6 @@ exists) with the family contract fields:
 | `halted_at_scaffold` | `[scaffold-red]` | scaffold leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_impl` | `[impl-red]` | implement leaf subagent crashed or returned a non-green RESULT |
 | `halted_at_qa` | `[qa-red]` | /CJ_qa-work-item red |
-| `halted_at_qa_audit` | `[qa-audit-declined]` | Step 3.4 QA-audit checkpoint: operator chose Halt on the POST-sync AUDIT_FINDINGS digest (the Step 5.6 doc/test audit run AFTER doc-sync; the spec-overlay updates rode the QA RESULT). Continue past findings journals `[qa-audit-waived]` instead. The checkpoint fires ALWAYS (green or findings) — the one AUQ past the design gate, and now decides on the docs that will actually ship. |
 | `halted_at_doc_sync` | `[doc-sync-red]` | Step 5.5 doc-sync: /CJ_document-release returned non-green (upstream /document-release failed, base-branch refusal, or pre-run non-doc dirty tree) |
 | `halted_at_doc_sync_no_config` | `[doc-sync-no-config]` | Step 5.5 doc-sync: doc-spec.md registry missing the yaml block / invalid / schema_version-unsupported / entry out-of-enum (a simply-absent doc-spec.md self-bootstraps, not halts) |
 | `halted_at_doc_sync_non_doc_write` | `[doc-sync-non-doc-write]` | Step 5.5 doc-sync: /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist (upstream-misbehaved) |

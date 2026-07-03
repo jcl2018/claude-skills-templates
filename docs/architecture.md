@@ -406,7 +406,7 @@ spec-registry family is now `spec/doc-spec.md` (+ overlay) →
 owning a different guarantee: **local-hook** (the pre-commit `validate.sh`,
 hard-fail at commit), **ci** (GitHub Actions, hard-fail on the PR),
 **pipeline-gate** (the inline orchestrator halts — isolation, design-summary, QA,
-the qa-audit checkpoint, doc-sync, portability, ship — during a run), and
+doc-sync, portability, ship — during a run), and
 **ratchet** (monotonic guards: Check 8 VERSION-never-regresses, the portability
 `FINDINGS=0` baseline, Check 14 USAGE.md freshness). The contract reserves the
 word **"gate"** for a single referent — a `pipeline-gate` row (a `gates:` entry)
@@ -415,17 +415,18 @@ word **"gate"** for a single referent — a `pipeline-gate` row (a `gates:` entr
 
 **The per-mode `markers` map (the `gates:` array).** A gate's `markers` is a map
 keyed by `feature|defect|task|todo`. A mode absent from the map does not run
-that gate (`qa-audit`, `doc-sync` + `portability` are universal; isolation has
+that gate (`doc-sync` + `portability` are universal; isolation has
 three different markers and is absent in todo;
 `design-gate`/`root-cause`/`complexity` are single-mode). A map value is either
 a literal `"[marker]"` (Check 24's advisory marker-drift cross-check greps for
 it in that mode's files) or `{ enforced_by: subagent | auq }` (the gate runs but
 emits no bracket marker — the escape hatch that keeps the baseline honestly
-clean, e.g. todo's QA + ship). The `qa-audit` row (order 45, between qa 40 and
-doc-sync 50) is the post-QA audit-findings checkpoint: the QA leaf's Step 8.6
-block produces the doc/test audit digest, the orchestrator AUQ owns the
-Continue/Halt decision (`[qa-audit-declined]` literal in all four modes;
-waivers journal as `[qa-audit-waived]`).
+clean, e.g. todo's QA + ship). There is no per-run agent-judged audit gate on the
+orchestrator path: that audit (`/CJ_doc_audit` + `/CJ_test_audit`) now runs
+nightly in CI (the `audit-nightly.yml` workflow files its findings to a GitHub
+issue), off the build path. What still stops a broken change per-PR is the
+deterministic gate — `validate.sh` at the local hook, `validate.yml` in CI — which
+is unchanged.
 
 ```
    test-spec.md (spec/ — GENERAL,       test-spec-custom.md (spec/ —
@@ -515,11 +516,14 @@ against it. Standalone, Stages 2+3 run in ONE fresh-context subagent (the
 dispatch prompt carries only repo root + engine path + the Stage-1 report +
 the stage protocols — never the invoking session's beliefs). The per-stage
 report carries `DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` +
-`STAGE1/2/3_FINDINGS=` + grep-able `stageN/` finding prefixes. Inside a
-cj_goal run the same logic executes INLINE at `/CJ_qa-work-item` Step 8.6 (a
+`STAGE1/2/3_FINDINGS=` + grep-able `stageN/` finding prefixes. A standalone
+`/CJ_qa-work-item` run still executes the same logic INLINE at Step 8.6 (a
 subagent cannot spawn subagents — the honest degradation, labeled in the
-report), and every orchestrator surfaces the per-stage block at its post-QA
-`qa-audit` checkpoint before doc-sync.
+report). On a `cj_goal` orchestrator path, however, the dispatch carries
+`DEFER_AUDIT: true`: QA skips the inline agent-judged audit, and the audit runs
+nightly in CI (the `audit-nightly.yml` workflow, filing findings to a GitHub
+issue) rather than at a per-run checkpoint — so it never gates the build. The
+deterministic per-PR gate is unchanged.
 
 **Consumer-repo posture.** Where no test-spec registry exists at all, the
 parser classifies it mechanically — `REGISTRY=absent` + exit 0 — and Check 24

@@ -73,8 +73,7 @@ contract file's own verdict
 line (basename path-equivalence for spec/-prefixed seed paths: a root-style
 consumer's `doc-spec.md` satisfies the seed's `spec/doc-spec.md`) — advisory,
 never a halt. The result is that
-orchestrator sessions can call CJ_document-release after QA (and after the
-post-QA audit checkpoint), and `/ship` (next
+orchestrator sessions call CJ_document-release after QA, and `/ship` (next
 pipeline step) sees a clean tree where any doc updates are pre-committed.
 
 ### The doc-spec.md contract

@@ -41,10 +41,12 @@ reports the redundant one (it does not auto-delete).
 - You are adopting the doc contract in a fresh repo: the first run creates
   `spec/` and seed-delivers `spec/doc-spec.md` (`seeded: yes`), giving you the
   portable general contract with zero manual steps.
-- Inside `/CJ_qa-work-item` Step 8.6c (a cj_goal run): the QA agent executes
-  ALL THREE STAGES inline (the nested-subagent wall — no fresh-context
-  dispatch there) and lifts the per-stage report into the QA RESULT's
-  `AUDITS=` field for the post-QA checkpoint.
+- Standalone `/CJ_qa-work-item` Step 8.6c (no `DEFER_AUDIT: true`): the QA agent
+  executes ALL THREE STAGES inline (the nested-subagent wall — no fresh-context
+  dispatch there) and lifts the per-stage report into the QA RESULT's `AUDITS=`
+  field. On a cj_goal orchestrator run QA carries `DEFER_AUDIT: true`, so these
+  stages are skipped on the build path — the agent-judged audit runs nightly in
+  CI (`.github/workflows/audit-nightly.yml`) instead.
 - After a doc-heavy change, before shipping: Stage 1 catches orphan docs,
   missing front tables, and stale views in one engine call; Stage 2 catches
   requirement drift; Stage 3 catches content that no longer matches the
@@ -101,14 +103,16 @@ whose prompt carries only repo root + engine path + the Stage-1 report + the
 stage protocols — never the invoking session's beliefs (the
 resident-context-rubber-stamp defense). The report prints findings PER STAGE
 (`STAGE1/2/3_FINDINGS=` + three `--- stage N ---` sections, `stageN/`
-prefixes); findings never crash or halt — in a cj_goal run the operator
-decides at the post-QA checkpoint.
+prefixes); findings never crash or halt — on the cj_goal build path this
+audit does not run inline (nightly CI covers it); standalone, the operator
+reads the report directly.
 
 ## Common pitfalls
 
-- **Expecting the audit to halt a pipeline.** It never does. QA findings ride
-  a GREEN RESULT; the orchestrator's checkpoint AUQ owns the Continue/Halt
-  decision (waivers journal as `[qa-audit-waived]`).
+- **Expecting the audit to halt a pipeline.** It never does. Standalone, QA
+  findings ride a GREEN RESULT and the operator reads them; on the cj_goal
+  build path the inline audit is skipped entirely and the nightly CI audit
+  surfaces findings out of band.
 - **Re-deriving Stage 1 by hand.** The deterministic pass is the engine call —
   printed verbatim. Hand-rolled conformance loops are exactly the defect class
   `--check-on-disk` exists to kill; if you find yourself writing a `for` loop
@@ -147,7 +151,8 @@ decides at the post-QA checkpoint.
 - `/CJ_document-release` — the fixer: stub-scaffolds missing declared docs,
   folds doc updates into the same PR (Step 5.5 doc-sync), and is the OTHER
   deliverer of the doc-spec seed (identical file, identical `spec/` path).
-- `/CJ_qa-work-item` — runs this audit inline at Step 8.6c; its RESULT carries
-  the per-stage findings to the cj_goal checkpoint.
+- `/CJ_qa-work-item` — runs this audit inline at Step 8.6c standalone; on a
+  cj_goal run it carries `DEFER_AUDIT: true` and skips the inline audit (nightly
+  CI covers it).
 - `/CJ_portability-audit` — the same audit-verb shape applied to skill
   portability declarations.
