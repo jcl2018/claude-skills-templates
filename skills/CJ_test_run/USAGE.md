@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_run
-last-updated: "2026-07-01T00:00:00Z"
+last-updated: "2026-07-02T14:30:00Z"
 ---
 
 # Using /CJ_test_run
@@ -23,6 +23,10 @@ Stage-1 audit as a pre-step.
   `runners:` axis — the contract defines what runs, so this is portable.
 - With `--dry-run` first, to see the plan (which runners, which tier, what each
   covers) before spending anything.
+- To run ONE category or ONE named test (F000074): `--category <workflow|CI>`
+  runs every test in that category; a bare NAME runs the single test of that
+  name (reusing the `docs/tests/<category>/<name>.md` name), honoring the same
+  cost tiers as the runners flow.
 
 ## When NOT to use
 
@@ -58,7 +62,12 @@ WRAPPER narrates    ── /CJ_test_run: Stage-1 engine calls verbatim, then the
 ```
 
 No layer infers. A registry with no runners is an honest `SKIP: no runners
-declared`, never a guessed command. Every run writes a `.md` report + a
+declared`, never a guessed command. **Category mode (F000074, ADDITIVE)** is a
+second selection on the SAME engine: `--category <workflow|CI>` or a bare test
+NAME selects from the `categories:` axis (`test-spec.sh --list-categories`),
+maps `name → command`, and runs exactly those tests under the same cost tiers,
+writing a `mode: category` ledger; with no `--category` and no name the runners
+flow runs unchanged. Every run writes a `.md` report + a
 `.json` ledger (schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/
 covered-families) — the first citable evidence artifact for the contract's own
 `suite-green` rule. The aggregate is a closed enum `{pass, fail, all-skipped}`:

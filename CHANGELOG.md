@@ -3,6 +3,35 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.105] - 2026-07-02
+
+### Added
+- **F000074 — category-based test contract (V1 foundation) for `/CJ_test_audit` +
+  `/CJ_test_run`.** You can now organize a repo's tests by **category** and have the
+  two utility skills speak that one vocabulary. `/CJ_test_audit` verifies the five
+  structural pieces — a `tests/` folder, per-category subfolders (`workflow` + `CI`
+  for V1), a category-scoped `spec/test-spec.md`, one `docs/tests/<category>/<name>.md`
+  per test, and a `docs/tests/index.md` test-list — reports any gap as a finding
+  (never crashes), and idempotently seeds missing doc stubs; it never moves your test
+  scripts. `/CJ_test_run` runs a whole category (`--category workflow`) or a single
+  test by the same name used in `docs/tests/` (`/CJ_test_run windows`), cost-tiered so
+  a default run never spends on a paid model. New engine surface: `test-spec.sh
+  --list-categories` / `--check-structure` / `--seed-docs` + `test-run.sh
+  --category`/single-name selection. Fully **additive** — the existing
+  `units:`/`behaviors:`/`runners:` axes, the family-doc render, and `validate.sh`
+  Checks 24/26/28 are unchanged, and no test scripts were moved (the physical
+  reorganization is a deferred follow-up).
+
+### Fixed
+- **Category structural audit — two correctness fixes caught by adversarial review
+  before ship.** `--check-structure`'s index-reference check no longer false-passes
+  when one declared test name is a substring of another already in the index (`ci`
+  vs `ci-extended`); it now matches the backtick-name or the unique doc path. And
+  `--seed-docs` now reconciles a stale `docs/tests/index.md` when a test is declared
+  after the first seed (previously the index was written only when absent, leaving
+  the "run `/CJ_test_audit` to refresh" remediation a permanent no-op). Both carry
+  regression tests.
+
 ## [6.0.104] - 2026-07-02
 
 ### Changed

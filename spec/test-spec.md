@@ -102,6 +102,45 @@ substance judgment is the agent-judged test audit's job (`/CJ_test_audit`
 Stage 2) — load-bearing, because the deterministic half alone merely relocates
 the blind spot from untested code to vague behavior prose.
 
+## The category axis (optional, overlay-only)
+
+A repo MAY organize its tests by **category** — one clean noun that threads five
+surfaces: the folder a test lives in (`tests/<category>/`), the contract section
+that declares it, the doc that describes it (`docs/tests/<category>/<name>.md`),
+the index row that references it, and the argument that runs it
+(`/CJ_test_run --category <cat>` or `/CJ_test_run <name>`). Audit and run share
+ONE vocabulary; a newcomer can look at `tests/` and see what kinds of tests exist.
+
+The **V1 taxonomy is the closed set `{workflow, CI}`**:
+
+- **`workflow`** — deterministic end-to-end workflow tests (what proves a whole
+  user-facing workflow runs).
+- **`CI`** — tests required at each deployment / the deploy gate (what must be
+  green to ship).
+
+An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
+(**optional-on-schema-1**, overlay-only — the machine block in this general file
+is unchanged). Each row declares one named test: `name` (a stable slug — it IS the
+doc filename AND the `/CJ_test_run` argument), `category` (`workflow | CI`),
+`command` (how to run it), `tier` (`free | paid | local-only`), an optional `doc`
+(the `docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
+
+`test-spec.sh --check-structure` mechanizes five structural checks when the
+`categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
+**(b)** `tests/` is split into per-category subfolders (V1 requires `tests/workflow/`
++ `tests/CI/`); **(c)** the `categories:` axis declares the `workflow` + `CI` tests;
+**(d)** one `docs/tests/<category>/<name>.md` per declared test; **(e)** a
+`docs/tests/` INDEX table references every test by name. Each unmet check is a
+`FINDING:` — findings are the product, never a crash. A repo with no `categories:`
+axis reports "category contract not adopted / inactive" and stays green.
+
+**The category axis is ADDITIVE and COEXISTS with the `units:`/`behaviors:`/
+`runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED
+missing doc stubs (`--seed-docs`, idempotent — present ⇒ skip), but NEVER moves or
+rewrites test scripts: physically reorganizing a repo's tests into
+`tests/<category>/` is a one-time migration, not a run-time audit action, so the
+audit stays standalone-safe on a repo it does not own.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
