@@ -1,4 +1,4 @@
-# Test: `windows` (`CI` category)
+# Test: `windows` (`CI-push` category)
 
 <!-- SEEDED STUB — one doc per category test.
      Seeded by /CJ_test_audit from the spec/test-spec-custom.md categories: axis.
@@ -7,13 +7,13 @@
 | Field | Value |
 |-------|-------|
 | Name | `windows` |
-| Category | `CI` |
+| Category | `CI-push` |
 | Command | `bash scripts/windows-smoke.sh` |
 | Tier | `free` |
 
 ## Purpose
 
-The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution).
+The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution) — the fast per-PR Windows signal.
 
 ## How to run
 
@@ -22,4 +22,4 @@ bash scripts/windows-smoke.sh
 ```
 
 Run via the category contract: `/CJ_test_run windows` (single test) or
-`/CJ_test_run --category CI` (the whole category).
+`/CJ_test_run --category CI-push` (the whole category).

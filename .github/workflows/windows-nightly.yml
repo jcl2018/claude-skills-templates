@@ -1,0 +1,61 @@
+name: Windows Nightly (skills-deploy suite)
+
+# The nightly Windows skills-deploy suite — the `CI-nightly` cadence category
+# `windows-deploy` test (F000075 / S000125). It runs the full skills-deploy suite
+# (scripts/test-deploy.sh) on windows-latest under Git Bash, on a nightly schedule
+# instead of on every PR.
+#
+# Why nightly, not per-PR: test-deploy.sh on a windows-latest runner is slow, and
+# gating every merge on it made PRs too slow. The fast per-PR Windows signal
+# (scripts/windows-smoke.sh, the `CI-push` cadence) stays in .github/workflows/
+# windows.yml; only this heavier deploy suite is deferred to nightly. Accepted
+# tradeoff: a native-Windows test-deploy regression surfaces here (nightly) or on
+# demand via workflow_dispatch, not at PR time (per-PR POSIX coverage of
+# test-deploy.sh via test.sh on ubuntu is unchanged).
+#
+# It runs the Windows-relevant deploy suite:
+#   - scripts/test-deploy.sh    — the full skills-deploy suite; its symlink-MODE
+#                                 cases self-skip on Git Bash (no real symlinks),
+#                                 while every copy-mode + mode-agnostic case runs.
+#
+# Manual runs: gh workflow run windows-nightly.yml
+
+on:
+  schedule:
+    # 08:23 UTC daily. Offset from :00 to avoid GitHub Actions cron contention
+    # (top-of-hour slots queue against millions of other jobs and can drift), and
+    # offset from eval-nightly's :17 so the two nightly workflows don't collide.
+    - cron: '23 8 * * *'
+  # Manual trigger for debug/verification without waiting for cron.
+  workflow_dispatch:
+
+# Limit GITHUB_TOKEN to read-only contents access (defense-in-depth); this job
+# needs no write access to anything.
+permissions:
+  contents: read
+
+# Prevent concurrent cron + manual triggers from running the suite twice.
+# cancel-in-progress: false queues the second run rather than killing the first.
+concurrency:
+  group: windows-nightly
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash        # Git Bash, built into the windows-latest runner image
+
+jobs:
+  windows-deploy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tool versions (Git Bash)
+        run: |
+          uname -s
+          bash --version | head -1
+          git --version
+          jq --version
+
+      - name: skills-deploy suite (copy-mode path on Git Bash)
+        run: bash scripts/test-deploy.sh

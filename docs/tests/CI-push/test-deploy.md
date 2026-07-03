@@ -1,4 +1,4 @@
-# Test: `test-deploy` (`CI` category)
+# Test: `test-deploy` (`CI-push` category)
 
 <!-- SEEDED STUB — one doc per category test.
      Seeded by /CJ_test_audit from the spec/test-spec-custom.md categories: axis.
@@ -7,13 +7,13 @@
 | Field | Value |
 |-------|-------|
 | Name | `test-deploy` |
-| Category | `CI` |
+| Category | `CI-push` |
 | Command | `bash scripts/test-deploy.sh` |
 | Tier | `free` |
 
 ## Purpose
 
-The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift).
+The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host push-cadence run.
 
 ## How to run
 
@@ -22,4 +22,4 @@ bash scripts/test-deploy.sh
 ```
 
 Run via the category contract: `/CJ_test_run test-deploy` (single test) or
-`/CJ_test_run --category CI` (the whole category).
+`/CJ_test_run --category CI-push` (the whole category).

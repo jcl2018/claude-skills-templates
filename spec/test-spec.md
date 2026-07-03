@@ -111,28 +111,36 @@ the index row that references it, and the argument that runs it
 (`/CJ_test_run --category <cat>` or `/CJ_test_run <name>`). Audit and run share
 ONE vocabulary; a newcomer can look at `tests/` and see what kinds of tests exist.
 
-The **V1 taxonomy is the closed set `{workflow, CI}`**:
+The **V2 taxonomy is the closed set `{workflow, CI-push, CI-nightly}`** — the
+`CI` category split by cadence, because the category name IS the cadence (so
+`--category CI-push` / `--category CI-nightly` is the whole selection API, no new
+flag):
 
 - **`workflow`** — deterministic end-to-end workflow tests (what proves a whole
   user-facing workflow runs).
-- **`CI`** — tests required at each deployment / the deploy gate (what must be
-  green to ship).
+- **`CI-push`** — deploy-gate tests that run on every push / PR (the fast signal
+  that gates a merge).
+- **`CI-nightly`** — deploy-gate tests that run on a nightly schedule (heavier
+  checks deferred off the PR path).
 
 An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
 (**optional-on-schema-1**, overlay-only — the machine block in this general file
 is unchanged). Each row declares one named test: `name` (a stable slug — it IS the
-doc filename AND the `/CJ_test_run` argument), `category` (`workflow | CI`),
-`command` (how to run it), `tier` (`free | paid | local-only`), an optional `doc`
-(the `docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
+doc filename AND the `/CJ_test_run` argument), `category`
+(`workflow | CI-push | CI-nightly`), `command` (how to run it), `tier`
+(`free | paid | local-only`), an optional `doc` (the
+`docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
 
 `test-spec.sh --check-structure` mechanizes five structural checks when the
 `categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
-**(b)** `tests/` is split into per-category subfolders (V1 requires `tests/workflow/`
-+ `tests/CI/`); **(c)** the `categories:` axis declares the `workflow` + `CI` tests;
-**(d)** one `docs/tests/<category>/<name>.md` per declared test; **(e)** a
-`docs/tests/` INDEX table references every test by name. Each unmet check is a
-`FINDING:` — findings are the product, never a crash. A repo with no `categories:`
-axis reports "category contract not adopted / inactive" and stays green.
+**(b)** `tests/` is split into per-category subfolders (one `tests/<category>/`
+per DISTINCT category the overlay actually declares — so a repo that declares no
+nightly test is never forced to create an empty `tests/CI-nightly/`); **(c)** the
+`categories:` axis declares at least one test in each declared category; **(d)**
+one `docs/tests/<category>/<name>.md` per declared test; **(e)** a `docs/tests/`
+INDEX table references every test by name. Each unmet check is a `FINDING:` —
+findings are the product, never a crash. A repo with no `categories:` axis reports
+"category contract not adopted / inactive" and stays green.
 
 **The category axis is ADDITIVE and COEXISTS with the `units:`/`behaviors:`/
 `runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED

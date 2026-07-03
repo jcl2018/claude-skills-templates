@@ -60,8 +60,10 @@ is situational: reach for it only when you're in that corner of the repo.
   locally first; intentional findings carry targeted `# shellcheck disable`
   directives.
 - [GitHub Actions](https://docs.github.com/en/actions) — the CI under
-  `.github/workflows/` (`validate.yml`, `windows.yml`, `eval-nightly.yml`) that
-  gates every PR. Open the workflow file when a check passes locally but fails in CI.
+  `.github/workflows/`. The per-PR gates are `validate.yml` + `windows.yml` (the
+  fast Git Bash smoke); `eval-nightly.yml` and `windows-nightly.yml` (the slower
+  `skills-deploy` suite on `windows-latest`) run on a nightly schedule instead of
+  every PR. Open the workflow file when a check passes locally but fails in CI.
 - [Git for Windows](https://gitforwindows.org/) — the Git Bash shell this POSIX
   workbench supports on Windows (copy-mode install, the `windows-latest` smoke job);
   it bundles `git` and `jq`. Only relevant if you touch the cross-platform path.

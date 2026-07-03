@@ -5,12 +5,16 @@ name: Windows (Git Bash)
 # Claude Code itself uses to run skill preambles on Windows) and GATES the PR,
 # so a change that breaks Windows fails before merge (S000080 AC-2).
 #
-# It runs the Windows-relevant subset:
+# This is the FAST per-PR Windows signal — the `CI-push` cadence category
+# (F000075 / S000125). It runs ONLY the quick smoke:
 #   - scripts/windows-smoke.sh  — CRLF + portable-date + copy-mode install (the
 #                                 three F000044 stories, one assertion block each)
-#   - scripts/test-deploy.sh    — the full skills-deploy suite; its symlink-MODE
-#                                 cases self-skip on Git Bash (no real symlinks),
-#                                 while every copy-mode + mode-agnostic case runs.
+#
+# The slow full skills-deploy suite (scripts/test-deploy.sh on windows-latest) was
+# moved OFF the PR path to the nightly workflow — the `CI-nightly` cadence category
+# `windows-deploy` test in .github/workflows/windows-nightly.yml. PRs stop paying
+# for the slow deploy suite; native-Windows test-deploy regressions surface nightly
+# (per-PR POSIX coverage of test-deploy.sh via test.sh on ubuntu is unchanged).
 
 on:
   pull_request:
@@ -43,6 +47,3 @@ jobs:
 
       - name: Windows smoke (CRLF + portable date + copy-mode install)
         run: bash scripts/windows-smoke.sh
-
-      - name: skills-deploy suite (copy-mode path on Git Bash)
-        run: bash scripts/test-deploy.sh

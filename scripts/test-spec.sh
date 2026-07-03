@@ -50,10 +50,11 @@
 #                      scripts/test-run.sh for category/name selection. ADDITIVE:
 #                      it coexists with units:/behaviors:/runners:.
 #   --check-structure  (F000074) the five category-structure checks a-e:
-#                      (a) tests/ exists, (b) tests/workflow/ + tests/CI/
-#                      subfolders, (c) categories: declares the workflow + CI
-#                      tests, (d) one docs/tests/<category>/<name>.md per declared
-#                      test, (e) a docs/tests/ INDEX referencing every test.
+#                      (a) tests/ exists, (b) a tests/<category>/ subfolder per
+#                      DISTINCT declared category (V2 {workflow, CI-push,
+#                      CI-nightly}), (c) categories: declares those tests, (d) one
+#                      docs/tests/<category>/<name>.md per declared test, (e) a
+#                      docs/tests/ INDEX referencing every test.
 #                      Findings-are-the-product: each unmet check prints a
 #                      `FINDING: structure/<id>` line but the engine exits 0. No
 #                      categories: axis => the "not adopted / inactive" note.
@@ -604,7 +605,7 @@ EOF
 # axis: category -> tests, one row per named test. It is ADDITIVE + OPTIONAL —
 # it COEXISTS with units:/behaviors:/runners: (the removal of those is a deferred
 # follow-up), and its absence changes no existing behavior (registry-gated, the
-# behaviors:/runners: precedent). The general --seed carries the portable V1
+# behaviors:/runners: precedent). The general --seed carries the portable V2
 # taxonomy prose; a repo's specific category tests live in the overlay.
 # The optional doc/purpose use the nz()/`-` empty-field placeholder discipline
 # (tab-IFS collapses empty fields otherwise).
@@ -903,7 +904,7 @@ EOF
   # `categories:` axis declares the category-based test contract's primary rows:
   #   name     — unique slug ([a-z0-9-]+); IS the docs/tests/<category>/<name>.md
   #              filename AND the /CJ_test_run argument
-  #   category — closed V1 enum {workflow, CI}
+  #   category — closed V2 enum {workflow, CI-push, CI-nightly}
   #   command  — non-empty shell string (how to run it)
   #   tier     — closed enum {free, paid, local-only}
   #   doc      — optional docs/tests/<category>/<name>.md pointer
@@ -926,8 +927,8 @@ EOF
       [ -n "$_ctcmd" ]  || emit_halt "category test '$_ctname' is missing 'command' (a category test must declare a non-empty shell command)"
       [ -n "$_cttier" ] || emit_halt "category test '$_ctname' is missing 'tier'"
       case "$_ctcat" in
-        workflow|CI) : ;;
-        *) emit_halt "category test '$_ctname' has category '$_ctcat' outside the closed V1 enum {workflow, CI}" ;;
+        workflow|CI-push|CI-nightly) : ;;
+        *) emit_halt "category test '$_ctname' has category '$_ctcat' outside the closed V2 enum {workflow, CI-push, CI-nightly}" ;;
       esac
       case "$_cttier" in
         free|paid|local-only) : ;;
@@ -1453,10 +1454,10 @@ EOF
 # or rewrites test SCRIPTS (the physical reorganization is a one-time FEATURE
 # migration, deferred). The five checks (the operator's a-e):
 #   (a) a tests/ folder exists and holds the repo's test scripts;
-#   (b) tests/ is split into per-category subfolders — V1 requires at least
-#       tests/workflow/ AND tests/CI/;
-#   (c) spec/test-spec.md exists and the categories: axis declares the necessary
-#       tests, scoped to the workflow + CI categories for V1;
+#   (b) tests/ is split into per-category subfolders — one tests/<category>/ per
+#       DISTINCT declared category (V2 {workflow, CI-push, CI-nightly});
+#   (c) spec/test-spec.md exists and the categories: axis declares those tests,
+#       one per distinct declared category;
 #   (d) docs/tests/<category>/ exists for each required category, with exactly ONE
 #       .md per declared test (docs/tests/<category>/<name>.md);
 #   (e) docs/tests/ carries a test-list INDEX table referencing every declared
@@ -1498,36 +1499,45 @@ _check_structure() {
     fi
   fi
 
-  # (b) per-category subfolders — V1 requires tests/workflow/ AND tests/CI/.
-  for _cs_cat in workflow CI; do
+  # The DISTINCT categories actually declared in the overlay (V2 derive-from-
+  # declared, F000075): checks (b)/(c)/(d) iterate THIS set, not a hardcoded
+  # {workflow, CI-push, CI-nightly} — so upgrading the seed never forces an empty
+  # tests/CI-nightly/ on a repo that declares no nightly test. The closed enum is
+  # still enforced at --validate (parse_categories_file); here we only require the
+  # folders/docs for categories the repo genuinely uses.
+  _CS_DISTINCT_CATS=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF && $2 != "" {print $2}' | LC_ALL=C sort -u)
+
+  # (b) per-category subfolders — one tests/<category>/ per DISTINCT declared category.
+  for _cs_cat in $_CS_DISTINCT_CATS; do
     if [ ! -d "$_CS_TESTS_DIR/$_cs_cat" ]; then
-      echo "FINDING: structure/b — required per-category subfolder tests/$_cs_cat/ is missing (V1 requires tests/workflow/ AND tests/CI/); NOTE: the audit reports this — it never moves test scripts (the physical reorganization is a deferred one-time migration)"
+      echo "FINDING: structure/b — required per-category subfolder tests/$_cs_cat/ is missing (one tests/<category>/ per DECLARED category); NOTE: the audit reports this — it never moves test scripts (the physical reorganization is a deferred one-time migration)"
       _CS_FINDINGS=$((_CS_FINDINGS + 1))
     else
       echo "check: structure/b — PASS (tests/$_cs_cat/ exists)"
     fi
   done
 
-  # (c) spec/test-spec.md exists AND categories: declares >=1 test in each of the
-  # V1 categories (workflow + CI). The general file existence is guaranteed by
-  # _run_registry_gates (this runs after it), so check the per-category coverage.
+  # (c) spec/test-spec.md exists AND categories: declares >=1 test in each DECLARED
+  # category. The general file existence is guaranteed by _run_registry_gates (this
+  # runs after it); since the declared-category set is derived FROM the rows, each
+  # entry is trivially non-empty — this reports the per-category coverage count.
   echo "check: structure/c — PASS (spec/test-spec.md present; categories: axis declared)"
-  for _cs_cat in workflow CI; do
+  for _cs_cat in $_CS_DISTINCT_CATS; do
     _cs_n=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$_cs_cat" '$2 == c' | grep -c . || true)
     if [ "${_cs_n:-0}" -eq 0 ]; then
-      echo "FINDING: structure/c — the categories: axis declares ZERO tests in the '$_cs_cat' category (V1 scopes the contract to workflow + CI; declare >=1 category test per required category)"
+      echo "FINDING: structure/c — the categories: axis declares ZERO tests in the '$_cs_cat' category (declare >=1 category test per declared category)"
       _CS_FINDINGS=$((_CS_FINDINGS + 1))
     else
       echo "check: structure/c — PASS ('$_cs_cat' category: $_cs_n declared test(s))"
     fi
   done
 
-  # (d) docs/tests/<category>/ exists for each required category, with exactly ONE
+  # (d) docs/tests/<category>/ exists for each DECLARED category, with exactly ONE
   # .md per declared test (docs/tests/<category>/<name>.md).
-  for _cs_cat in workflow CI; do
+  for _cs_cat in $_CS_DISTINCT_CATS; do
     _cs_catdir="$_CS_DOCS/tests/$_cs_cat"
     if [ ! -d "$_cs_catdir" ]; then
-      echo "FINDING: structure/d — docs/tests/$_cs_cat/ is missing (each required category needs a docs subfolder with one .md per declared test); run /CJ_test_audit to seed the stubs"
+      echo "FINDING: structure/d — docs/tests/$_cs_cat/ is missing (each declared category needs a docs subfolder with one .md per declared test); run /CJ_test_audit to seed the stubs"
       _CS_FINDINGS=$((_CS_FINDINGS + 1))
     fi
   done
@@ -2142,28 +2152,36 @@ the index row that references it, and the argument that runs it
 (`/CJ_test_run --category <cat>` or `/CJ_test_run <name>`). Audit and run share
 ONE vocabulary; a newcomer can look at `tests/` and see what kinds of tests exist.
 
-The **V1 taxonomy is the closed set `{workflow, CI}`**:
+The **V2 taxonomy is the closed set `{workflow, CI-push, CI-nightly}`** — the
+`CI` category split by cadence, because the category name IS the cadence (so
+`--category CI-push` / `--category CI-nightly` is the whole selection API, no new
+flag):
 
 - **`workflow`** — deterministic end-to-end workflow tests (what proves a whole
   user-facing workflow runs).
-- **`CI`** — tests required at each deployment / the deploy gate (what must be
-  green to ship).
+- **`CI-push`** — deploy-gate tests that run on every push / PR (the fast signal
+  that gates a merge).
+- **`CI-nightly`** — deploy-gate tests that run on a nightly schedule (heavier
+  checks deferred off the PR path).
 
 An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
 (**optional-on-schema-1**, overlay-only — the machine block in this general file
 is unchanged). Each row declares one named test: `name` (a stable slug — it IS the
-doc filename AND the `/CJ_test_run` argument), `category` (`workflow | CI`),
-`command` (how to run it), `tier` (`free | paid | local-only`), an optional `doc`
-(the `docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
+doc filename AND the `/CJ_test_run` argument), `category`
+(`workflow | CI-push | CI-nightly`), `command` (how to run it), `tier`
+(`free | paid | local-only`), an optional `doc` (the
+`docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
 
 `test-spec.sh --check-structure` mechanizes five structural checks when the
 `categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
-**(b)** `tests/` is split into per-category subfolders (V1 requires `tests/workflow/`
-+ `tests/CI/`); **(c)** the `categories:` axis declares the `workflow` + `CI` tests;
-**(d)** one `docs/tests/<category>/<name>.md` per declared test; **(e)** a
-`docs/tests/` INDEX table references every test by name. Each unmet check is a
-`FINDING:` — findings are the product, never a crash. A repo with no `categories:`
-axis reports "category contract not adopted / inactive" and stays green.
+**(b)** `tests/` is split into per-category subfolders (one `tests/<category>/`
+per DISTINCT category the overlay actually declares — so a repo that declares no
+nightly test is never forced to create an empty `tests/CI-nightly/`); **(c)** the
+`categories:` axis declares at least one test in each declared category; **(d)**
+one `docs/tests/<category>/<name>.md` per declared test; **(e)** a `docs/tests/`
+INDEX table references every test by name. Each unmet check is a `FINDING:` —
+findings are the product, never a crash. A repo with no `categories:` axis reports
+"category contract not adopted / inactive" and stays green.
 
 **The category axis is ADDITIVE and COEXISTS with the `units:`/`behaviors:`/
 `runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED
