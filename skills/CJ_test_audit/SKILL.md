@@ -1,6 +1,6 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries them, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo) and --check-workflow-coverage (the forward+reverse workflow-coverage gate, the same owner validate.sh Check 28 calls — so a documented-but-untested CJ_goal_* orchestrator is caught standalone), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Stage 1 ALSO carries the category-based test contract: --check-structure runs the five structural checks a-e (tests/ folder, one per-category tests/<category>/ subfolder for each DISTINCT declared category — taxonomy V2 {workflow, CI-push, CI-nightly}, derived from the overlay's categories: rows so a repo that declares no nightly test is never forced to create an empty tests/CI-nightly/, a category-scoped spec, one docs/tests/<category>/<name>.md per declared test, a docs/tests/ INDEX) as findings-not-crashes, preceded by an idempotent --seed-docs that seeds missing per-test doc stubs + the index (present => skip) but NEVER moves test scripts — standalone-safe on a repo it does not own; an unadopted repo reports the honest 'category contract not adopted / inactive' note. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries them, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo) and --check-workflow-coverage (the forward+reverse workflow-coverage gate, the same owner validate.sh Check 28 calls — so a documented-but-untested CJ_goal_* orchestrator is caught standalone), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Stage 1 ALSO carries the category-based test contract: --check-structure runs the six structural checks a-f (tests/ folder, one per-category tests/<category>/ subfolder for each DISTINCT declared category — taxonomy V2 {workflow, CI-push, CI-nightly}, derived from the overlay's categories: rows so a repo that declares no nightly test is never forced to create an empty tests/CI-nightly/, a category-scoped spec, one docs/tests/<category>/<name>.md per declared test, a docs/tests/ INDEX, and — check (f), the front-door rule — each per-test doc carries the three sections '## What it is' / '## How to run' / '## Explanation') as findings-not-crashes, preceded by an idempotent --seed-docs that seeds missing per-test doc stubs (already carrying the three front-door sections) + the index (present => skip) but NEVER moves test scripts — standalone-safe on a repo it does not own; an unadopted repo reports the honest 'category contract not adopted / inactive' note. Stage 2 ALSO judges each per-test category doc's front-door content is TRUTHFUL (the '## How to run' command matches the category's declared command; the What it is / Explanation are accurate) — the doc-level anchor-greps-while-the-doc-rots catch. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
 version: 0.4.0
 allowed-tools:
   - Bash
@@ -41,12 +41,14 @@ named stages**, symmetric with `/CJ_doc_audit` (one shape, both audits):
   `test-spec.sh --validate` + `--check-coverage` (units/behaviors coverage) +,
   when the engine carries them, `--render-docs --check` (catalog freshness),
   `--check-workflow-coverage` (workflow gate), and `--check-structure` (the
-  category-based test contract's five structural checks a–e over the V2 taxonomy
+  category-based test contract's six structural checks a–f over the V2 taxonomy
   `{workflow, CI-push, CI-nightly}`, the required per-category folders DERIVED from
-  the distinct declared categories, preceded by an idempotent `--seed-docs` that
-  seeds missing per-test docs + the index but NEVER moves scripts) — with the
-  registry-existence probe and the units-gated floor exactly as shipped. Findings
-  carry the `stage1/` prefix.
+  the distinct declared categories, with check (f) asserting each per-test doc
+  carries the three front-door sections `## What it is` / `## How to run` /
+  `## Explanation`, preceded by an idempotent `--seed-docs` that seeds missing
+  per-test docs — already carrying those three sections — + the index but NEVER
+  moves scripts) — with the registry-existence probe and the units-gated floor
+  exactly as shipped. Findings carry the `stage1/` prefix.
 - **Stage 2 — requirement compliance (agent-judged, evidence-forced):** each
   general RULE's `statement` quoted and judged with cited evidence; each
   overlay UNIT's `purpose`/`label` text judged for truthfulness against the
@@ -273,38 +275,47 @@ fi
 - Engine without `--check-workflow-coverage` (an older deployed engine) — skip
   cleanly with a one-line note; not a finding (the gate simply isn't present).
 
-**Category-structure checks + doc-stub seeding (F000074 — portable, any repo).**
+**Category-structure checks + doc-stub seeding (F000074/F000077 — portable, any repo).**
 When the engine supports `--check-structure` (the category-based test contract),
-ALSO run the five structural checks (a–e) as part of Stage 1, then seed any
+ALSO run the six structural checks (a–f) as part of Stage 1, then seed any
 missing category docs idempotently. This is the category axis's deterministic
-conformance — the "is this repo's category structure sound, and are its per-test
-docs present?" check, standalone in any repo:
+conformance — the "is this repo's category structure sound, are its per-test
+docs present, and do they carry the front-door sections?" check, standalone in
+any repo:
 
 ```bash
 if bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--check-structure'; then
   # (i) SEED first (idempotent — present => skip; NEVER moves scripts), so the
   #     structural checks judge against the seeded docs.
   bash "$_TA_ENGINE" --seed-docs
-  # (ii) then the five structural checks a-e (findings-are-the-product; exit 0).
+  # (ii) then the six structural checks a-f (findings-are-the-product; exit 0).
   bash "$_TA_ENGINE" --check-structure
 fi
 ```
 
-- The **five checks a–e**: (a) a `tests/` folder holds the repo's scripts; (b)
+- The **six checks a–f**: (a) a `tests/` folder holds the repo's scripts; (b)
   `tests/` is split into per-category subfolders — one `tests/<category>/` per
   DISTINCT declared category (taxonomy V2 `{workflow, CI-push, CI-nightly}`,
   derived from the overlay's `categories:` rows so a repo that declares no nightly
   test is never forced to create an empty `tests/CI-nightly/`); (c) the
   `categories:` axis declares at least one test in each declared category; (d) one
   `docs/tests/<category>/<name>.md` per declared test; (e) a `docs/tests/` INDEX
-  (`docs/tests/index.md`) references every declared test by name.
+  (`docs/tests/index.md`) references every declared test by name; (f) each
+  per-test doc that EXISTS carries the three front-door section headings
+  `## What it is` / `## How to run` / `## Explanation` (the deterministic half of
+  the GENERAL front-door rule in `spec/test-spec.md` — a missing doc is a check-(d)
+  finding, so (f) judges content only when the doc exists and the two never
+  double-count).
 - **`--seed-docs` is the ONLY write** the category path performs (beyond the Step
   2 seed): it seeds a missing `docs/tests/<category>/<name>.md` stub per declared
   test + the INDEX, IDEMPOTENTLY (present ⇒ skip; a hand-edited doc is never
-  overwritten). It **NEVER moves or rewrites test SCRIPTS** — the physical
-  reorganization into `tests/<category>/` is a one-time FEATURE migration, not a
-  run-time audit action, so the audit stays standalone-safe on a repo it does not
-  own. `seeded:` / `skip:` lines from `--seed-docs` print in the Stage-1 section.
+  overwritten). The seeded stub already carries the three front-door sections, so a
+  freshly-seeded doc passes check (f) out of the box; the operator then fills the
+  What/How/Why and the `docs/tests/<family>.md` cross-link. It **NEVER moves or
+  rewrites test SCRIPTS** — the physical reorganization into `tests/<category>/` is
+  a one-time FEATURE migration, not a run-time audit action, so the audit stays
+  standalone-safe on a repo it does not own. `seeded:` / `skip:` lines from
+  `--seed-docs` print in the Stage-1 section.
 - Exit 0 with `OK structure ...` — the five checks pass (findings=0); clean.
 - Exit 0 with `category contract not adopted / inactive ...` — no `categories:`
   axis in the overlay; a repo that hasn't adopted the category contract reports
@@ -313,9 +324,10 @@ fi
   finding; quote it verbatim with the `stage1/` prefix
   (`FINDING: stage1/structure — <engine line>`). A missing per-category subfolder
   (b), a category with zero declared tests (c), a missing per-test doc after
-  seeding (d), or a missing/incomplete INDEX (e) is the finding. The engine ALWAYS
-  exits 0 (findings are the product) — a category-structure finding never crashes
-  the audit and never halts a caller.
+  seeding (d), a missing/incomplete INDEX (e), or a per-test doc missing a
+  front-door section (f) is the finding. The engine ALWAYS exits 0 (findings are
+  the product) — a category-structure finding never crashes the audit and never
+  halts a caller.
 - Engine without `--check-structure` (an older deployed engine) — skip cleanly
   with a one-line note; not a finding (the category axis simply isn't present).
 
@@ -420,14 +432,40 @@ the linked test at each `behavior_coverage` row's `source`/`anchor`, then judge
 Every behavior touched by the current change MUST be checked; spot-coverage of
 the rest is acceptable but call out any obviously vague/over-claimed row.
 
-Verdict grammar (one line per rule + one per judged unit + one per judged behavior):
+**4.4 — Per per-test category DOC** (F000077; enumerate via `--list-categories`,
+present only when the overlay declares the `categories:` axis — skip this half
+cleanly with a one-line note when `--list-categories` is empty). The per-test doc
+`docs/tests/<category>/<name>.md` is the authoritative What/How/Why front door;
+Stage 1's check (f) only proves the three section HEADINGS are present, so this is
+the substance half — judge whether the content is TRUTHFUL against the declared
+`categories:` row (evidence-forced):
+
+- **`## How to run` matches the command?** Does the command shown in the doc's
+  How-to-run section match the category row's declared `command`? A doc that shows
+  a stale or wrong command (the anchor-greps-while-the-doc-rots gap at the doc
+  level — the exact E2 scenario) is a finding.
+- **`## What it is` accurate?** Does the one/two-sentence description actually
+  describe what the test verifies (cross-check against the row's `purpose` and, for
+  any doubtful doc, the test the `command` runs)?
+- **`## Explanation` cross-link resolves + is right-targeted?** Does the
+  Explanation link the relevant `docs/tests/<family>.md` units-detail page (or, for
+  a test with no family, explain why), and does that link resolve? A dead or
+  mis-targeted family link is a finding.
+
+Every per-test doc touched by the current change MUST be checked; spot-coverage of
+the rest is acceptable but call out any doc whose How-to-run has visibly drifted
+from its command.
+
+Verdict grammar (one line per rule + one per judged unit + one per judged behavior + one per judged per-test doc):
 
 ```
 <rule-id|unit-id>: satisfies — <evidence cited>
 <rule-id|unit-id>: n/a — <why out of scope>
 behavior:<id>: faithful — <level + proves-the-statement evidence cited>
+doc:<category>/<name>: truthful — <how-to-run matches command + accurate what/why + resolving family link cited>
 FINDING: stage2/<rule-id|unit-id> — <clause/description not met: evidence>
 FINDING: stage2/behavior:<id> — <vague | mis-leveled | mentions-not-proves | over-claimed: evidence>
+FINDING: stage2/doc:<category>/<name> — <how-to-run mismatches command | inaccurate what/why | dead-or-mistargeted family link: evidence>
 ```
 
 Only `FINDING:` lines count toward `STAGE2_FINDINGS`.
@@ -532,6 +570,6 @@ its `STAGE*_FINDINGS=0`. The report shape never collapses on the error path.
 | Coverage findings | `FINDING: stage1/coverage — <engine line>` → `STAGE1_FINDINGS` | Stages 2+3 still run (the registry parsed; the surface just disagrees) |
 | No units declared | the named inactive note — never a finding | `UNITS_AUDITED=0`; Stage 2's unit half is vacuous, the rule half still runs |
 | No behaviors declared | the named "behavior coverage inactive" note — never a finding | `BEHAVIORS_AUDITED=0`; Stage 2's behavior half (4.3) is skipped cleanly with a one-line note |
-| No categories axis (category contract not adopted) | the named "not adopted / inactive" note — never a finding | the five structural checks + `--seed-docs` are inactive; Stage 1 stays green |
-| Category structure gap (a–e) | `FINDING: stage1/structure — <engine line>` → `STAGE1_FINDINGS` | reported; `--seed-docs` may resolve (d)/(e); the missing subfolders (b) are the deferred physical move — the audit reports, never moves scripts |
+| No categories axis (category contract not adopted) | the named "not adopted / inactive" note — never a finding | the six structural checks + `--seed-docs` are inactive; Stage 1 stays green |
+| Category structure gap (a–f) | `FINDING: stage1/structure — <engine line>` → `STAGE1_FINDINGS` | reported; `--seed-docs` may resolve (d)/(e)/(f) by seeding a stub that already carries the three front-door sections; the missing subfolders (b) are the deferred physical move — the audit reports, never moves scripts |
 | Any findings | counted in their stage | reported, exit clean — findings are the product, not a crash |

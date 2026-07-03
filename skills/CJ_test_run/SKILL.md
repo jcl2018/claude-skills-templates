@@ -45,7 +45,10 @@ portable engine, not a hardcoded table. **Two selection modes (F000074):** the
 default runners mode runs the whole tiered suite; **category mode** (`--category
 <workflow|CI-push|CI-nightly>` or a single test NAME) runs exactly the category's
 / the named test's command(s) from the `categories:` axis, reusing the
-`docs/tests/<category>/<name>.md` name and honoring the SAME cost tiers. The
+`docs/tests/<category>/<name>.md` name — that per-test doc is the test's
+authoritative What/How/Why front door, and a single-name run surfaces/links its
+`## How to run` so the executed and documented command agree — and honoring the
+SAME cost tiers. The
 category taxonomy is V2 `{workflow, CI-push, CI-nightly}` — the `CI` category
 split by cadence (the category name IS the cadence, so `--category CI-push` /
 `--category CI-nightly` selects the push-vs-nightly tests with no new flag).
@@ -181,6 +184,17 @@ On a real (non-dry-run) execution with ≥1 runner row, `test-run.sh` writes a
   path** (`.json`).
 - Any Stage-1 findings surfaced in Step 2 (they rode along; call them out so the
   operator sees "the suite passed BUT the catalog is stale" as one picture).
+
+**Per-test doc surfacing (category / single-name mode; F000077).** In category
+mode — especially a single-name run (`/CJ_test_run <name>`) — the selected test's
+`docs/tests/<category>/<name>.md` IS its authoritative What/How/Why front door,
+and its `## How to run` section is the canonical statement of the command. When
+you narrate a single named test (or a small category selection), ALSO surface/link
+that per-test doc so the run and the doc agree on the command: name-to-doc is the
+`doc` column of `test-spec.sh --list-categories`
+(`docs/tests/<category>/<name>.md`). Pointing the operator at the front door keeps
+the executed command and the documented `## How to run` from disagreeing — the
+same command flows from the `categories:` row into both the run and the doc.
 
 Do NOT re-interpret the aggregate — `test-run.sh` derives it from evidence. A
 `fail` means an executed runner returned non-zero; a `skipped(<reason>)` runner
