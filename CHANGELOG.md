@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.106] - 2026-07-02
+
+### Added
+- **docs/philosophy.md — a new "Shipping discipline — earn the merge" topic.**
+  Five principles distilled from real build-to-land experience: reproduce the real
+  gate (a partial/standalone pass is not a pass), adversarially verify your own
+  work, findings-are-the-product (report every gap, never crash), land additively
+  (stage the risky half for its own increment), and fix before you land (a red gate
+  is a stop). Each carries an *In the workbench:* grounding in the actual CI gate,
+  review flow, audit posture, and merge convention.
+
 ## [6.0.105] - 2026-07-02
 
 ### Added
