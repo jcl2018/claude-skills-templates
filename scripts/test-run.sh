@@ -33,15 +33,18 @@
 # Usage:
 #   test-run.sh --dry-run [--evals] [--e2e] [--all]   # print the plan; execute nothing
 #   test-run.sh [--evals] [--e2e] [--all]             # execute + write report + ledger
-#   test-run.sh --category <workflow|CI-push|CI-nightly> [--dry-run]  # (F000074) run one category's tests
+#   test-run.sh --category <workflow|regression|infra> [--dry-run]  # (F000074) run one category's tests
+#   test-run.sh --layer <CI-push|CI-nightly|pipeline-gate|local-hook> [--dry-run]  # (F000078) run one layer's tests
+#   test-run.sh --category <cat> --layer <layer> [--dry-run]  # (F000078) run tests in that (category,layer) pair
 #   test-run.sh <name> [--dry-run]                    # (F000074) run the single test of that name
 #   test-run.sh --help
 #
-# Category selection (F000074) maps a category or a single test NAME to the
-# declared command(s) via the categories: axis of the merged registry (reusing the
-# docs/tests/<category>/<name>.md name), honoring the SAME cost tiers (default =
-# free only). It is ADDITIVE: with no --category and no positional name, the
-# runners: flow runs unchanged.
+# Category/layer selection (F000074/F000078) maps a category, a layer, their
+# composition, or a single test NAME to the declared command(s) via the two-axis
+# categories: axis of the merged registry (reusing the
+# docs/tests/<category>/<layer>/<name>.md name), honoring the SAME cost tiers
+# (default = free only). It is ADDITIVE: with no --category/--layer and no
+# positional name, the runners: flow runs unchanged.
 #
 # Env overrides (for hermetic fixtures): REPO_ROOT / TEST_SPEC_PATH /
 # TEST_SPEC_CUSTOM_PATH (forwarded to test-spec.sh), TEST_RUN_TS (fix the report
@@ -86,7 +89,8 @@ fi
 DRY_RUN=0
 SEL_PAID=0
 SEL_LOCAL=0
-SEL_CATEGORY=""   # (F000074) --category <workflow|CI-push|CI-nightly>: run one category's tests
+SEL_CATEGORY=""   # (F000074) --category <workflow|regression|infra>: run one category's tests
+SEL_LAYER=""      # (F000078) --layer <CI-push|CI-nightly|pipeline-gate|local-hook>: run one layer's tests
 SEL_NAME=""       # (F000074) a bare positional: run the single test of that name
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -96,10 +100,14 @@ while [ $# -gt 0 ]; do
     --all)     SEL_PAID=1; SEL_LOCAL=1; shift ;;
     --category)
       shift
-      [ $# -gt 0 ] || { echo "test-run.sh: --category needs a value (workflow|CI-push|CI-nightly)" >&2; exit 2; }
+      [ $# -gt 0 ] || { echo "test-run.sh: --category needs a value (workflow|regression|infra)" >&2; exit 2; }
       SEL_CATEGORY="$1"; shift ;;
+    --layer)
+      shift
+      [ $# -gt 0 ] || { echo "test-run.sh: --layer needs a value (CI-push|CI-nightly|pipeline-gate|local-hook)" >&2; exit 2; }
+      SEL_LAYER="$1"; shift ;;
     --help|-h)
-      sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     --*) echo "test-run.sh: unknown arg: $1 (see --help)" >&2; exit 2 ;;
@@ -110,14 +118,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# --category and a single name are mutually exclusive (two different selections).
-if [ -n "$SEL_CATEGORY" ] && [ -n "$SEL_NAME" ]; then
-  echo "test-run.sh: --category and a single test name are mutually exclusive — pass one or the other" >&2
+# A single name is mutually exclusive with --category / --layer (a name selects
+# exactly one test; --category/--layer select a set). --category and --layer MAY
+# be composed (they select the intersection).
+if [ -n "$SEL_NAME" ] && { [ -n "$SEL_CATEGORY" ] || [ -n "$SEL_LAYER" ]; }; then
+  echo "test-run.sh: a single test name and --category/--layer are mutually exclusive — pass one selection form" >&2
   exit 2
 fi
-# CATEGORY_MODE is on when either category-selection form is used.
+# CATEGORY_MODE is on when any category/layer/name selection form is used.
 CATEGORY_MODE=0
 [ -n "$SEL_CATEGORY" ] && CATEGORY_MODE=1
+[ -n "$SEL_LAYER" ] && CATEGORY_MODE=1
 [ -n "$SEL_NAME" ] && CATEGORY_MODE=1
 
 # The flags string recorded in the ledger (canonical order).
@@ -126,6 +137,7 @@ FLAGS=""
 [ "$SEL_PAID" = "1" ] && FLAGS="$FLAGS --evals"
 [ "$SEL_LOCAL" = "1" ] && FLAGS="$FLAGS --e2e"
 [ -n "$SEL_CATEGORY" ] && FLAGS="$FLAGS --category $SEL_CATEGORY"
+[ -n "$SEL_LAYER" ] && FLAGS="$FLAGS --layer $SEL_LAYER"
 [ -n "$SEL_NAME" ] && FLAGS="$FLAGS $SEL_NAME"
 FLAGS="${FLAGS# }"
 [ -n "$FLAGS" ] || FLAGS="(default)"
@@ -193,43 +205,63 @@ _tier_selected() {
   esac
 }
 
-# ---- CATEGORY MODE (F000074): --category <cat> / single test NAME selection ---
-# The category-based selection path: map a category or a single test name to the
-# declared command(s) via the categories: axis of the merged registry (via
-# test-spec.sh --list-categories), then plan (--dry-run) or execute exactly those
-# tests, honoring cost tiers (default = free tier only, no surprise model spend).
-# It is ADDITIVE: it runs ONLY when --category or a positional name is passed;
-# otherwise the runners: flow below is unchanged. Reuses _tier_selected. Writes a
-# category-shaped report + ledger under tests/test-run/reports/ (ledger schema 1,
-# mode: category). Every outcome is evidence-derived (rc); a skipped-tier test is
-# NEVER counted green; a self-gate (rc 0 + first line ^SKIP:) is skipped(self-gated).
+# ---- CATEGORY MODE (F000074/F000078): --category / --layer / single NAME select ---
+# The category-based selection path: map a category, a layer, their composition,
+# or a single test name to the declared command(s) via the two-axis categories:
+# axis of the merged registry (via test-spec.sh --list-categories), then plan
+# (--dry-run) or execute exactly those tests, honoring cost tiers (default = free
+# tier only, no surprise model spend). It is ADDITIVE: it runs ONLY when
+# --category/--layer or a positional name is passed; otherwise the runners: flow
+# below is unchanged. Reuses _tier_selected. Writes a category-shaped report +
+# ledger under tests/test-run/reports/ (ledger schema 1, mode: category). Every
+# outcome is evidence-derived (rc); a skipped-tier test is NEVER counted green; a
+# self-gate (rc 0 + first line ^SKIP:) is skipped(self-gated).
 _run_category_mode() {
-  # Read the category rows: name<TAB>category<TAB>command<TAB>tier<TAB>doc<TAB>purpose.
+  # Read the category rows: name<TAB>category<TAB>layer<TAB>mode<TAB>command<TAB>tier<TAB>doc<TAB>purpose.
   _CM_ROWS=$(bash "$TEST_SPEC_SH" --list-categories 2>/dev/null || true)
   if [ -z "$_CM_ROWS" ]; then
-    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests to use --category / single-name selection"
+    echo "category contract not adopted / inactive — no categories: axis in spec/test-spec-custom.md; declare category tests to use --category / --layer / single-name selection"
     exit 0
   fi
 
-  # Build the SELECTED subset (name<TAB>category<TAB>command<TAB>tier).
+  # Validate the closed enums up front (so a typo is a named exit-2, not an empty
+  # "declares no tests" SKIP).
+  if [ -n "$SEL_CATEGORY" ]; then
+    case "$SEL_CATEGORY" in
+      workflow|regression|infra) : ;;
+      *) echo "test-run.sh: --category '$SEL_CATEGORY' is outside the closed enum {workflow, regression, infra}" >&2; exit 2 ;;
+    esac
+  fi
+  if [ -n "$SEL_LAYER" ]; then
+    case "$SEL_LAYER" in
+      CI-push|CI-nightly|pipeline-gate|local-hook) : ;;
+      *) echo "test-run.sh: --layer '$SEL_LAYER' is outside the closed enum {CI-push, CI-nightly, pipeline-gate, local-hook}" >&2; exit 2 ;;
+    esac
+  fi
+
+  # Build the SELECTED subset (name<TAB>category<TAB>layer<TAB>command<TAB>tier).
   if [ -n "$SEL_NAME" ]; then
-    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v n="$SEL_NAME" 'NF && $1 == n {print $1"\t"$2"\t"$3"\t"$4}')
+    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v n="$SEL_NAME" 'NF && $1 == n {print $1"\t"$2"\t"$3"\t"$5"\t"$6}')
     if [ -z "$_CM_SEL" ]; then
       echo "test-run.sh: no category test named '$SEL_NAME' (see: test-spec.sh --list-categories --names)" >&2
       exit 2
     fi
     _CM_LABEL="name=$SEL_NAME"
   else
-    case "$SEL_CATEGORY" in
-      workflow|CI-push|CI-nightly) : ;;
-      *) echo "test-run.sh: --category '$SEL_CATEGORY' is outside the V2 taxonomy {workflow, CI-push, CI-nightly}" >&2; exit 2 ;;
-    esac
-    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v c="$SEL_CATEGORY" 'NF && $2 == c {print $1"\t"$2"\t"$3"\t"$4}')
+    # --category and/or --layer (composed = intersection). An empty field means
+    # "don't filter on that axis".
+    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v c="$SEL_CATEGORY" -v l="$SEL_LAYER" \
+      'NF && (c == "" || $2 == c) && (l == "" || $3 == l) {print $1"\t"$2"\t"$3"\t"$5"\t"$6}')
     if [ -z "$_CM_SEL" ]; then
-      echo "SKIP: category '$SEL_CATEGORY' declares no tests — nothing to run"
+      _CM_WHAT=""
+      [ -n "$SEL_CATEGORY" ] && _CM_WHAT="category '$SEL_CATEGORY'"
+      [ -n "$SEL_LAYER" ] && _CM_WHAT="${_CM_WHAT:+$_CM_WHAT / }layer '$SEL_LAYER'"
+      echo "SKIP: $_CM_WHAT declares no tests — nothing to run"
       exit 0
     fi
-    _CM_LABEL="category=$SEL_CATEGORY"
+    _CM_LABEL=""
+    [ -n "$SEL_CATEGORY" ] && _CM_LABEL="category=$SEL_CATEGORY"
+    [ -n "$SEL_LAYER" ] && _CM_LABEL="${_CM_LABEL:+$_CM_LABEL }layer=$SEL_LAYER"
   fi
 
   # ---- PLAN (--dry-run): print per-test command/tier/decision; execute nothing.
@@ -237,10 +269,10 @@ _run_category_mode() {
     echo "=== test-run CATEGORY PLAN ($_CM_LABEL; flags: $FLAGS) ==="
     echo "registry: valid   selection: $_CM_LABEL"
     echo ""
-    while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_cmd _cm_tier; do
+    while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_layer _cm_cmd _cm_tier; do
       [ -n "$_cm_name" ] || continue
       if _tier_selected "$_cm_tier"; then _cm_dec="will-run"; else _cm_dec="skip(tier-not-selected)"; fi
-      echo "test: $_cm_name ($_cm_cat)"
+      echo "test: $_cm_name ($_cm_cat / $_cm_layer)"
       echo "  command:  $_cm_cmd"
       echo "  tier:     $_cm_tier"
       echo "  decision: $_cm_dec"
@@ -266,19 +298,19 @@ EOF
   echo "registry: valid   selection: $_CM_LABEL   HEAD: $_cm_head"
   echo ""
 
-  while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_cmd _cm_tier; do
+  while IFS="$(printf '\t')" read -r _cm_name _cm_cat _cm_layer _cm_cmd _cm_tier; do
     [ -n "$_cm_name" ] || continue
     if ! _tier_selected "$_cm_tier"; then
       _cm_out="skipped:tier-not-selected"
       echo "  SKIP $_cm_name ($_cm_tier) — tier-not-selected"
-      _cm_obj=$(printf '{"name": %s, "category": %s, "command": %s, "tier": %s, "rc": null, "outcome": %s}' \
-        "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$(_cm_json_str "$_cm_out")")
+      _cm_obj=$(printf '{"name": %s, "category": %s, "layer": %s, "command": %s, "tier": %s, "rc": null, "outcome": %s}' \
+        "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_layer")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$(_cm_json_str "$_cm_out")")
       _cm_json="${_cm_json:+$_cm_json,}$_cm_obj"
       _cm_md_rows="$_cm_md_rows
-| $_cm_name | $_cm_cat | \`$_cm_cmd\` | $_cm_tier | — | skipped(tier-not-selected) |"
+| $_cm_name | $_cm_cat | $_cm_layer | \`$_cm_cmd\` | $_cm_tier | — | skipped(tier-not-selected) |"
       continue
     fi
-    echo "  RUN  $_cm_name ($_cm_tier): $_cm_cmd"
+    echo "  RUN  $_cm_name ($_cm_cat/$_cm_layer, $_cm_tier): $_cm_cmd"
     _cm_o=$( (cd "$REPO_ROOT_RESOLVED" && eval "$_cm_cmd") 2>&1 ) && _cm_rc=0 || _cm_rc=$?
     _cm_first=$(printf '%s\n' "$_cm_o" | head -1)
     if [ "$_cm_rc" -eq 0 ] && printf '%s' "$_cm_first" | grep -q '^SKIP:'; then
@@ -300,11 +332,11 @@ $_cm_f
 \`\`\`"
     fi
     _cm_rcj="$_cm_rc"; printf '%s' "$_cm_out" | grep -q '^skipped:' && _cm_rcj="null"
-    _cm_obj=$(printf '{"name": %s, "category": %s, "command": %s, "tier": %s, "rc": %s, "outcome": %s}' \
-      "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$_cm_rcj" "$(_cm_json_str "$_cm_out")")
+    _cm_obj=$(printf '{"name": %s, "category": %s, "layer": %s, "command": %s, "tier": %s, "rc": %s, "outcome": %s}' \
+      "$(_cm_json_str "$_cm_name")" "$(_cm_json_str "$_cm_cat")" "$(_cm_json_str "$_cm_layer")" "$(_cm_json_str "$_cm_cmd")" "$(_cm_json_str "$_cm_tier")" "$_cm_rcj" "$(_cm_json_str "$_cm_out")")
     _cm_json="${_cm_json:+$_cm_json,}$_cm_obj"
     _cm_md_rows="$_cm_md_rows
-| $_cm_name | $_cm_cat | \`$_cm_cmd\` | $_cm_tier | $_cm_rcj | $_cm_out |"
+| $_cm_name | $_cm_cat | $_cm_layer | \`$_cm_cmd\` | $_cm_tier | $_cm_rcj | $_cm_out |"
   done <<EOF
 $_CM_SEL
 EOF
@@ -326,8 +358,8 @@ EOF
     echo "HEAD:      $_cm_head"
     echo ""
     echo "## Tests"
-    echo "| name | category | command | tier | rc | outcome |"
-    echo "|------|----------|---------|------|----|---------|"
+    echo "| name | category | layer | command | tier | rc | outcome |"
+    echo "|------|----------|-------|---------|------|----|---------|"
     printf '%s\n' "$_cm_md_rows" | sed '/^$/d'
     if [ -n "$_cm_fail_blocks" ]; then
       echo ""

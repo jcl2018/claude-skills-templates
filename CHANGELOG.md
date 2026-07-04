@@ -3,6 +3,30 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.111] - 2026-07-03
+
+### Changed
+- **F000078 — two-axis test contract: category × verification-layer.** Replaces the
+  conflated single `categories:` taxonomy V2 `{workflow, CI-push, CI-nightly}` with two
+  orthogonal axes plus a mode: `category {workflow, regression, infra}` (the kind —
+  feature→workflow, defect→regression, self-checks→infra) × `layer {CI-push, CI-nightly,
+  pipeline-gate, local-hook}` (the cadence/where; the old `ci` layer split by cadence,
+  `ratchet` demoted from a layer to a per-test flag) + a per-test `mode {deterministic,
+  agentic}` (`agentic ⇒ tier ≠ free`). Main logic lives in the portable
+  `spec/test-spec.md` + `docs/philosophy.md`; `docs/architecture.md` follows. Full layer
+  re-map: the general `layers[]` flips to the four, and all 85 `units:` `layer: ci` rows
+  re-map to CI-push/CI-nightly by trigger (the seed stays byte-identical). Engines:
+  `test-spec.sh` (enum flips in 3-way seed lockstep, first-class `layer`+`mode` on
+  `categories:` rows with the `agentic⇒¬free` cross-check, 2-deep `--check-structure` with
+  a command-only `infra` exemption, `--seed-docs` to the 2-deep path) + `test-run.sh`
+  (`--category` enum + new `--layer` selection). Tests live at `tests/<category>/<layer>/`;
+  docs mirror to `docs/tests/<category>/<layer>/<name>.md`. Adds four workflow tests
+  (portability-smoke `workflow/CI-push`, portability-deploy + goal-feature-eval + doc-sync
+  `workflow/CI-nightly`) with front-door docs; `/CJ_test_audit` + `/CJ_test_run` describe
+  the two axes. DEFERRED (tracked backfill): migrating the 29 flat `tests/*.test.sh` into
+  `tests/<category>/<layer>/`, the feature→workflow/defect→regression enforcement gate, and
+  the category↔behavior cross-check. Story S000128 of F000078.
+
 ## [6.0.110] - 2026-07-04
 
 ### Fixed

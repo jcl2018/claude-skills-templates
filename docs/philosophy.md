@@ -18,7 +18,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
 | **Harness-engineering best practices** | 4. Verification is a continuous gate — judge the path | A quality gate at every step, evaluating the trajectory, with the verifier kept independent of the doer. |
 | **Harness-engineering best practices** | 5. Tools & permissions are first-class | Spec tools like prompts; design permission before capability and give the riskiest verbs the strictest rules. |
-| **CI/CD** | Four verification layers, one owner each | local-hook / ci / pipeline-gate / ratchet — each guarantee is owned by exactly one layer; `test-spec.md` is the map. |
+| **CI/CD** | Four verification layers, one owner each | CI-push / CI-nightly / pipeline-gate / local-hook — each guarantee is owned by exactly one layer (`ratchet` is now a per-test flag); tests also carry a category (`workflow` / `regression` / `infra`); `test-spec.md` is the map. |
 | — | Decision tree | Which `CJ_` skill to call for a given input — see the routing map at the bottom of this doc. |
 
 ## Topic: Deployment
@@ -192,9 +192,10 @@ TEST-SPEC exists, and the deterministic per-PR gate (`validate.sh` at the commit
 hook, CI on the PR) blocks a broken change before it ever lands. The
 agent-judged doc/test audit that surfaces deeper drift no longer sits on the
 build path — it runs nightly in CI (filing findings to a GitHub issue) and on
-demand via the standalone `/CJ_doc_audit` + `/CJ_test_audit` verbs. The concrete map of this principle — every verification surface, at
-which of the four layers (local-hook / ci / pipeline-gate / ratchet) — is the
-`spec/test-spec.md` registry (its `layers[]` map + the overlay's `gates[]`); the
+demand via the standalone `/CJ_doc_audit` + `/CJ_test_audit` verbs. The concrete map of this principle — every verification surface, on
+which of the two axes (category `{workflow, regression, infra}` × layer
+`{CI-push, CI-nightly, pipeline-gate, local-hook}`) — is the `spec/test-spec.md`
+registry (its `layers[]` map + the overlay's `categories[]` + `gates[]`); the
 **CI/CD topic** below is the layered model this principle resolves to.
 
 ### 5. Tools & permissions are first-class
@@ -227,41 +228,68 @@ model* that principle resolves to: the specific layers a change passes through,
 and which layer owns which guarantee. (The Harness principle is the why; this is
 the what-and-where.)
 
+### Two axes: category × layer
+
+A test is classified on **two orthogonal axes** — its *kind* and *where/when it
+runs* — so one place answers both "what kind of test is this?" and "when does it
+fire?" plus a per-test `deterministic | agentic` **mode** (agentic spends model
+tokens, so `agentic ⇒ tier ≠ free`):
+
+- **category** — the *kind*, `{workflow, regression, infra}`, modelled on the
+  work-item that produced the test: a **workflow** test proves a whole
+  user-facing workflow runs end to end (features earn these), a **regression**
+  test proves a past defect stays fixed (defects earn these), and **infra** is
+  the standing verification surface itself (the validator, the full suite, the
+  deploy harness).
+- **layer** — *where/when*, the four verification layers below.
+
+The payoff a maintainer feels: `tests/<category>/<layer>/` tells you at a glance
+what a test *is* and *when it fires* — the Windows portability smoke is
+`workflow / CI-push` (it proves the install+sync workflow, cheap enough to gate
+every PR); the heavy Windows deploy proof is the same workflow at `CI-nightly`.
+
 ### Four verification layers, one owner each
 
 A change travels from an edit to a landed PR through **four independent
 verification layers**, each running at a different moment and owning a different
 kind of guarantee:
 
-- **local-hook** — runs at `git commit` (the pre-commit hook). It owns one thing:
-  the commit is structurally valid before it ever leaves your machine. It runs
-  `validate.sh` and hard-fails, blocking the commit.
-- **ci** — runs on every PR (GitHub Actions). It owns the whole tree being
-  structurally and behaviorally sound on a clean runner: `validate.sh` +
+- **CI-push** — runs on every push / PR (GitHub Actions). It owns the whole tree
+  being structurally and behaviorally sound on a clean runner: `validate.sh` +
   `test.sh` + shellcheck + the Windows Git-Bash smoke job. It hard-fails and
-  gates the PR.
+  gates the PR — the fast merge signal.
+- **CI-nightly** — runs on a nightly schedule (GitHub Actions). It owns the
+  heavier checks that would slow every PR run, deferred off the PR path: the
+  Windows-native `skills-deploy` suite, the behavioral eval harness, the
+  agent-judged doc/test audit.
 - **pipeline-gate** — runs *during* a cj_goal orchestrator run. It owns the claim
   that this run did the right thing before it reached the PR: the inline halts for
   isolation, design-summary approval, QA, doc-sync, and ship. These
   are the halts the word "gate" is reserved for.
-- **ratchet** — runs inside ci and the orchestrator. It owns monotonic
-  properties that must never regress: VERSION never goes backwards, the
-  portability baseline stays at `FINDINGS=0`, and USAGE.md stays fresh against its
-  SKILL.md.
+- **local-hook** — runs at `git commit` (the pre-commit hook) and for the
+  local-only manual harnesses. It owns one thing: the commit is structurally valid
+  before it ever leaves your machine. It runs `validate.sh` and hard-fails,
+  blocking the commit.
+
+`CI-push` and `CI-nightly` are the old undifferentiated `ci` blob, split by
+cadence. **`ratchet` is no longer a layer** — a monotonic guard (VERSION never
+goes backwards, the portability baseline stays at `FINDINGS=0`, USAGE.md stays
+fresh against its SKILL.md) is a `ratchet: true` **flag** on the unit that owns
+it, not a place a test runs.
 
 The discipline is **one owning layer per guarantee** — each guarantee is checked
 at exactly one layer, never re-checked at three layers with three vocabularies.
 That is what makes the question *"what stops a broken change, and at which
 layer?"* answerable from a single place: a structurally broken change is stopped
-by **ci**, a process-broken change (built in-place, never designed, never tested,
-undocumented, or self-merging) by a **pipeline-gate**, and
-a regression of a monotonic property by a **ratchet**.
+by **CI-push**, a process-broken change (built in-place, never designed, never
+tested, undocumented, or self-merging) by a **pipeline-gate**, and a regression of
+a monotonic property by a **ratchet flag**.
 
-The concrete, machine-checked map of all four layers and every gate — the prose,
-the four-layer table, and a fenced `yaml` registry — is the verification
-contract [`spec/test-spec.md`](../spec/test-spec.md) (its `layers[]` map + the
-overlay's per-mode `gates[]`, enforced by `validate.sh` Check 24). This topic is
-the principle; `test-spec.md` is the live map.
+The concrete, machine-checked map of both axes and every gate — the prose, the
+four-layer table, and a fenced `yaml` registry — is the verification contract
+[`spec/test-spec.md`](../spec/test-spec.md) (its `layers[]` map + the overlay's
+`categories[]` + per-mode `gates[]`, enforced by `validate.sh` Check 24). This
+topic is the principle; `test-spec.md` is the live map.
 
 ## Topic: Doc contract
 

@@ -1,6 +1,6 @@
 ---
 name: CJ_test_run
-description: "Execute a repo's test contract and report evidence-derived pass/fail — the 'does it pass?' companion to /CJ_test_audit's 'is it wired?'. Runs a deterministic Stage-1 audit pre-step (the four test-spec.sh engine calls — --validate / --check-coverage / --render-docs --check / --check-workflow-coverage — printed verbatim, with the invalid-registry-HALTS / valid-with-findings-surface-and-continue / absent-registry-SKIP split), then scripts/test-run.sh which reads the runners: axis of the merged test-spec registry and runs the selected tier's runners ONCE each (default tier: free; --evals adds paid, --e2e adds local-only, --all everything — a default run NEVER touches a model), then narrates the materialized report (tests/test-run/reports/<UTC-ts>.md) + machine-readable ledger (.json: schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/covered-families). Aggregate is the closed enum {pass, fail, all-skipped}: any executed runner failing => fail + exit 1; >=1 green and none failed => pass; zero executed => all-skipped (NEVER rendered pass). Registry edges are honest: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners => 'SKIP: no runners declared' + exit 0 (no report, no ledger, no inference). Two selection modes: the default runners mode runs the whole tiered suite; category mode (--category <workflow|CI-push|CI-nightly> or a single test NAME) runs exactly the category's / named test's command(s) from the categories: axis, reusing the docs/tests/<category>/<name>.md name and honoring the SAME cost tiers (a default run touches no paid model; a paid/local-only test is skip(tier-not-selected) without --evals/--e2e/--all); an unadopted repo reports 'category contract not adopted / inactive'. Runnable in ANY repo the skills are installed for; engines resolve sibling-in-scriptdir -> $REPO_ROOT/scripts/ -> deployed _cj-shared. Use when: 'run the tests', 'do the tests pass', 'execute the test suite'."
+description: "Execute a repo's test contract and report evidence-derived pass/fail — the 'does it pass?' companion to /CJ_test_audit's 'is it wired?'. Runs a deterministic Stage-1 audit pre-step (the four test-spec.sh engine calls — --validate / --check-coverage / --render-docs --check / --check-workflow-coverage — printed verbatim, with the invalid-registry-HALTS / valid-with-findings-surface-and-continue / absent-registry-SKIP split), then scripts/test-run.sh which reads the runners: axis of the merged test-spec registry and runs the selected tier's runners ONCE each (default tier: free; --evals adds paid, --e2e adds local-only, --all everything — a default run NEVER touches a model), then narrates the materialized report (tests/test-run/reports/<UTC-ts>.md) + machine-readable ledger (.json: schema 1, timestamp, HEAD SHA, aggregate, per-runner rc/outcome/covered-families). Aggregate is the closed enum {pass, fail, all-skipped}: any executed runner failing => fail + exit 1; >=1 green and none failed => pass; zero executed => all-skipped (NEVER rendered pass). Registry edges are honest: absent => REGISTRY=absent + exit 0; invalid => the [test-spec-no-config] passthrough + exit 1; valid with zero runners => 'SKIP: no runners declared' + exit 0 (no report, no ledger, no inference). Two selection modes: the default runners mode runs the whole tiered suite; category mode (the two-axis contract — --category <workflow|regression|infra> the KIND, --layer <CI-push|CI-nightly|pipeline-gate|local-hook> the cadence/place, their composition, or a single test NAME) runs exactly the selected command(s) from the categories: axis, reusing the docs/tests/<category>/<layer>/<name>.md name and honoring the SAME cost tiers (a default run touches no paid model; a paid/local-only test is skip(tier-not-selected) without --evals/--e2e/--all); an unadopted repo reports 'category contract not adopted / inactive'. Runnable in ANY repo the skills are installed for; engines resolve sibling-in-scriptdir -> $REPO_ROOT/scripts/ -> deployed _cj-shared. Use when: 'run the tests', 'do the tests pass', 'execute the test suite'."
 version: 0.2.0
 allowed-tools:
   - Bash
@@ -43,15 +43,17 @@ to run the repo's tests (command + cost tier + covered families), so any adoptin
 repo — `npm test`, `make check`, whatever — gets real execution from the same
 portable engine, not a hardcoded table. **Two selection modes (F000074):** the
 default runners mode runs the whole tiered suite; **category mode** (`--category
-<workflow|CI-push|CI-nightly>` or a single test NAME) runs exactly the category's
-/ the named test's command(s) from the `categories:` axis, reusing the
-`docs/tests/<category>/<name>.md` name — that per-test doc is the test's
+<workflow|regression|infra>`, `--layer <CI-push|CI-nightly|pipeline-gate|local-hook>`,
+their composition, or a single test NAME) runs exactly the selected command(s)
+from the two-axis `categories:` axis, reusing the
+`docs/tests/<category>/<layer>/<name>.md` name — that per-test doc is the test's
 authoritative What/How/Why front door, and a single-name run surfaces/links its
 `## How to run` so the executed and documented command agree — and honoring the
-SAME cost tiers. The
-category taxonomy is V2 `{workflow, CI-push, CI-nightly}` — the `CI` category
-split by cadence (the category name IS the cadence, so `--category CI-push` /
-`--category CI-nightly` selects the push-vs-nightly tests with no new flag).
+SAME cost tiers. The category contract is **two orthogonal axes** (F000078):
+`category` is the KIND `{workflow, regression, infra}` and `layer` is WHERE/WHEN
+`{CI-push, CI-nightly, pipeline-gate, local-hook}`, plus a per-test `mode`
+`{deterministic, agentic}` (agentic ⇒ tier ≠ free), so you can select by kind
+(`--category workflow`), by cadence (`--layer CI-nightly`), or their intersection.
 
 The flow is three parts, in order:
 
@@ -143,18 +145,20 @@ Forward the operator's flags to `test-run.sh` unchanged. Two selection modes:
   `test-run.sh` runs the `runners:` axis (the full tiered suite). Tier flags
   (`--dry-run`, `--evals`, `--e2e`, `--all`) apply; default (no flags) runs only
   `tier: free`.
-- **Category mode (F000074; taxonomy V2 F000075).** `--category
-  <workflow|CI-push|CI-nightly>` runs every declared test in that category; a bare
-  positional NAME runs the single test of that name (reusing the
-  `docs/tests/<category>/<name>.md` name). Selection maps `name → command` via the
-  `categories:` axis; the SAME cost tiers apply (a default run touches no paid
-  model — a `paid`/`local-only` category test is `skip(tier-not-selected)` unless
-  `--evals`/`--e2e`/`--all` is passed). `--category` and a single name are mutually
-  exclusive.
+- **Category mode (F000074; two-axis reframe F000078).** `--category
+  <workflow|regression|infra>` runs every declared test in that KIND; `--layer
+  <CI-push|CI-nightly|pipeline-gate|local-hook>` runs every test at that
+  cadence/place; the two MAY be composed (`--category workflow --layer CI-nightly`
+  = the intersection); a bare positional NAME runs the single test of that name
+  (reusing the `docs/tests/<category>/<layer>/<name>.md` name). Selection maps
+  `name → command` via the `categories:` axis; the SAME cost tiers apply (a default
+  run touches no paid model — a `paid`/`local-only` category test is
+  `skip(tier-not-selected)` unless `--evals`/`--e2e`/`--all` is passed). A single
+  name is mutually exclusive with `--category`/`--layer`.
 
 ```bash
 # $ARGS = the flags/args the operator passed to /CJ_test_run (default: none).
-#   e.g. (none) | --dry-run | --evals | --category workflow | windows | --category CI-push --dry-run
+#   e.g. (none) | --dry-run | --evals | --category workflow | --layer CI-nightly | doc-sync | --category workflow --layer CI-nightly --dry-run
 bash "$TEST_RUN_SH" $ARGS
 _run_rc=$?
 ```
@@ -168,8 +172,9 @@ _run_rc=$?
 - category mode with no `categories:` axis → `category contract not adopted /
   inactive` + exit 0. Narrate: the repo hasn't adopted the category contract.
 - category mode: unknown test name / a category outside
-  `{workflow, CI-push, CI-nightly}` / mixing `--category` with a name → exit 2 with
-  a named error. Surface it verbatim.
+  `{workflow, regression, infra}` / a layer outside
+  `{CI-push, CI-nightly, pipeline-gate, local-hook}` / mixing a single name with
+  `--category`/`--layer` → exit 2 with a named error. Surface it verbatim.
 
 On `--dry-run` (either mode), `test-run.sh` prints the plan and writes nothing —
 narrate the plan and stop.
@@ -187,12 +192,12 @@ On a real (non-dry-run) execution with ≥1 runner row, `test-run.sh` writes a
 
 **Per-test doc surfacing (category / single-name mode; F000077).** In category
 mode — especially a single-name run (`/CJ_test_run <name>`) — the selected test's
-`docs/tests/<category>/<name>.md` IS its authoritative What/How/Why front door,
-and its `## How to run` section is the canonical statement of the command. When
-you narrate a single named test (or a small category selection), ALSO surface/link
-that per-test doc so the run and the doc agree on the command: name-to-doc is the
-`doc` column of `test-spec.sh --list-categories`
-(`docs/tests/<category>/<name>.md`). Pointing the operator at the front door keeps
+`docs/tests/<category>/<layer>/<name>.md` IS its authoritative What/How/Why front
+door, and its `## How to run` section is the canonical statement of the command.
+When you narrate a single named test (or a small category selection), ALSO
+surface/link that per-test doc so the run and the doc agree on the command:
+name-to-doc is the `doc` column of `test-spec.sh --list-categories`
+(`docs/tests/<category>/<layer>/<name>.md`). Pointing the operator at the front door keeps
 the executed command and the documented `## How to run` from disagreeing — the
 same command flows from the `categories:` row into both the run and the doc.
 
@@ -209,11 +214,13 @@ self-gated) is exit 0 but is NEVER rendered `pass`.
 /CJ_test_run --evals              # + paid tier (evals — real model spend)
 /CJ_test_run --e2e                # + local-only tier (the local E2E harness)
 /CJ_test_run --all                # every tier
-/CJ_test_run --category workflow    # (F000074) run every test in the workflow category
-/CJ_test_run --category CI-push     # (F000075) run every push-cadence test (validate/suite/test-deploy/windows)
-/CJ_test_run --category CI-nightly  # (F000075) run every nightly-cadence test (windows-deploy)
-/CJ_test_run windows                # (F000074) run the single test named "windows" (docs/tests/CI-push/windows.md)
-/CJ_test_run --category CI-push --dry-run  # print the category plan (execute nothing)
+/CJ_test_run --category workflow    # (F000074) run every workflow-KIND test (portability + cj_goal evals + doc-sync + e2e-local)
+/CJ_test_run --category infra       # (F000078) run every infra-KIND test (validate/suite/test-deploy)
+/CJ_test_run --layer CI-push        # (F000078) run every CI-push-layer test (validate/suite/test-deploy/portability-smoke)
+/CJ_test_run --layer CI-nightly     # (F000078) run every CI-nightly-layer test (portability-deploy/goal-*-eval/doc-sync)
+/CJ_test_run --category workflow --layer CI-nightly  # (F000078) the intersection (the nightly workflow tests)
+/CJ_test_run doc-sync               # (F000074) run the single test named "doc-sync" (docs/tests/workflow/CI-nightly/doc-sync.md)
+/CJ_test_run --layer CI-push --dry-run  # print the layer plan (execute nothing)
 ```
 
 Routing phrases: "run the tests", "do the tests pass", "execute the test suite".
@@ -230,5 +237,5 @@ Routing phrases: "run the tests", "do the tests pass", "execute the test suite".
 | A runner failed | aggregate `fail` + exit 1 + verbatim FAIL lines in the report | Fix the failing runner's tests; re-run |
 | No categories axis (category mode) | `category contract not adopted / inactive` + exit 0 | Add a `categories:` axis to `spec/test-spec-custom.md` |
 | Unknown test name (category mode) | `no category test named '<name>'` + exit 2 | Check `test-spec.sh --list-categories --names` |
-| Bad category / `--category` + name together | named error + exit 2 | Pass one selection: `--category workflow\|CI-push\|CI-nightly` OR a single name |
+| Bad category/layer / name + `--category`/`--layer` together | named error + exit 2 | Pass a valid selection: `--category workflow\|regression\|infra`, `--layer CI-push\|CI-nightly\|pipeline-gate\|local-hook` (composable), OR a single name |
 | A category test failed | aggregate `fail` + exit 1 + verbatim FAIL lines in the report | Fix the failing test; re-run |

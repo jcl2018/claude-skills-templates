@@ -11,4 +11,4 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
-| Windows smoke — CRLF + portable date + copy-mode | ci | hard-fail | pr-ci push-main manual | `scripts/test.sh` · `scripts/windows-smoke.sh` | Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp. |
+| Windows smoke — CRLF + portable date + copy-mode | CI-push | hard-fail | pr-ci push-main manual | `scripts/test.sh` · `scripts/windows-smoke.sh` | Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp. |
