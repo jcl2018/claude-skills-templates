@@ -3,6 +3,21 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.117] - 2026-07-04
+
+### Added
+- **`docs/tests/index.md` gained a `Topic` column (T000056)** grouping the declared
+  category tests by topic, so a reader can see at a glance which set of tests together
+  fully covers one concern. The four portability tests → `portability` (Git-Bash smoke +
+  Check-18 lint at CI-push, the Windows deploy suite at CI-nightly, the
+  version-notification check at local-hook — run all four to fully test portability);
+  `validate`/`suite`/`test-deploy` → `core-suite`; the cj_goal
+  eval/doc-sync/e2e/gate-shape rows → `cj-goal-workflows`. Rows reordered to sit
+  together by topic + a one-line intro added. Docs-only, hand-maintained (the `Topic`
+  column is not sourced from the `categories:` axis); every declared test name is still
+  referenced (`--check-structure` check (e) green) and `--render-docs` leaves the index
+  byte-identical (owned by `--seed-docs`, present⇒skip).
+
 ## [6.0.116] - 2026-07-04
 
 ### Fixed
