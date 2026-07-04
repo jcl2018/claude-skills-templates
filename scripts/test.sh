@@ -2042,17 +2042,20 @@ else
 fi
 
 # Regression test (F000048 / S000084): scripts/cj-id-claim.sh — the atomic
-# scaffold-time ID-claim engine that closes the scaffold-before-push race. Seven
-# cases incl. the LOOPED concurrent race (25 rounds, distinct IDs), both reap
-# modes (on-origin + TTL), prefix isolation, same-branch reuse, and cwd-independent
-# shared-claim-root resolution from a linked worktree + a nested subdir. Hermetic:
-# every claim happens inside a throwaway sandbox repo (live workbench .git untouched).
+# scaffold-time ID-claim engine that closes the scaffold-before-push race. Cases
+# incl. the LOOPED concurrent race (25 rounds, distinct IDs), both reap modes
+# (on-origin + TTL), prefix isolation, same-branch reuse, cwd-independent
+# shared-claim-root resolution from a linked worktree + a nested subdir, AND the
+# slug-less feature-tracker reap regression (Case 8a/8b — a merged `${id}_TRACKER.md`
+# with no slug must be reaped on both paths, else stale claims accrue and the next
+# scaffold re-hands an already-used F/S ID). Hermetic: every claim happens inside a
+# throwaway sandbox repo (live workbench .git untouched).
 # MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based; an
 # unregistered tests/*.test.sh silently never runs.
 echo ""
-echo "Running tests/cj-id-claim.test.sh (F000048 atomic ID-claim engine: race + reap + reuse + worktree resolution)..."
+echo "Running tests/cj-id-claim.test.sh (F000048 atomic ID-claim engine: race + reap + reuse + worktree resolution + slug-less feature-tracker reap)..."
 if bash "$REPO_ROOT/tests/cj-id-claim.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-id-claim.test.sh: all 10 cases pass (incl. 25-round concurrent race with 0 duplicates + reuse floor/CAS/dry-run regressions)"
+  ok "tests/cj-id-claim.test.sh: all 12 cases pass (incl. 25-round concurrent race with 0 duplicates + reuse floor/CAS/dry-run regressions + slug-less feature-tracker reap 8a/8b)"
 else
   _cic_rc=$?
   fail_test "tests/cj-id-claim.test.sh failed (rc=$_cic_rc) — run \`bash tests/cj-id-claim.test.sh\` directly to see"

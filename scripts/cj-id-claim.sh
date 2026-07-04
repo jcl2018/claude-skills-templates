@@ -158,7 +158,12 @@ dir_mtime_epoch() {
 
 # ---- Helper: is this ID already merged on origin/main? ----------------------
 #
-# Best-effort: look for ${id}_*_TRACKER.md anywhere under origin/main's tree.
+# Best-effort: look for the ID's TRACKER anywhere under origin/main's tree, in
+# BOTH shapes — the slug-less FEATURE tracker `${id}_TRACKER.md` AND the
+# slug-bearing story/task/defect tracker `${id}_<slug>_TRACKER.md`. The optional
+# `(_[^/]*)?` slug group is what makes a merged FEATURE claim reapable (a required
+# slug segment never matched `F000053_TRACKER.md`, so merged feature claims
+# accumulated forever and the next scaffold could re-hand an already-used F/S ID).
 # Skips silently (returns 1 = "not merged") if origin/main is absent/offline —
 # the TTL arm still reaps abandoned claims, and Sources 2+3 in scaffold.md remain
 # the cross-clone backstop. We fetch nothing here (the caller already fetched at
@@ -172,9 +177,12 @@ load_origin_tree() {
 }
 id_on_origin() {
   # $1 = ID (e.g. F000048). Return 0 if a matching TRACKER is on origin/main.
+  # The `(_[^/]*)?` slug group is OPTIONAL so slug-less feature trackers match
+  # too; the `$` anchor + literal `_TRACKER.md` keep it from over-matching a
+  # longer sibling ID (F000053 never matches F000530).
   load_origin_tree
   [ -n "$ORIGIN_TREE" ] || return 1
-  printf '%s\n' "$ORIGIN_TREE" | grep -qE "(^|/)${1}_[^/]*_TRACKER\.md$"
+  printf '%s\n' "$ORIGIN_TREE" | grep -qE "(^|/)${1}(_[^/]*)?_TRACKER\.md$"
 }
 
 # ---- Helper: does a local work-item dir already exist for this ID? ----------
@@ -183,10 +191,15 @@ id_on_origin() {
 # has not yet written the work-item dir for it (else the ID is in active use and
 # a re-run should advance, per the idempotency contract).
 id_has_workitem_dir() {
-  # $1 = ID. Return 0 if work-items/**/${id}_*_TRACKER.md exists locally.
+  # $1 = ID. Return 0 if a tracker for the ID exists locally, in BOTH shapes —
+  # the slug-less feature `${id}_TRACKER.md` OR the slug-bearing
+  # `${id}_<slug>_TRACKER.md`. The two `-name` terms mirror id_on_origin's
+  # optional-slug regex: a single `${id}_*_TRACKER.md` glob (a required slug)
+  # missed feature-level trackers, so a materialized feature ID looked un-taken.
   [ -n "$TOPLEVEL" ] || return 1
   [ -d "$TOPLEVEL/work-items" ] || return 1
-  find "$TOPLEVEL/work-items" -name "${1}_*_TRACKER.md" 2>/dev/null | grep -q .
+  find "$TOPLEVEL/work-items" \
+    \( -name "${1}_TRACKER.md" -o -name "${1}_*_TRACKER.md" \) 2>/dev/null | grep -q .
 }
 
 # ---- Helper: read a field from a claim meta file ----------------------------
