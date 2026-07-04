@@ -43,20 +43,27 @@ silent / no-AUQ), minus the scaffold step (3.1):
    on halt-on-red regardless of `--quiet`.
 
 2. **QA.** On impl green, dispatch `/CJ_qa-work-item` via the **Agent** tool
-   against the same `$WORK_ITEM_DIR`. The dispatch prompt carries the literal
-   directive `DEFER_AUDIT: true` so QA SKIPS its three-stage inline audit (qa.md
-   Step 8.6c/8.6d) — that agent-judged audit now runs in the nightly CI job
-   (`.github/workflows/audit-nightly.yml`) over `main`, not inline on the build
-   path (F000076). QA still runs its 8.6a/8.6b overlay writes inline and returns
-   `AUDITS=deferred` with NO `AUDIT_FINDINGS` block:
+   against the same `$WORK_ITEM_DIR`. The dispatch prompt carries TWO sibling
+   directives — `DEFER_AUDIT: true` so QA SKIPS its three-stage inline audit
+   (qa.md Step 8.6c/8.6d), and `DEFER_SYNC: true` so QA SKIPS the agent-judged
+   overlay AMENDMENT sweep in 8.6a/8.6b (F000079). Both the audit and the agentic
+   sync now run in the nightly CI job (`.github/workflows/audit-nightly.yml`) over
+   `main`, not inline on the build path (F000076 for the audit; F000079 for the
+   sync). QA still runs the fast DETERMINISTIC half of its 8.6a/8.6b overlay
+   writes inline (a new `tests/*.test.sh` gets its required `units:` row, a new
+   declared doc gets its overlay row — the parts `validate.sh` requires) and
+   returns `AUDITS=deferred` with NO `AUDIT_FINDINGS` block:
 
    ```
    ROLE: /CJ_qa-work-item runner for /CJ_goal_todo_fix (silent — no AUQ).
    DEFER_AUDIT: true
+   DEFER_SYNC: true
    TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. The literal
-   DEFER_AUDIT: true directive above tells QA to run its Step 8.6a/8.6b overlay
-   writes inline but SKIP the 8.6c/8.6d three-stage audit (the nightly CI audit
-   job covers it; it is NOT re-run inline). Return the RESULT line verbatim —
+   DEFER_AUDIT: true + DEFER_SYNC: true directives above tell QA to run only the
+   DETERMINISTIC half of its Step 8.6a/8.6b overlay writes inline (new-surface
+   rows) but SKIP both the agent-judged amendment sweep (DEFER_SYNC) and the
+   8.6c/8.6d three-stage audit (DEFER_AUDIT) — the nightly CI job covers both;
+   neither is re-run inline. Return the RESULT line verbatim —
    including the AUDITS= field (it will read AUDITS=deferred,spec_updates:<...>);
    do NOT expect an AUDIT_FINDINGS block on the deferred path:
    RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates:<...>
@@ -100,87 +107,97 @@ fi
 (`/ship` adds the VERSION/CHANGELOG bump as a follow-on commit.) Only after a
 clean tree is established does control proceed to Step 5.5 (doc-sync).
 
-### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
+### Step 5.5: Doc-sync (INLINE — deterministic doc-regen; F000079)
 
-Doc-sync runs INLINE between the pre-doc-sync commit (Step 5.4) and `/ship`, so
-any doc updates fold into the SAME per-TODO PR as the TODO fix. There is no
-post-merge doc-drift window for orchestrator-driven paths: the doc update ships
-in the same PR as the TODO fix. (The agent-judged doc/test audit that used to run
-after doc-sync now runs nightly in CI — audit-nightly.yml — so the build path ends
-at doc-sync → /ship → /land-and-deploy, with no inline audit or checkpoint;
-F000076.)
+Doc-sync runs INLINE between the pre-doc-sync commit (Step 5.4) and `/ship` so the
+GENERATED doc catalogs stay in sync in the SAME per-TODO PR as the TODO fix.
+**As of F000079 this is a FAST, model-free DETERMINISTIC regen — NOT the slow
+`/CJ_document-release` LLM pass.** The slow agent-judged doc-sync (rewriting
+README/CHANGELOG/CLAUDE.md prose to reflect semantics) + the agent-judged
+overlay-amendment sweep are advisory drift-catches that now DEFER to the nightly
+audit (`.github/workflows/audit-nightly.yml` → the `audit-drift` issue; F000076
+relocated the audit, F000079 the agentic sync), off the per-PR build path. The
+deterministic per-PR gate (`validate.sh` Checks 15-19/24/26/27/28) is UNCHANGED
+and still hard-blocks a broken contract.
 
-Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
-(v1 orchestrator wiring runs a full audit; the per-doc subset flag is for
-manual operator invocations). The skill returns one of three RESULTs:
-
-- `RESULT: green` — `/document-release` ran clean and the wrapper
-  auto-committed doc-only changes (whitelist: `README|CHANGELOG|CLAUDE|
-  ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`). Continue to
-  `/ship` Gate #2. The next phase will see a clean tree with a doc commit
-  already present.
-- `RESULT: green-noop` — `/document-release` ran clean and no doc changes
-  were needed. Continue to `/ship` Gate #2. The PR will be code-only.
-- `RESULT: red; HALT_MARKER=[doc-sync-red]` — `/document-release` itself
-  returned non-green (audit error, mid-write failure, hard-abort, base-
-  branch refusal, or a pre-run non-doc dirty tree). **HALT** with halt
-  class `halted_at_doc_sync`; the orchestrator writes a journal entry to
-  the per-TODO T-task tracker and exits. In drain mode the loop STOPs on
-  halt-on-red regardless of `--quiet` (cron operator inspects journal).
-- `RESULT: red; HALT_MARKER=[doc-sync-non-doc-write]` — `/document-release`
-  succeeded but wrote files OUTSIDE the doc-only whitelist (upstream-
-  misbehaved). **HALT** with halt class `halted_at_doc_sync_non_doc_write`;
-  the orchestrator writes a journal entry naming the non-doc files and
-  exits.
-
-Halt-marker shape (mirrors the family contract — `next_action=` /
-`resume_cmd=` / `pr_url=`):
+Regenerate the two GENERATED catalogs (the test catalog + the workflow docs) so
+`validate.sh` Check 26/27 stay green, then commit any doc-only delta. The
+regenerators are idempotent — a build that already regenerated leaves a clean
+tree (no-op). NO model spend, NO prose rewrite.
 
 ```bash
-# Pseudocode — the per-TODO Step 5.5 dispatch handler (single-TODO mode
-# and drain-mode per-iteration both use this shape):
-case "$DOC_SYNC_RESULT" in
-  green|green-noop)
-    echo "[doc-sync] $DOC_SYNC_RESULT — continuing to /ship"
-    # No state change beyond the doc commit /CJ_document-release made.
-    ;;
-  *red*\[doc-sync-red\]*)
-    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat >> "$T_TRACKER" <<EOF
-
-- $TS [doc-sync-red] /CJ_document-release returned RESULT=red; halt class halted_at_doc_sync.
-  next_action=Inspect /document-release output; fix doc errors; re-run /CJ_document-release manually, then resume /CJ_goal_todo_fix.
-  resume_cmd=/CJ_goal_todo_fix "$TODO_HEADING_OR_T_ID"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/doc-sync-raw.txt
-EOF
-    echo "Why it stopped: /CJ_document-release failed (upstream /document-release non-green or pre-run gate refused)."
-    echo "State preserved: T-task $T_ID intact; doc-sync did NOT commit doc files."
-    echo "Next: inspect the failure, fix manually, then /CJ_goal_todo_fix \"$TODO_HEADING_OR_T_ID\""
-    # Telemetry: end_state=halted_at_doc_sync
-    # Drain mode: STOP the loop (matches the existing halt-on-red drain contract)
-    exit 1
-    ;;
-  *red*\[doc-sync-non-doc-write\]*)
-    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat >> "$T_TRACKER" <<EOF
-
-- $TS [doc-sync-non-doc-write] /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist.
-  next_action=Inspect uncommitted non-doc files; revert if unexpected; re-run /CJ_document-release manually, then resume /CJ_goal_todo_fix.
-  resume_cmd=/CJ_goal_todo_fix "$TODO_HEADING_OR_T_ID"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/doc-sync-raw.txt
-EOF
-    echo "Why it stopped: /CJ_document-release refused — upstream /document-release wrote files outside the doc-only whitelist."
-    echo "State preserved: T-task $T_ID intact; nothing auto-committed."
-    echo "Next: inspect the non-doc files, revert if unexpected, then /CJ_goal_todo_fix \"$TODO_HEADING_OR_T_ID\""
-    # Telemetry: end_state=halted_at_doc_sync_non_doc_write
-    exit 1
-    ;;
-esac
+# Step 5.5 — deterministic doc-regen (replaces the slow /CJ_document-release; F000079)
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+_TS_ENGINE="$_REPO_ROOT/scripts/test-spec.sh"
+_WF_ENGINE="$_REPO_ROOT/scripts/workflow-spec.sh"
+_REGEN_FAIL=0
+[ -x "$_TS_ENGINE" ] && { bash "$_TS_ENGINE" --render-docs >/dev/null 2>&1 || _REGEN_FAIL=1; }
+[ -x "$_WF_ENGINE" ] && { bash "$_WF_ENGINE" --render-docs >/dev/null 2>&1 || _REGEN_FAIL=1; }
 ```
 
-Only on green or green-noop does control proceed to `/ship` Gate #2.
+The step keeps the same two halt markers as the family contract (`next_action=` /
+`resume_cmd=` / `pr_url=`), reframed to the deterministic engine:
+
+- **`[doc-sync-red]`** — a `--render-docs` engine returned non-zero (a genuine
+  regen failure): **HALT** with halt class `halted_at_doc_sync`; the orchestrator
+  writes a journal entry to the per-TODO T-task tracker and exits. In drain mode
+  the loop STOPs on halt-on-red regardless of `--quiet` (cron operator inspects
+  journal).
+- **`[doc-sync-non-doc-write]`** (defensive) — after the regen, a NON-`docs/`
+  file is dirty. The deterministic regen must only touch `docs/`; anything else
+  means an engine misbehaved: **HALT** with halt class
+  `halted_at_doc_sync_non_doc_write`; the orchestrator writes a journal entry
+  naming the non-doc files and exits.
+
+```bash
+# Pseudocode — the per-TODO Step 5.5 handler (single-TODO mode
+# and drain-mode per-iteration both use this shape):
+if [ "$_REGEN_FAIL" = "1" ]; then
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$T_TRACKER" <<EOF
+
+- $TS [doc-sync-red] a --render-docs engine returned non-zero (deterministic doc-regen failed); halt class halted_at_doc_sync.
+  next_action=Run scripts/test-spec.sh --render-docs and scripts/workflow-spec.sh --render-docs manually; fix the engine/registry error; then resume /CJ_goal_todo_fix.
+  resume_cmd=/CJ_goal_todo_fix "$TODO_HEADING_OR_T_ID"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+  echo "Why it stopped: the deterministic doc-regen failed (a --render-docs engine returned non-zero)."
+  echo "State preserved: T-task $T_ID intact; no catalogs committed."
+  echo "Next: fix the regen error, then /CJ_goal_todo_fix \"$TODO_HEADING_OR_T_ID\""
+  # Telemetry: end_state=halted_at_doc_sync
+  # Drain mode: STOP the loop (matches the existing halt-on-red drain contract)
+  exit 1
+fi
+# Defensive: only docs/ may have changed from the regen.
+_NONDOC=$(git -C "$_REPO_ROOT" status --porcelain -- . ':(exclude)docs/' 2>/dev/null | head -1)
+if [ -n "$_NONDOC" ]; then
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$T_TRACKER" <<EOF
+
+- $TS [doc-sync-non-doc-write] the deterministic doc-regen dirtied a non-docs/ file ("$_NONDOC"); halt class halted_at_doc_sync_non_doc_write.
+  next_action=Inspect the unexpected non-doc change; revert it; re-run the regen manually, then resume /CJ_goal_todo_fix.
+  resume_cmd=/CJ_goal_todo_fix "$TODO_HEADING_OR_T_ID"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+  echo "Why it stopped: the deterministic doc-regen touched a non-docs/ file ($_NONDOC), which it must never do."
+  echo "State preserved: T-task $T_ID intact; nothing auto-committed."
+  echo "Next: revert the unexpected change, then /CJ_goal_todo_fix \"$TODO_HEADING_OR_T_ID\""
+  # Telemetry: end_state=halted_at_doc_sync_non_doc_write
+  exit 1
+fi
+# Clean regen: commit any doc-only delta and continue to /ship.
+if ! git -C "$_REPO_ROOT" diff --quiet -- docs/ || ! git -C "$_REPO_ROOT" diff --cached --quiet -- docs/; then
+  git -C "$_REPO_ROOT" add -A docs/
+  git -C "$_REPO_ROOT" commit -m "docs: regenerate catalogs (deterministic doc-regen; Step 5.5)" >/dev/null
+  echo "[doc-sync] deterministic doc-regen: committed regenerated catalogs — continuing to /ship"
+else
+  echo "[doc-sync] deterministic doc-regen: catalogs already fresh (no-op) — continuing to /ship"
+fi
+```
+
+Only on a clean regen does control proceed to `/ship` Gate #2.
 
 ### --quiet mode interaction
 

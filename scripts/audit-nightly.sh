@@ -8,6 +8,13 @@
 # `claude --print` sweep of `main` that files findings to a GitHub issue instead
 # of taxing every build. The per-PR deterministic gate (validate.sh) is untouched.
 #
+# F000079 extended what this nightly sweep is the safety net FOR: the cj_goal
+# build path also stopped running the slow inline doc-sync (/CJ_document-release
+# prose rewrite) + the agent-judged test-sync overlay-amendment sweep (QA 8.6a/8.6b
+# under DEFER_SYNC). That deferred agentic doc/test drift is caught HERE — the same
+# `/CJ_doc_audit` (Stage 3: docs reflect reality) + `/CJ_test_audit` (overlay
+# truthfulness) sweep already files it to the `audit-drift` issue, no new job needed.
+#
 # SKIPs cleanly (exit 0) without a model key, so a normal `test.sh` and any
 # secret-less fork never spend. Advisory by construction: a claude/gh hiccup is
 # reported, never failed — this job never goes red on infra noise.

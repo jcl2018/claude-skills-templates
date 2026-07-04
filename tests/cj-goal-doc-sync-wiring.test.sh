@@ -8,12 +8,19 @@
 #
 # F000076 (audit relocated to CI-nightly): the orchestrators no longer run an
 # inline post-sync doc/test audit or a QA-audit checkpoint — that agent-judged
-# audit now runs nightly in CI (.github/workflows/audit-nightly.yml). The
-# canonical build path is QA → pre-doc-sync commit → doc-sync (Step 5.5) → ship.
-# doc-sync stays wired identically across the 4 orchestrators; this test asserts
-# that symmetry AND that the removed checkpoint machinery is absent.
+# audit now runs nightly in CI (.github/workflows/audit-nightly.yml).
 #
-# Asserts (6):
+# F000079 (build-gate deterministic-agentic split): the orchestrators also stopped
+# running the SLOW inline doc-sync (the /CJ_document-release LLM pass → replaced by
+# a deterministic --render-docs regen at Step 5.5) and the agent-judged test-sync
+# overlay sweep (QA 8.6a/8.6b, now gated by the DEFER_SYNC dispatch directive). The
+# slow agentic doc/test sync defers to the nightly audit. The canonical build path
+# is QA → pre-doc-sync commit → deterministic doc-regen (Step 5.5) → ship. This
+# test asserts the "F000079 build-gate deterministic-agentic split" holds
+# symmetrically across the 4 orchestrators (it backs the build-gate-no-inline-slow-sync
+# behavior; that behavior_coverage row anchors on this exact phrase).
+#
+# Asserts (9):
 #   1. Step 5.5: Doc-sync subsection present in all 4 pipeline.md (H2 or H3)
 #   2. [doc-sync-red] halt marker present in all 4 pipeline.md (the halt path)
 #   3. [doc-sync-non-doc-write] halt marker present in all 4 pipeline.md
@@ -24,6 +31,11 @@
 #   6. REMOVED-checkpoint guard: NO qa-audit checkpoint machinery remains in any
 #      of the 4 pipeline.md or 4 SKILL.md (no halted_at_qa_audit /
 #      [qa-audit-declined] / [qa-audit-waived]) — the audit moved to CI-nightly.
+#   7. F000079: NO pipeline.md invokes /CJ_document-release on the build path
+#      (the slow inline LLM doc-sync is gone).
+#   8. F000079: each pipeline.md runs the deterministic --render-docs regen at Step 5.5.
+#   9. F000079: all 4 QA dispatches carry DEFER_SYNC: true, AND qa.md gates the
+#      8.6a/8.6b agentic sweep on DEFER_SYNC.
 
 set -uo pipefail
 
@@ -123,6 +135,49 @@ for f in "${PIPELINES[@]}" "${SKILLS[@]}"; do
     ok "$rel: no inline QA-audit checkpoint machinery (audit relocated to CI-nightly)"
   fi
 done
+
+# 7. F000079: NO pipeline invokes /CJ_document-release on the build path — the slow
+# inline LLM doc-sync was replaced by the deterministic --render-docs regen. (Prose
+# mentions of the name are fine; the INVOCATION verb is what must be gone.)
+for pf in "${PIPELINES[@]}"; do
+  rel="${pf#"$REPO_ROOT"/}"
+  [ -f "$pf" ] || continue
+  if grep -qE 'Invoke .*CJ_document-release' "$pf"; then
+    fail_test "$rel: still invokes /CJ_document-release on the build path (F000079 replaced it with a deterministic regen)"
+  else
+    ok "$rel: no inline /CJ_document-release invocation (deterministic doc-regen instead)"
+  fi
+done
+
+# 8. F000079: each pipeline's Step 5.5 runs the deterministic --render-docs regen.
+for pf in "${PIPELINES[@]}"; do
+  rel="${pf#"$REPO_ROOT"/}"
+  [ -f "$pf" ] || continue
+  if grep -qF -- '--render-docs' "$pf"; then
+    ok "$rel: Step 5.5 runs the deterministic --render-docs regen"
+  else
+    fail_test "$rel: missing the deterministic --render-docs regen in Step 5.5 (F000079)"
+  fi
+done
+
+# 9. F000079: all 4 QA dispatches carry DEFER_SYNC: true, AND qa.md gates the
+# 8.6a/8.6b agentic sweep on DEFER_SYNC.
+for pf in "${PIPELINES[@]}"; do
+  rel="${pf#"$REPO_ROOT"/}"
+  [ -f "$pf" ] || continue
+  if grep -qF 'DEFER_SYNC: true' "$pf"; then
+    ok "$rel: QA dispatch carries DEFER_SYNC: true"
+  else
+    fail_test "$rel: QA dispatch missing DEFER_SYNC: true (F000079)"
+  fi
+done
+QA_MD="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
+qrel="skills/CJ_qa-work-item/qa.md"
+if [ -f "$QA_MD" ] && grep -qF 'DEFER_SYNC' "$QA_MD"; then
+  ok "$qrel: gates the 8.6a/8.6b agentic sweep on DEFER_SYNC"
+else
+  fail_test "$qrel: no DEFER_SYNC gating for the 8.6a/8.6b sweep (F000079)"
+fi
 
 echo
 if [ "$ERRORS" -eq 0 ]; then

@@ -758,27 +758,42 @@ WRITES always run inline (the feedback-loop order that keeps living registries
 from rotting: the contract is updated, then verified); the AUDITS are
 **conditionally deferrable** — see the defer detection below.
 
-### 8.6.0 — Defer detection (`DEFER_AUDIT: true`)
+### 8.6.0 — Defer detection (`DEFER_AUDIT: true` + `DEFER_SYNC: true`)
 
-The cj_goal orchestrators do NOT run the three-stage agent-judged audit inline —
-it runs nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
-(F000076). They signal "skip the inline audit" to QA with the literal directive
-`DEFER_AUDIT: true` embedded in the QA Agent-tool dispatch PROMPT (NOT an argv
-flag — `/CJ_qa-work-item` is dispatched as a subagent prompt, so the carrier is a
-greppable literal string in the pipeline.md prompt templates, not a CLI flag).
+The cj_goal orchestrators run neither the three-stage agent-judged AUDIT nor the
+slow agent-judged overlay SYNC sweep inline — both are advisory drift-catches that
+now run nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
+(F000076 relocated the audit; F000078 relocated the agentic sync). They signal
+this to QA with two sibling literal directives embedded in the QA Agent-tool
+dispatch PROMPT (NOT argv flags — `/CJ_qa-work-item` is dispatched as a subagent
+prompt, so the carrier is a greppable literal string in the pipeline.md prompt
+templates, not a CLI flag):
 
-At the START of this block, set `DEFER_AUDIT` by inspecting the dispatch
-context (the ROLE/TASK prompt this QA run was invoked with):
+- `DEFER_AUDIT: true` — skip the inline three-stage audit (gates 8.6c/8.6d).
+- `DEFER_SYNC: true` — skip the inline AGENT-JUDGED overlay AMENDMENT sweep in
+  8.6a/8.6b (the SLOW part: re-reading the whole diff to judge which EXISTING rows
+  need amending for semantic changes). The fast DETERMINISTIC obligation — every
+  NEW `tests/*.test.sh` gains its required `units:` row, every NEW declared doc
+  gains its overlay row — STILL runs inline, because `validate.sh` Check 24 / the
+  doc-spec on-disk check hard-fail the PR without it.
+
+At the START of this block, set both flags by inspecting the dispatch context (the
+ROLE/TASK prompt this QA run was invoked with):
 
 - If the dispatch prompt contains the literal string `DEFER_AUDIT: true` →
-  `DEFER_AUDIT = true`.
-- Otherwise (standalone `/CJ_qa-work-item`, no such directive) →
-  `DEFER_AUDIT = false`.
+  `DEFER_AUDIT = true`; otherwise (standalone, no directive) → `DEFER_AUDIT = false`.
+- If the dispatch prompt contains the literal string `DEFER_SYNC: true` →
+  `DEFER_SYNC = true`; otherwise → `DEFER_SYNC = false`.
 
-`DEFER_AUDIT` only ever gates 8.6c/8.6d (the audits). 8.6a and 8.6b (the overlay
-writes) run inline on EVERY green path regardless of `DEFER_AUDIT` — the
-orchestrator's pre-doc-sync commit + doc-sync fold them into the PR, so they
-must land here pre-sync.
+Both default to `false` on a standalone `/CJ_qa-work-item` run, so a standalone run
+keeps the FULL inline overlay sweep + audit — UNCHANGED. The four cj_goal
+orchestrators pass BOTH directives.
+
+`DEFER_AUDIT` gates 8.6c/8.6d (the audits). `DEFER_SYNC` gates ONLY the
+agent-judged amendment sweep of 8.6a/8.6b — the deterministic new-surface row
+always runs (the orchestrator's pre-doc-sync commit + deterministic doc-regen fold
+it into the PR). The nightly `/CJ_doc_audit` + `/CJ_test_audit` are the safety net
+that catches the deferred agentic doc/test drift and files the `audit-drift` issue.
 
 **Verdict semantics (load-bearing).** Audit findings do NOT flip the QA
 RESULT red. Tests own the green/red verdict (the existing `[qa-red]` gate);
@@ -803,26 +818,40 @@ crash.
 
 ### 8.6a — Update `spec/test-spec-custom.md` (the units overlay)
 
-Agent-judged refresh: add/amend `units:` rows for test surfaces THIS
-work-item added or changed — every new `tests/*.test.sh` MUST gain a unit row
-(source `scripts/test.sh`, anchor the literal runner path) or the coverage
-check fails; a renamed/removed surface gets its row fixed/dropped. In a repo
-with no overlay and no repo-declared units, record `none` (do not invent an
-overlay). Report one line:
+**Deterministic obligation — ALWAYS runs (even under `DEFER_SYNC`).** Every new
+`tests/*.test.sh` THIS work-item added MUST gain a `units:` row (source
+`scripts/test.sh`, anchor the literal runner path) — `validate.sh` Check 24
+hard-fails the PR otherwise; a renamed/removed surface gets its row
+fixed/dropped. This is a mechanical add keyed off the new/renamed test path: it
+is fast, model-free, and always runs so the deterministic per-PR gate stays
+green. In a repo with no overlay and no repo-declared units, record `none` (do
+not invent an overlay).
+
+**Agent-judged amendment sweep — SKIPPED when `DEFER_SYNC = true`.** The SLOW
+part — re-reading the whole diff to judge which EXISTING `units:` rows need
+amending for the semantic changes this work-item made — runs ONLY when
+`DEFER_SYNC = false` (standalone `/CJ_qa-work-item`). When `DEFER_SYNC = true`
+(an orchestrated build), SKIP it; the nightly `/CJ_test_audit` catches any
+un-amended overlay drift and files the `audit-drift` issue. Report one line
+(`sweep:deferred` when the amendment sweep was skipped):
 
 ```
-spec-update: test-spec-custom <added: ids | changed: ids | none>
+spec-update: test-spec-custom <added: ids | none>; sweep:<ran|deferred>
 ```
 
 ### 8.6b — Update `spec/doc-spec-custom.md` (the doc overlay)
 
-Symmetric: a new repo-specific root/spec doc THIS work-item added gets an
-overlay row (`section: custom`); a removed doc gets its row dropped. General
-docs never go here (the general file is the seed — never edited in place).
-Report one line:
+Symmetric, with the same `DEFER_SYNC` split. **Deterministic (always):** a new
+repo-specific root/spec doc THIS work-item added gets an overlay row
+(`section: custom`); a removed doc gets its row dropped — the doc-spec on-disk
+check hard-fails the PR otherwise. General docs never go here (the general file
+is the seed — never edited in place). **Agent-judged sweep (skipped under
+`DEFER_SYNC = true`):** the semantic re-read for amendments runs only standalone;
+under an orchestrated build it defers to the nightly `/CJ_doc_audit`. Report one
+line:
 
 ```
-spec-update: doc-spec-custom <added: paths | changed: paths | none>
+spec-update: doc-spec-custom <added: paths | none>; sweep:<ran|deferred>
 ```
 
 ### 8.6c — Run `/CJ_doc_audit` (inline in subagent context)
@@ -869,21 +898,25 @@ field. Its shape — and whether an `AUDIT_FINDINGS` block follows — depends o
 
 #### Deferred path (`DEFER_AUDIT = true`)
 
-When the audits were deferred, 8.6a/8.6b STILL ran (the overlay writes are
-unconditional), but 8.6c/8.6d were skipped. The RESULT's `AUDITS=` field reads
-the literal `deferred`, carrying only the spec-update summary from 8.6a/8.6b:
+When an orchestrated build defers, 8.6a/8.6b ran their DETERMINISTIC half only
+(new-surface `units:`/overlay rows added inline so the per-PR gate stays green);
+their agent-judged AMENDMENT sweep was skipped via `DEFER_SYNC`, and 8.6c/8.6d
+were skipped via `DEFER_AUDIT`. The RESULT's `AUDITS=` field reads the literal
+`deferred`, carrying only the deterministic spec-update summary from 8.6a/8.6b:
 
 ```
 RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates:<summary>
 ```
 
 (for defect/task the existing per-type RESULT shape gains the same trailing
-`AUDITS=deferred,spec_updates:<summary>` field). **Emit NO `AUDIT_FINDINGS`
-block** — the agent-judged audit runs nightly in CI, not on the build path.
-Append one journal entry recording the skip:
+`AUDITS=deferred,spec_updates:<summary>` field; `<summary>` reflects only the
+deterministic adds, since the amendment sweep deferred). **Emit NO
+`AUDIT_FINDINGS` block** — the agent-judged audit + the agentic overlay sweep both
+run nightly in CI, not on the build path. Append one journal entry recording the
+skip:
 
 ```
-- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b ran inline; 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agent-judged audit runs nightly in CI)
+- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b: deterministic new-surface rows added inline; the agent-judged amendment sweep SKIPPED via DEFER_SYNC + 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agentic doc/test sync + audit run nightly in CI)
 ```
 
 Then continue to Step 9 (transition criteria UNCHANGED — the deferral does not
