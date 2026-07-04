@@ -1804,6 +1804,23 @@ else
   fail_test "tests/cj-goal-pr-body-splice-guard.test.sh failed (rc=$_cgpbsg_rc) — run \`bash tests/cj-goal-pr-body-splice-guard.test.sh\` directly to see"
 fi
 
+# Regression drill for the jq-CRLF class in the CJ_goal_* / check-* orchestrator
+# helpers (the Windows P0). A Windows jq build emits CRLF, so a raw $(jq -r ...)
+# capture leaves a trailing \r that breaks `[ -d "$src" ]` and silently degrades
+# the cj-goal-common sync/pr-check phases to `skipped` on Windows. This drill
+# asserts the CR-stripping jq() wrapper (mirrors lib.sh:24) is present in all five
+# helpers and works under a CRLF-emitting jq shim. Registration is MANDATORY —
+# scripts/test.sh discovery is hand-written, NOT glob-based; an unregistered
+# tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/cj-goal-jq-crlf.test.sh (CR-stripping jq() wrapper in the 5 orchestrator helpers)..."
+if bash "$REPO_ROOT/tests/cj-goal-jq-crlf.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-jq-crlf.test.sh: all 5 helpers strip jq CRLF (structural + CRLF-shim mechanism + worktree-phase e2e)"
+else
+  _cgjc_rc=$?
+  fail_test "tests/cj-goal-jq-crlf.test.sh failed (rc=$_cgjc_rc) — run \`bash tests/cj-goal-jq-crlf.test.sh\` directly to see"
+fi
+
 # F000071 Part A / S000120: the build-gate auto-answer seam verdict helper
 # (scripts/cj-e2e-gate.sh). The seam is dormant unless a double hard guard holds
 # (CJ_GOAL_E2E_AUTO=1 AND a .cj-e2e-sandbox marker at the repo root) AND the gate

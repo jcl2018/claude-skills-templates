@@ -53,6 +53,13 @@
 
 set -u  # strict on undefined vars; do NOT set -e — every op handles errors explicitly
 
+# Strip CRLF from jq output — a Windows jq build emits \r\n, so a raw
+# $(jq -r ...) capture leaves a trailing \r on every value (breaking
+# `[ -d "$src" ]` and friends). `return "${PIPESTATUS[0]}"` preserves jq's exit
+# status independent of `set -o pipefail`. No-op on Unix. Mirrors
+# scripts/lib.sh:24; covers every jq call site below.
+jq() { command jq "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }
+
 # ---- arg parsing -------------------------------------------------------------
 
 DRY_RUN=0
