@@ -10,7 +10,7 @@
 | `portability-check18-lint` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/portability-check18-lint.md](tests/infra/CI-push/portability-check18-lint.md) |
 | `portability-smoke` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/portability-smoke.md](tests/infra/CI-push/portability-smoke.md) |
 | `suite` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/suite.md](tests/infra/CI-push/suite.md) |
-| `test-deploy` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/test-deploy.md](tests/infra/CI-push/test-deploy.md) |
+| `test-deploy` | `infra` | `CI-nightly` | deterministic | free | [docs/tests/infra/CI-nightly/test-deploy.md](tests/infra/CI-nightly/test-deploy.md) |
 | `validate` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/validate.md](tests/infra/CI-push/validate.md) |
 | `portability-version-check` | `infra` | `local-hook` | deterministic | free | [docs/tests/infra/local-hook/portability-version-check.md](tests/infra/local-hook/portability-version-check.md) |
 | `cj-goal-gate-shape` | `workflow` | `CI-push` | deterministic | free | [docs/tests/workflow/CI-push/cj-goal-gate-shape.md](tests/workflow/CI-push/cj-goal-gate-shape.md) |

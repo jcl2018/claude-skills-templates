@@ -16,8 +16,12 @@ jobs:
       - name: Validate catalog
         run: ./scripts/validate.sh
 
-      - name: Run tests
-        run: ./scripts/test.sh
+      # Fast per-PR subset (F000081 follow-up): TEST_FAST=1 skips the heavy
+      # skills-deploy fixture suite (test-deploy.sh) — re-layered to CI-nightly
+      # (.github/workflows/nightly.yml runs the FULL suite every night). Every fast
+      # unit sub-suite + the inline integration tests + validate.sh still gate per-PR.
+      - name: Run tests (fast subset — heavy test-deploy runs nightly)
+        run: TEST_FAST=1 ./scripts/test.sh
 
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh scripts/skills-deploy scripts/skills-update-check

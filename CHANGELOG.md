@@ -3,6 +3,23 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.115] - 2026-07-04
+
+### Changed
+- **Trimmed the per-PR CI gate to a fast subset; re-layered the heavy `test-deploy`
+  suite to CI-nightly** (the deferred F000081 follow-up, done attended). `scripts/test.sh`
+  gained a `TEST_FAST` env: when `TEST_FAST=1` it SKIPS the heavy `scripts/test-deploy.sh`
+  fixture suite (the slowest deterministic sub-suite — many throwaway temp-dir
+  installs). `.github/workflows/validate.yml` now runs `TEST_FAST=1 ./scripts/test.sh`
+  on every PR, so the per-PR gate keeps `validate.sh` + every fast unit sub-suite +
+  shellcheck but no longer pays the `test-deploy` cost; the full
+  `.github/workflows/nightly.yml` run (no flag) executes `test-deploy` every night. The
+  `test-deploy` unit + `categories:` rows are re-layered CI-push → CI-nightly (the
+  front-door doc moved to `docs/tests/infra/CI-nightly/test-deploy.md` + the
+  `docs/tests/index.md` index updated), so the contract matches where the suite actually
+  runs. Combined with F000081's targeted-negative-test speedup, the ~11-min OOM-flaky
+  per-PR gate is now fast.
+
 ## [6.0.114] - 2026-07-04
 
 ### Added
