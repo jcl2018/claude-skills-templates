@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [6.0.114] - 2026-07-04
 
 ### Added
 - **F000081 — three-layer test contract per category + git-ls-remote
