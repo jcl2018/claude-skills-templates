@@ -79,3 +79,9 @@ cj-id-claim.sh reap regex misses {ID}_TRACKER.md feature trackers, so merged fea
 
 ## Journal
 - 2026-07-04T00:24:01Z [auto-scaffolded] /CJ_goal_defect captured the bug as draft .inbox/cj_id_claim_sh_reap_regex_misses_id_tracker_md_fea, then promoted to D000039 after /investigate populated the root cause. Domain defaulted to 'uncategorized'.
+- 2026-07-04 [qa-smoke] 8a (reap-on-origin slug-less): green — `tests/cj-id-claim.test.sh` Case 8a OK: slug-less on-origin feature claim reaped + re-minted (id_on_origin regex accepts `{ID}_TRACKER.md`); CLAIMED_ID=F000048.
+- 2026-07-04 [qa-smoke] 8b (materialized slug-less reuse): green — `tests/cj-id-claim.test.sh` Case 8b OK: materialized `F000090_TRACKER.md` detected by id_has_workitem_dir find-glob → same-branch reuse advanced to F000091.
+- 2026-07-04 [qa-smoke] 3/6.0 (slug-bearing shape unchanged): green — `tests/cj-id-claim.test.sh` Cases 3 + 6.0 OK: slug-bearing `_demo_` reap + same-branch reuse behave as before (no regression); adversarial over-match guard holds (F000053 != F000530).
+- 2026-07-04 [qa-smoke-summary] green: 3/3 non-manual rows green (0 manual rows pending). Full `tests/cj-id-claim.test.sh` = RESULT: PASS, Failures: 0 (all 13 cases incl. Case 2 concurrency race green this run).
+- 2026-07-04 [qa-audit] AUDITS=deferred,spec_updates:test-spec-custom changed(test-cj-id-claim),doc-spec-custom:none (Step 8.6a/8.6b ran inline; 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agent-judged audit runs nightly in CI)
+- 2026-07-04 [qa-pass] D000039 (defect): green smoke from test-plan rows (3 rows). No qa-owned Phase 2 gates per template; Phase 3 `Test-plan verified` gate awaits /ship-time inference.
