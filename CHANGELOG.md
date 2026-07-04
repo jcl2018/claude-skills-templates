@@ -3,6 +3,23 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.110] - 2026-07-04
+
+### Fixed
+- **D000039 — `cj-id-claim.sh` reap regex now matches slug-less feature
+  trackers.** `id_on_origin()` and `id_has_workitem_dir()` both required a slug
+  segment between the ID and `_TRACKER.md`, so neither matched a feature-level
+  `{ID}_TRACKER.md` (features carry no slug; only stories/tasks/defects are
+  `{ID}_{slug}_TRACKER.md`). Consequently a merged FEATURE ID claim was never
+  reaped from `cj-id-claims/`, stale claims kept counting toward the live max,
+  and the next scaffold could re-hand an already-used F/S ID — the 2026-07-03
+  parallel `F000076/S000126/v6.0.108` collision (PR #314 vs #315). Made the slug
+  optional in both matchers (`(^|/)${id}(_[^/]*)?_TRACKER\.md$` + a two-`-name`
+  `find`); the `$` anchor + literal `_TRACKER.md` prevent over-matching a longer
+  sibling ID (`F000053` ≠ `F000530`). Regression Cases 8a (slug-less on-origin
+  reap) + 8b (materialized slug-less reuse advance) added to
+  `tests/cj-id-claim.test.sh`.
+
 ## [6.0.109] - 2026-07-03
 
 ### Changed
