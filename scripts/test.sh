@@ -134,7 +134,7 @@ else
   bash "$_S96_TS" --validate >/dev/null 2>&1 || fail_test "S000096: test-spec.sh --validate failed (merged registry does not parse)"
   [ "$(bash "$_S96_TS" --validate 2>/dev/null)" = "OK schema_version=1" ] || fail_test "S000096: --validate did not print 'OK schema_version=1'"
   # S2: the reader emits the right sets — the four layers + at least the known gates.
-  for _l in local-hook ci pipeline-gate ratchet; do
+  for _l in CI-push CI-nightly pipeline-gate local-hook; do
     bash "$_S96_TS" --list-layers 2>/dev/null | grep -qx "$_l" || fail_test "S000096: --list-layers missing layer '$_l'"
   done
   for _g in isolation qa doc-sync ship; do

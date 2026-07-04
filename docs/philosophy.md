@@ -18,7 +18,7 @@ end-to-end workflows see [workflow.md](workflow.md).
 | **Harness-engineering best practices** | 3. Design for stateless handoff | Make resumption a read, not a recollection — the unit of work ends by writing what the next one needs. |
 | **Harness-engineering best practices** | 4. Verification is a continuous gate — judge the path | A quality gate at every step, evaluating the trajectory, with the verifier kept independent of the doer. |
 | **Harness-engineering best practices** | 5. Tools & permissions are first-class | Spec tools like prompts; design permission before capability and give the riskiest verbs the strictest rules. |
-| **CI/CD** | Four verification layers, one owner each | local-hook / ci / pipeline-gate / ratchet — each guarantee is owned by exactly one layer; `test-spec.md` is the map. |
+| **CI/CD** | Four verification layers, one owner each | CI-push / CI-nightly / pipeline-gate / local-hook — each guarantee is owned by exactly one layer (`ratchet` is now a per-test flag); tests also carry a category (`workflow` / `regression` / `infra`); `test-spec.md` is the map. |
 | — | Decision tree | Which `CJ_` skill to call for a given input — see the routing map at the bottom of this doc. |
 
 ## Topic: Deployment
