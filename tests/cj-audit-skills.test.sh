@@ -321,7 +321,7 @@ units:
     label: "Orphan drill suite"
     anchor: "tests/zz-orphan.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "A drill purpose."

@@ -14,10 +14,10 @@ carries the `rules:` + the four-layer `layers:` registry — never edited in
 place), so consumers see ONE verification contract.
 
 The `gates:` rows are a SEPARATE array, NOT `units:` rows: the `units:` `layer`
-enum is `{local-hook, ci}` and would reject `pipeline-gate`. The general
-test-spec carries the four `layers:` (local-hook / ci / pipeline-gate /
-ratchet); this overlay carries the per-mode `gates:` that run in the
-`pipeline-gate` layer.
+enum is `{local-hook, CI-push, CI-nightly}` and would reject `pipeline-gate`. The
+general test-spec carries the four `layers:` (CI-push / CI-nightly / pipeline-gate
+/ local-hook — `ratchet` is now a `ratchet: true` flag, not a layer); this overlay
+carries the per-mode `gates:` that run in the `pipeline-gate` layer.
 
 ## The verification surface, grouped by layer
 
@@ -27,13 +27,15 @@ which **kinds** of tests this repo actually runs in each one. The fenced `yaml`
 registry below stays the source of truth — this grouping is derived from it
 (prose drift is caught by the advisory registered-doc requirements audit, the
 same posture as the per-row `purpose` one-liners). Each `units:` row carries a
-`layer` (`local-hook | ci`) and a `family`; the `gates:` array is the
-`pipeline-gate` layer; the `ratchet: true` flag marks the cross-cutting ratchet
-layer (a ratchet unit also runs in `ci`).
+`layer` (`local-hook | CI-push | CI-nightly`) and a `family`; the `gates:` array is
+the `pipeline-gate` layer; the `ratchet: true` flag marks the cross-cutting
+ratchet property (a ratchet unit also runs in `CI-push`).
 
-### Handled by `ci` (every PR, on a clean runner — hard-fail)
+### Handled by `CI-push` (every push / PR, on a clean runner — hard-fail)
 
-The bulk of the surface. Four kinds, each its own table below.
+The bulk of the surface. Four kinds, each its own table below. (The four nightly
+rows — `suite-eval`, the `windows-nightly` / `eval-nightly` / `audit-nightly`
+workflows — are `CI-nightly`, in their own subsection below.)
 
 **Validator checks** — `scripts/validate.sh` (also run at `pre-commit`, below).
 The *Error checks* are hard-fail and comment-anchored; the *numbered Checks* are
@@ -110,21 +112,28 @@ sub-suites* and the *inline `test.sh` families*:
 | Inline — install equals clone integration battery | Shared-script self-containment, bundle install and the install-equals-clone contract. |
 | Inline — test-spec registry + coverage guards | The parser validates the merged registry and coverage passes on the live tree. |
 
-**Standalone suites** (also manually runnable; some also run on push-main or
-nightly):
+**Standalone suites** (also manually runnable; some also run on push-main):
 
 | Check / Unit | What it asserts |
 |---|---|
 | skills-deploy suite — install/doctor/remove in isolation | Template ownership, drift overwrite, copy-mode and doctor verdicts in temp homes. |
-| behavioral eval harness — headless skill evals | Spawns the headless CLI per eval case with JSON-schema output, budget-capped. |
 | Windows smoke — CRLF + portable date + copy-mode | Git Bash assertions: CRLF tolerance, portable date math, copy-mode install stamp. |
 
-**GitHub Actions workflows**:
+**GitHub Actions workflows** (CI-push subset):
 
 | Check / Unit | What it asserts |
 |---|---|
 | validate workflow — PR gate | Runs the validator, full test suite and shellcheck on every PR. |
 | windows workflow — Git Bash smoke gate | Runs the fast Windows smoke under Git Bash on PR + push-main (CI-push cadence). |
+
+### Handled by `CI-nightly` (heavier checks off the PR path, on a nightly schedule)
+
+The four nightly units — the standalone eval harness plus the three nightly
+GitHub Actions workflows. Each carries a `nightly` trigger and `layer: CI-nightly`.
+
+| Check / Unit | What it asserts |
+|---|---|
+| behavioral eval harness — headless skill evals | Spawns the headless CLI per eval case with JSON-schema output, budget-capped. |
 | windows-nightly workflow — nightly skills-deploy suite | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest nightly + on dispatch (CI-nightly cadence). |
 | eval-nightly workflow — scheduled evals | Runs the behavioral eval harness daily, with a manual dispatch trigger. |
 | audit-nightly workflow — nightly doc/test audit | Runs /CJ_doc_audit + /CJ_test_audit headless daily and files findings to a GitHub issue (advisory; CI-nightly cadence). |
@@ -156,7 +165,7 @@ The `gates:` array — the inline halts a goal orchestrator runs before its PR, 
 
 ### Ratchets (cross-cutting — monotonic guards that never regress)
 
-The `ratchet: true` units (each also runs in `ci`):
+The `ratchet: true` units (each also runs in `CI-push`; `ratchet` is a flag, not a layer):
 
 | Check / Unit | What it asserts |
 |---|---|
@@ -209,9 +218,10 @@ verification unit:
   discovery is hand-wired, not glob-based; an unregistered test file silently
   never runs).
 - `layer` — the four-layer-map layer that OWNS the unit, closed enum
-  `local-hook | ci`. Per the doctrine ("validate.sh-as-a-whole is
-  the ci layer"), `validate` rows record `ci`; hook rows record `local-hook`.
-  Firing points are fully captured by `trigger`.
+  `local-hook | CI-push | CI-nightly` (the `ci` blob split by cadence; F000078).
+  Per the doctrine ("validate.sh-as-a-whole is the CI-push layer"), `validate`
+  rows record `CI-push`; hook rows record `local-hook`; a `nightly`-triggered
+  unit records `CI-nightly`. Firing points are fully captured by `trigger`.
 - `disposition` — closed enum `hard-fail | advisory` (failure severity only).
 - `skips_when_absent` — optional boolean; `true` when the unit has an
   explicit absent-dependency SKIP-or-degrade branch (it emits SKIP/WARNING
@@ -364,7 +374,7 @@ units:
     label: "Error check 1 — catalog entries have SKILL.md on disk"
     anchor: "# Error check 1:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every catalog entry's declared SKILL.md exists on disk; templates-only entries are exempt."
@@ -373,7 +383,7 @@ units:
     label: "Error check 2 — SKILL.md frontmatter required fields"
     anchor: "# Error check 2:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every SKILL.md carries name and description in its YAML frontmatter."
@@ -382,7 +392,7 @@ units:
     label: "Error check 3 — declared templates exist on disk"
     anchor: "# Error check 3:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every catalog templates entry resolves to a file on disk, honoring per-skill source overrides."
@@ -391,7 +401,7 @@ units:
     label: "Error check 4 — no orphan skill directories"
     anchor: "# Error check 4:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every skill directory on disk (active or lifecycle-relocated) is claimed by a catalog entry."
@@ -400,7 +410,7 @@ units:
     label: "Error check 5 — doc triplets complete with type frontmatter"
     anchor: "# Error check 5:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Any per-skill doc directory carries all three design docs, each with type frontmatter."
@@ -409,7 +419,7 @@ units:
     label: "Error check 6 — skill dependencies resolve"
     anchor: "# Error check 6:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every declared skill dependency names another catalog entry."
@@ -418,7 +428,7 @@ units:
     label: "Error check 7 — VERSION file valid semver"
     anchor: "# Error check 7:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "The VERSION file exists and parses as semver."
@@ -427,7 +437,7 @@ units:
     label: "Error check 8 — VERSION never regresses"
     anchor: "# Error check 8:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     ratchet: true
     trigger: "pre-commit pr-ci"
@@ -437,7 +447,7 @@ units:
     label: "Error check 9 — catalog skill versions valid semver"
     anchor: "# Error check 9:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every catalog entry's version field parses as semver."
@@ -446,7 +456,7 @@ units:
     label: "Error check 9b — catalog status closed enum"
     anchor: "# Error check 9b:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every catalog status is one of active, experimental or deprecated; typos fail loudly."
@@ -455,7 +465,7 @@ units:
     label: "Error check 10 — Copilot bundle file existence"
     anchor: "# Error check 10:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every required Copilot bundle file in the expected-files array is present on disk."
@@ -464,7 +474,7 @@ units:
     label: "Error check 11 — manifest reconciliation"
     anchor: "# Error check 11:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Work-item dirs and valid fixtures carry every artifact their manifest requires for their tracker type."
@@ -474,7 +484,7 @@ units:
     label: "Warning check — orphan doc directories"
     anchor: "# Warning check: Orphan doc directories"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: advisory
     trigger: "pre-commit pr-ci"
     purpose: "Flags per-skill doc directories with no matching catalog entry."
@@ -483,7 +493,7 @@ units:
     label: "Warning check 3 — orphan template files"
     anchor: "# Warning check 3: Orphan template files"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: advisory
     trigger: "pre-commit pr-ci"
     purpose: "Flags template files not referenced by any catalog entry, across the default dir and overrides."
@@ -493,7 +503,7 @@ units:
     label: "Check 11 — rules deploy health"
     anchor: "=== Check 11:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -503,7 +513,7 @@ units:
     label: "Check 13 — USAGE.md present with required sections"
     anchor: "=== Check 13:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every routable non-deprecated skill has a USAGE.md with the five required section headings."
@@ -512,7 +522,7 @@ units:
     label: "Check 14 — USAGE.md content freshness"
     anchor: "=== Check 14:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     ratchet: true
@@ -523,7 +533,7 @@ units:
     label: "Check 15 — doc registry declared matches on-disk + workflows completeness"
     anchor: "=== Check 15:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "15a: every declared doc exists and every doc under docs/ (RECURSIVE, including the docs/workflows/ subfolder) and spec/ is declared (no orphans). 15b/15c are retired (the workflow surface is generated from spec/workflow-spec.md): the no-vanish guarantee lives in workflow-spec.sh --validate registry-completeness and freshness in Check 27."
@@ -532,7 +542,7 @@ units:
     label: "Check 16 — doc registry schema"
     anchor: "=== Check 16:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -542,7 +552,7 @@ units:
     label: "Check 17 — root-doc placement allowlist"
     anchor: "=== Check 17:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "Every root markdown doc on disk is a declared registry path, and every declared root doc exists."
@@ -551,7 +561,7 @@ units:
     label: "Check 18 — skill portability audit"
     anchor: "=== Check 18:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     ratchet: true
@@ -562,7 +572,7 @@ units:
     label: "Check 19 — no work-item refs in human docs"
     anchor: "=== Check 19:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -572,7 +582,7 @@ units:
     label: "Check 21 — permission-policy drift"
     anchor: "=== Check 21:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: advisory
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -582,7 +592,7 @@ units:
     label: "Check 24 — test-spec coverage cross-check + gate marker drift"
     anchor: "=== Check 24:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -592,7 +602,7 @@ units:
     label: "Check 25 — README in sync with generate-readme.sh"
     anchor: "=== Check 25:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -602,7 +612,7 @@ units:
     label: "Check 26 — generated test catalog in sync with test-spec.sh --render-docs"
     anchor: "=== Check 26:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -612,7 +622,7 @@ units:
     label: "Check 27 — generated workflow surface in sync with workflow-spec.sh --render-docs"
     anchor: "=== Check 27:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -622,7 +632,7 @@ units:
     label: "Check 28 — every CJ_goal_* orchestrator has a level:workflow behavior (workflow-coverage gate)"
     anchor: "=== Check 28:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     skips_when_absent: true
     trigger: "pre-commit pr-ci"
@@ -632,7 +642,7 @@ units:
     label: "Check 29 — cj_goal E2E sandbox marker absent from the tracked tree"
     anchor: "=== Check 29:"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "The marker-absence guard for the build-gate auto-answer seam: git ls-files must never track .cj-e2e-sandbox (the second half of the seam's double guard, CJ_GOAL_E2E_AUTO=1 AND the marker). A committed marker could make the seam live in a real repo with only an env flag; this check hard-fails the moment git tracks it, anywhere in the tree (the gitignored sandbox copy passes cleanly)."
@@ -642,7 +652,7 @@ units:
     label: "portability audit — declared-vs-actual skill dependency lint"
     anchor: "scripts/cj-portability-audit.sh"
     source: scripts/validate.sh
-    layer: ci
+    layer: CI-push
     disposition: advisory
     skips_when_absent: true
     ratchet: true
@@ -656,7 +666,7 @@ units:
     label: "cj-worktree-init suite — worktree creation helper"
     anchor: "tests/cj-worktree-init.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Caller prefixes, dirty-checkout guard and base-freshness fork behavior of the worktree-init helper."
@@ -665,7 +675,7 @@ units:
     label: "cj-worktree-cleanup suite — post-run worktree janitor"
     anchor: "tests/cj-worktree-cleanup.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "PR-state-gated sweep, orphan-dir removal, guard refusals and pipeline seams of the worktree janitor."
@@ -674,7 +684,7 @@ units:
     label: "cj-task-scaffold suite — task complexity gate + scaffold"
     anchor: "tests/cj-task-scaffold.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Complexity-gate refusals, dry-run preview, live scaffold and idempotency of the task scaffolder."
@@ -683,7 +693,7 @@ units:
     label: "cj-e2e-gate suite — build-gate auto-answer seam verdict matrix"
     anchor: "tests/cj-e2e-gate.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The full verdict matrix of the build-gate auto-answer seam helper (scripts/cj-e2e-gate.sh): flag-only and marker-only both inactive, both-guards + green qa-audit continues, both-guards + findings/empty qa-audit halts (never auto-waive), a non-allowlisted gate id stays inactive, design-gate auto-approves — all deterministic, no Claude."
@@ -692,7 +702,7 @@ units:
     label: "audit-nightly suite — nightly doc/test audit runner deterministic half"
     anchor: "tests/audit-nightly.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The DETERMINISTIC (no-Claude, no-network) half of scripts/audit-nightly.sh — the relocated nightly agent-judged audit: SKIP without a model key, the --dry-run plan, the two-count findings parse + report emission, and the create/update/none-clean GitHub-issue decision — all with claude + gh stubbed on PATH."
@@ -701,7 +711,7 @@ units:
     label: "e2e-local suite — local happy-path E2E harness deterministic half"
     anchor: "tests/e2e-local.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The DETERMINISTIC (no-Claude) half of the local-E2E harness (scripts/e2e-local.sh + tests/e2e-local/lib/{sandbox,report}.sh): the SKIP path when CJ_E2E_LOCAL is unset OR a prerequisite is absent (exit 0, never reaches claude), the sandbox provision/teardown (a mktemp clone + a .cj-e2e-sandbox marker + a LOCAL bare origin that defeats gh pr create), the materialized report generator on synthetic evidence (DETERMINISTIC-vs-claude-print rows, a json sibling, and a missing-evidence row rendering `unverified` never a false pass), the gitignore posture (reports/ ignored except a tracked EXAMPLE.md), and the auth gate via fake claude stubs (no key + not-logged-in skips; ANTHROPIC_API_KEY takes the api-key path with no probe; a logged-in-but-probe-401 skips rather than false-pass; a logged-in + probe-ok takes the claude-login path). The REAL /CJ_goal_task run is a LOCAL manual E2E, not asserted here."
@@ -710,7 +720,7 @@ units:
     label: "test-run suite — runners: axis grammar + test-run.sh engine (fixture repos)"
     anchor: "tests/test-run.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The runners: axis + scripts/test-run.sh engine against TEMP-DIR fixture registries (never the real test.sh — a recursion trap): --validate accepts a well-formed runners: axis and rejects each violation (duplicate id, bad tier/platform, empty command, unknown covers family, explicit ci/hook in covers); --list-runners + --list-units --with-family emit the machine-readable forms; the --dry-run plan prints per-runner decisions + uncovered-family/ci-only/hook lines; tier gating (free default; --evals/--e2e/--all widen; unselected = tier-not-selected); the platform guard; rc->outcome mapping with aggregate {pass, fail, all-skipped} (fail => exit 1, all-skipped NEVER pass); self-gate detection (first-line ^SKIP: only); ledger fields (schema 1, timestamp, HEAD sha, repo root, flags, aggregate, per-runner + ci/hook family rows); the absent/invalid/zero-runners edge paths (no report on the last two); and covers: all expansion. ALSO the additive category-mode selection: --category <workflow|CI> + single-test-NAME runs reusing the docs/tests name, tier-gated (paid/local-only skip on the default free tier), --category+name mutual-exclusion + unknown-name exit 2, the mode: category ledger, additivity of the runners: flow when neither --category nor a name is passed, and the inactive-when-no-categories note."
@@ -719,7 +729,7 @@ units:
     label: "setup-hooks suite — git hook installer"
     anchor: "tests/setup-hooks.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The installed post-merge hook re-deploys skills without mutating trackers; hook install is clobber-safe."
@@ -728,7 +738,7 @@ units:
     label: "drain-one-todo suite — deployed-path resolution"
     anchor: "tests/drain-one-todo-worktree-resolve.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "A deployed drain helper resolves the worktree-init helper via the manifest source path."
@@ -737,7 +747,7 @@ units:
     label: "drain-one-todo suite — unreachable-helper fail-loud"
     anchor: "tests/drain-one-todo-helper-unavailable.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The drain halts loudly when the worktree helper is unreachable instead of scaffolding in place."
@@ -746,7 +756,7 @@ units:
     label: "cj-document-release suite — doc-release skill structure"
     anchor: "tests/cj-document-release.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Doc-release skill structure, frontmatter, halt markers and config-helper assertions."
@@ -755,7 +765,7 @@ units:
     label: "doc-release config suite — doc registry + helper + seed"
     anchor: "tests/cj-document-release-config.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Doc registry table shape, every doc-spec helper subcommand, strict no-config gates (malformed table row, no-table registry), and the byte-identical embedded seed."
@@ -764,7 +774,7 @@ units:
     label: "goal doc-sync wiring suite — symmetric step wiring"
     anchor: "tests/cj-goal-doc-sync-wiring.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The doc-sync step and halt-taxonomy rows are present and correctly ordered in the goal orchestrators."
@@ -773,7 +783,7 @@ units:
     label: "goal PR-body splice guard suite — no multi-line awk -v payload idiom"
     anchor: "tests/cj-goal-pr-body-splice-guard.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "No executable line in any of the four cj_goal pipeline.md passes a multi-line shell payload through awk -v; only the safe --body-file filename idiom and the warning comments remain, and each file keeps its gh pr edit --body-file splice."
@@ -782,7 +792,7 @@ units:
     label: "post-land-sync suite — post-merge local sync helper"
     anchor: "tests/post-land-sync.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Sync-helper guards refuse a bad source checkout; dry-run previews without mutating the live home."
@@ -791,7 +801,7 @@ units:
     label: "goal-common sync suite — pre-build skills-sync phase"
     anchor: "tests/cj-goal-common-sync.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Dry-run, opt-out, guard-refusal and real-run paths of the pre-build sync phase all emit the four-key schema, fail-soft and hermetic."
@@ -800,7 +810,7 @@ units:
     label: "goal-common recap suite — land/PR 3-part recap formatter"
     anchor: "tests/cj-goal-common-recap.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The --phase recap pure formatter renders all three labelled sections, switches the header on --when before|after, is fail-soft on a missing field, and prints --field content verbatim (no eval)."
@@ -809,7 +819,7 @@ units:
     label: "cj-id-claim suite — atomic work-item ID claim"
     anchor: "tests/cj-id-claim.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Concurrent-race uniqueness, both reap modes, prefix isolation, same-branch reuse and worktree-shared claim-root resolution."
@@ -818,7 +828,7 @@ units:
     label: "feature-path smoke suite — worktree entry + common phases"
     anchor: "tests/cj-goal-feature-smoke.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Feature-caller worktree entry, the shared helper's worktree/ship/telemetry phases, and leaf dispatch targets present on disk."
@@ -827,7 +837,7 @@ units:
     label: "doc-spec overlay suite — two-tier merge semantics"
     anchor: "tests/doc-spec-overlay.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Overlay merge semantics, the duplicate-path guard, merged list subcommands, seed-equals-general-file byte identity, and the --check-on-disk Stage-1 battery (clean fixture: five checks PASS / CHECKS_RUN=5; seeded violations each isolated to its own stage1/<id> finding, including the docs/workflows/ recursed orphan and the registry-gated workflows-subfolder mandate; registry-absent REGISTRY=absent skip; invalid-registry halt)."
@@ -836,7 +846,7 @@ units:
     label: "test-spec suite — two-tier registry parser + coverage drills"
     anchor: "tests/test-spec.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Merged-registry parser round-trip, the absent-vs-invalid split, malformed fixtures, the units-gated floor note, seed emission, and the temp-dir coverage drift drills. ALSO the additive category axis (Section 10): --list-categories (+ --names/--category filters) with pre-existing-subcommand additivity, --seed carrying the category prose, --check-structure's five a-e checks (findings-not-crash; folders derived from the distinct declared categories) + --seed-docs idempotency + stale-INDEX refresh + inactive-when-no-axis, and the closed {workflow, CI-push, CI-nightly} V2 category-enum HALT."
@@ -845,7 +855,7 @@ units:
     label: "audit-skills suite — seed delivery + audit engines"
     anchor: "tests/cj-audit-skills.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Bare-repo seed delivery for both audit skills, second-run idempotence, engine-flagged seeded-violation findings (stage1/ prefixes), the per-stage report contract on both SKILL.mds plus qa.md's block template, the planted-drift stage3 cross-walk drill, and the clean workbench baseline."
@@ -854,7 +864,7 @@ units:
     label: "doc-spec reconcile suite — classify + legacy->canonical migration"
     anchor: "tests/doc-spec-reconcile.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "doc-spec.sh --classify labeling the four generations (absent/canonical/legacy/duplicate, plus malformed-not-legacy), --reconcile migrating a 40+-row legacy YAML fixture to the canonical Markdown table preserving every row (atomic + .bak + idempotent), the audit_class asymmetry guard (RECONCILE-WARN), the malformed-file no-clobber halt, and the live-workbench canonical-no-reconcile-noise baseline."
@@ -863,7 +873,7 @@ units:
     label: "test-spec reconcile suite — symmetric classify + dedup/no-op"
     anchor: "tests/test-spec-reconcile.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "test-spec.sh --classify labeling absent/canonical/duplicate/malformed (never legacy — the fenced-yaml format never diverged), --reconcile as a dedup/no-op (canonical clean no-op, duplicate reports the redundant copy with no auto-delete, malformed halts), and the live-workbench canonical-no-reconcile-noise baseline."
@@ -872,7 +882,7 @@ units:
     label: "test-spec render suite — generated catalog renderer + freshness primitive"
     anchor: "tests/test-spec-render.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated test catalog from the merged registry, and --render-docs --check exits zero on a fresh render and non-zero after a hand-edit — the freshness primitive behind validate.sh Check 26."
@@ -881,7 +891,7 @@ units:
     label: "workflow-spec render suite — generated workflow-docs renderer + freshness primitive + no-vanish drill + CRLF-jq drill"
     anchor: "tests/workflow-spec-render.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The --render-docs renderer emits a deterministic (render-twice byte-identical), work-item-ID-free generated workflow surface from spec/workflow-spec.md; --render-docs --check exits zero on a fresh render and non-zero after a hand-edit or a missing file; a remove-an-entry drill proves workflow-spec.sh --validate registry-completeness fails closed (the no-vanish guarantee behind validate.sh Check 27 + the retired Check 15c); and a CRLF-jq drill (a PATH-prepended jq shim appending CR to every output line) proves --list-orchestrators and --validate stay green under a Windows CRLF-emitting jq — no registry-completeness false-halt."
@@ -890,7 +900,7 @@ units:
     label: "seed-contracts suite — forced contract seeding + stale-engine probe + data-loss guard"
     anchor: "tests/seed-contracts.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "skills-deploy seed-contracts force-seeds the three contracts (doc-spec/test-spec/workflow-spec) into a consumer repo corruption-guarded (--seed → non-empty + --validate-clean → mv) and idempotent (present⇒skip); the workbench self-repo is detected (manifest-source match OR custom-overlay presence) and SKIPPED so its authored spec/*.md are never overwritten with skeletons (the data-loss guard); and the stale-engine capability probe detects a vendored repo-local engine lacking --classify, falls back to _cj-shared, and emits stage1/engine-stale (the actual stale-engine-shadow bug fix)."
@@ -899,7 +909,7 @@ units:
     label: "cj-contract-gate suite — deterministic Stage-1 contract gate + guarded consumer hook install"
     anchor: "tests/cj-contract-gate.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "scripts/cj-contract-gate.sh (the engine-only Stage-1 subset of validate.sh, agent-free) PASSes on a clean fully-adopted contract and hard-FAILS (exit non-zero) on a planted violation (a stale generated catalog OR a malformed registry); a missing DECLARED doc is a SOFT remediation pointing at /CJ_document-release (exit 0 — never a block) and an unadopted contract (REGISTRY=absent) is a clean SKIP; and the guarded consumer pre-commit auto-install (skills-deploy install-contract-gate, reusing the shared cj-hook-lib.sh install_hook safety) installs a sentinel hook resolving the gate from _cj-shared (idempotent re-run), SKIPS a custom core.hooksPath (husky) and the workbench self-repo, and --remove uninstalls ONLY a sentinel hook while a non-workbench hook is left untouched."
@@ -908,7 +918,7 @@ units:
     label: "workflow-coverage suite — the level:workflow gate + 6th-column parser + --list-orchestrators"
     anchor: "tests/workflow-coverage.test.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "test-spec.sh --check-workflow-coverage is green from birth on the live tree and FAILS hermetically on a forward miss (a 5th orchestrator with no level:workflow behavior), a reverse orphan (an undeclared workflow: value via the enum-check, and an empty workflow: field via the gate's own reverse arm), while a consumer-absent registry SKIPs (REGISTRY=absent / inactive + exit 0); the 6th `workflow` behaviors-TSV column round-trips with the `-` placeholder unwrap (positional $1-only consumers unaffected) and --validate enum-checks workflow: ONLY on level:workflow rows against workflow-spec.sh --list-orchestrators; the gate behind validate.sh Check 28."
@@ -918,7 +928,7 @@ units:
     label: "Inline — full validator re-run"
     anchor: "=== Running validate.sh ==="
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Runs the whole validator inside the test suite so every check gates the test run too."
@@ -927,7 +937,7 @@ units:
     label: "Inline — harness-principle regression guards"
     anchor: "# === F000053/S000093: trajectory-QA regression guards ==="
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Static guards that the trajectory-QA, permission-policy and within-phase-receipt fixes stay in place."
@@ -936,7 +946,7 @@ units:
     label: "Inline — catalog + frontmatter + doc-triplet smoke"
     anchor: "Checking for duplicate skill names..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "No duplicate skill names; SKILL.md frontmatter parses; doc triplets carry their required sections."
@@ -945,7 +955,7 @@ units:
     label: "Inline — advisory-script crash + generator idempotency"
     anchor: "Smoke-testing advisory scripts..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Doctor, lint and deps scripts run without crashing; the README generator is idempotent (temp-only)."
@@ -954,7 +964,7 @@ units:
     label: "Inline — manual skill-creation integration cycle"
     anchor: "Integration test: manual skill creation cycle..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "A scaffolded temp skill keeps the validator green; plant-and-restore negatives prove the doc checks actually fire."
@@ -963,7 +973,7 @@ units:
     label: "Inline — goal-common phase integration"
     anchor: "Integration test (F000045 / S000081): --phase sync end-to-end"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Sync and task-worktree phases of the shared goal helper, end-to-end and hermetic."
@@ -972,7 +982,7 @@ units:
     label: "Inline — template content + validator portability + orphan negatives"
     anchor: "Checking tracker template content..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Tracker templates carry required sections; the workflow validator stands alone; orphan-directory detection fires."
@@ -981,7 +991,7 @@ units:
     label: "Inline — defect and story regression battery"
     anchor: "Regression test (D000005): Windows jq CRLF wrapper present..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Shipped defect and story fixes stay fixed: CRLF wrappers, the merge-convention guard, template sync, copy-mode fallback and more."
@@ -990,7 +1000,7 @@ units:
     label: "Inline — Copilot bundle coverage + round-trip"
     anchor: "Checking S000010 bundle-artifact-completeness coverage..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Bundle completeness coverage, the instructions size budget and the deploy round-trip."
@@ -999,7 +1009,7 @@ units:
     label: "Inline — backlog append POSIX-clean guard"
     anchor: "Checking CJ_improve-queue append path keeps TODOS.md POSIX-clean..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The improve-queue append path keeps the backlog file POSIX-clean."
@@ -1008,7 +1018,7 @@ units:
     label: "Inline — version-queue preflight smoke"
     anchor: "Smoke-testing scripts/check-version-queue.sh..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The version-queue preflight runs read-only and degrades cleanly when offline."
@@ -1017,7 +1027,7 @@ units:
     label: "Inline — handoff-gate deterministic suite"
     anchor: "=== F000026: scripts/cj-handoff-gate.sh deterministic tests ==="
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Denylist hits, size caps, rename/symlink/test-weakening detection and the QA predicate of the deterministic handoff gate."
@@ -1026,7 +1036,7 @@ units:
     label: "Inline — static wiring checks"
     anchor: "Checking S000078 portable POSIX runtime"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Portable POSIX runtime idioms, registered-doc audit wiring, defect tracker promotion and the workflow-doc Touches blocks."
@@ -1035,7 +1045,7 @@ units:
     label: "Inline — portability-engine hermetic fixture"
     anchor: "Integration test (F000047 / S000083): cj-portability-audit.sh engine fixture..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The portability-audit engine's verdicts against a controlled fixture catalog."
@@ -1044,7 +1054,7 @@ units:
     label: "Inline — install equals clone integration battery"
     anchor: "Integration test (F000049 / S000085): shared-scripts self-containment..."
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Shared-script self-containment, bundle install, develop-in-place and the in-place install-equals-clone contract."
@@ -1053,7 +1063,7 @@ units:
     label: "Inline — test-spec registry + coverage guards"
     anchor: "# === F000060: test-spec registry + coverage guards ==="
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The test-spec parser validates the merged registry, the coverage cross-check passes on the live tree, and an absent registry classifies as inactive rather than a finding."
@@ -1063,7 +1073,7 @@ units:
     label: "skills-deploy suite — install/doctor/remove in isolation"
     anchor: "scripts/test-deploy.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci manual"
     purpose: "Template ownership, drift overwrite, copy-mode fallback, shared-script orphan pruning (manifest-keyed, ownership-safe), and doctor verdicts (incl. the shared-scripts health section) in isolated temp homes; runs inside the test suite (via scripts/test.sh) and by hand — its standalone Windows run moved to the nightly windows-nightly.yml (owned by ci-windows-nightly)."
@@ -1072,7 +1082,7 @@ units:
     label: "behavioral eval harness — headless skill evals"
     anchor: "scripts/eval.sh"
     source: .github/workflows/eval-nightly.yml
-    layer: ci
+    layer: CI-nightly
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Spawns the headless CLI against scratch worktrees per eval case with JSON-schema output validation; budget-capped per case and per run."
@@ -1081,7 +1091,7 @@ units:
     label: "Windows smoke — CRLF + portable date + copy-mode"
     anchor: "scripts/windows-smoke.sh"
     source: scripts/test.sh
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci push-main manual"
     purpose: "Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp."
@@ -1091,7 +1101,7 @@ units:
     label: "validate workflow — PR gate"
     anchor: "name: Validate Skills"
     source: .github/workflows/validate.yml
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Runs the validator, the full test suite and shellcheck on every pull request."
@@ -1100,7 +1110,7 @@ units:
     label: "windows workflow — Git Bash smoke gate"
     anchor: "name: Windows (Git Bash)"
     source: .github/workflows/windows.yml
-    layer: ci
+    layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci push-main"
     purpose: "Runs the fast Windows smoke (windows-smoke.sh) under Git Bash on every pull request and push to main — the CI-push cadence; the slow skills-deploy suite moved to the nightly workflow."
@@ -1109,7 +1119,7 @@ units:
     label: "windows-nightly workflow — nightly skills-deploy suite"
     anchor: "name: Windows Nightly (skills-deploy suite)"
     source: .github/workflows/windows-nightly.yml
-    layer: ci
+    layer: CI-nightly
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Runs the full skills-deploy suite (test-deploy.sh) on windows-latest under Git Bash on a nightly schedule, with a manual dispatch trigger — the CI-nightly cadence windows-deploy test."
@@ -1118,7 +1128,7 @@ units:
     label: "eval-nightly workflow — scheduled evals"
     anchor: "name: Eval Nightly"
     source: .github/workflows/eval-nightly.yml
-    layer: ci
+    layer: CI-nightly
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Runs the behavioral eval harness on a daily schedule, with a manual dispatch trigger."
@@ -1127,7 +1137,7 @@ units:
     label: "audit-nightly workflow — nightly doc/test audit"
     anchor: "name: Audit Nightly"
     source: .github/workflows/audit-nightly.yml
-    layer: ci
+    layer: CI-nightly
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Runs /CJ_doc_audit + /CJ_test_audit headless (scripts/audit-nightly.sh) on a nightly schedule + manual dispatch, filing findings to the audit-drift GitHub issue — the relocated home of the advisory agent-judged audit, off the CJ_goal_* build hot path (CI-nightly cadence)."
@@ -1319,6 +1329,17 @@ behaviors:
     workflow: CJ_goal_todo_fix
     area: workflow-coverage
     purpose: "Reuses the existing CJ_goal_todo_fix preflight-halt eval case as the real Claude-driven run proving the orchestrator runs up to a gstack-independent decision."
+  # ---- the doc-sync workflow-category test's backing behavior (F000078). NOTE:
+  # this is level: integration, NOT level: workflow — Check 28 governs ONLY
+  # orchestrator <-> level:workflow, and /CJ_doc_audit is not a CJ_goal_*
+  # orchestrator, so a level:workflow behavior here would FAIL Check 28's reverse
+  # arm. The category=workflow <-> behavior link stays convention-only this
+  # increment (the deferred enforcement gate wires it). ----
+  - id: workflow-doc-audit-runs
+    statement: "The doc/test-drift audit workflow (/CJ_doc_audit + /CJ_test_audit, driven by the audit-nightly runner) exercises its three-stage audit engines end to end — the standing doc/test-sync guarantee the doc-sync workflow-category test proves."
+    level: integration
+    area: doc-sync-workflow
+    purpose: "The doc-sync workflow-category test backs a real integration behavior — the audit engines run end to end — not a level:workflow orchestrator claim (that would fail Check 28)."
   # ---- the runners: axis + test-run.sh engine (F000072/S000122) ----
   - id: runners-axis-optional-registry-gated
     statement: "test-spec.sh --validate accepts a well-formed runners: axis (unique ids, closed tier/platform enums, non-empty command, valid covers) and an axis-less registry validates exactly as before, with ci/hook rejected in covers."
@@ -1387,6 +1408,13 @@ behavior_coverage:
     unit: suite-eval
     source: tests/eval/CJ_goal_todo_fix/halt-size-large/prompt.md
     anchor: "which halt class /CJ_goal_todo_fix emits"
+  # ---- the doc-sync workflow-category test's coverage link (F000078): backed by
+  # the deterministic cj-audit-skills suite, which exercises the /CJ_doc_audit +
+  # /CJ_test_audit engines end to end. ----
+  - behavior: workflow-doc-audit-runs
+    unit: test-cj-audit-skills
+    source: tests/cj-audit-skills.test.sh
+    anchor: "audit-skill (CJ_doc_audit / CJ_test_audit) engine assertions"
   # ---- the runners: axis + test-run.sh engine (F000072/S000122) ----
   - behavior: runners-axis-optional-registry-gated
     unit: test-test-run
@@ -1428,70 +1456,106 @@ runners:
     platform: any
     note: "The local happy-path E2E harness — a real /CJ_goal_task build in a sandbox; self-gates (first-line ^SKIP:) without CJ_E2E_LOCAL + gstack + a claude login; runs only under --e2e / --all."
 categories:
-  # ---- the categories: axis (F000074; taxonomy V2 F000075): the category-based
-  # test contract ----
+  # ---- the categories: axis (F000074; two-axis reframe F000078): the
+  # category-based test contract ----
   # ADDITIVE + optional; the PRIMARY axis of the category model (category ->
   # tests), consumed by /CJ_test_audit (--check-structure) + /CJ_test_run
-  # (--category / single-name). Each row: name (unique slug — IS the
-  # docs/tests/<category>/<name>.md filename AND the /CJ_test_run argument),
-  # category {workflow, CI-push, CI-nightly}, command (how to run it), tier
-  # {free, paid, local-only}, optional doc pointer, optional purpose. V2 taxonomy
-  # is the closed set {workflow, CI-push, CI-nightly} — the CI category split by
-  # cadence (the category name IS the cadence, so --category CI-push /
-  # --category CI-nightly is the whole selection API, no new flag). This axis
-  # COEXISTS with units:/behaviors:/runners: (their removal + the physical
-  # test-script move into tests/<category>/ are a deferred follow-up); the scripts
-  # are NOT moved in this PR, so the `command` values point at their current flat
-  # paths.
+  # (--category / --layer / single-name). TWO orthogonal axes + a mode attribute
+  # (F000078): each row declares one named test with
+  #   name     — unique slug — IS the docs/tests/<category>/<layer>/<name>.md
+  #              filename AND the /CJ_test_run argument
+  #   category — the KIND {workflow, regression, infra}: workflow proves a whole
+  #              user-facing workflow (features earn these); regression proves a
+  #              past defect stays fixed (defects earn these); infra is the
+  #              standing verification surface (the validator, the full suite, the
+  #              deploy harness)
+  #   layer    — WHERE/WHEN {CI-push, CI-nightly, pipeline-gate, local-hook};
+  #              descriptive metadata (the real cron/trigger lives in
+  #              .github/workflows/*.yml, kept consistent by hand)
+  #   mode     — {deterministic, agentic}; agentic (spends model tokens) => tier != free
+  #   command / tier {free, paid, local-only} / optional doc / optional purpose.
+  # This axis COEXISTS with units:/behaviors:/runners: (their removal + the
+  # physical test-script move into tests/<category>/<layer>/ are a deferred
+  # follow-up); the 7 pre-existing command rows are script invocations pointing at
+  # their current flat paths (no move required). The regression category is not yet
+  # populated — migrating the 29 flat tests/*.test.sh into tests/regression/<layer>/
+  # is the tracked deferred backfill.
   #
-  # workflow — deterministic end-to-end workflow tests (what proves a whole
-  #            user-facing workflow runs): the cj_goal eval cases + the local
-  #            happy-path E2E harness.
-  - name: goal-task-eval
-    category: workflow
-    command: "bash scripts/eval.sh CJ_goal_task"
-    tier: paid
-    doc: "docs/tests/workflow/goal-task-eval.md"
-    purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex)."
-  - name: e2e-local
-    category: workflow
-    command: "CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh"
-    tier: local-only
-    doc: "docs/tests/workflow/e2e-local.md"
-    purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary."
-  # CI-push — deploy-gate tests that run on EVERY push / PR (the fast merge
-  #           signal): the validator, the full behavioral suite, the deploy-install
-  #           suite, and the Windows Git Bash smoke.
+  # ---- infra — the standing verification surface (the validator, the full suite,
+  #      the deploy harness) ----
   - name: validate
-    category: CI-push
+    category: infra
+    layer: CI-push
+    mode: deterministic
     command: "bash scripts/validate.sh"
     tier: free
-    doc: "docs/tests/CI-push/validate.md"
-    purpose: "The repo validator (the ci layer): all numbered + error + warning checks against the catalog, docs, and spec family."
+    doc: "docs/tests/infra/CI-push/validate.md"
+    purpose: "The repo validator (the CI-push layer): all numbered + error + warning checks against the catalog, docs, and spec family."
   - name: suite
-    category: CI-push
+    category: infra
+    layer: CI-push
+    mode: deterministic
     command: "bash scripts/test.sh"
     tier: free
-    doc: "docs/tests/CI-push/suite.md"
+    doc: "docs/tests/infra/CI-push/suite.md"
     purpose: "The full behavioral test suite — runs validate.sh, every registered tests/*.test.sh sub-suite, test-deploy.sh, and windows-smoke.sh."
   - name: test-deploy
-    category: CI-push
+    category: infra
+    layer: CI-push
+    mode: deterministic
     command: "bash scripts/test-deploy.sh"
     tier: free
-    doc: "docs/tests/CI-push/test-deploy.md"
+    doc: "docs/tests/infra/CI-push/test-deploy.md"
     purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host push-cadence run."
-  - name: windows
-    category: CI-push
+  # ---- workflow — proves a whole user-facing workflow runs end to end: the
+  #      portability install+sync workflow, the cj_goal orchestrators, the doc-sync
+  #      pipeline, and the local happy-path E2E harness ----
+  - name: portability-smoke
+    category: workflow
+    layer: CI-push
+    mode: deterministic
     command: "bash scripts/windows-smoke.sh"
     tier: free
-    doc: "docs/tests/CI-push/windows.md"
-    purpose: "The Windows Git Bash portability smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution) — the fast per-PR Windows signal."
-  # CI-nightly — deploy-gate tests deferred to a nightly schedule (heavier checks
-  #              off the PR path): the Windows-native skills-deploy suite.
-  - name: windows-deploy
-    category: CI-nightly
+    doc: "docs/tests/workflow/CI-push/portability-smoke.md"
+    purpose: "The Windows Git Bash portability workflow smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution) — proves the install+sync workflow holds on Git Bash; the fast per-PR Windows signal."
+  - name: portability-deploy
+    category: workflow
+    layer: CI-nightly
+    mode: deterministic
     command: "bash scripts/test-deploy.sh"
     tier: free
-    doc: "docs/tests/CI-nightly/windows-deploy.md"
-    purpose: "The skills-deploy end-to-end suite on windows-latest, run nightly (windows-nightly.yml) — same script as the push-cadence test-deploy, but a distinct CI context (platform + cadence); locally it runs on the host platform (no platform: field yet)."
+    doc: "docs/tests/workflow/CI-nightly/portability-deploy.md"
+    purpose: "The skills-deploy end-to-end workflow on windows-latest, run nightly (windows-nightly.yml) — proves the full install/remove/relink/doctor workflow holds Windows-native; same script as the push-cadence test-deploy, a distinct CI context (platform + cadence)."
+  - name: goal-task-eval
+    category: workflow
+    layer: CI-nightly
+    mode: agentic
+    command: "bash scripts/eval.sh CJ_goal_task"
+    tier: paid
+    doc: "docs/tests/workflow/CI-nightly/goal-task-eval.md"
+    purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex); agentic (spends model tokens), so it runs nightly, never on the free-tier default."
+  - name: goal-feature-eval
+    category: workflow
+    layer: CI-nightly
+    mode: agentic
+    command: "bash scripts/eval.sh CJ_goal_feature"
+    tier: paid
+    doc: "docs/tests/workflow/CI-nightly/goal-feature-eval.md"
+    purpose: "The /CJ_goal_feature workflow eval — drives the feature orchestrator through its dry-run chain-plan preview on the gstack-independent path (end_state dry_run_preview); backs the workflow-cj-goal-feature-runs level:workflow behavior; agentic, nightly cadence."
+  - name: doc-sync
+    category: workflow
+    layer: CI-nightly
+    mode: agentic
+    command: "bash scripts/audit-nightly.sh --dry-run"
+    tier: paid
+    doc: "docs/tests/workflow/CI-nightly/doc-sync.md"
+    purpose: "The doc/test-sync audit workflow — exercises the /CJ_doc_audit + /CJ_test_audit logic end to end via the audit-nightly runner; agentic (claude --print), so it matches the nightly cadence and never runs on the free-tier default."
+  - name: e2e-local
+    category: workflow
+    layer: local-hook
+    mode: agentic
+    command: "CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh"
+    tier: local-only
+    doc: "docs/tests/workflow/local-hook/e2e-local.md"
+    purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary; agentic + local-only (runs on your machine, never in CI)."
 ```

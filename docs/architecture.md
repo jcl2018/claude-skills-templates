@@ -367,15 +367,20 @@ the doc contract. The GENERAL [`spec/test-spec.md`](../spec/test-spec.md)
 (byte-identical to `test-spec.sh --seed`, never edited in place) carries the
 five portable rules every adopting repo holds its verification surface to —
 `tests-discoverable`, `suite-green`, `new-code-tested`, `units-anchored`,
-`single-owner` — PLUS the four-layer map (`layers[]`: local-hook / ci /
-pipeline-gate / ratchet — the answer to "what stops a broken change from
-landing, and at which layer"). The CUSTOM overlay
+`single-owner` — PLUS the four-layer map (`layers[]`: CI-push / CI-nightly /
+pipeline-gate / local-hook — the answer to "what stops a broken change from
+landing, and at which layer") PLUS the general category definition (the two
+orthogonal axes: category `{workflow, regression, infra}` × layer, with a per-test
+`deterministic | agentic` mode). The CUSTOM overlay
 [`spec/test-spec-custom.md`](../spec/test-spec-custom.md) carries **this repo's
 verification surface, check by check** — every validator check (both ID
 namespaces plus the warning checks), every registered test sub-suite and inline
 test family, the standalone suites, the CI workflows, and the git hooks — as
-`units:` rows, PLUS the per-mode pipeline-gate halts as a top-level `gates:`
-array, PLUS a behavior-coverage axis: `behaviors:` rows (open-world
+`units:` rows (each with a `layer` from `{local-hook, CI-push, CI-nightly}`), PLUS
+the per-mode pipeline-gate halts as a top-level `gates:` array, PLUS the
+`categories:` axis (the two-axis category-based test contract: one row per named
+test with `category` × `layer` + `mode`), PLUS a behavior-coverage axis:
+`behaviors:` rows (open-world
 statements of WHAT the software must prove, each with a first-class `level` from
 the closed enum `{unit, integration, contract, workflow, property}`) and
 `behavior_coverage:` rows (each behavior linked to a test-bearing `units:` row
@@ -403,14 +408,19 @@ spec-registry family is now `spec/doc-spec.md` (+ overlay) →
 `spec/permission-policy.md` → `spec/test-spec.md` (+ overlay).
 
 **The four layers.** A change is verified at four independent layers, each
-owning a different guarantee: **local-hook** (the pre-commit `validate.sh`,
-hard-fail at commit), **ci** (GitHub Actions, hard-fail on the PR),
-**pipeline-gate** (the inline orchestrator halts — isolation, design-summary, QA,
-doc-sync, portability, ship — during a run), and
-**ratchet** (monotonic guards: Check 8 VERSION-never-regresses, the portability
+owning a different guarantee: **CI-push** (GitHub Actions on every push / PR,
+hard-fail — `validate.sh` + `test.sh` + shellcheck + the Windows Git-Bash smoke),
+**CI-nightly** (GitHub Actions on a nightly schedule — the Windows-native
+`skills-deploy` suite, the eval harness, the agent-judged doc/test audit, off the
+PR path), **pipeline-gate** (the inline orchestrator halts — isolation,
+design-summary, QA, doc-sync, ship — during a run), and **local-hook** (the
+pre-commit `validate.sh`, hard-fail at commit; plus the local-only manual
+harnesses). `CI-push` + `CI-nightly` are the old undifferentiated `ci` blob split
+by cadence; **`ratchet` is no longer a layer** but a `ratchet: true` flag on the
+unit that owns a monotonic guard (Check 8 VERSION-never-regresses, the portability
 `FINDINGS=0` baseline, Check 14 USAGE.md freshness). The contract reserves the
 word **"gate"** for a single referent — a `pipeline-gate` row (a `gates:` entry)
-— so `validate.sh`-as-a-whole is the **ci** layer (a set of *checks*), never
+— so `validate.sh`-as-a-whole is the **CI-push** layer (a set of *checks*), never
 "the gate."
 
 **The per-mode `markers` map (the `gates:` array).** A gate's `markers` is a map
@@ -434,13 +444,16 @@ is unchanged.
    +---------------------------+       +----------------------------+
    | the 5 portable rules +    |       | anchor/extraction doctrine |
    | the 4-layer layers[] map  |       | ```yaml machine registry`` |
-   | ```yaml machine registry``|       |  units[]: id / family /    |
-   |  schema_version: 1        |       |    label / anchor / source/|
-   |  rules[]: id / statement /|       |    layer / disposition /   |
-   |    scope / enforced_by    |       |    skips? / ratchet? /     |
-   |  layers[]: id / name /    |       |    trigger / purpose       |
-   |    trigger / disposition  |       |  gates[]: id / layer /     |
-   |    / owns                 |       |    order / markers / ...   |
+   | + the category definition |       |  units[]: id / family /    |
+   | ```yaml machine registry``|       |    label / anchor / source/|
+   |  schema_version: 1        |       |    layer / disposition /   |
+   |  rules[]: id / statement /|       |    skips? / ratchet? /     |
+   |    scope / enforced_by    |       |    trigger / purpose       |
+   |  layers[]: CI-push /      |       |  categories[]: name /      |
+   |    CI-nightly /           |       |    category / layer /      |
+   |    pipeline-gate /        |       |    mode / command / tier   |
+   |    local-hook             |       |  gates[]: id / layer /     |
+   |    (name/trigger/owns)    |       |    order / markers / ...   |
    +-------------+-------------+       +-------------+--------------+
                  +-----------+-----------------------+
                              | merged by scripts/test-spec.sh

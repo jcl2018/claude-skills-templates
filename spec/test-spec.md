@@ -20,6 +20,21 @@ the rules + layers alone: the coverage cross-check stays **inactive** until
 `units:` rows exist, and tooling reports that state by name instead of inventing
 findings.
 
+## Two axes: category × layer
+
+A test is classified on **two orthogonal axes** plus one per-test attribute — so
+one place answers both *what kind of test is this?* and *where/when does it fire?*
+
+- **category** — the *kind* of test, the closed set `{workflow, regression, infra}`:
+  - **`workflow`** — proves a whole user-facing workflow runs end to end (features earn these).
+  - **`regression`** — proves a specific past defect stays fixed (defects earn these).
+  - **`infra`** — the standing verification surface itself (the validator, the full suite, the deploy harness).
+- **layer** — *where/when* it runs, the closed set `{CI-push, CI-nightly, pipeline-gate, local-hook}` (below).
+- **mode** — a per-test attribute, `deterministic | agentic` (agentic = spends model tokens; `agentic ⇒ tier ≠ free`).
+
+The physical home reflects both axes: `tests/<category>/<layer>/<name>.test.sh`,
+docs at `docs/tests/<category>/<layer>/<name>.md`.
+
 ## The four verification layers
 
 A change passes through up to four independent verification layers between an
@@ -28,16 +43,20 @@ kind of guarantee:
 
 | Layer | When it runs | What it owns | Disposition |
 |-------|--------------|--------------|-------------|
-| **local-hook** | at `git commit` (pre-commit hook) | the commit is structurally valid before it ever leaves your machine | hard-fail (blocks the commit) |
-| **ci** | on every PR (GitHub Actions) | the whole tree is structurally + behaviorally sound on a clean runner | hard-fail (gates the PR) |
+| **CI-push** | on every push / PR (GitHub Actions) | the whole tree is structurally + behaviorally sound on a clean runner — the fast merge signal | hard-fail (gates the PR) |
+| **CI-nightly** | on a nightly schedule (GitHub Actions) | heavier checks that would slow every PR run off the PR path on a nightly cadence | hard-fail (nightly) or advisory |
 | **pipeline-gate** | during an orchestrated run | this run did the right thing — isolated, designed, tested, documented, honest — before it reached the PR | mixed (most halt; some advise) |
-| **ratchet** | inside ci / the orchestrator | a monotonic property never regresses (VERSION, the portability baseline, doc freshness) | advisory or hard-fail |
+| **local-hook** | at `git commit` (pre-commit hook) + local-only manual harnesses | the commit is structurally valid before it ever leaves your machine | hard-fail (blocks the commit) |
+
+`CI-push` and `CI-nightly` are the old undifferentiated `ci` blob, split by
+cadence. **`ratchet` is no longer a layer** — a monotonic guard (VERSION never
+regresses, the portability baseline, doc freshness) is a `ratchet: true` **flag**
+on the unit that owns it, not a place a test runs.
 
 The word **"gate"** is reserved here for a single thing: an **inline
 orchestrator halt** (a `pipeline-gate` row, declared per repo in the overlay's
-`gates:` array). The CI validator-as-a-whole is the **ci** layer (a set of
-numbered *checks*), not "the gate." A monotonic guard is a **ratchet**. Three
-words, three referents, no overload.
+`gates:` array). The CI validator-as-a-whole is the **CI-push** layer (a set of
+numbered *checks*), not "the gate." A monotonic guard is a **ratchet flag**.
 
 ## The five general rules
 
@@ -104,53 +123,59 @@ the blind spot from untested code to vague behavior prose.
 
 ## The category axis (optional, overlay-only)
 
-A repo MAY organize its tests by **category** — one clean noun that threads five
-surfaces: the folder a test lives in (`tests/<category>/`), the contract section
-that declares it, the doc that describes it (`docs/tests/<category>/<name>.md`),
-the index row that references it, and the argument that runs it
-(`/CJ_test_run --category <cat>` or `/CJ_test_run <name>`). Audit and run share
-ONE vocabulary; a newcomer can look at `tests/` and see what kinds of tests exist.
+A repo MAY organize its tests on **two orthogonal axes** — `category` (the KIND)
+× `layer` (WHERE/WHEN) — that together thread five surfaces: the folder a test
+lives in (`tests/<category>/<layer>/`), the contract section that declares it, the
+doc that describes it (`docs/tests/<category>/<layer>/<name>.md`), the index row
+that references it, and the argument that runs it (`/CJ_test_run --category <cat>`,
+`/CJ_test_run --layer <layer>`, or `/CJ_test_run <name>`). Audit and run share ONE
+vocabulary; a newcomer looks at `tests/<category>/<layer>/` and sees at a glance
+what a test *is* and *when it fires*.
 
-The **V2 taxonomy is the closed set `{workflow, CI-push, CI-nightly}`** — the
-`CI` category split by cadence, because the category name IS the cadence (so
-`--category CI-push` / `--category CI-nightly` is the whole selection API, no new
-flag):
+The **category is the closed set `{workflow, regression, infra}`** — the *kind* of
+test, modelled on the work-item that produced it:
 
-- **`workflow`** — deterministic end-to-end workflow tests (what proves a whole
-  user-facing workflow runs).
-- **`CI-push`** — deploy-gate tests that run on every push / PR (the fast signal
-  that gates a merge).
-- **`CI-nightly`** — deploy-gate tests that run on a nightly schedule (heavier
-  checks deferred off the PR path).
+- **`workflow`** — proves a whole user-facing workflow runs end to end (features earn these).
+- **`regression`** — proves a specific past defect stays fixed (defects earn these).
+- **`infra`** — the standing verification surface itself (the validator, the full suite, the deploy harness).
+
+The **layer is the closed set `{CI-push, CI-nightly, pipeline-gate, local-hook}`**
+— where/when it runs (the four verification layers above). On a `categories:` row
+`layer` is **descriptive metadata** (the real cron/trigger stays in
+`.github/workflows/*.yml`, kept consistent by hand).
 
 An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
 (**optional-on-schema-1**, overlay-only — the machine block in this general file
 is unchanged). Each row declares one named test: `name` (a stable slug — it IS the
 doc filename AND the `/CJ_test_run` argument), `category`
-(`workflow | CI-push | CI-nightly`), `command` (how to run it), `tier`
-(`free | paid | local-only`), an optional `doc` (the
-`docs/tests/<category>/<name>.md` pointer), and a short `purpose`.
+(`workflow | regression | infra`), `layer`
+(`CI-push | CI-nightly | pipeline-gate | local-hook`), `mode`
+(`deterministic | agentic` — REQUIRED, no default; `agentic ⇒ tier ≠ free`),
+`command` (how to run it), `tier` (`free | paid | local-only`), an optional `doc`
+(the `docs/tests/<category>/<layer>/<name>.md` pointer), and a short `purpose`.
 
 `test-spec.sh --check-structure` mechanizes six structural checks when the
 `categories:` axis exists: **(a)** a `tests/` folder holds the repo's scripts;
-**(b)** `tests/` is split into per-category subfolders (one `tests/<category>/`
-per DISTINCT category the overlay actually declares — so a repo that declares no
-nightly test is never forced to create an empty `tests/CI-nightly/`); **(c)** the
-`categories:` axis declares at least one test in each declared category; **(d)**
-one `docs/tests/<category>/<name>.md` per declared test; **(e)** a `docs/tests/`
-INDEX table references every test by name; **(f)** each per-test doc actually
-CONTENTS the three front-door sections (below). Each unmet check is a `FINDING:` —
-findings are the product, never a crash. A repo with no `categories:` axis reports
-"category contract not adopted / inactive" and stays green.
+**(b)** `tests/` is split into per-`(category,layer)` subfolders (one
+`tests/<category>/<layer>/` per pair that has ≥1 FILE-backed test — a command-only
+row whose script lives elsewhere never forces an empty `tests/<cat>/<layer>/`);
+**(c)** the `categories:` axis declares at least one test in each declared
+category; **(d)** one `docs/tests/<category>/<layer>/<name>.md` per declared test;
+**(e)** a `docs/tests/` INDEX table references every test by name; **(f)** each
+per-test doc actually CONTENTS the three front-door sections (below). Each unmet
+check is a `FINDING:` — findings are the product, never a crash. A repo with no
+`categories:` axis reports "category contract not adopted / inactive" and stays
+green.
 
 **The per-test doc is the authoritative front door (GENERAL rule).** Each
-declared category test's `docs/tests/<category>/<name>.md` is the ONE place a
-maintainer opens to understand and run that test, so it MUST document three
+declared category test's `docs/tests/<category>/<layer>/<name>.md` is the ONE place
+a maintainer opens to understand and run that test, so it MUST document three
 things, under these literal section headings:
 
 - **`## What it is`** — one or two sentences: what this test verifies.
 - **`## How to run`** — the exact command (matching the category's `command`) and
-  the `/CJ_test_run <name>` / `/CJ_test_run --category <cat>` invocation.
+  the `/CJ_test_run <name>` / `/CJ_test_run --category <cat>` / `/CJ_test_run
+  --layer <layer>` invocation.
 - **`## Explanation`** — why the test exists / what it proves, cross-linking the
   relevant `docs/tests/<family>.md` units-detail page(s) for the per-unit
   breakdown.
@@ -168,8 +193,8 @@ anchor-greps-while-the-doc-rots gap.
 `runners:` axes** (V1 foundation). The audit REPORTS structural gaps and may SEED
 missing doc stubs (`--seed-docs`, idempotent — present ⇒ skip), but NEVER moves or
 rewrites test scripts: physically reorganizing a repo's tests into
-`tests/<category>/` is a one-time migration, not a run-time audit action, so the
-audit stays standalone-safe on a repo it does not own.
+`tests/<category>/<layer>/` is a one-time migration, not a run-time audit action,
+so the audit stays standalone-safe on a repo it does not own.
 
 ## The canonical contract-file template
 
@@ -201,8 +226,9 @@ canonical Markdown table).
 
 The block below is the source of truth. Keep it the only fenced `yaml` block in
 this file. It carries `rules[]` (the five portable rules) and `layers[]` (the
-four-layer map). The repo-specific `units:` enumeration and the per-mode
-`gates:` array live in the optional `test-spec-custom.md` overlay.
+four-layer map — `CI-push | CI-nightly | pipeline-gate | local-hook`; `ratchet`
+is a `ratchet: true` flag, not a layer). The repo-specific `units:` enumeration
+and the per-mode `gates:` array live in the optional `test-spec-custom.md` overlay.
 
 ```yaml
 # test-spec registry (parsed by test-spec.sh; merged with the optional
@@ -230,25 +256,25 @@ rules:
     scope: "every live validator banner/comment, test file on disk, CI workflow, installed hook"
     enforced_by: "test-spec.sh --check-coverage reverse sweep + floor (active when units: rows exist)"
 layers:
-  - id: local-hook
-    name: "Local pre-commit hook"
-    trigger: "at git commit"
+  - id: CI-push
+    name: "CI on every push / PR"
+    trigger: "on every push / PR"
     disposition: hard-fail
-    owns: "the commit is structurally valid before it leaves the machine"
-  - id: ci
-    name: "CI on every PR"
-    trigger: "on every PR"
+    owns: "the whole tree is structurally + behaviorally sound on a clean runner (the fast merge signal)"
+  - id: CI-nightly
+    name: "CI on a nightly schedule"
+    trigger: "on a nightly schedule"
     disposition: hard-fail
-    owns: "the whole tree is structurally + behaviorally sound on a clean runner"
+    owns: "heavier checks off the PR path run on a nightly cadence"
   - id: pipeline-gate
     name: "In-orchestrator gates"
     trigger: "during an orchestrated run"
     disposition: mixed
     owns: "this run did the right thing before it reached the PR"
-  - id: ratchet
-    name: "Regression ratchets"
-    trigger: "inside ci / the orchestrator"
-    disposition: advisory
-    owns: "a monotonic property never regresses"
+  - id: local-hook
+    name: "Local pre-commit hook + local-only harnesses"
+    trigger: "at git commit / local manual run"
+    disposition: hard-fail
+    owns: "the commit is structurally valid before it leaves the machine"
 ```
 <!-- TEST-SPEC-GENERAL:END -->

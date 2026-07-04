@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-07-03T20:01:48Z"
+last-updated: "2026-07-03T23:28:27Z"
 ---
 
 # Using /CJ_test_audit
@@ -82,13 +82,15 @@ gate (the same owner `validate.sh` Check 28 calls), so a documented-but-untested
 `CJ_goal_*` orchestrator (a missing `level: workflow` behavior or an orphan
 `workflow:` link) is caught standalone in any repo; AND, when the engine carries
 it, `--check-structure` — the category-based test contract's six structural
-checks a–f (a `tests/` folder, one per-category `tests/<category>/` subfolder for
-each DISTINCT declared category — taxonomy V2 `{workflow, CI-push, CI-nightly}`,
-derived from the overlay's declared categories so a repo that declares no nightly
-test is never forced to create an empty `tests/CI-nightly/`, a category-scoped
-spec, one `docs/tests/<category>/<name>.md` per declared test, a
-`docs/tests/index.md` INDEX, and check (f) — each per-test doc carrying the three
-front-door section headings `## What it is` / `## How to run` / `## Explanation`),
+checks a–f (a `tests/` folder, one `tests/<category>/<layer>/` subfolder per
+(category,layer) pair with a FILE-backed test — the TWO orthogonal axes category
+`{workflow, regression, infra}` × layer
+`{CI-push, CI-nightly, pipeline-gate, local-hook}`, command-only rows exempt so a
+repo whose category tests are all command invocations is never forced to create an
+empty folder, a category-scoped spec, one `docs/tests/<category>/<layer>/<name>.md`
+per declared test, a `docs/tests/index.md` INDEX, and check (f) — each per-test doc
+carrying the three front-door section headings `## What it is` / `## How to run` /
+`## Explanation`),
 preceded by an idempotent `--seed-docs` that seeds missing per-test doc stubs —
 already carrying those three sections — + the index (present ⇒ skip)
 but NEVER moves test scripts — findings are the product (exit 0 always), and an
@@ -104,11 +106,11 @@ substance the deterministic check can't reach (statement falsifiable/specific?
 `level` correct? the linked test proves vs merely mentions the behavior? one
 broad test over-claimed against many behaviors?), findings prefixed
 `stage2/behavior:<id>`, AND — when the overlay declares the `categories:` axis —
-each per-test category DOC (`docs/tests/<category>/<name>.md`) is judged for
+each per-test category DOC (`docs/tests/<category>/<layer>/<name>.md`) is judged for
 front-door truthfulness the check-(f) heading presence can't reach (does
 `## How to run` match the declared `command`? are `## What it is` /
 `## Explanation` accurate? does the family cross-link resolve?), findings prefixed
-`stage2/doc:<category>/<name>`. **Stage 3
+`stage2/doc:<category>/<layer>/<name>`. **Stage 3
 (implementation drift — agent-judged):** the live verification surfaces
 (tests on disk, validate banners, workflows, hooks) are enumerated first,
 then coverage-in-substance is judged — where Stage 1 proves a mapping EXISTS,
