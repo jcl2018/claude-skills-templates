@@ -812,7 +812,7 @@ units:
     layer: ci
     disposition: hard-fail
     trigger: "pr-ci"
-    purpose: "Concurrent-race uniqueness, both reap modes, prefix isolation, same-branch reuse and worktree-shared claim-root resolution."
+    purpose: "Concurrent-race uniqueness, both reap modes, prefix isolation, same-branch reuse, worktree-shared claim-root resolution, and the slug-less feature-tracker reap regression (a merged `${id}_TRACKER.md` with no slug is reaped on both the id_on_origin regex and id_has_workitem_dir find-glob paths)."
   - id: test-cj-goal-feature-smoke
     family: test
     label: "feature-path smoke suite — worktree entry + common phases"
