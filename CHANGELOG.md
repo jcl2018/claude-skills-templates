@@ -3,6 +3,22 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.116] - 2026-07-04
+
+### Fixed
+- **Killed the residual OOM flake in the full test suite: the early clean-tree
+  guards now reuse ONE `validate.sh` run.** `scripts/test.sh` ran the whole
+  `validate.sh` five times back-to-back within the first ~230 lines (the top-of-suite
+  run + the S000094 / S000096 / F000060 regression guards, which each re-invoked it to
+  grep a banner or assert exit 0). Running the ~29-check validator five times in quick
+  succession built runner memory pressure and OOM-killed a later invocation — the
+  chronic `FAIL: S000096: validate.sh exits non-zero with Check 24 active` flake (seen
+  on the v6.0.115 nightly dispatch, where the FIRST run printed `Errors: 0` but the
+  re-run OOM'd). Fix: capture the top-of-suite `validate.sh` output + exit code once
+  (`_VALIDATE_OUT` / `_VALIDATE_RC`) and have every clean-tree guard grep that capture
+  instead of re-running the validator — same approach F000081 used for the negative
+  tests. Guard coverage is unchanged (same banners, same exit-0 assertion).
+
 ## [6.0.115] - 2026-07-04
 
 ### Changed
