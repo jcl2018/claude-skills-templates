@@ -47,12 +47,13 @@ behavior:
   inline audit stays. Orchestrator-driven (`DEFER_AUDIT: true`): SKIP 8.6c/8.6d,
   report `AUDITS=deferred`, emit no `AUDIT_FINDINGS` — the orchestrator does NOT
   re-run the audit on the build path; the agent-judged doc/test audit now runs
-  NIGHTLY in CI (`.github/workflows/audit-nightly.yml`), off the build path.
+  ON-DEMAND (locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash
+  scripts/audit-nightly.sh`), off the build path.
 
 Audit findings ride the green RESULT's `AUDITS=` field + (when not skipped) a
 fenced `AUDIT_FINDINGS` block — they never flip QA red. Standalone, the operator
 reads the `AUDIT_FINDINGS` block directly; under `DEFER_AUDIT: true` the
-orchestrator advances past QA and the nightly CI audit surfaces any findings.
+orchestrator advances past QA and the on-demand audit surfaces any findings.
 Output is structured (gate transitions + journal entries + the extended RESULT);
 orchestrators read the result and either advance or halt the pipeline.
 
@@ -78,4 +79,4 @@ orchestrators read the result and either advance or halt the pipeline.
 - `/CJ_personal-workflow` — runs at boundaries to confirm Phase 2 completeness
 - `/CJ_goal_feature` + `/CJ_goal_defect` + `/CJ_goal_task` + `/CJ_goal_todo_fix`
   — top-level orchestrators that call QA as the final pre-ship leaf subagent with
-  `DEFER_AUDIT: true` (the inline audit is skipped; nightly CI covers it)
+  `DEFER_AUDIT: true` (the inline audit is skipped; it runs on-demand off the build path)

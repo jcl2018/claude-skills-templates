@@ -115,7 +115,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY RUN: would create a cj-feat-* worktree (cj-goal-common.sh --mode feature)"
   echo "DRY RUN: would run /office-hours INLINE; on Approve, record the APPROVED design doc path + HEAD SHA to $RESUME_STATE"
   echo "DRY RUN: would write a compact office-hours phase receipt to .cj-goal-feature/<branch>.office-hours.receipt and source the Step 2.7 design-summary digest FROM it (F000053/S000095)"
-  echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — QA skips the inline agent-judged audit; the nightly CI job covers it) as SILENT leaf Agent subagents (no AUQ)"
+  echo "DRY RUN: would dispatch /CJ_scaffold-work-item → /CJ_implement-from-spec → /CJ_qa-work-item (with DEFER_AUDIT: true — QA skips the inline agent-judged audit; it runs on-demand off the build path) as SILENT leaf Agent subagents (no AUQ)"
   echo "DRY RUN: would make an idempotent pre-doc-sync commit (Step 3.5; skip on a clean tree), then run /CJ_document-release INLINE (Step 5.5 doc-sync; halt-on-red)"
   echo "DRY RUN: would run /ship INLINE with the diff-review AUQ suppressed, opening a PR, then STOP at the PR (the merge stays manual; no deploy)"
   echo "DRY RUN: writes nothing. Re-run without --dry-run to execute; a verbatim re-run resumes from the recorded phase."
@@ -636,9 +636,10 @@ Dispatch `/CJ_qa-work-item` via the **Agent** tool against `$WORK_ITEM_DIR`. The
 dispatch prompt carries TWO sibling directives — `DEFER_AUDIT: true` so QA SKIPS
 its three-stage inline audit (qa.md Step 8.6c/8.6d), and `DEFER_SYNC: true` so QA
 SKIPS the agent-judged overlay AMENDMENT sweep in 8.6a/8.6b (F000079). Both the
-audit and the agentic sync now run nightly in CI
-(`.github/workflows/audit-nightly.yml`) over `main`, not inline on the build path
-(F000076 for the audit; F000079 for the sync). QA still runs the fast
+audit and the agentic sync now run on-demand (locally via `/CJ_doc_audit` +
+`/CJ_test_audit`, or `bash scripts/audit-nightly.sh`), not inline on the build path
+(F000076 for the audit; F000079 for the sync; the former nightly CI workflow was
+removed by F000080). QA still runs the fast
 DETERMINISTIC half of 8.6a/8.6b inline (a new `tests/*.test.sh` gets its required
 `units:` row, a new declared doc gets its overlay row — the parts `validate.sh`
 requires) and returns `AUDITS=deferred` with **no** `AUDIT_FINDINGS` block:
@@ -651,7 +652,7 @@ TASK: Invoke /CJ_qa-work-item on the work-item dir in <inputs>. The literal
 DEFER_AUDIT: true + DEFER_SYNC: true directives above tell QA to run only the
 DETERMINISTIC half of its Step 8.6a/8.6b overlay writes inline (new-surface rows)
 but SKIP both the agent-judged amendment sweep (DEFER_SYNC) and the 8.6c/8.6d
-three-stage audit (DEFER_AUDIT) — the nightly CI job covers both; neither is
+three-stage audit (DEFER_AUDIT) — both run on-demand off the build path; neither is
 re-run inline. Return the RESULT line verbatim — including the AUDITS= field (it
 will read AUDITS=deferred,spec_updates:<...>); do NOT expect an AUDIT_FINDINGS
 block on the deferred path:
@@ -665,7 +666,7 @@ halt marker — do NOT mint a new one), end_state `halted_at_qa`, `pr_url=N/A`,
 
 On green: record the qa boundary, then continue to Step 3.5 (the pre-doc-sync
 commit), then Step 5.5 (Doc-sync), then Step 4 (/ship). The agent-judged doc/test
-audit no longer runs inline — it runs nightly in CI (F000076).
+audit no longer runs inline — it runs on-demand off the build path (F000076).
 
 ### Step 3.5: Pre-doc-sync commit (NEW — automated, idempotent; closes the F000038 gotcha)
 
@@ -705,9 +706,10 @@ doc catalogs stay in sync in the SAME code PR. **As of F000079 this is a FAST,
 model-free DETERMINISTIC regen — NOT the slow `/CJ_document-release` LLM pass.**
 The slow agent-judged doc-sync (rewriting README/CHANGELOG/CLAUDE.md prose to
 reflect semantics) + the agent-judged overlay-amendment sweep are advisory
-drift-catches that now DEFER to the nightly audit (`.github/workflows/audit-nightly.yml`
-→ the `audit-drift` issue; F000076 relocated the audit, F000079 the agentic
-sync), off the per-PR build path. The deterministic per-PR gate (`validate.sh`
+drift-catches that now DEFER to the on-demand audit (`/CJ_doc_audit` +
+`/CJ_test_audit`, or `bash scripts/audit-nightly.sh` → the `audit-drift` issue;
+F000076 relocated the audit, F000079 the agentic sync; the former nightly CI
+workflow was removed by F000080), off the per-PR build path. The deterministic per-PR gate (`validate.sh`
 Checks 15-19/24/26/27/28) is UNCHANGED and still hard-blocks a broken contract.
 
 Regenerate the two GENERATED catalogs (the test catalog + the workflow docs) so
@@ -781,8 +783,9 @@ else
 fi
 ```
 
-The agent-judged doc/test audit + the agentic overlay sweep run nightly in CI
-(audit-nightly.yml), NOT inline (F000076/F000079). Only on a clean regen does
+The agent-judged doc/test audit + the agentic overlay sweep run on-demand
+(locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash scripts/audit-nightly.sh`),
+NOT inline (F000076/F000079). Only on a clean regen does
 control proceed to Step 4 (/ship).
 
 ## Step 4: /ship (INLINE — diff-review AUQ suppressed; opens a PR)
@@ -1055,7 +1058,7 @@ table.
   amended).** office-hours is the interactive design phase; Step 2.7 then shows a
   design summary + a single go/no-go gate before the build budget is spent. Past
   that gate the build is fully silent (the agent-judged doc/test audit that used
-  to fire a post-QA checkpoint AUQ now runs nightly in CI — F000076), and `/ship`
+  to fire a post-QA checkpoint AUQ now runs on-demand off the build path — F000076), and `/ship`
   runs with its diff-review AUQ suppressed (the PR is the review). The human
   touchpoints are: the office-hours Approve, the Step 2.7 design-summary gate, and
   the PR.

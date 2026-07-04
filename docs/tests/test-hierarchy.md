@@ -41,7 +41,7 @@ model-intelligence failure.
 |-------|----------------|---------------|---------------|
 | **Shell unit/integration tests** (`tests/*.test.sh`, esp. `tests/cj-goal-*.test.sh`, `tests/cj-goal-common-*.test.sh`) | The deterministic skeleton: each phase honors its `KEY=VALUE` contract + exit code; the worktree/sync/portability/recap/cleanup/telemetry plumbing; the PR-body splice idiom | Anything Claude-judged (design quality, code correctness, QA verdicts) | plain CI, no model, no API key — the bulk of the real regression net |
 | **`validate.sh` + the contract gates** (Checks 1–28, incl. the `doc-spec` / `test-spec` / `workflow-spec` registries) | Structural integrity: the catalog, the doc/test/workflow contracts, frontmatter, USAGE freshness, portability, and that every orchestrator *has* a `level: workflow` test (**Check 28**) | That the declared tests are *comprehensive*, or that they pass when actually run | plain CI |
-| **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, run by `scripts/eval.sh`) | A **real** `claude --print` run of a workflow's *entry + one gate path* — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | nightly (`eval-nightly.yml`), needs the `ANTHROPIC_API_KEY` secret |
+| **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, run by `scripts/eval.sh`) | A **real** `claude --print` run of a workflow's *entry + one gate path* — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | on-demand (`bash scripts/eval.sh`), needs the `ANTHROPIC_API_KEY` secret |
 | **Full happy-path E2E** (topic → scaffold → implement → qa → doc-sync → ship boundary) | The only thing that proves the *whole* workflow produces a correct result | n/a | **local-only, real run via the seam** — `scripts/e2e-local.sh` drives a real `/CJ_goal_task` build through the build-gate auto-answer seam in a sandbox to the `/ship` boundary and emits a **materialized report** (deterministic vs `claude --print`); its deterministic half is CI-tested (`tests/e2e-local.test.sh`), the real run needs gstack + a `claude` login (`ANTHROPIC_API_KEY` or `claude auth login`) + `gh` locally. No automated CI E2E (the gstack-in-CI blocker below) |
 
 ## What the eval cases honestly prove (and don't)
@@ -85,8 +85,9 @@ verdict helper, plus uniform prose in the four cj_goal pipelines) that — only
 under a double hard guard (`CJ_GOAL_E2E_AUTO=1` **and** a `.cj-e2e-sandbox`
 marker) — auto-answers ONLY the cj_goal *build* gates, never the
 ship/merge/deploy gates. (The helper still allowlists `design-gate` and
-`qa-audit`, but the agent-judged doc/test audit has since moved to a nightly CI
-job, so the `qa-audit` checkpoint no longer fires on any build path — only
+`qa-audit`, but the agent-judged doc/test audit has since moved off the build
+path (it now runs on-demand / locally), so the `qa-audit` checkpoint no longer
+fires on any build path — only
 `design-gate`, feature-only, is a live seam gate today; the now-dormant
 `qa-audit` arm is a tracked cleanup follow-up.) It is CI-green and fully
 unit-tested (`tests/cj-e2e-gate.test.sh`), and changes no normal run's behavior

@@ -45,8 +45,9 @@ reports the redundant one (it does not auto-delete).
   executes ALL THREE STAGES inline (the nested-subagent wall — no fresh-context
   dispatch there) and lifts the per-stage report into the QA RESULT's `AUDITS=`
   field. On a cj_goal orchestrator run QA carries `DEFER_AUDIT: true`, so these
-  stages are skipped on the build path — the agent-judged audit runs nightly in
-  CI (`.github/workflows/audit-nightly.yml`) instead.
+  stages are skipped on the build path — the agent-judged audit runs on-demand
+  (locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash scripts/audit-nightly.sh`)
+  instead.
 - After a doc-heavy change, before shipping: Stage 1 catches orphan docs,
   missing front tables, and stale views in one engine call; Stage 2 catches
   requirement drift; Stage 3 catches content that no longer matches the
@@ -104,14 +105,14 @@ stage protocols — never the invoking session's beliefs (the
 resident-context-rubber-stamp defense). The report prints findings PER STAGE
 (`STAGE1/2/3_FINDINGS=` + three `--- stage N ---` sections, `stageN/`
 prefixes); findings never crash or halt — on the cj_goal build path this
-audit does not run inline (nightly CI covers it); standalone, the operator
+audit does not run inline (it runs on-demand off the build path); standalone, the operator
 reads the report directly.
 
 ## Common pitfalls
 
 - **Expecting the audit to halt a pipeline.** It never does. Standalone, QA
   findings ride a GREEN RESULT and the operator reads them; on the cj_goal
-  build path the inline audit is skipped entirely and the nightly CI audit
+  build path the inline audit is skipped entirely and the on-demand audit
   surfaces findings out of band.
 - **Re-deriving Stage 1 by hand.** The deterministic pass is the engine call —
   printed verbatim. Hand-rolled conformance loops are exactly the defect class
@@ -152,7 +153,7 @@ reads the report directly.
   folds doc updates into the same PR (Step 5.5 doc-sync), and is the OTHER
   deliverer of the doc-spec seed (identical file, identical `spec/` path).
 - `/CJ_qa-work-item` — runs this audit inline at Step 8.6c standalone; on a
-  cj_goal run it carries `DEFER_AUDIT: true` and skips the inline audit (nightly
-  CI covers it).
+  cj_goal run it carries `DEFER_AUDIT: true` and skips the inline audit (it runs
+  on-demand off the build path).
 - `/CJ_portability-audit` — the same audit-verb shape applied to skill
   portability declarations.

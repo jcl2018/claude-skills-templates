@@ -6,15 +6,16 @@
 # /CJ_goal_feature, /CJ_goal_defect, /CJ_goal_task, and /CJ_goal_todo_fix —
 # this test asserts the symmetry mechanically so future edits keep it intact.
 #
-# F000076 (audit relocated to CI-nightly): the orchestrators no longer run an
-# inline post-sync doc/test audit or a QA-audit checkpoint — that agent-judged
-# audit now runs nightly in CI (.github/workflows/audit-nightly.yml).
+# F000076 (audit relocated off the inline path; re-homed to on-demand by F000080):
+# the orchestrators no longer run an inline post-sync doc/test audit or a QA-audit
+# checkpoint — that agent-judged audit now runs on-demand off the build path (the
+# former .github/workflows/audit-nightly.yml nightly CI job was removed by F000080).
 #
 # F000079 (build-gate deterministic-agentic split): the orchestrators also stopped
 # running the SLOW inline doc-sync (the /CJ_document-release LLM pass → replaced by
 # a deterministic --render-docs regen at Step 5.5) and the agent-judged test-sync
 # overlay sweep (QA 8.6a/8.6b, now gated by the DEFER_SYNC dispatch directive). The
-# slow agentic doc/test sync defers to the nightly audit. The canonical build path
+# slow agentic doc/test sync defers to the on-demand audit. The canonical build path
 # is QA → pre-doc-sync commit → deterministic doc-regen (Step 5.5) → ship. This
 # test asserts the "F000079 build-gate deterministic-agentic split" holds
 # symmetrically across the 4 orchestrators (it backs the build-gate-no-inline-slow-sync
@@ -125,7 +126,7 @@ done
 
 # 6. REMOVED-checkpoint guard (F000076): the inline QA-audit checkpoint is gone —
 # assert none of its markers survive in any of the 4 pipeline.md or 4 SKILL.md.
-# The agent-judged audit now runs nightly in CI (audit-nightly.yml), not inline.
+# The agent-judged audit now runs on-demand off the build path, not inline.
 for f in "${PIPELINES[@]}" "${SKILLS[@]}"; do
   rel="${f#"$REPO_ROOT"/}"
   [ -f "$f" ] || continue

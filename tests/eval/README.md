@@ -4,19 +4,20 @@
 
 The harness answers: *"did a change to a skill break expected behavior?"* without requiring manual runs and eyeballing output.
 
-**V1 value is narrow.** All 5 current cases test `/CJ_personal-workflow check`, the workbench's most stable skill. Nightly CI on V1 is useful but not critical — a solo maintainer who knows when they edited `check.md` will catch most regressions manually anyway.
+**V1 value is narrow.** All 5 current cases test `/CJ_personal-workflow check`, the workbench's most stable skill. Automating V1 is useful but not critical — a solo maintainer who knows when they edited `check.md` will catch most regressions manually anyway.
 
 **V2 is where this earns its keep.** The high-value targets are the mutating skills: `CJ_scaffold-work-item`, `CJ_implement-from-spec`, `CJ_qa-work-item`. A silent bug in `implement.md` that writes malformed tracker files is easy to miss across a refactor and hard to catch without automation. Eval cases for those skills need structural-assertion helpers (file-tree shape, frontmatter presence, journal entries written) — that's V2 scope.
 
-Until V2 cases exist: trigger manually (`bash scripts/eval.sh` or `gh workflow run eval-nightly.yml`) before shipping changes to `check.md`. Nightly cron is low-value at the current 5-case coverage.
+Until V2 cases exist: trigger manually (`bash scripts/eval.sh`) before shipping changes to `check.md`. There is no scheduled run — the harness is on-demand only, which is fine at the current 5-case coverage.
 
 ---
 
 V1 of the eval harness for the skill workbench. Spawns the real `claude` CLI
 headless against scratch worktrees, validates structured JSON output against
-per-case JSON Schemas. Cadence is nightly on `main` (see
-`.github/workflows/eval-nightly.yml`, shipped in S000025 / v2.0.7) plus manual
-local invocation (`bash scripts/eval.sh` or `gh workflow run eval-nightly.yml`).
+per-case JSON Schemas. Cadence is on-demand / manual local invocation
+(`bash scripts/eval.sh`). (A nightly CI workflow — `.github/workflows/eval-nightly.yml`,
+shipped in S000025 / v2.0.7 — used to run it on `main`, but F000080 removed that
+workflow; the harness now runs on-demand only.)
 
 V1 scope: `CJ_personal-workflow` and `CJ_system-health` only — skills whose primary
 user-facing output is a structured report. Filesystem-mutating skills
@@ -43,8 +44,7 @@ gets its own scratch tmpdir + fake `$HOME`, so concurrent runs don't share
 state.
 
 Per-case cost cap: `--max-budget-usd 0.15`. Total V1 budget target:
-≤ $1.50/run for 6–10 cases; revise after first nightly CI observation
-(S000025).
+≤ $1.50/run for 6–10 cases; revise after first on-demand run observation.
 
 ## Authoring a new case
 
@@ -219,7 +219,7 @@ Two cases exhibit a ~33% failure rate under repeated runs, both with `no parseab
 - **`check-untested-p0`** — 4 of 6 observed runs PASS (67% pass rate). Symptom: `--json-schema` enforcement retries fail; the case eventually exits without producing schema-matching JSON.
 - **`check-passing-feature`** — 4 of 6 observed runs PASS (67% pass rate). Same symptom. This case asks Claude to do the most expensive work in the suite (full directory-mode validation across 3 artifact files), which probably explains why it's the second flaky one.
 
-This aligns with the SPEC's pre-acknowledged Coverage Gap on LLM run-to-run variance. **Nightly CI at S000025 will surface flake rates empirically and is the right venue for tuning a retry policy or hardening these specific prompts.** Locally, `bash scripts/eval.sh` will sometimes need a single retry before reporting 6/6 PASS.
+This aligns with the SPEC's pre-acknowledged Coverage Gap on LLM run-to-run variance. **Repeated on-demand runs (`bash scripts/eval.sh`) surface flake rates empirically and are the right venue for tuning a retry policy or hardening these specific prompts.** Locally, `bash scripts/eval.sh` will sometimes need a single retry before reporting 6/6 PASS.
 
 ## V2 trajectory (out of V1 scope)
 

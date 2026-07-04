@@ -48,9 +48,10 @@ still running the 8.6a/8.6b spec-overlay writes) → an idempotent pre-doc-sync
 commit → `/CJ_document-release` (Step 5.5 doc-sync) → `/ship` (Gate #2 always
 human) → `/land-and-deploy --suppress-readiness-gate`. The agent-judged doc/test
 audit (`/CJ_doc_audit` + `/CJ_test_audit`) no longer runs on the build path or
-gates the ship; it runs NIGHTLY in CI (`.github/workflows/audit-nightly.yml`),
-filing findings to a GitHub issue. The deterministic per-PR gate (`validate.sh` /
-pre-commit) is unchanged. A ~80% reshape of the
+gates the ship; it runs on-demand off the build path (locally via `/CJ_doc_audit`
++ `/CJ_test_audit`, or `bash scripts/audit-nightly.sh` which files findings to a
+GitHub issue — the former nightly CI workflow was removed by F000080). The
+deterministic per-PR gate (`validate.sh` / pre-commit) is unchanged. A ~80% reshape of the
 retired `/CJ_goal_investigate` v1.1 pipeline; depth ≤ 2 (no
 subagent-spawns-subagent).
 
@@ -73,8 +74,8 @@ subagent-spawns-subagent).
 - `/investigate` (upstream gstack) — Iron-Law root-cause analysis subagent
 - `/CJ_qa-work-item` — leaf subagent that runs the test-plan rows; when
   orchestrator-driven it SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT:
-  true`) — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI,
-  not on the build path (standalone `/CJ_qa-work-item` still runs them inline)
+  true`) — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand off
+  the build path (standalone `/CJ_qa-work-item` still runs them inline)
 - `/ship` (upstream gstack) — opens PR with Gate #2
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/CJ_goal_feature` — sibling top-level verb for feature-from-topic

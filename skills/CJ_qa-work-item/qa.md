@@ -762,8 +762,9 @@ from rotting: the contract is updated, then verified); the AUDITS are
 
 The cj_goal orchestrators run neither the three-stage agent-judged AUDIT nor the
 slow agent-judged overlay SYNC sweep inline — both are advisory drift-catches that
-now run nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
-(F000076 relocated the audit; F000078 relocated the agentic sync). They signal
+now run on-demand (locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash
+scripts/audit-nightly.sh`), off the build path (F000076 relocated the audit;
+F000078 relocated the agentic sync). They signal
 this to QA with two sibling literal directives embedded in the QA Agent-tool
 dispatch PROMPT (NOT argv flags — `/CJ_qa-work-item` is dispatched as a subagent
 prompt, so the carrier is a greppable literal string in the pipeline.md prompt
@@ -792,7 +793,7 @@ orchestrators pass BOTH directives.
 `DEFER_AUDIT` gates 8.6c/8.6d (the audits). `DEFER_SYNC` gates ONLY the
 agent-judged amendment sweep of 8.6a/8.6b — the deterministic new-surface row
 always runs (the orchestrator's pre-doc-sync commit + deterministic doc-regen fold
-it into the PR). The nightly `/CJ_doc_audit` + `/CJ_test_audit` are the safety net
+it into the PR). The on-demand `/CJ_doc_audit` + `/CJ_test_audit` are the safety net
 that catches the deferred agentic doc/test drift and files the `audit-drift` issue.
 
 **Verdict semantics (load-bearing).** Audit findings do NOT flip the QA
@@ -802,8 +803,9 @@ Step 9 still transitions Phase-2 gates on test-green; findings ride the
 operator to read at the end of a standalone run. When `DEFER_AUDIT = true` (an
 orchestrator-driven run) this skill emits no audit findings at all — the cj_goal
 orchestrators no longer run an inline audit; the agent-judged doc/test audit runs
-nightly in CI (`.github/workflows/audit-nightly.yml`), off the build path
-(F000076). (Standalone runs still audit inline — see below — and there is no
+on-demand (locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash
+scripts/audit-nightly.sh`), off the build path (F000076). (Standalone runs still
+audit inline — see below — and there is no
 orchestrator checkpoint on either path.)
 
 **Subagent posture.** This skill usually runs AS a leaf subagent, and a
@@ -831,7 +833,7 @@ not invent an overlay).
 part — re-reading the whole diff to judge which EXISTING `units:` rows need
 amending for the semantic changes this work-item made — runs ONLY when
 `DEFER_SYNC = false` (standalone `/CJ_qa-work-item`). When `DEFER_SYNC = true`
-(an orchestrated build), SKIP it; the nightly `/CJ_test_audit` catches any
+(an orchestrated build), SKIP it; the on-demand `/CJ_test_audit` catches any
 un-amended overlay drift and files the `audit-drift` issue. Report one line
 (`sweep:deferred` when the amendment sweep was skipped):
 
@@ -847,7 +849,7 @@ repo-specific root/spec doc THIS work-item added gets an overlay row
 check hard-fails the PR otherwise. General docs never go here (the general file
 is the seed — never edited in place). **Agent-judged sweep (skipped under
 `DEFER_SYNC = true`):** the semantic re-read for amendments runs only standalone;
-under an orchestrated build it defers to the nightly `/CJ_doc_audit`. Report one
+under an orchestrated build it defers to the on-demand `/CJ_doc_audit`. Report one
 line:
 
 ```
@@ -857,8 +859,8 @@ spec-update: doc-spec-custom <added: paths | none>; sweep:<ran|deferred>
 ### 8.6c — Run `/CJ_doc_audit` (inline in subagent context)
 
 **Deferral guard.** If `DEFER_AUDIT = true` (from Step 8.6.0): SKIP this
-sub-step entirely. The agent-judged audit runs nightly in CI (audit-nightly.yml),
-not on the build path. Do not run the engine, do not judge any stage, do not capture a report. Proceed
+sub-step entirely. The agent-judged audit runs on-demand off the build path.
+Do not run the engine, do not judge any stage, do not capture a report. Proceed
 to 8.6d (which is also skipped) and then to the Extended RESULT contract, where
 the deferred path sets `AUDITS=deferred` and emits NO `AUDIT_FINDINGS` block.
 
@@ -875,8 +877,8 @@ Capture its full per-stage report (the `DOC_AUDIT:` / `FINDINGS=` /
 ### 8.6d — Run `/CJ_test_audit` (inline in subagent context)
 
 **Deferral guard.** If `DEFER_AUDIT = true` (from Step 8.6.0): SKIP this
-sub-step entirely (the same as 8.6c). The agent-judged audit runs nightly in CI
-(audit-nightly.yml), not on the build path. Proceed to the Extended RESULT
+sub-step entirely (the same as 8.6c). The agent-judged audit runs on-demand off
+the build path. Proceed to the Extended RESULT
 contract's deferred path.
 
 Otherwise (`DEFER_AUDIT = false` — standalone run):
@@ -912,11 +914,11 @@ RESULT: SMOKE=<...>; E2E=<...>; PHASE2_GATES=<...>; AUDITS=deferred,spec_updates
 `AUDITS=deferred,spec_updates:<summary>` field; `<summary>` reflects only the
 deterministic adds, since the amendment sweep deferred). **Emit NO
 `AUDIT_FINDINGS` block** — the agent-judged audit + the agentic overlay sweep both
-run nightly in CI, not on the build path. Append one journal entry recording the
+run on-demand off the build path. Append one journal entry recording the
 skip:
 
 ```
-- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b: deterministic new-surface rows added inline; the agent-judged amendment sweep SKIPPED via DEFER_SYNC + 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agentic doc/test sync + audit run nightly in CI)
+- {YYYY-MM-DD} [qa-audit] AUDITS=deferred,spec_updates:<...> (Step 8.6a/8.6b: deterministic new-surface rows added inline; the agent-judged amendment sweep SKIPPED via DEFER_SYNC + 8.6c/8.6d SKIPPED via DEFER_AUDIT — the agentic doc/test sync + audit run on-demand off the build path)
 ```
 
 Then continue to Step 9 (transition criteria UNCHANGED — the deferral does not
@@ -1182,7 +1184,7 @@ those ACs after merge.
 When the Step 8.6 audits were skipped (`DEFER_AUDIT = true` — an
 orchestrator-driven run), the `Audits:` line reads
 `deferred, spec_updates:{summary}   (8.6c/8.6d skipped via DEFER_AUDIT — the
-agent-judged audit runs nightly in CI; 8.6a/8.6b ran inline)` instead of the
+agent-judged audit runs on-demand off the build path; 8.6a/8.6b ran inline)` instead of the
 per-audit `doc:`/`test:` status. The standalone (non-deferred) run prints
 the per-audit status shape shown above.
 

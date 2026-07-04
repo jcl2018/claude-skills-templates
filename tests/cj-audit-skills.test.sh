@@ -192,7 +192,7 @@ else
   fail_test "qa.md: AUDIT_FINDINGS block template missing the per-stage shape"
 fi
 # F000076: the inline QA-audit checkpoint was removed (the agent-judged audit
-# runs nightly in CI, audit-nightly.yml). qa.md keeps the DEFER_AUDIT skip + the
+# runs on-demand off the build path). qa.md keeps the DEFER_AUDIT skip + the
 # standalone AUDIT_FINDINGS contract asserted above, but the checkpoint
 # waiver/decline markers must NOT survive in qa.md or the 4 orchestrators.
 if grep -qE '\[qa-audit-waived\]|\[qa-audit-declined\]' "$_QA"; then

@@ -1977,8 +1977,8 @@ fi
 # CJ_goal_defect, CJ_goal_task, CJ_goal_todo_fix) have the Step 5.5 doc-sync
 # subsection wired into pipeline.md AND both [doc-sync-red] / [doc-sync-non-doc-write]
 # halt-taxonomy rows in SKILL.md, AND (F000076) NO inline qa-audit checkpoint
-# machinery survives in any pipeline.md/SKILL.md (the agent-judged audit moved to
-# the nightly audit-nightly.yml CI job; the build tail is doc-sync -> /ship).
+# machinery survives in any pipeline.md/SKILL.md (the agent-judged audit moved off
+# the inline path — it now runs on-demand off the build path; the build tail is doc-sync -> /ship).
 echo ""
 echo "Running tests/cj-goal-doc-sync-wiring.test.sh (F000035/F000076 4-way symmetric Step 5.5 wiring + no-checkpoint guard)..."
 if bash "$REPO_ROOT/tests/cj-goal-doc-sync-wiring.test.sh" >/dev/null 2>&1; then

@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_defect
-description: "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent; with DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs nightly in CI via audit-nightly.yml, off the build path), makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release (Step 5.5 doc-sync; halt-on-red), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'."
+description: "Bug-description-to-shipped-fix orchestrator (F000027 `defect` verb; experimental). Takes a plain bug description with NO pre-existing defect dir, scaffolds a throwaway `.inbox/<slug>/DRAFT.md`, root-causes it via /investigate as an Agent subagent (sentinel-wrapped JSON, Iron-Law: no root cause ⇒ HALT, nothing promoted or shipped), then on a populated root cause writes RCA + test-plan, promotes the draft to a canonical `work-items/defects/uncategorized/D000NNN_<slug>/` dir (D-ID minted only after the Iron-Law gate passes), runs /CJ_qa-work-item (leaf subagent; with DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs on-demand off the build path via /CJ_doc_audit + /CJ_test_audit or scripts/audit-nightly.sh), makes an idempotent pre-doc-sync commit, folds doc updates via /CJ_document-release (Step 5.5 doc-sync; halt-on-red), and ships on the proven human-gated tail: /ship (Gate #2 always human) → /land-and-deploy --suppress-readiness-gate. A ~80% reshape of /CJ_goal_investigate v1.1's flat pipeline; depth ≤ 2 (no subagent-spawns-subagent). Consumes scripts/cj-goal-common.sh --mode defect for the deterministic worktree + pr-check phases. Inherits investigate v1.1's halt taxonomy with next_action= / resume_cmd= / pr_url= journal entries; telemetry appends one JSONL line to ~/.gstack/analytics/CJ_goal_defect.jsonl. --dry-run previews the chain plan + write paths without mutation. Workbench-only (macOS). Drain mode / family-drain lock / --quiet / sunset criterion all deferred. Use when: 'fix this bug end-to-end from a description', 'bug report to deployed fix', 'root-cause and ship a fix'."
 version: 0.1.0
 allowed-tools:
   - Bash
@@ -198,12 +198,12 @@ scaffold .inbox/<slug>/DRAFT.md   (no D-ID; idempotent — same phrase resumes t
    │
    ▼  write RCA.md (template-heading-mapped) + test-plan.md (row append)
    │
-   ▼  /CJ_qa-work-item <defect-dir>           (Skill; DEFER_AUDIT: true — QA skips the inline audit; nightly CI covers it)
+   ▼  /CJ_qa-work-item <defect-dir>           (Skill; DEFER_AUDIT: true — QA skips the inline audit; it runs on-demand off the build path)
    │
    ▼  pre-doc-sync commit                      (Step 8.4 — NEW; idempotent: commit post-QA tracker update, skip on clean tree)
    │
    ▼  /CJ_document-release                     (Step 5.5 doc-sync; halt-on-red)
-   │        (the agent-judged doc/test audit runs nightly in CI — audit-nightly.yml — not inline; F000076)
+   │        (the agent-judged doc/test audit runs on-demand — scripts/audit-nightly.sh — not inline; F000076)
    │
    ▼  /ship                                    (Gate #2 fires; halt on [ship-declined])
    │
