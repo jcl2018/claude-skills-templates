@@ -1138,6 +1138,40 @@ else
   pass ".cj-e2e-sandbox is not tracked (the E2E build-gate seam guard marker cannot ship)"
 fi
 
+# Check 30: every ENROLLED test topic reaches all three verification layers +
+# both local modes (the three-layer topic contract, HARD, registry-gated). F000082
+# adds a first-class `topic:` axis to the categories: rows and an overlay-level
+# `topic_contracts:` enrollment list; this Check calls test-spec.sh
+# --check-topic-contract to assert that every enrolled topic (portability, today)
+# carries >=1 CI-push + >=1 CI-nightly + >=1 local-hook{deterministic} + >=1
+# local-hook{agentic} test, each with its front-door docs/tests/<cat>/<layer>/<name>.md.
+# This makes a documented-but-under-covered topic structurally impossible for an
+# enrolled topic, while unenrolled topics keep the advisory matrix (the grandfather
+# seam). Declaration-only ⇒ CI-safe, ZERO model spend (the agentic BEHAVIOR is
+# proven local-only by /CJ_test_run --e2e; mode:agentic ⇒ tier≠free, so the agentic
+# row is present-in-CI-but-never-executed). Engine: scripts/test-spec.sh
+# --check-topic-contract (which registry-gates itself). Registry-gated: skips when
+# the test-spec engine is absent OR the contract reports inactive (no test-spec
+# registry / no categories: axis / no topic_contracts: enrollment — a consumer with
+# no enrollment passes vacuously). Mirror of Check 24/26/27/28's engine-absent skip.
+echo ""
+echo "=== Check 30: every enrolled test topic reaches all three layers + both local modes (topic contract) ==="
+TESTSPEC_TC="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC_TC" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+else
+  C30_OUT=$(bash "$TESTSPEC_TC" --check-topic-contract 2>&1) && C30_RC=0 || C30_RC=$?
+  if printf '%s\n' "$C30_OUT" | grep -qE '^(REGISTRY=absent|topic contract inactive)'; then
+    echo "  SKIP: topic contract inactive (no test-spec registry, no categories: axis, or no topic_contracts: enrollment — registry-gated)"
+  elif [ "$C30_RC" -eq 0 ]; then
+    pass "every enrolled topic reaches CI-push + CI-nightly + local-hook{deterministic,agentic} with its front-door doc ($(printf '%s\n' "$C30_OUT" | grep '^topic contract:' | head -1))"
+  else
+    echo "  ERROR: the topic contract has findings — an enrolled topic is missing a required layer/mode coverage point or its front-door doc"
+    printf '%s\n' "$C30_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

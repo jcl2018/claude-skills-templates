@@ -36,15 +36,18 @@
 #   test-run.sh --category <workflow|regression|infra> [--dry-run]  # (F000074) run one category's tests
 #   test-run.sh --layer <CI-push|CI-nightly|pipeline-gate|local-hook> [--dry-run]  # (F000078) run one layer's tests
 #   test-run.sh --category <cat> --layer <layer> [--dry-run]  # (F000078) run tests in that (category,layer) pair
+#   test-run.sh --topic <slug> [--dry-run]            # (F000082) run every categories row carrying that topic
 #   test-run.sh <name> [--dry-run]                    # (F000074) run the single test of that name
 #   test-run.sh --help
 #
-# Category/layer selection (F000074/F000078) maps a category, a layer, their
-# composition, or a single test NAME to the declared command(s) via the two-axis
-# categories: axis of the merged registry (reusing the
+# Category/layer/topic selection (F000074/F000078/F000082) maps a category, a layer,
+# their composition, a single test NAME, or a topic to the declared command(s) via
+# the categories: axis of the merged registry (reusing the
 # docs/tests/<category>/<layer>/<name>.md name), honoring the SAME cost tiers
-# (default = free only). It is ADDITIVE: with no --category/--layer and no
-# positional name, the runners: flow runs unchanged.
+# (default = free only). --topic is a STANDALONE filter (a topic already spans
+# categories/layers, so it is not composed with --category/--layer or a name). It is
+# ADDITIVE: with no --category/--layer/--topic and no positional name, the runners:
+# flow runs unchanged.
 #
 # Env overrides (for hermetic fixtures): REPO_ROOT / TEST_SPEC_PATH /
 # TEST_SPEC_CUSTOM_PATH (forwarded to test-spec.sh), TEST_RUN_TS (fix the report
@@ -92,6 +95,7 @@ SEL_LOCAL=0
 SEL_CATEGORY=""   # (F000074) --category <workflow|regression|infra>: run one category's tests
 SEL_LAYER=""      # (F000078) --layer <CI-push|CI-nightly|pipeline-gate|local-hook>: run one layer's tests
 SEL_NAME=""       # (F000074) a bare positional: run the single test of that name
+SEL_TOPIC=""      # (F000082) --topic <slug>: run every categories row carrying that topic
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
@@ -106,6 +110,10 @@ while [ $# -gt 0 ]; do
       shift
       [ $# -gt 0 ] || { echo "test-run.sh: --layer needs a value (CI-push|CI-nightly|pipeline-gate|local-hook)" >&2; exit 2; }
       SEL_LAYER="$1"; shift ;;
+    --topic)
+      shift
+      [ $# -gt 0 ] || { echo "test-run.sh: --topic needs a value (a test-topic slug, e.g. portability)" >&2; exit 2; }
+      SEL_TOPIC="$1"; shift ;;
     --help|-h)
       sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -118,18 +126,25 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# A single name is mutually exclusive with --category / --layer (a name selects
-# exactly one test; --category/--layer select a set). --category and --layer MAY
-# be composed (they select the intersection).
-if [ -n "$SEL_NAME" ] && { [ -n "$SEL_CATEGORY" ] || [ -n "$SEL_LAYER" ]; }; then
-  echo "test-run.sh: a single test name and --category/--layer are mutually exclusive — pass one selection form" >&2
+# A single name is mutually exclusive with --category / --layer / --topic (a name
+# selects exactly one test; --category/--layer/--topic select a set). --category and
+# --layer MAY be composed (they select the intersection). --topic is a STANDALONE
+# filter (like --category): it may NOT be composed with --category/--layer or a name
+# (a topic already spans categories/layers by design).
+if [ -n "$SEL_NAME" ] && { [ -n "$SEL_CATEGORY" ] || [ -n "$SEL_LAYER" ] || [ -n "$SEL_TOPIC" ]; }; then
+  echo "test-run.sh: a single test name and --category/--layer/--topic are mutually exclusive — pass one selection form" >&2
   exit 2
 fi
-# CATEGORY_MODE is on when any category/layer/name selection form is used.
+if [ -n "$SEL_TOPIC" ] && { [ -n "$SEL_CATEGORY" ] || [ -n "$SEL_LAYER" ]; }; then
+  echo "test-run.sh: --topic is a standalone filter and cannot be composed with --category/--layer (a topic already spans them) — pass one selection form" >&2
+  exit 2
+fi
+# CATEGORY_MODE is on when any category/layer/name/topic selection form is used.
 CATEGORY_MODE=0
 [ -n "$SEL_CATEGORY" ] && CATEGORY_MODE=1
 [ -n "$SEL_LAYER" ] && CATEGORY_MODE=1
 [ -n "$SEL_NAME" ] && CATEGORY_MODE=1
+[ -n "$SEL_TOPIC" ] && CATEGORY_MODE=1
 
 # The flags string recorded in the ledger (canonical order).
 FLAGS=""
@@ -138,6 +153,7 @@ FLAGS=""
 [ "$SEL_LOCAL" = "1" ] && FLAGS="$FLAGS --e2e"
 [ -n "$SEL_CATEGORY" ] && FLAGS="$FLAGS --category $SEL_CATEGORY"
 [ -n "$SEL_LAYER" ] && FLAGS="$FLAGS --layer $SEL_LAYER"
+[ -n "$SEL_TOPIC" ] && FLAGS="$FLAGS --topic $SEL_TOPIC"
 [ -n "$SEL_NAME" ] && FLAGS="$FLAGS $SEL_NAME"
 FLAGS="${FLAGS# }"
 [ -n "$FLAGS" ] || FLAGS="(default)"
@@ -247,6 +263,16 @@ _run_category_mode() {
       exit 2
     fi
     _CM_LABEL="name=$SEL_NAME"
+  elif [ -n "$SEL_TOPIC" ]; then
+    # (F000082) --topic: every categories row whose topic (field 9) matches. A
+    # topic already spans categories/layers, so this is a standalone filter (not
+    # composed with --category/--layer). An empty result is a named exit-0 SKIP.
+    _CM_SEL=$(printf '%s\n' "$_CM_ROWS" | awk -F'\t' -v t="$SEL_TOPIC" 'NF && $9 == t {print $1"\t"$2"\t"$3"\t"$5"\t"$6}')
+    if [ -z "$_CM_SEL" ]; then
+      echo "SKIP: topic '$SEL_TOPIC' has no declared category tests — nothing to run"
+      exit 0
+    fi
+    _CM_LABEL="topic=$SEL_TOPIC"
   else
     # --category and/or --layer (composed = intersection). An empty field means
     # "don't filter on that axis".

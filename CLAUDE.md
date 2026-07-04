@@ -167,6 +167,34 @@ render (the physical migration of the 29 flat `tests/*.test.sh` into
 gate, and the category↔behavior cross-check are DEFERRED
 follow-ups); the audit REPORTS structural gaps + seeds docs but NEVER moves test
 scripts, so it stays standalone-safe on a repo it does not own.
+The **three-layer topic contract** (F000082) adds a first-class **`topic:`** axis
+(a 9th, optional `[a-z0-9-]+` field on every `categories:` row) plus an
+overlay-level **`topic_contracts:`** enrollment list, so a whole test **topic**
+(e.g. `portability`) can be held to all three verification layers — not just placed
+one row at a time. For each ENROLLED topic, `test-spec.sh --check-topic-contract`
+HARD-requires ≥1 `CI-push` + ≥1 `CI-nightly` + ≥1 `local-hook`+`deterministic` + ≥1
+`local-hook`+`agentic` test carrying that topic, each with its front-door doc — the
+**both-modes-at-local rule** (agentic needs a machine with Claude, so it lives at
+`local-hook`, keeping model spend out of CI). It is **declaration-only ⇒ CI-safe,
+zero model spend**: because `mode: agentic ⇒ tier ≠ free`, the agentic row is
+present in CI but never executed there — the hard Check proves the coverage is
+DECLARED, while the executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves
+the agentic BEHAVIOR. Enrollment is opt-in (the grandfather seam): **only
+`portability` is enrolled** (it earned its `local-hook`+`agentic` proof,
+`tests/portability-version-agentic.test.sh`, which drives the `skills-update-check`
+preamble through `claude --print` in a repo-neutral sandbox — the reusable
+`scripts/lib/agentic-sandbox.sh` + the documented `SKILLS_UPDATE_REMOTE_URL` seam,
+no `git` shim — and PASSes iff the agent SURFACES the upgrade nudge, closing the
+green-but-inert blind spot the deterministic version-check cannot see); the other 11
+labeled topics keep the advisory matrix until their missing-mode test is built
+(follow-up TODOs). Wired into `validate.sh` as **Check 30** (HARD, registry-gated) +
+a targeted `scripts/test.sh` negative test (plant→fail→restore→pass, invoking ONLY
+the engine), surfaced in `/CJ_test_audit` Stage 1; `/CJ_test_run` gains a `--topic`
+selector. A repo with no `categories:` axis or no `topic_contracts:` enrollment
+reports "topic contract inactive" and passes vacuously. The **dual-write footgun:**
+any edit to `spec/test-spec.md` prose (the topic-axis section) MUST be mirrored
+byte-identically into the `_emit_seed` heredoc in `scripts/test-spec.sh` (guarded by
+the seed-identity test).
 /CJ_document-release is the standalone doc-sync wrapper + doc-contract keeper. As
 of F000079 the cj_goal orchestrators NO LONGER call it inline: Step 5.5 is now a
 fast DETERMINISTIC doc-regen (`test-spec.sh` + `workflow-spec.sh --render-docs`)
@@ -724,7 +752,14 @@ rows link each behavior to a test-bearing `units:` row plus a semantic-evidence
 source/anchor. The behavior-coverage conformance (6 deterministic checks in
 `test-spec.sh`, surfaced by `--list-behaviors` / `--list-behavior-coverage` and a
 `/CJ_test_audit` Stage-2 substance check) is gated on `behaviors:` existing,
-INDEPENDENT of the `units:` gate. Both `units:` and `behaviors:` are enforced by `validate.sh`
+INDEPENDENT of the `units:` gate. A `topic:` field on the `categories:` rows + an
+overlay `topic_contracts:` enrollment list (F000082) add the three-layer topic
+contract — enforced SEPARATELY by `validate.sh` Check 30
+(`test-spec.sh --check-topic-contract`), which HARD-requires each ENROLLED topic to
+reach all three layers + both `local-hook` modes; declaration-only, so it is CI-safe
+(the agentic behavior runs local-only via `/CJ_test_run --topic <t> --e2e`). See
+`## Doc contract (doc-spec.md)` Check 30 + the topic-axis section in
+`spec/test-spec.md`. Both `units:` and `behaviors:` are enforced by `validate.sh`
 Check 24 — a MIXED check: validate-the-merge + the HARD coverage cross-check
 (forward anchor-grep, reverse live-surface sweep, ≥20-token floor — the check
 that makes an unregistered `tests/*.test.sh` a hard failure instead of a silent
@@ -822,6 +857,22 @@ source, the prose explains it.
   path (task → `halted_at_too_complex`; feature/defect → `dry_run_preview`) — the
   honest `level: workflow` proof; the full happy-path-to-PR E2E is deferred on the
   gstack-in-CI blocker.
+- **Check 30** — the **three-layer topic contract** (HARD, registry-gated,
+  F000082): every ENROLLED topic (a `spec/test-spec-custom.md` `topic_contracts:`
+  entry — `portability` today) MUST carry ≥1 `CI-push` + ≥1 `CI-nightly` + ≥1
+  `local-hook`+`deterministic` + ≥1 `local-hook`+`agentic` test attributed to it
+  (via the `topic:` field on its `categories:` rows), each with its front-door
+  `docs/tests/<cat>/<layer>/<name>.md` — so an enrolled topic cannot ship
+  under-covered. Engine: `test-spec.sh --check-topic-contract`;
+  **declaration-only ⇒ CI-safe, zero model spend** (the agentic BEHAVIOR is proven
+  local-only by `/CJ_test_run --topic <t> --e2e`; `mode: agentic ⇒ tier ≠ free`, so
+  the agentic row is present-in-CI-but-never-executed). SKIPs when the test-spec
+  registry / the `categories:` axis / the `topic_contracts:` enrollment is absent (a
+  consumer passes vacuously). Also surfaced in `/CJ_test_audit` Stage 1 (+ Stage-2
+  judging the enrolled agentic row names a real sandbox test, not a hollow prompt).
+  Paired with a targeted `scripts/test.sh` negative test (hermetically removes
+  portability's agentic row from a temp registry copy → expect the finding, invoking
+  ONLY the engine).
 
 Add a repo-specific doc by adding a table row to `spec/doc-spec-custom.md`
 (and creating the file) — never by editing the general `spec/doc-spec.md` (it
