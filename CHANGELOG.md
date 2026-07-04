@@ -19,6 +19,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   exit-status sites correct without a risky global `set -o pipefail`. The
   orchestrator-helper sibling of D000038 (which fixed the same class in the spec
   engines).
+- **CI `validate` false-fail from a SIGPIPE in the `test.sh` early guards.** The
+  S000094 / S000096 / F000060 guards greped the reused `$_VALIDATE_OUT` capture via
+  `printf '%s\n' "$_VALIDATE_OUT" | grep -q …`. Once F000081's output growth pushed
+  validate.sh past the ~64KB pipe buffer, `grep -q` matched and closed the pipe while
+  `printf` was still writing, so `printf` took SIGPIPE (exit 141) — and under GitHub
+  Actions' `-o pipefail` that propagated as a false `FAIL: … missing the swapped
+  Check 24`. Converted all 7 sites to pipe-free here-strings
+  (`grep -q … <<< "$_VALIDATE_OUT"`). A latent main bug that any large-output PR would
+  now trip; this PR was the first.
 
 ### Added
 - **`tests/cj-goal-jq-crlf.test.sh`** — regression drill for the class: structural
