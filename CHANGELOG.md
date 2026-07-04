@@ -3,6 +3,33 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.114] - 2026-07-04
+
+### Fixed
+- **D000040 — jq CRLF re-taints the `CJ_goal_*` / `check-*` orchestrator helpers
+  on Windows.** A Windows jq build emits CRLF, so a raw `$(jq -r ...)` capture in
+  `scripts/cj-goal-common.sh`, `cj-worktree-init.sh`, `cj-worktree-cleanup.sh`,
+  `check-version-queue.sh` and `check-gates-update.sh` left a trailing `\r` on
+  every value — breaking `[ -d "$src" ]` so the pre-build skills-sync / pr-check
+  phases silently degraded to `skipped` (fail-soft hid it). Added the canonical
+  CR-stripping wrapper `jq() { command jq "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }`
+  (mirrors `scripts/lib.sh:24`) to all five helpers. The **pipefail-independent**
+  form (`return "${PIPESTATUS[0]}"`) preserves jq's exit status in the two helpers
+  that deliberately omit `set -o pipefail`, keeping their `if jq -nc` / `jq -e`
+  exit-status sites correct without a risky global `set -o pipefail`. The
+  orchestrator-helper sibling of D000038 (which fixed the same class in the spec
+  engines).
+
+### Added
+- **`tests/cj-goal-jq-crlf.test.sh`** — regression drill for the class: structural
+  (the CR-stripping `jq()` wrapper present in all 5 helpers) + mechanism (under a
+  CRLF-emitting jq shim the wrapper strips CR *and* preserves jq's non-zero exit
+  status with `pipefail` off) + end-to-end (`cj-goal-common.sh --phase worktree
+  --dry-run` emits CR-free output). Wired into `scripts/test.sh` + a
+  `spec/test-spec-custom.md` `units:` row (Check 24). Scope: bucket (a) of the
+  Windows P0; buckets (b) drill-harness robustness + (c) template drift remain
+  separate follow-on tasks.
+
 ## [6.0.113] - 2026-07-03
 
 ### Removed
