@@ -45,12 +45,17 @@ echo "=== Running validate.sh (captured once; the clean-tree guards below reuse 
 # guards used to re-invoke validate.sh 4-5x back-to-back, which built runner memory
 # pressure and OOM-killed a later run — the chronic "validate.sh exits non-zero" flake.
 # Capturing once (not re-running) fixes it, the same way F000081 fixed the negatives.
-_VALIDATE_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1); _VALIDATE_RC=$?
+# Capture output + real exit code without tripping errexit (CI runs `bash -e test.sh`).
+# The assignment lives in an `if` condition (errexit-exempt) so a non-zero validate.sh
+# is TOLERATED and surfaced as a clear fail_test below — not a silent `set -e` death.
+# (An `A=$(...) || B` / `A && B || C` form would either lose the exit code or trip
+# SC2015, which CI shellcheck flags; the if-form avoids both.)
+if _VALIDATE_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1); then _VALIDATE_RC=0; else _VALIDATE_RC=$?; fi
 printf '%s\n' "$_VALIDATE_OUT"
 if [ "$_VALIDATE_RC" -eq 0 ]; then
   ok "validate.sh passed"
 else
-  fail_test "validate.sh failed"
+  fail_test "validate.sh failed (exit $_VALIDATE_RC)"
 fi
 
 echo ""
