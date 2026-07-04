@@ -953,21 +953,24 @@ echo "--- 10. category axis (F000074; two-axis reframe F000078): subcommands + s
 # (name/category/layer/mode/command/tier/doc/purpose).
 _CAT_LIVE=$(bash "$HELPER" --list-categories 2>/dev/null); _CAT_LIVE_RC=$?
 if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	infra	CI-push	deterministic	' \
-   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^portability-deploy	workflow	CI-nightly	deterministic	' \
+   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^portability-deploy	infra	CI-nightly	deterministic	' \
    && printf '%s\n' "$_CAT_LIVE" | grep -qE '^e2e-local	workflow	local-hook	agentic	'; then
   ok "S1: --list-categories lists the two-axis rows (name/category/layer/mode/... 8-col TSV)"
 else
   fail_test "S1: --list-categories did not list the expected two-axis rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
 fi
-# --names + --category filters (infra holds validate; workflow holds portability-deploy).
+# --names + --category filters (F000081: portability reclassified workflow->infra —
+# infra now holds validate + portability-deploy; workflow holds e2e-local).
 _CAT_NAMES=$(bash "$HELPER" --list-categories --names 2>/dev/null)
 _CAT_INFRA=$(bash "$HELPER" --list-categories --category infra 2>/dev/null | awk -F'\t' '{print $1}')
 _CAT_WORKFLOW=$(bash "$HELPER" --list-categories --category workflow 2>/dev/null | awk -F'\t' '{print $1}')
 if printf '%s\n' "$_CAT_NAMES" | grep -qx 'portability-smoke' \
    && printf '%s\n' "$_CAT_INFRA" | grep -qx 'validate' \
+   && printf '%s\n' "$_CAT_INFRA" | grep -qx 'portability-deploy' \
    && ! printf '%s\n' "$_CAT_INFRA" | grep -qx 'e2e-local' \
-   && printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'portability-deploy' \
-   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'validate'; then
+   && printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'e2e-local' \
+   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'validate' \
+   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'portability-deploy'; then
   ok "S1: --list-categories --names / --category <c> filter correctly (infra / workflow)"
 else
   fail_test "S1: --list-categories filters wrong (names='$_CAT_NAMES' infra='$_CAT_INFRA' workflow='$_CAT_WORKFLOW')"

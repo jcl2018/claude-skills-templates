@@ -289,6 +289,14 @@ cmd_default() {
   else
     remote_url=$(normalize_upstream_url "$expected_upstream")
   fi
+  # Backward-compat fallback (F000081/WS3): a pre-upstream_url (legacy) manifest
+  # carries no upstream_url, but when a live .source checkout is present we can still
+  # resolve a remote to read tags from via its origin URL. Keeps legacy manifests
+  # detecting updates; a remote/consumer install with neither an upstream_url nor a
+  # .source checkout simply can't resolve a remote and exits silent below.
+  if [ -z "$remote_url" ] && [ -n "$source_path" ] && [ -d "$source_path/.git" ]; then
+    remote_url=$(normalize_upstream_url "$(git -C "$source_path" remote get-url origin 2>/dev/null || true)")
+  fi
   [ -n "$remote_url" ] || exit 0
 
   # Origin URL pinning (T000031) — best-effort, and ONLY when a live .source git

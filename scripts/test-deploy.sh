@@ -480,6 +480,10 @@ make_fake_clone() {
   printf '%s' "$remote_ver" > "$origin_dir/VERSION"
   git -C "$origin_dir" add VERSION
   git -C "$origin_dir" -c user.name=test -c user.email=t@e.st commit --quiet -m "init $remote_ver"
+  # F000081/WS3: skills-update-check now reads the max published v<X.Y.Z> tag via
+  # `git ls-remote --tags`, so the fixture origin must carry a release tag (not just a
+  # VERSION commit) for the new checkout-independent detection to see the remote version.
+  git -C "$origin_dir" tag "v$remote_ver"
 
   git clone --quiet "$origin_dir" "$local_dir"
   printf '%s' "$local_ver" > "$local_dir/VERSION"
