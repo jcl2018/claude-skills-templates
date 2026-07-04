@@ -39,8 +39,15 @@ if ! git config user.name >/dev/null 2>&1; then
   git config user.email "test@test.local"
 fi
 
-echo "=== Running validate.sh ==="
-if "$REPO_ROOT/scripts/validate.sh"; then
+echo "=== Running validate.sh (captured once; the clean-tree guards below reuse this run) ==="
+# Run the full validator ONCE and reuse its output + exit code for every clean-tree
+# guard below (S000094 Check 21, S000096 Check 24 + exit-0, F000060 Check 24). Those
+# guards used to re-invoke validate.sh 4-5x back-to-back, which built runner memory
+# pressure and OOM-killed a later run — the chronic "validate.sh exits non-zero" flake.
+# Capturing once (not re-running) fixes it, the same way F000081 fixed the negatives.
+_VALIDATE_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1); _VALIDATE_RC=$?
+printf '%s\n' "$_VALIDATE_OUT"
+if [ "$_VALIDATE_RC" -eq 0 ]; then
   ok "validate.sh passed"
 else
   fail_test "validate.sh failed"
@@ -105,10 +112,10 @@ else
   for _v in git-push-to-main gh-pr-merge rm network-egress; do
     bash "$_S94_PP" --deny-verbs 2>/dev/null | grep -qx "$_v" || fail_test "S000094: risky verb '$_v' not declared deny in the policy"
   done
-  # S4: Check 21 is wired into validate.sh and passes on the in-sync tree (advisory, exit 0).
-  _S94_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S94_V" | grep -q 'Check 21: cj_goal permission-policy drift' || fail_test "S000094: validate.sh missing Check 21"
-  printf '%s\n' "$_S94_V" | grep -q 'PASS: permission policy + enforcement points in sync' || fail_test "S000094: Check 21 did not PASS on the in-sync tree"
+  # S4: Check 21 is wired into validate.sh and passes on the in-sync tree (advisory,
+  # exit 0). Reuse the single top-of-suite validate.sh capture (no redundant re-run).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 21: cj_goal permission-policy drift' || fail_test "S000094: validate.sh missing Check 21"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: permission policy + enforcement points in sync' || fail_test "S000094: Check 21 did not PASS on the in-sync tree"
   # Drift path (E1, isolated — no real-file mutation): a missing policy makes the
   # parser fail closed with the no-config halt (the "policy does not parse" drift).
   # if-then (not `A && B || C`) avoids SC2015, which CI's shellcheck flags as info.
@@ -156,11 +163,11 @@ else
     || fail_test "S000096: isolation marker [task-not-isolated] absent from the task mode's files"
   # S3: the marker-drift cross-check is folded into validate.sh Check 24, advisory,
   # and PASSes on the in-sync tree (exit 0; only the coverage portion can hard-fail).
-  _S96_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S96_V" | grep -q 'Check 24: test-spec coverage cross-check + gate marker drift' || fail_test "S000096: validate.sh Check 24 missing the merged banner"
-  printf '%s\n' "$_S96_V" | grep -q 'PASS: gate marker drift — the gates: array + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 24 marker-drift did not PASS on the in-sync tree"
+  # Reuse the single top-of-suite validate.sh capture (no redundant re-run — the OOM fix).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 24: test-spec coverage cross-check + gate marker drift' || fail_test "S000096: validate.sh Check 24 missing the merged banner"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: gate marker drift — the gates: array + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 24 marker-drift did not PASS on the in-sync tree"
   # Advisory posture: validate.sh exits 0 (no hard-fail from the marker-drift portion).
-  "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1 || fail_test "S000096: validate.sh exits non-zero with Check 24 active"
+  [ "$_VALIDATE_RC" -eq 0 ] || fail_test "S000096: validate.sh exits non-zero with Check 24 active"
   # Drift path (isolated — no real-file mutation): a missing registry makes the
   # parser classify absent (REGISTRY=absent + exit 0); a malformed one fails closed.
   [ "$(TEST_SPEC_PATH=/nonexistent-test-spec.md bash "$_S96_TS" --list-gates 2>/dev/null)" = "REGISTRY=absent" ] \
@@ -220,10 +227,10 @@ else
   bash "$_S60_TS" --check-coverage >/dev/null 2>&1 || fail_test "F000060: test-spec.sh --check-coverage has findings on the live tree"
   # S4: Check 24 is wired into validate.sh (validate-first, then coverage) and
   # PASSes on the in-sync tree.
-  _S60_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S60_V" | grep -q 'Check 24: test-spec coverage cross-check' || fail_test "F000060: validate.sh missing the swapped Check 24"
-  printf '%s\n' "$_S60_V" | grep -q 'PASS: test-spec registry valid' || fail_test "F000060: Check 24 registry-validate step did not PASS"
-  printf '%s\n' "$_S60_V" | grep -q 'PASS: test-spec coverage cross-check clean' || fail_test "F000060: Check 24 coverage did not PASS on the live tree"
+  # Reuse the single top-of-suite validate.sh capture (no redundant re-run — the OOM fix).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 24: test-spec coverage cross-check' || fail_test "F000060: validate.sh missing the swapped Check 24"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: test-spec registry valid' || fail_test "F000060: Check 24 registry-validate step did not PASS"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: test-spec coverage cross-check clean' || fail_test "F000060: Check 24 coverage did not PASS on the live tree"
   # Absent-vs-invalid split (isolated — no real-file mutation): an ABSENT
   # registry classifies as REGISTRY=absent + exit 0 (skip, not finding); a
   # PRESENT-but-invalid registry fails closed with the no-config halt.
