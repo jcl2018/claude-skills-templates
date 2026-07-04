@@ -39,7 +39,9 @@ if ! git config user.name >/dev/null 2>&1; then
   git config user.email "test@test.local"
 fi
 
-echo "=== Running validate.sh (captured once; the clean-tree guards below reuse this run) ==="
+# NOTE: keep this banner EXACT — it is the `testsh-validate-rerun` units-row anchor
+# in spec/test-spec-custom.md (validate.sh Check 24 forward-check greps it verbatim).
+echo "=== Running validate.sh ==="
 # Run the full validator ONCE and reuse its output + exit code for every clean-tree
 # guard below (S000094 Check 21, S000096 Check 24 + exit-0, F000060 Check 24). Those
 # guards used to re-invoke validate.sh 4-5x back-to-back, which built runner memory
