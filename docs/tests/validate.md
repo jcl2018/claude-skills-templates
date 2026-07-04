@@ -11,7 +11,7 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
-| portability audit — declared-vs-actual skill dependency lint | CI-push | advisory | pre-commit pr-ci manual | `scripts/validate.sh` · `scripts/cj-portability-audit.sh` | The portability engine behind validate.sh Check 18 and the standalone /CJ_portability-audit skill: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet. |
+| portability audit — declared-vs-actual skill dependency lint | CI-push | advisory | pre-commit pr-ci manual | `scripts/validate.sh` · `scripts/cj-portability-audit.sh` | The portability engine behind validate.sh Check 18: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet. (The former standalone /CJ_portability-audit verb was retired; the engine + Check 18 stay.) |
 | Check 11 — rules deploy health | CI-push | hard-fail | pre-commit pr-ci | `scripts/validate.sh` · `=== Check 11:` | Every rules file is deployed to the local rules target; warn-degrades when the deploy target is absent. |
 | Check 13 — USAGE.md present with required sections | CI-push | hard-fail | pre-commit pr-ci | `scripts/validate.sh` · `=== Check 13:` | Every routable non-deprecated skill has a USAGE.md with the five required section headings. |
 | Check 14 — USAGE.md content freshness | CI-push | hard-fail | pre-commit pr-ci | `scripts/validate.sh` · `=== Check 14:` | USAGE.md's last commit is at least as recent as its sibling SKILL.md's (git timestamps, staged-aware); skips untracked files (ratchet). |

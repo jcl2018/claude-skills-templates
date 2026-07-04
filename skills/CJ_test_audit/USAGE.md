@@ -182,5 +182,8 @@ the operator reads the report directly.
 - `/CJ_document-release` — stub-scaffolds a declared-but-missing
   `spec/test-spec.md` via `test-spec.sh --seed` (a generic stub would be a
   present-but-invalid registry and hard-halt this audit).
-- `/CJ_portability-audit` — the explicitly-declared repo-custom verification
-  unit this workbench's overlay enumerates (the operator's named example).
+- `scripts/cj-portability-audit.sh` + `validate.sh` Check 18 — the explicitly
+  -declared repo-custom verification unit this workbench's overlay enumerates
+  (the `portability-audit` / `validate-check-18` rows). Its former standalone
+  `/CJ_portability-audit` verb was retired by F000081; the engine + Check 18 stay,
+  and portability is covered as `infra` category tests at all three levels.

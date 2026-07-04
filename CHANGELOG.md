@@ -3,6 +3,54 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **F000081 — three-layer test contract per category + git-ls-remote
+  version-notification + safe-additive nightly CI.** (1) `spec/test-spec.md` (and
+  its byte-identical `test-spec.sh --seed` heredoc) gains a "three test levels per
+  category" subsection — every category SHOULD reach CI-push (quick deterministic),
+  CI-nightly (large deterministic), and local-hook (quick agentic) — and
+  `test-spec.sh --check-structure` now prints an ADVISORY per-category ×
+  {CI-push, CI-nightly, local-hook} coverage matrix with a `NOTE:` per empty cell
+  (findings-are-the-product, exit 0 always). (2) `scripts/skills-update-check` is
+  reworked to be **checkout-independent**: local = manifest `collection_version`,
+  remote = the max `v<X.Y.Z>` tag from `git ls-remote --tags <upstream_url>` (ssh
+  URLs normalized to https), with the `.git`-gate removed as the hard stop — a
+  remote machine / consumer repo with NO live workbench checkout now gets a
+  staleness nudge; `.source` is kept only for the richer git-pull upgrade action.
+  Fail-soft (unreachable / untagged → silent). Proven by a new hermetic root test
+  `tests/skills-update-check.test.sh` (stubbed `ls-remote`, no network). (3) A
+  new `.github/workflows/nightly.yml` runs the FULL `scripts/test.sh` on ubuntu on
+  a nightly schedule (+ `workflow_dispatch`) — the safe-additive CI-nightly home
+  for the heavy suite; the per-PR `validate.yml` is UNTRIMMED (that trim is a
+  deferred follow-up). Both the new workflow and the new test register as
+  `spec/test-spec-custom.md` units (Check 24 green).
+
+### Changed
+- **Portability reclassified `workflow` → `infra` + backfilled to all three
+  levels (F000081).** The `portability-smoke` (CI-push) and `portability-deploy`
+  (CI-nightly) `categories:` rows are now `category: infra` — they are the
+  standing deploy/install harness, not a user-facing workflow — with their
+  front-door docs hand-moved under `docs/tests/infra/…` (+ the `spec/doc-spec-custom.md`
+  rows) and the flat catalog regenerated. Two command-only `infra` rows complete
+  the triple: `portability-check18-lint` (CI-push, the Check-18 declared-vs-actual
+  lint) and `portability-version-check` (local-hook, the version-notification
+  sandbox check). The targeted-negative-test refactor in `scripts/test.sh` makes
+  each planted-fault negative invoke only its one targeted check (no whole-`validate.sh`
+  re-run), killing the ~16× re-run OOM flake.
+
+### Removed
+- **Retired the standalone `/CJ_portability-audit` verb (F000081).** Portability is
+  now a property the test contract proves automatically (the per-PR Check 18 lint +
+  the reclassified `infra` tests), so the manual verb is redundant. Removed from the
+  catalog (marked `deprecated`, source relocated under `deprecated/CJ_portability-audit/`),
+  `rules/skill-routing.md` / `CLAUDE.md` routing prose, `spec/workflow-spec.md`
+  (both roster bodies), and `docs/philosophy.md`'s decision tree. **KEPT:** the
+  engine `scripts/cj-portability-audit.sh` + `validate.sh` Check 18 (strict-by-default)
+  + the `portability-audit` / `validate-check-18` overlay rows — the engine still
+  runs on every PR. Mirrors the `/CJ_repo-init` retirement precedent.
+
 ## [6.0.113] - 2026-07-03
 
 ### Removed

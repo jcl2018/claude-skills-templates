@@ -155,5 +155,7 @@ reads the report directly.
 - `/CJ_qa-work-item` — runs this audit inline at Step 8.6c standalone; on a
   cj_goal run it carries `DEFER_AUDIT: true` and skips the inline audit (it runs
   on-demand off the build path).
-- `/CJ_portability-audit` — the same audit-verb shape applied to skill
-  portability declarations.
+- `scripts/cj-portability-audit.sh` + `validate.sh` Check 18 — the same audit
+  shape applied to skill portability declarations. (Its former standalone
+  `/CJ_portability-audit` verb was retired by F000081; the engine + Check 18 stay,
+  and portability is now covered as `infra` category tests.)

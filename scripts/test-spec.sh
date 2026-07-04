@@ -1673,6 +1673,39 @@ EOF
 $_CATEGORIES
 EOF
 
+  # ---- Advisory per-category × 3-layer coverage matrix (F000081/WS1) ----
+  # The three per-category TEST levels are {CI-push, CI-nightly, local-hook}
+  # (pipeline-gate is an inline-orchestrator halt, not a per-category test level —
+  # see spec/test-spec.md "The three test levels per category"). For each DECLARED
+  # category, report how many tests each level carries and emit an advisory NOTE:
+  # per empty cell. This is a MAP, not a gate: an empty cell is a coverage gap, not
+  # an error — a NOTE: is a softer class than the a-f structural FINDING:s, it does
+  # NOT increment _CS_FINDINGS, and it NEVER changes the exit-0 posture (findings
+  # are the product). Surfaced by /CJ_test_audit Stage 1 (already calls
+  # --check-structure).
+  _CS_MATRIX_LEVELS="CI-push CI-nightly local-hook"
+  echo "MATRIX: per-category × {CI-push, CI-nightly, local-hook} test-level coverage (advisory — empty cells are NOTE:s, never findings)"
+  # Header row.
+  printf '  %-14s | %-9s | %-11s | %-11s\n' "category" "CI-push" "CI-nightly" "local-hook"
+  printf '  %-14s-+-%-9s-+-%-11s-+-%-11s\n' "--------------" "---------" "-----------" "-----------"
+  _cs_empty_cells=""
+  for _cs_cat in $_CS_DISTINCT_CATS; do
+    _cs_cp=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$_cs_cat" '$2 == c && $3 == "CI-push"' | grep -c . || true)
+    _cs_cn=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$_cs_cat" '$2 == c && $3 == "CI-nightly"' | grep -c . || true)
+    _cs_lh=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v c="$_cs_cat" '$2 == c && $3 == "local-hook"' | grep -c . || true)
+    printf '  %-14s | %-9s | %-11s | %-11s\n' "$_cs_cat" "${_cs_cp:-0}" "${_cs_cn:-0}" "${_cs_lh:-0}"
+    [ "${_cs_cp:-0}" -eq 0 ] && _cs_empty_cells="$_cs_empty_cells $_cs_cat/CI-push"
+    [ "${_cs_cn:-0}" -eq 0 ] && _cs_empty_cells="$_cs_empty_cells $_cs_cat/CI-nightly"
+    [ "${_cs_lh:-0}" -eq 0 ] && _cs_empty_cells="$_cs_empty_cells $_cs_cat/local-hook"
+  done
+  if [ -n "$_cs_empty_cells" ]; then
+    for _cs_cell in $_cs_empty_cells; do
+      echo "NOTE: coverage gap — category/level cell '$_cs_cell' has 0 declared tests (advisory; a category need not fill all three levels — fill it with a categories: row if this level should be covered)"
+    done
+  else
+    echo "MATRIX: every declared category covers all three test levels (no empty cells)"
+  fi
+
   if [ "$_CS_FINDINGS" -gt 0 ]; then
     echo "STRUCTURE: findings=$_CS_FINDINGS (category structural gaps — findings are the product; the audit may seed missing docs, never move scripts)"
     return 0
@@ -2298,6 +2331,29 @@ The **layer is the closed set `{CI-push, CI-nightly, pipeline-gate, local-hook}`
 — where/when it runs (the four verification layers above). On a `categories:` row
 `layer` is **descriptive metadata** (the real cron/trigger stays in
 `.github/workflows/*.yml`, kept consistent by hand).
+
+**The three test levels per category.** Of the four layers, three are the
+*per-category test levels* every category SHOULD reach — a category is only fully
+covered when it has a test at each. `pipeline-gate` is an inline-orchestrator halt,
+not a per-category test level, so it is excluded here:
+
+- **CI-push** — a *quick deterministic* check: the fast per-PR merge signal
+  (`mode: deterministic`, `tier: free`). Heavy deterministic work defaults OFF this
+  level so the per-PR gate stays fast.
+- **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
+  that would slow every PR, moved off the PR path onto a nightly cadence
+  (`mode: deterministic`).
+- **local-hook** — a *quick agentic* check that verifies locally on demand
+  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
+  on their own machine, never on a CI schedule.
+
+An empty (category, level) cell is a *coverage gap*, not an error: some cells are
+intentionally empty and a category need not fill all three. `test-spec.sh
+--check-structure` therefore REPORTS the per-category × {CI-push, CI-nightly,
+local-hook} matrix and emits an advisory `NOTE:` per empty cell — it never
+hard-fails a gap (findings-are-the-product, exit 0 always). The matrix is a map of
+where a category is thin, read by a maintainer (and surfaced in `/CJ_test_audit`
+Stage 1), not a gate.
 
 An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
 (**optional-on-schema-1**, overlay-only — the machine block in this general file

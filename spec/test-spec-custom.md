@@ -665,7 +665,7 @@ units:
     skips_when_absent: true
     ratchet: true
     trigger: "pre-commit pr-ci manual"
-    purpose: "The portability engine behind validate.sh Check 18 and the standalone /CJ_portability-audit skill: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet."
+    purpose: "The portability engine behind validate.sh Check 18: each skill's declared portability matches its actual executed dependencies; the clean baseline is the ratchet. (The former standalone /CJ_portability-audit verb was retired; the engine + Check 18 stay.)"
   # ---- test family: registered tests/*.test.sh sub-suites ----
   # (source MUST be scripts/test.sh and anchor MUST be the literal runner path —
   #  the forward check proves the file is wired into the hand-wired runner.)
@@ -930,6 +930,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "test-spec.sh --check-workflow-coverage is green from birth on the live tree and FAILS hermetically on a forward miss (a 5th orchestrator with no level:workflow behavior), a reverse orphan (an undeclared workflow: value via the enum-check, and an empty workflow: field via the gate's own reverse arm), while a consumer-absent registry SKIPs (REGISTRY=absent / inactive + exit 0); the 6th `workflow` behaviors-TSV column round-trips with the `-` placeholder unwrap (positional $1-only consumers unaffected) and --validate enum-checks workflow: ONLY on level:workflow rows against workflow-spec.sh --list-orchestrators; the gate behind validate.sh Check 28."
+  - id: test-skills-update-check
+    family: test
+    label: "skills-update-check suite — checkout-independent git-ls-remote version-notification"
+    anchor: "tests/skills-update-check.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "scripts/skills-update-check reads local = manifest collection_version and remote = the max v<X.Y.Z> tag from a stubbed git ls-remote, emitting the SKILLS_UPGRADE_AVAILABLE banner when remote > local, staying silent when equal/older, and fail-softing silent when the remote is unreachable or has no v-tags — with the .source/.git gate removed (a non-checkout .source no longer suppresses the banner), the ssh→https upstream_url normalization, and the SKILLS_UPDATE_REMOTE_URL / SKILLS_UPDATE_STATE_DIR test seams (hermetic, no real network / no real ~/.claude)."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
@@ -1131,6 +1140,15 @@ units:
     disposition: hard-fail
     trigger: "nightly manual"
     purpose: "Runs the full skills-deploy suite (test-deploy.sh) on windows-latest under Git Bash on a nightly schedule, with a manual dispatch trigger — the CI-nightly cadence windows-deploy test."
+  - id: ci-nightly
+    family: ci
+    label: "nightly workflow — nightly full test suite"
+    anchor: "name: Nightly (full test suite)"
+    source: .github/workflows/nightly.yml
+    layer: CI-nightly
+    disposition: hard-fail
+    trigger: "nightly manual"
+    purpose: "Runs the FULL scripts/test.sh on ubuntu-latest on a nightly schedule, with a manual dispatch trigger — the safe-additive CI-nightly home for the heavy suite that would slow every PR; mirrors windows-nightly.yml. The per-PR validate.yml is UNTRIMMED (that trim is a deferred follow-up), so the suite still also runs on every PR."
   # (ci-eval-nightly + ci-audit-nightly removed with F000080: the eval-nightly.yml
   # + audit-nightly.yml cron wrappers were deleted; the eval + audit runners
   # (scripts/eval.sh, scripts/audit-nightly.sh) now run on-demand at the local-hook
@@ -1480,10 +1498,10 @@ categories:
   #   command / tier {free, paid, local-only} / optional doc / optional purpose.
   # This axis COEXISTS with units:/behaviors:/runners: (their removal + the
   # physical test-script move into tests/<category>/<layer>/ are a deferred
-  # follow-up); the 7 pre-existing command rows are script invocations pointing at
-  # their current flat paths (no move required). The regression category is not yet
-  # populated — migrating the 29 flat tests/*.test.sh into tests/regression/<layer>/
-  # is the tracked deferred backfill.
+  # follow-up); the command rows are script invocations pointing at their current
+  # flat paths (no move required). The regression category is not yet populated —
+  # migrating the 29 flat tests/*.test.sh into tests/regression/<layer>/ is the
+  # tracked deferred backfill.
   #
   # ---- infra — the standing verification surface (the validator, the full suite,
   #      the deploy harness) ----
@@ -1511,25 +1529,44 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-push/test-deploy.md"
     purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host push-cadence run."
-  # ---- workflow — proves a whole user-facing workflow runs end to end: the
-  #      portability install+sync workflow, the cj_goal orchestrators, the doc-sync
-  #      pipeline, and the local happy-path E2E harness ----
+  # ---- infra: the deploy/install (portability) harness, at all three test levels —
+  #      CI-push {the Check-18 declared-vs-actual lint + the Git-Bash smoke},
+  #      CI-nightly {the Windows-native deploy suite}, local-hook {the version-check} ----
+  - name: portability-check18-lint
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "bash scripts/cj-portability-audit.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-push/portability-check18-lint.md"
+    purpose: "The declared-vs-actual portability lint (validate.sh Check 18's engine): each catalog skill's declared portability tier is checked against its actual repo-local dependencies — the fast per-PR portability signal of the deploy/install harness."
   - name: portability-smoke
-    category: workflow
+    category: infra
     layer: CI-push
     mode: deterministic
     command: "bash scripts/windows-smoke.sh"
     tier: free
-    doc: "docs/tests/workflow/CI-push/portability-smoke.md"
-    purpose: "The Windows Git Bash portability workflow smoke (copy-mode install, in-place stamp, _cj-shared update-check resolution) — proves the install+sync workflow holds on Git Bash; the fast per-PR Windows signal."
+    doc: "docs/tests/infra/CI-push/portability-smoke.md"
+    purpose: "The Windows Git Bash portability smoke of the deploy/install harness (copy-mode install, in-place stamp, _cj-shared update-check resolution) — standing verification infra, not a user-facing workflow; the fast per-PR Windows signal."
   - name: portability-deploy
-    category: workflow
+    category: infra
     layer: CI-nightly
     mode: deterministic
     command: "bash scripts/test-deploy.sh"
     tier: free
-    doc: "docs/tests/workflow/CI-nightly/portability-deploy.md"
-    purpose: "The skills-deploy end-to-end workflow on windows-latest, run nightly (windows-nightly.yml) — proves the full install/remove/relink/doctor workflow holds Windows-native; same script as the push-cadence test-deploy, a distinct CI context (platform + cadence)."
+    doc: "docs/tests/infra/CI-nightly/portability-deploy.md"
+    purpose: "The skills-deploy end-to-end run of the deploy/install harness on windows-latest, run nightly (windows-nightly.yml) — standing verification infra (the install/remove/relink/doctor harness) held Windows-native; same script as the push-cadence test-deploy, a distinct CI context (platform + cadence)."
+  - name: portability-version-check
+    category: infra
+    layer: local-hook
+    mode: deterministic
+    command: "bash tests/skills-update-check.test.sh"
+    tier: free
+    doc: "docs/tests/infra/local-hook/portability-version-check.md"
+    purpose: "The local sandbox check of the deploy/install harness's version-notification — a stubbed git ls-remote + a .source-absent manifest proving skills-update-check nudges when a newer release is published; portability's local-hook level (deterministic fill; the agentic model-surfaced-prompt variant is deferred)."
+  # ---- workflow — proves a whole user-facing workflow runs end to end: the
+  #      cj_goal orchestrators, the doc-sync pipeline, and the local happy-path E2E
+  #      harness (the portability install/deploy harness rows moved to infra) ----
   - name: goal-task-eval
     category: workflow
     layer: local-hook
