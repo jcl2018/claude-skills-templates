@@ -49,7 +49,7 @@ promoted_from_draft: .inbox/jq_crlf_class_in_orchestrator_helpers_on_windows
 **Gates:**
 - [x] /CJ_personal-workflow check — validation passed
 - [x] Test-plan verified (regression scenarios passing)
-- [ ] /ship — PR created
+- [x] /ship — PR created
 - [ ] /land-and-deploy — merged and deployed
 
 ## Reproduction Steps
@@ -74,7 +74,7 @@ hides the breakage). Linux CI cannot see it (Linux jq emits LF).
 
 ## PRs
 
-<!-- PR links populated at /ship. -->
+- https://github.com/jcl2018/claude-skills-templates/pull/328 (v6.0.114) — OPEN, awaiting review
 
 ## Files
 
@@ -87,3 +87,4 @@ hides the breakage). Linux CI cannot see it (Linux jq emits LF).
 ## Journal
 - 2026-07-04T00:00:00Z [auto-scaffolded] /CJ_goal_defect captured the bug, confirmed the root cause by live reproduction on the affected Windows box, then promoted to D000040. The root cause is the orchestrator-helper instance of the same jq-CRLF class D000038 fixed in the spec engines. Domain defaulted to 'uncategorized'.
 - 2026-07-04T00:00:00Z [qa-pass] /CJ_personal-workflow check VALID (3 artifacts, 0 missing, 0 drift; 3 phases, 11 gates). Test-plan rows all green: the regression drill `tests/cj-goal-jq-crlf.test.sh` PASS (5 structural + 2 mechanism + 1 e2e), shellcheck clean on all 5 helpers + the test, existing helper suites (cj-goal-common-sync/-recap, cj-worktree-init/-cleanup) PASS, and `scripts/validate.sh` RESULT: PASS (0 errors/0 warnings; Checks 24/26/27/28 green). E2E=ambiguous (defect). AUDITS=deferred (DEFER_AUDIT + DEFER_SYNC — the agent-judged audit runs on-demand off the build path).
+- 2026-07-04T00:00:00Z [pr-opened] v6.0.114 shipped to PR #328 (https://github.com/jcl2018/claude-skills-templates/pull/328), OPEN + awaiting human review. Operator chose PR-stop (no auto-land). /land-and-deploy deferred to the operator's merge.
