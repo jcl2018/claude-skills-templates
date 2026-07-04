@@ -191,8 +191,9 @@ boundary, QA executes the work-item's test rows rather than merely checking a
 TEST-SPEC exists, and the deterministic per-PR gate (`validate.sh` at the commit
 hook, CI on the PR) blocks a broken change before it ever lands. The
 agent-judged doc/test audit that surfaces deeper drift no longer sits on the
-build path — it runs nightly in CI (filing findings to a GitHub issue) and on
-demand via the standalone `/CJ_doc_audit` + `/CJ_test_audit` verbs. The concrete map of this principle — every verification surface, on
+build path — it runs on demand via the standalone `/CJ_doc_audit` +
+`/CJ_test_audit` verbs (or `bash scripts/audit-nightly.sh`, which files findings to
+a GitHub issue). The concrete map of this principle — every verification surface, on
 which of the two axes (category `{workflow, regression, infra}` × layer
 `{CI-push, CI-nightly, pipeline-gate, local-hook}`) — is the `spec/test-spec.md`
 registry (its `layers[]` map + the overlay's `categories[]` + `gates[]`); the

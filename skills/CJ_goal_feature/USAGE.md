@@ -47,8 +47,9 @@ the 8.6a/8.6b spec-overlay writes), an idempotent pre-doc-sync commit,
 `/CJ_document-release` (Step 5.5 doc-sync) inline, then `/ship` inline (with
 diff-review AUQ suppressed) → STOPS at the open PR. The agent-judged doc/test
 audit (`/CJ_doc_audit` + `/CJ_test_audit`) no longer runs on the build path or
-surfaces an AUQ; it now runs NIGHTLY in CI
-(`.github/workflows/audit-nightly.yml`), filing findings to a GitHub issue. So the
+surfaces an AUQ; it now runs ON-DEMAND (locally via `/CJ_doc_audit` +
+`/CJ_test_audit`, or `bash scripts/audit-nightly.sh`), filing findings to a GitHub
+issue (the former nightly CI workflow was removed by F000080). So the
 only AUQ past the design gate is `/ship`'s (suppressed here). The deterministic
 per-PR gate (`validate.sh` / pre-commit) is unchanged. The PR is the
 architecture gate (human review). Worktree-on-main creates `cj-feat-*` worktree
@@ -78,8 +79,8 @@ automatically. Halt taxonomy: `green_pr_opened`, `halted_at_*`,
 - `/CJ_implement-from-spec` — silent leaf subagent (Phase 3.2)
 - `/CJ_qa-work-item` — silent leaf subagent (Phase 3.3); when orchestrator-driven
   it SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT: true`) — the
-  agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI, not on the
-  build path (standalone `/CJ_qa-work-item` still runs them inline)
+  agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand off the build
+  path (standalone `/CJ_qa-work-item` still runs them inline)
 - `/ship` (upstream gstack) — inline final step; opens PR with diff-review AUQ
 - `/CJ_goal_defect` — sibling top-level verb for bug-from-description
 - `/CJ_goal_todo_fix` — sibling top-level verb for TODOS.md drains

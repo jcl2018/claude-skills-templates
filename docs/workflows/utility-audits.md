@@ -128,8 +128,9 @@ truth enumerated first, then each contract doc cross-walked; `docs/workflow.md` 
 `spec/workflow-spec.md`, never an orphan/drift) are agent-judged and, standalone,
 REQUIRED to run in one fresh-context subagent. On cj_goal orchestrator paths QA
 skips this inline audit (`DEFER_AUDIT: true`) and it is NOT re-run on the build
-path — the agent-judged audit runs nightly in CI (`.github/workflows/audit-nightly.yml`),
-off the build path; standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE
+path — the agent-judged audit runs on-demand (locally via `/CJ_doc_audit` +
+`/CJ_test_audit`, or `bash scripts/audit-nightly.sh`), off the build path;
+standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE
 (a subagent cannot spawn subagents).
 
 **Touches:**
@@ -168,9 +169,9 @@ against the source at its anchor; Stage 3 enumerates the live verification
 surfaces and judges coverage-in-substance. Standalone, Stages 2+3 run in one
 fresh-context subagent (shared with `/CJ_doc_audit` when both run). On cj_goal
 orchestrator paths QA skips this inline audit (`DEFER_AUDIT: true`) and it is NOT
-re-run on the build path — the agent-judged audit runs nightly in CI
-(`.github/workflows/audit-nightly.yml`); standalone `/CJ_qa-work-item` Step 8.6d
-still runs it INLINE.
+re-run on the build path — the agent-judged audit runs on-demand (locally via
+`/CJ_doc_audit` + `/CJ_test_audit`, or `bash scripts/audit-nightly.sh`);
+standalone `/CJ_qa-work-item` Step 8.6d still runs it INLINE.
 
 **Touches:**
 

@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
-# Nightly agent-judged doc/test audit — relocated off the CJ_goal_* build hot path.
+# On-demand agent-judged doc/test audit — relocated off the CJ_goal_* build hot path.
 #
 # F000076: the expensive Stage-2/3 audit (`/CJ_doc_audit` + `/CJ_test_audit`) used
 # to run inline on every orchestrated build (the post-sync audit + QA-audit
 # checkpoint). It is ADVISORY (findings never hard-block) and its deterministic
-# Stage-1 already re-runs per-PR in validate.sh, so it was moved here: a nightly
+# Stage-1 already re-runs per-PR in validate.sh, so it was moved here: a
 # `claude --print` sweep of `main` that files findings to a GitHub issue instead
 # of taxing every build. The per-PR deterministic gate (validate.sh) is untouched.
 #
-# F000079 extended what this nightly sweep is the safety net FOR: the cj_goal
+# F000079 extended what this sweep is the safety net FOR: the cj_goal
 # build path also stopped running the slow inline doc-sync (/CJ_document-release
 # prose rewrite) + the agent-judged test-sync overlay-amendment sweep (QA 8.6a/8.6b
 # under DEFER_SYNC). That deferred agentic doc/test drift is caught HERE — the same
 # `/CJ_doc_audit` (Stage 3: docs reflect reality) + `/CJ_test_audit` (overlay
 # truthfulness) sweep already files it to the `audit-drift` issue, no new job needed.
+#
+# F000080 removed the former nightly CI workflow (.github/workflows/audit-nightly.yml):
+# this sweep now runs ON-DEMAND / manually (this script, or the /CJ_doc_audit +
+# /CJ_test_audit verbs directly), off the build path — not on a nightly schedule.
+# The script name is retained.
 #
 # SKIPs cleanly (exit 0) without a model key, so a normal `test.sh` and any
 # secret-less fork never spend. Advisory by construction: a claude/gh hiccup is
@@ -25,7 +30,7 @@
 #   bash scripts/audit-nightly.sh --no-issue      # run the audit, print counts, do NOT touch gh
 #   AUDIT_BUDGET_USD=3 bash scripts/audit-nightly.sh   # override the per-run budget cap
 #
-# Cadence: nightly on main (.github/workflows/audit-nightly.yml) + workflow_dispatch.
+# Cadence: on-demand / manual (bash scripts/audit-nightly.sh) — the nightly CI workflow was removed.
 set -euo pipefail
 
 . "$(dirname "$0")/lib.sh"
@@ -40,7 +45,7 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run)  DRY_RUN=1 ;;
     --no-issue) FILE_ISSUE=0 ;;
-    -h|--help)  sed -n '20,25p' "$0"; exit 0 ;;
+    -h|--help)  sed -n '27,31p' "$0"; exit 0 ;;
     *) echo "audit-nightly: unknown argument: $arg" >&2; exit 2 ;;
   esac
 done

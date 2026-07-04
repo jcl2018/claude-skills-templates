@@ -48,8 +48,8 @@ never migrates a format).
   executes ALL THREE STAGES inline (the nested-subagent wall) and lifts the
   per-stage report into the QA RESULT's `AUDITS=` field. On a cj_goal
   orchestrator run QA carries `DEFER_AUDIT: true`, so these stages are skipped on
-  the build path — the agent-judged audit runs nightly in CI
-  (`.github/workflows/audit-nightly.yml`) instead.
+  the build path — the agent-judged audit runs on-demand (locally via
+  `/CJ_doc_audit` + `/CJ_test_audit`, or `bash scripts/audit-nightly.sh`) instead.
 - After adding/renaming tests or validator checks: Stage 1's coverage
   cross-check catches orphaned units rows, unregistered test files (the
   silent-skip class), and extraction-grammar rot; Stage 2 catches a unit
@@ -132,14 +132,14 @@ Standalone, Stages 2+3 are REQUIRED to run in ONE fresh-context subagent
 both audits run together the same subagent may judge both). The report prints
 findings PER STAGE (`STAGE1/2/3_FINDINGS=` + `UNITS_AUDITED=` + three
 `--- stage N ---` sections); findings never crash or halt — on the cj_goal
-build path this audit does not run inline (nightly CI covers it); standalone,
+build path this audit does not run inline (it runs on-demand off the build path); standalone,
 the operator reads the report directly.
 
 ## Common pitfalls
 
 - **Expecting the audit to halt a pipeline.** It never does. Standalone, QA
   findings ride a GREEN RESULT and the operator reads them; on the cj_goal
-  build path the inline audit is skipped entirely and the nightly CI audit
+  build path the inline audit is skipped entirely and the on-demand audit
   surfaces findings out of band.
 - **Reading the "coverage cross-check inactive" note as a failure.** It is the
   honest rules-only state of a seeded consumer repo — declare `units:` rows in
@@ -178,7 +178,7 @@ the operator reads the report directly.
   `doc-spec.sh --check-on-disk` subcommand.
 - `/CJ_qa-work-item` — refreshes the overlay (Step 8.6a) then runs this audit
   inline (Step 8.6d) standalone; on a cj_goal run it carries `DEFER_AUDIT: true`
-  and skips the inline audit (nightly CI covers it).
+  and skips the inline audit (it runs on-demand off the build path).
 - `/CJ_document-release` — stub-scaffolds a declared-but-missing
   `spec/test-spec.md` via `test-spec.sh --seed` (a generic stub would be a
   present-but-invalid registry and hard-halt this audit).

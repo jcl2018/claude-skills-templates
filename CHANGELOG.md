@@ -3,6 +3,45 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.113] - 2026-07-03
+
+### Removed
+- **F000080 — make `CI-nightly` deterministic.** Deleted the two agentic
+  (model-spending) nightly CI workflows: `.github/workflows/eval-nightly.yml`
+  (the behavioral eval harness, cron `17 9 * * *`) and
+  `.github/workflows/audit-nightly.yml` (the agent-judged doc/test-drift audit,
+  cron `37 9 * * *`). The `CI-nightly` cadence now runs ONLY the deterministic
+  `portability-deploy` (`windows-nightly.yml`, kept). The `scripts/eval.sh` and
+  `scripts/audit-nightly.sh` runner scripts stay — they now run on-demand /
+  locally, off any CI schedule. Re-enable later = `git revert`.
+
+### Changed
+- **Re-layered the 3 agentic tests `CI-nightly` → `local-hook`.** In
+  `spec/test-spec-custom.md`'s `categories:` axis, `goal-task-eval` /
+  `goal-feature-eval` / `doc-sync` move to `layer: local-hook` (joining
+  `e2e-local`; `mode: agentic` + `tier: paid` retained), their front-door docs
+  `git mv` to `docs/tests/workflow/local-hook/` (+ the co-located deterministic
+  guard `doc-sync.test.sh` → `tests/workflow/local-hook/`), and `docs/tests/index.md`
+  + `spec/doc-spec-custom.md` reconciled. The `ci-eval-nightly` + `ci-audit-nightly`
+  `units:` rows are removed; the `suite-eval` unit (which backs the four
+  `level: workflow` behaviors) is repointed off the deleted workflow onto
+  `scripts/eval.sh` so **Check 24** stays green.
+- **Honest prose sweep** across `CLAUDE.md`, `docs/{architecture,reference,philosophy,tests/test-hierarchy}.md`,
+  `spec/workflow-spec.md` (+ regenerated `docs/workflow.md` + `docs/workflows/*`),
+  the four `CJ_goal_*` orchestrators + `CJ_qa-work-item` / `CJ_doc_audit` /
+  `CJ_test_audit` skills, and `skills-catalog.json` (+ regenerated `README.md`):
+  "the agent-judged doc/test audit runs nightly in CI via `audit-nightly.yml`" →
+  "runs on-demand (locally via `/CJ_doc_audit` + `/CJ_test_audit`), off the build
+  path". The `DEFER_AUDIT: true` / `DEFER_SYNC: true` deferral behavior is
+  UNCHANGED — only the "where the deferred audit now runs" clause changed.
+- **Safety-net posture (settled at `/office-hours`):** semantic doc/spec *prose*
+  drift is now caught on-demand (the operator runs `/CJ_doc_audit` +
+  `/CJ_test_audit`), not automatically nightly. The per-PR `validate.sh` Checks
+  24/26/27/28 still catch STRUCTURAL drift on every PR, so only semantic prose
+  freshness loses its auto-catch ("for now"). Check 28 (workflow-coverage) verified
+  UNAFFECTED (orchestrators=4, behaviors=4) — the `level: workflow`
+  `behavior_coverage` links to `tests/eval/*/prompt.md`, not the category `layer`.
+
 ## [6.0.112] - 2026-07-03
 
 ### Changed

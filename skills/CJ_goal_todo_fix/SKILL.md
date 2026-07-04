@@ -1,6 +1,6 @@
 ---
 name: CJ_goal_todo_fix
-description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item (DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs nightly in CI) + a pre-doc-sync commit + /CJ_document-release + /ship + /land-and-deploy, per drained TODO. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers (suppresses the Phase-3 drain-summary AUQ + start-of-run banner, emits scheduled_run: true, still STOPs the loop on halt-on-red). /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
+description: "Drain TODOs from TODOS.md into shipped PRs. Default mode (no args) drains up to 10 easy-fix TODOs end-to-end via /CJ_implement-from-spec + /CJ_qa-work-item (DEFER_AUDIT: true — QA skips the inline agent-judged audit; it now runs on-demand off the build path) + a pre-doc-sync commit + /CJ_document-release + /ship + /land-and-deploy, per drained TODO. Pass a T-ID or fragment for single-TODO mode; --max-drain N caps, --dry-run previews, --quiet for cron / /schedule consumers (suppresses the Phase-3 drain-summary AUQ + start-of-run banner, emits scheduled_run: true, still STOPs the loop on halt-on-red). /ship Gate #2 still fires per drained PR (autonomy ceiling). Use when: 'fix this TODO', 'clear the TODO backlog', 'auto-resolve TODOs', 'drain TODOs'."
 version: 2.2.0
 allowed-tools:
   - Bash
@@ -82,7 +82,7 @@ Per-TODO chain (both modes share this):
 
 ```
 TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
-   → /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — QA skips the inline agent-judged audit; nightly CI covers it] (leaf Agent subagents, halt-on-red between)
+   → /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — QA skips the inline agent-judged audit; it runs on-demand off the build path] (leaf Agent subagents, halt-on-red between)
    → pre-doc-sync commit (Step 5.4 — NEW; idempotent: commit QA-green fix + 8.6a/8.6b overlays, skip on clean tree)
    → /CJ_document-release (Step 5.5 doc-sync)
    → /ship Gate #2
@@ -92,8 +92,9 @@ TODOS.md row → /CJ_goal_todo_fix preflight → T-task scaffold
 ```
 
 The agent-judged doc/test audit no longer runs inline on the build path — it runs
-nightly in CI (`.github/workflows/audit-nightly.yml`) over `main`, off the drain
-path (F000076).
+on-demand (locally via `/CJ_doc_audit` + `/CJ_test_audit`, or `bash
+scripts/audit-nightly.sh`), off the drain path (F000080 removed the former nightly
+CI workflow).
 
 Worktree cleanup is best-effort, post-land, and **never halts the run** — todo
 calls `cj-worktree-cleanup.sh --caller todo` directly (it does NOT route through
@@ -109,8 +110,9 @@ The T-task scaffold runs in pure bash (`todo_fix.sh:608-693` — ID picker +
 3.2-3.3 pattern, minus the scaffold step). Both run as depth-≤2 leaf Agent
 subagents (silent / no-AUQ); a non-green RESULT from either HALTs the chain
 (`halted_at_impl` / `halted_at_qa`). QA is dispatched with `DEFER_AUDIT: true`, so
-it SKIPS the inline three-stage agent-judged audit (that audit now runs nightly in
-CI — `.github/workflows/audit-nightly.yml` — off the build path, F000076); the
+it SKIPS the inline three-stage agent-judged audit (that audit now runs on-demand —
+via `/CJ_doc_audit` + `/CJ_test_audit` or `bash scripts/audit-nightly.sh`, off the
+build path; F000080 removed the former nightly CI workflow); the
 orchestrator then runs the pre-doc-sync commit (pipeline.md Step 5.4) and doc-sync
 (Step 5.5) BEFORE `/ship` → `/land-and-deploy`. There is no inline post-sync audit
 and no QA-audit checkpoint on the drain path.
@@ -164,7 +166,7 @@ Phase 2: Drain loop (cap = --max-drain)
       ├── acquire shared lockfile entry (cross-skill race protection)
       ├── delegate to todo_fix.sh single-TODO mode (preflight → scaffold T-task)
       ├── emit CJ_GOAL_HANDOFF_BEGIN/END block
-      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — inline audit skipped; nightly CI covers it] (leaf subagents, halt-on-red) → pre-doc-sync commit (Step 5.4) → /CJ_document-release (Step 5.5) → /ship → /land-and-deploy
+      └── orchestrator dispatches /CJ_implement-from-spec → /CJ_qa-work-item [DEFER_AUDIT: true — inline audit skipped; it runs on-demand off the build path] (leaf subagents, halt-on-red) → pre-doc-sync commit (Step 5.4) → /CJ_document-release (Step 5.5) → /ship → /land-and-deploy
     Halt-on-red → STOP, drained_partial
 Phase 3: Summary + telemetry
   "Drained N of M attempted. PRs: [...]. Remaining easy-fix: K."

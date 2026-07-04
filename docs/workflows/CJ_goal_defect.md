@@ -33,12 +33,12 @@ scaffold .inbox/<slug>/DRAFT.md   (no defect ID yet; idempotent)
    v  PROMOTE: .inbox/<slug>/ -> work-items/defects/uncategorized/<defect-id>_<slug>/
    |        (defect ID minted ONLY after Iron-Law passes)
    |
-   v  write RCA.md + test-plan.md -> /CJ_qa-work-item (leaf subagent; DEFER_AUDIT: true - QA skips the inline audit; nightly CI covers it)
+   v  write RCA.md + test-plan.md -> /CJ_qa-work-item (leaf subagent; DEFER_AUDIT: true - QA skips the inline audit; it runs on-demand off the build path)
    |
    v  pre-doc-sync commit                    (Step 8.4 - NEW; idempotent: commit post-QA tracker update, skip on clean tree)
    |
    v  /CJ_document-release                   (Step 5.5 doc-sync; halt-on-red)
-   |        (the agent-judged doc/test audit runs nightly in CI - audit-nightly.yml - not inline)
+   |        (the agent-judged doc/test audit runs on-demand - scripts/audit-nightly.sh - not inline)
    |
    v  /ship                                  (Gate #2 fires; check-version-queue.sh preflight)
    |
@@ -61,14 +61,14 @@ Iron-Law gate: `/investigate` must produce a root cause or the run HALTs with
 nothing promoted — the defect ID is minted only after it passes, when the
 `.inbox` draft is promoted to a canonical defect dir. After QA (which skips its
 inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged audit runs
-nightly in CI) and a pre-doc-sync commit (Step 8.4),
+on-demand, off the build path) and a pre-doc-sync commit (Step 8.4),
 `/CJ_document-release` folds doc edits into the same fix PR (Step 5.5), and the
 chain auto-lands via `/ship` -> `/land-and-deploy` (defects are time-sensitive),
 with `cj-worktree-cleanup.sh` sweeping the now-landed worktree.
 
 **Touches:**
 
-- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent; skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI via `audit-nightly.yml`), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs nightly in CI) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
+- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent; skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand, off the build path), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs on-demand, off the build path) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
 - **Scripts · tools · shell:** `scripts/cj-goal-common.sh` (`--phase sync` / `worktree` / `pr-check` / `cleanup` / `telemetry` / `recap`, `--mode defect`), `scripts/cj-worktree-init.sh` (`--caller defect`, base-freshness + `--assert-isolated` isolation gate), `scripts/cj-worktree-cleanup.sh` (post-land janitor, via `--phase cleanup`), `scripts/check-version-queue.sh` (optional `/ship` preflight).
 - **Docs touched:** via Step 5.5 `/CJ_document-release` — README.md, CHANGELOG.md, CLAUDE.md, and `docs/**` per the doc-spec.md registry-derived whitelist, folded into the same fix PR.

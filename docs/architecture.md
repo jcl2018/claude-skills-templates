@@ -433,8 +433,8 @@ it in that mode's files) or `{ enforced_by: subagent | auq }` (the gate runs but
 emits no bracket marker — the escape hatch that keeps the baseline honestly
 clean, e.g. todo's QA + ship). There is no per-run agent-judged audit gate on the
 orchestrator path: that audit (`/CJ_doc_audit` + `/CJ_test_audit`) now runs
-nightly in CI (the `audit-nightly.yml` workflow files its findings to a GitHub
-issue), off the build path. What still stops a broken change per-PR is the
+on-demand — locally via those verbs or `bash scripts/audit-nightly.sh`, filing its
+findings to a GitHub issue — off the build path. What still stops a broken change per-PR is the
 deterministic gate — `validate.sh` at the local hook, `validate.yml` in CI — which
 is unchanged.
 
@@ -534,8 +534,9 @@ report carries `DOC_AUDIT:`/`TEST_AUDIT:` + `FINDINGS=` +
 subagent cannot spawn subagents — the honest degradation, labeled in the
 report). On a `cj_goal` orchestrator path, however, the dispatch carries
 `DEFER_AUDIT: true`: QA skips the inline agent-judged audit, and the audit runs
-nightly in CI (the `audit-nightly.yml` workflow, filing findings to a GitHub
-issue) rather than at a per-run checkpoint — so it never gates the build. The
+on-demand — locally via `/CJ_doc_audit` + `/CJ_test_audit` or
+`bash scripts/audit-nightly.sh`, filing findings to a GitHub issue — rather than at
+a per-run checkpoint, so it never gates the build. The
 deterministic per-PR gate is unchanged.
 
 **Consumer-repo posture.** Where no test-spec registry exists at all, the

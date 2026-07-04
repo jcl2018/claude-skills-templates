@@ -2,8 +2,9 @@
 # Behavioral eval harness — top-level runner.
 #
 # Spawns the real `claude` CLI headless against scratch worktrees per case,
-# validates structured JSON output against per-case schemas. Cadence: nightly
-# on main + manual local invocation. V1 covers CJ_personal-workflow + CJ_system-health.
+# validates structured JSON output against per-case schemas. Cadence: on-demand /
+# manual local invocation (no nightly CI; F000080 removed eval-nightly.yml).
+# V1 covers CJ_personal-workflow + CJ_system-health.
 #
 # Usage:
 #   bash scripts/eval.sh                              # all skills, all cases
@@ -28,9 +29,9 @@ WORKBENCH_TEMPLATES="$REPO_ROOT/templates"
 # (CJ_suggest — pure-output, local-only, no AUQ) via `claude --print` against a
 # STRIPPED, .source-neutralized scratch repo to prove it degrades gracefully when
 # the workbench is absent. This is the v1 proof-of-life that the --portability
-# mode + the fixture-prep helper EXIST; broad coverage across runnable skills +
-# nightly CI is deferred to Story 2 (it re-imports the parked eval-harness
-# cost/flake — D000023). Opt-in only; NEVER per-PR.
+# mode + the fixture-prep helper EXIST; broad coverage across runnable skills
+# is deferred to Story 2 (it re-imports the parked eval-harness
+# cost/flake — D000023). Opt-in only; on-demand, NEVER per-PR.
 if [ "${1:-}" = "--portability" ]; then
   exec bash "$EVAL_ROOT/lib/run-portability-case.sh" "$REPO_ROOT" "${2:-CJ_suggest}"
 fi
@@ -61,7 +62,7 @@ trap 'rm -f "$tmp_results"' EXIT INT TERM
 
 # Aggregate budget cap. Each case caps at $0.50 individually (run-case.sh).
 # A regressed skill that fails all cases at the cap could burn N × $0.50;
-# this aggregate ceiling protects against runaway nightly cost. Configurable
+# this aggregate ceiling protects against runaway cost. Configurable
 # via EVAL_TOTAL_BUDGET_USD; default $10 covers ~20 cases at the per-case cap.
 EVAL_TOTAL_BUDGET_USD="${EVAL_TOTAL_BUDGET_USD:-10}"
 

@@ -135,14 +135,14 @@ capture doc path -> resume state file (last_completed_phase + HEAD SHA + PR# + o
 design-summary approval gate   [INLINE AUQ - go/no-go; digest SOURCED FROM the receipt, not the resident transcript]
    |   `- Abort -> HALT
    v  Approve & build ->  SILENT depth-<=2 leaf Agent subagents (no AUQ past the design gate)
-/CJ_scaffold-work-item -> /CJ_implement-from-spec -> /CJ_qa-work-item [DEFER_AUDIT: true - QA skips the inline audit; nightly CI covers it]
+/CJ_scaffold-work-item -> /CJ_implement-from-spec -> /CJ_qa-work-item [DEFER_AUDIT: true - QA skips the inline audit; it runs on-demand off the build path]
    |
    v
 pre-doc-sync commit   [INLINE Step 3.5 - NEW; idempotent: commit QA-green code + 8.6a/8.6b overlays, skip on clean tree]
    |
    v
 /CJ_document-release   [INLINE Step 5.5 - doc-sync folds doc edits into the PR; halt-on-red]
-   |   (the agent-judged doc/test audit runs nightly in CI - audit-nightly.yml - not inline)
+   |   (the agent-judged doc/test audit runs on-demand - scripts/audit-nightly.sh - not inline)
    v
 /ship   [INLINE - diff-review AUQ suppressed; opens PR; check-version-queue.sh preflight]
    |
@@ -170,8 +170,8 @@ worktree` create of an isolated `cj-feat-*` worktree (with base-freshness), then
 [How the machinery works](utilities-and-phase-steps.md#how-the-machinery-works)). The one interactive phase
 is `/office-hours` (inline), gated by a design-summary go/no-go; everything after
 it is silent — the scaffold -> implement -> QA leaf subagents (QA skips its inline
-three-stage audit via `DEFER_AUDIT: true` — the agent-judged audit runs nightly in
-CI), then a pre-doc-sync commit (Step 3.5),
+three-stage audit via `DEFER_AUDIT: true` — the agent-judged audit runs on-demand,
+off the build path), then a pre-doc-sync commit (Step 3.5),
 `/CJ_document-release` folds doc edits into the same PR at Step 5.5, and `/ship`
 opens it. It STOPs at the open PR (the human architecture gate; `/land-and-deploy`
 is a separate step), and the resume state file lets a re-invocation pick up
@@ -179,11 +179,11 @@ mid-chain without redoing finished phases.
 ````
 
 ````touches-skills
-- **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI via `audit-nightly.yml`), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
+- **Skills dispatched:** `/office-hours` (inline design), `/CJ_scaffold-work-item` -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand, off the build path), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check.
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs nightly in CI) -> pre-doc-sync commit (Step 3.5) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `/office-hours` -> write compact office-hours receipt (Step 2.6; the digest distilled once, atomic mktemp+mv) -> design-summary approval gate (digest sourced from the receipt, not the resident transcript) -> scaffold/implement/qa (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs on-demand, off the build path) -> pre-doc-sync commit (Step 3.5) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
@@ -218,14 +218,14 @@ HARD complexity gate + scaffold   [INLINE - scripts/cj-task-scaffold.sh --topic 
    |   on PASS -> bash-scaffold a `type: task` work-item (T-ID) from the topic
    v  record scaffold boundary -> resume state file (last_completed_phase + HEAD SHA + work-item dir)
    v  SILENT depth-<=2 leaf Agent subagents (no AUQ past the complexity gate)
-/CJ_implement-from-spec -> /CJ_qa-work-item [DEFER_AUDIT: true - QA skips the inline audit; nightly CI covers it]
+/CJ_implement-from-spec -> /CJ_qa-work-item [DEFER_AUDIT: true - QA skips the inline audit; it runs on-demand off the build path]
    |
    v
 pre-doc-sync commit   [INLINE Step 4.4 - NEW; idempotent: commit QA-green code + 8.6a/8.6b overlays, skip on clean tree]
    |
    v
 /CJ_document-release   [INLINE Step 5.5 - doc-sync folds doc edits into the PR; halt-on-red]
-   |   (the agent-judged doc/test audit runs nightly in CI - audit-nightly.yml - not inline)
+   |   (the agent-judged doc/test audit runs on-demand - scripts/audit-nightly.sh - not inline)
    v
 /ship   [INLINE - diff-review AUQ suppressed; opens PR; check-version-queue.sh preflight]
    |
@@ -254,7 +254,7 @@ that REFUSES topics needing design / investigation / large scope (routing each t
 the right verb) and otherwise bash-scaffolds a `type: task` work-item directly
 from the topic. The build is then fully silent — the implement -> QA leaf
 subagents (QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the
-agent-judged audit runs nightly in CI), then a
+agent-judged audit runs on-demand, off the build path), then a
 pre-doc-sync commit (Step 4.4), `/CJ_document-release` folds doc edits into the
 same PR at Step 5.5, and `/ship` opens the PR. It STOPs at the open PR
 (PR-stop only; the same `unsafe-by-construction` reasoning as `/CJ_goal_feature`),
@@ -262,11 +262,11 @@ and the resume state file lets a re-invocation pick up mid-chain.
 ````
 
 ````touches-skills
-- **Skills dispatched:** `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI via `audit-nightly.yml`), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check. No `/office-hours`, no `/CJ_scaffold-work-item` (the scaffold is bash, not the skill).
+- **Skills dispatched:** `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (silent depth-<=2 leaf subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand, off the build path), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (opens the PR). `/CJ_personal-workflow` runs transitively as each phase-step's boundary check. No `/office-hours`, no `/CJ_scaffold-work-item` (the scaffold is bash, not the skill).
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs nightly in CI) -> pre-doc-sync commit (Step 4.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> hard complexity gate + bash scaffold (`cj-task-scaffold.sh`; halt-on `too-complex` routing to the right verb) -> implement/qa (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs on-demand, off the build path) -> pre-doc-sync commit (Step 4.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> at-PR recap (`--phase recap --when after`; 3-part, advisory) -> STOP at PR -> worktree-cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
@@ -304,12 +304,12 @@ scaffold .inbox/<slug>/DRAFT.md   (no defect ID yet; idempotent)
    v  PROMOTE: .inbox/<slug>/ -> work-items/defects/uncategorized/<defect-id>_<slug>/
    |        (defect ID minted ONLY after Iron-Law passes)
    |
-   v  write RCA.md + test-plan.md -> /CJ_qa-work-item (leaf subagent; DEFER_AUDIT: true - QA skips the inline audit; nightly CI covers it)
+   v  write RCA.md + test-plan.md -> /CJ_qa-work-item (leaf subagent; DEFER_AUDIT: true - QA skips the inline audit; it runs on-demand off the build path)
    |
    v  pre-doc-sync commit                    (Step 8.4 - NEW; idempotent: commit post-QA tracker update, skip on clean tree)
    |
    v  /CJ_document-release                   (Step 5.5 doc-sync; halt-on-red)
-   |        (the agent-judged doc/test audit runs nightly in CI - audit-nightly.yml - not inline)
+   |        (the agent-judged doc/test audit runs on-demand - scripts/audit-nightly.sh - not inline)
    |
    v  /ship                                  (Gate #2 fires; check-version-queue.sh preflight)
    |
@@ -333,18 +333,18 @@ Iron-Law gate: `/investigate` must produce a root cause or the run HALTs with
 nothing promoted — the defect ID is minted only after it passes, when the
 `.inbox` draft is promoted to a canonical defect dir. After QA (which skips its
 inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged audit runs
-nightly in CI) and a pre-doc-sync commit (Step 8.4),
+on-demand, off the build path) and a pre-doc-sync commit (Step 8.4),
 `/CJ_document-release` folds doc edits into the same fix PR (Step 5.5), and the
 chain auto-lands via `/ship` -> `/land-and-deploy` (defects are time-sensitive),
 with `cj-worktree-cleanup.sh` sweeping the now-landed worktree.
 ````
 
 ````touches-skills
-- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent; skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI via `audit-nightly.yml`), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
+- **Skills dispatched:** `/investigate` (root-cause, Agent subagent; Iron-Law gate), `/CJ_qa-work-item` (leaf subagent; skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand, off the build path), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 always human), `/land-and-deploy --suppress-readiness-gate` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
 ````
 
 ````touches-steps
-- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs nightly in CI) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
+- **Steps · phases:** pre-build skills-sync (`--phase sync`) -> worktree create (`--phase worktree`) + base-freshness (ff local main) -> isolation gate (`--assert-isolated`) -> `.inbox` draft -> `/investigate` (Iron-Law gate) -> promote to a defect dir (a full `tracker-defect.md`-compliant tracker) -> RCA + test-plan -> commit fix + artifacts (before QA) -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs on-demand, off the build path) -> pre-doc-sync commit (Step 8.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory) -> `/land-and-deploy` -> after-land recap (`--phase recap --when after`; 3-part, advisory) -> cleanup (`--phase cleanup`) -> telemetry.
 ````
 
 ````touches-scripts
@@ -378,14 +378,14 @@ T-task scaffold (TRACKER + test-plan, pure bash)
 /CJ_implement-from-spec   (leaf Agent subagent, halt-on-red)
    |
    v
-/CJ_qa-work-item          (leaf Agent subagent, halt-on-red; DEFER_AUDIT: true - QA skips the inline audit; nightly CI covers it)
+/CJ_qa-work-item          (leaf Agent subagent, halt-on-red; DEFER_AUDIT: true - QA skips the inline audit; it runs on-demand off the build path)
    |
    v
 pre-doc-sync commit   (Step 5.4 - NEW; idempotent: commit QA-green fix + 8.6a/8.6b overlays, skip on clean tree)
    |
    v
 /CJ_document-release   (Step 5.5 doc-sync; halt-on-red)
-   |   (the agent-judged doc/test audit runs nightly in CI - audit-nightly.yml - not inline)
+   |   (the agent-judged doc/test audit runs on-demand - scripts/audit-nightly.sh - not inline)
    v
 /ship   (Gate #2 fires per drained TODO - human approves diff; check-version-queue.sh preflight)
    |
@@ -416,7 +416,7 @@ base-freshness (drain mode makes one worktree per TODO via `drain-one-todo.sh`) 
 see [How the machinery works](utilities-and-phase-steps.md#how-the-machinery-works). The body is a pure-bash
 T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (which skips
 its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged audit runs
-nightly in CI), then a pre-doc-sync commit (Step
+on-demand, off the build path), then a pre-doc-sync commit (Step
 5.4), and `/CJ_document-release` folds doc edits into the row's PR at Step 5.5.
 `/ship`
 Gate #2 still fires per drained TODO (the autonomy ceiling — a human approves
@@ -425,11 +425,11 @@ each diff); on land it hash-verified DONE-marks the row and
 ````
 
 ````touches-skills
-- **Skills dispatched:** `/CJ_suggest` (drain-mode enumeration, `--for-skill cj-goal`), `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (leaf Agent subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI via `audit-nightly.yml`), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 fires per drained TODO), `/land-and-deploy` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
+- **Skills dispatched:** `/CJ_suggest` (drain-mode enumeration, `--for-skill cj-goal`), `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (leaf Agent subagents; QA skips its inline three-stage audit via `DEFER_AUDIT: true` — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand, off the build path), `/CJ_document-release` (Step 5.5 doc-sync), `/ship` (Gate #2 fires per drained TODO), `/land-and-deploy` (auto-merge + verify). `/CJ_personal-workflow` runs transitively at boundaries.
 ````
 
 ````touches-steps
-- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs nightly in CI) -> pre-doc-sync commit (Step 5.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory, per drained TODO) -> `/land-and-deploy` -> TODOS.md DONE-mark -> after-land recap (`--phase recap --when after`; 3-part, advisory, per drained TODO) -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
+- **Steps · phases:** preflight (drain enumerate / single-match) -> pre-build skills-sync (`--phase sync`) -> worktree create + base-freshness (ff local main) -> T-task scaffold -> `/CJ_implement-from-spec` -> `/CJ_qa-work-item` (`DEFER_AUDIT: true` — QA skips the inline audit; the agent-judged audit runs on-demand, off the build path) -> pre-doc-sync commit (Step 5.4) -> doc-sync (Step 5.5) -> `/ship` -> registered-doc verdicts -> PR body -> before-land recap (`--phase recap --when before`; 3-part, advisory, per drained TODO) -> `/land-and-deploy` -> TODOS.md DONE-mark -> after-land recap (`--phase recap --when after`; 3-part, advisory, per drained TODO) -> cleanup (`cj-worktree-cleanup.sh`, called directly) -> telemetry.
 ````
 
 ````touches-scripts
@@ -876,8 +876,9 @@ truth enumerated first, then each contract doc cross-walked; `docs/workflow.md` 
 `spec/workflow-spec.md`, never an orphan/drift) are agent-judged and, standalone,
 REQUIRED to run in one fresh-context subagent. On cj_goal orchestrator paths QA
 skips this inline audit (`DEFER_AUDIT: true`) and it is NOT re-run on the build
-path — the agent-judged audit runs nightly in CI (`.github/workflows/audit-nightly.yml`),
-off the build path; standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE
+path — the agent-judged audit runs on-demand (locally via `/CJ_doc_audit` +
+`/CJ_test_audit`, or `bash scripts/audit-nightly.sh`), off the build path;
+standalone `/CJ_qa-work-item` Step 8.6c still runs it INLINE
 (a subagent cannot spawn subagents).
 
 **Touches:**
@@ -916,9 +917,9 @@ against the source at its anchor; Stage 3 enumerates the live verification
 surfaces and judges coverage-in-substance. Standalone, Stages 2+3 run in one
 fresh-context subagent (shared with `/CJ_doc_audit` when both run). On cj_goal
 orchestrator paths QA skips this inline audit (`DEFER_AUDIT: true`) and it is NOT
-re-run on the build path — the agent-judged audit runs nightly in CI
-(`.github/workflows/audit-nightly.yml`); standalone `/CJ_qa-work-item` Step 8.6d
-still runs it INLINE.
+re-run on the build path — the agent-judged audit runs on-demand (locally via
+`/CJ_doc_audit` + `/CJ_test_audit`, or `bash scripts/audit-nightly.sh`);
+standalone `/CJ_qa-work-item` Step 8.6d still runs it INLINE.
 
 **Touches:**
 

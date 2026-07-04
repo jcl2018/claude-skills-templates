@@ -11,4 +11,4 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
-| behavioral eval harness — headless skill evals | CI-nightly | hard-fail | nightly manual | `.github/workflows/eval-nightly.yml` · `scripts/eval.sh` | Spawns the headless CLI against scratch worktrees per eval case with JSON-schema output validation; budget-capped per case and per run. |
+| behavioral eval harness — headless skill evals | local-hook | hard-fail | manual | `scripts/eval.sh` · `Behavioral eval harness` | Spawns the headless CLI against scratch worktrees per eval case with JSON-schema output validation; budget-capped per case and per run. Run on-demand (bash scripts/eval.sh) — no longer on a nightly CI schedule. |

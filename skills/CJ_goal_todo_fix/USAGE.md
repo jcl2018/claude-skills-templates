@@ -42,8 +42,9 @@ audits and returns `AUDITS=deferred`, while still running the 8.6a/8.6b
 spec-overlay writes) → an idempotent pre-doc-sync commit → `/CJ_document-release`
 (Step 5.5 doc-sync) → `/ship` (open PR) → `/land-and-deploy` (merge + verify) per
 drained row. The agent-judged doc/test audit (`/CJ_doc_audit` + `/CJ_test_audit`)
-no longer runs on the drain path or gates the ship; it runs NIGHTLY in CI
-(`.github/workflows/audit-nightly.yml`), filing findings to a GitHub issue. The
+no longer runs on the drain path or gates the ship; it runs ON-DEMAND (locally via
+those verbs, or `bash scripts/audit-nightly.sh`), off the build path (F000080
+removed the former nightly CI workflow). The
 `--quiet` mode therefore auto-continues past QA (halt-on-red between impl/qa still
 applies). The deterministic per-PR gate (`validate.sh` / pre-commit) is unchanged.
 Drain mode
@@ -72,7 +73,7 @@ Halt-on-red stops the loop and writes the finding to the tracker journal.
 
 - `/CJ_suggest` — ranks TODOS.md rows; drain mode calls it with `--for-skill cj-goal`
 - `/CJ_implement-from-spec` — dispatched per drained TODO (leaf Agent subagent) to write the code
-- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between; when orchestrator-driven it SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT: true`) — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run nightly in CI, not on the drain path (standalone `/CJ_qa-work-item` still runs them inline)
+- `/CJ_qa-work-item` — dispatched after impl (leaf Agent subagent) to verify; halt-on-red between; when orchestrator-driven it SKIPS its Step 8.6c/8.6d inline audits (`DEFER_AUDIT: true`) — the agent-judged `/CJ_doc_audit` + `/CJ_test_audit` run on-demand off the build path, not on the drain path (standalone `/CJ_qa-work-item` still runs them inline)
 - `/ship` (upstream gstack) — opens PR with Gate #2 diff-review AUQ
 - `/land-and-deploy` (upstream gstack) — merges and verifies deploy
 - `/schedule` (upstream gstack) — pair with `--quiet` for cron-style drains

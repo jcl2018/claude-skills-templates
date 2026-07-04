@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/workflow/CI-nightly/doc-sync.test.sh — the `doc-sync` workflow-category
+# tests/workflow/local-hook/doc-sync.test.sh — the `doc-sync` workflow-category
 # test (F000078). Proves the doc/test-sync audit WORKFLOW (/CJ_doc_audit +
 # /CJ_test_audit, driven by scripts/audit-nightly.sh) is wired and honest end to
 # end, WITHOUT spending a single model token: it asserts the runner's
@@ -12,9 +12,9 @@
 # tests/audit-nightly.test.sh (which drills the runner's parse/report/issue halves
 # with claude + gh stubbed); this file is the lighter workflow-level assertion the
 # `doc-sync` category row points at. mode: agentic in the contract refers to the
-# REAL nightly run (claude --print); this deterministic guard spends nothing.
+# REAL on-demand run (claude --print); this deterministic guard spends nothing.
 #
-# Category: workflow   Layer: CI-nightly   (see docs/tests/workflow/CI-nightly/doc-sync.md)
+# Category: workflow   Layer: local-hook   (see docs/tests/workflow/local-hook/doc-sync.md)
 
 set -u
 

@@ -37,10 +37,12 @@ ONLY `scripts/windows-smoke.sh`; the slow full `skills-deploy` suite
 `windows-deploy`, cron `23 8 * * *` + `workflow_dispatch`), off the PR path. Run
 the smoke locally with `bash scripts/windows-smoke.sh`. Full feature:
 `work-items/features/ops/F000044_windows_wsl2_git_bash_support/`. A second
-`CI-nightly` job joined this cadence in F000076: `.github/workflows/audit-nightly.yml`
-(script `scripts/audit-nightly.sh`) runs the agent-judged doc/test-drift audit
-(`/CJ_doc_audit` + `/CJ_test_audit`) off the PR path and files findings to the
-`audit-drift` GitHub issue — see `## Doc-sync coverage`.
+`CI-nightly` job joined this cadence in F000076 (`.github/workflows/audit-nightly.yml`,
+the agent-judged doc/test-drift audit), but F000080 REMOVED that workflow: the
+audit (`scripts/audit-nightly.sh`, still driving `/CJ_doc_audit` + `/CJ_test_audit`)
+now runs ON-DEMAND / locally, off the build path, filing findings to the
+`audit-drift` GitHub issue — see `## Doc-sync coverage`. So `windows-nightly.yml`
+is the only remaining `CI-nightly` workflow.
 
 **Install == clone holds on Windows (F000049/S5 — S000089).** The in-place
 install==clone model (S4: a default `skills-deploy install` stamps `install_mode:
@@ -89,13 +91,16 @@ themselves are UNCHANGED by F000076 — standalone,
 Stages 2+3 are dispatched to ONE fresh-context subagent (the Agent tool);
 inside `/CJ_qa-work-item` Step 8.6 they run INLINE (the nested-subagent
 wall). Reports are per-stage (`DOC_AUDIT:` / `TEST_AUDIT:` + `FINDINGS=` +
-`STAGE1/2/3_FINDINGS=` + `stageN/`-prefixed findings). What changed (F000076):
+`STAGE1/2/3_FINDINGS=` + `stageN/`-prefixed findings). What changed (F000076,
+re-homed by F000080):
 the four `CJ_goal_*` orchestrators NO LONGER run this agent-judged audit inline
 or surface a QA-audit checkpoint AUQ — QA passes `DEFER_AUDIT: true` (which now
-means "QA skips the inline agent-judged audit; nightly CI covers it"), and the
-audit instead runs NIGHTLY in CI (`scripts/audit-nightly.sh` /
-`.github/workflows/audit-nightly.yml`), filing any findings to a GitHub issue
-labelled `audit-drift`. Standalone `/CJ_qa-work-item` still runs the audit inline
+means "QA skips the inline agent-judged audit; it runs on-demand off the build
+path"), and the audit instead runs ON-DEMAND / locally (`scripts/audit-nightly.sh`,
+or the `/CJ_doc_audit` + `/CJ_test_audit` verbs directly), filing any findings to a
+GitHub issue labelled `audit-drift`. (F000080 removed the former
+`.github/workflows/audit-nightly.yml` nightly CI job — the script stays, the
+schedule is gone.) Standalone `/CJ_qa-work-item` still runs the audit inline
 (no `DEFER_AUDIT` directive). The deterministic per-PR gate
 (`validate.sh` / `validate.yml` / the pre-commit hook) is UNCHANGED — it is what
 still stops a broken change per-PR.
@@ -162,9 +167,10 @@ of F000079 the cj_goal orchestrators NO LONGER call it inline: Step 5.5 is now a
 fast DETERMINISTIC doc-regen (`test-spec.sh` + `workflow-spec.sh --render-docs`)
 that folds the generated catalogs into the same code PR, while the slow
 agent-judged doc-sync (`/CJ_document-release`'s prose rewrite) + the QA 8.6a/8.6b
-overlay-amendment sweep DEFER to the nightly audit (F000076 relocated the audit,
-F000079 the agentic sync — see `## Nightly doc/test-drift audit`). Run manually or
-by the nightly job, `/CJ_document-release` is still the
+overlay-amendment sweep DEFER to the on-demand audit (F000076 relocated the audit
+off the inline path, F000079 the agentic sync; F000080 then re-homed both from a
+nightly CI job to on-demand — see `## Deferred doc/test-drift audit`). Run manually
+on demand, `/CJ_document-release` is still the
 keeper of the doc contract: it reads the merged doc-spec registry,
 self-bootstraps a missing `spec/doc-spec.md` from the portable seed, and
 stub-scaffolds any declared-but-missing doc (the duty that replaced the retired
@@ -544,8 +550,8 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
 | `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |
-| `eval.sh` | Behavioral eval harness (F000013 V1) — spawns `claude --print` against scratch worktrees per case in `tests/eval/<skill>/<case>/`, validates structured JSON output via `--json-schema`. Per-case `--max-budget-usd 0.50`, aggregate `EVAL_TOTAL_BUDGET_USD` (default $10). | Nightly CI (`.github/workflows/eval-nightly.yml`, 09:17 UTC daily + `workflow_dispatch`) or local manual run |
-| `audit-nightly.sh` | Nightly agent-judged doc/test-drift audit (F000076) — the off-PR home of the three-stage `/CJ_doc_audit` + `/CJ_test_audit` that the four `CJ_goal_*` orchestrators no longer run inline. Runs both audits headless (`claude --print`) against the repo, parses their findings, and files/updates a single GitHub issue labelled `audit-drift` (opens on new findings, updates the open issue, closes/notes when clean). SKIPs cleanly (exit 0) without a usable model key, so a normal `test.sh` / non-model CI never invokes it. | Nightly CI (`.github/workflows/audit-nightly.yml`, the `CI-nightly` cadence + `workflow_dispatch`) or local manual run |
+| `eval.sh` | Behavioral eval harness (F000013 V1) — spawns `claude --print` against scratch worktrees per case in `tests/eval/<skill>/<case>/`, validates structured JSON output via `--json-schema`. Per-case `--max-budget-usd 0.50`, aggregate `EVAL_TOTAL_BUDGET_USD` (default $10). F000080 removed the former `.github/workflows/eval-nightly.yml` nightly CI job; the harness now runs on-demand only. | On-demand / local (`bash scripts/eval.sh`) |
+| `audit-nightly.sh` | On-demand agent-judged doc/test-drift audit (F000076; re-homed off nightly CI by F000080) — the off-build-path home of the three-stage `/CJ_doc_audit` + `/CJ_test_audit` that the four `CJ_goal_*` orchestrators no longer run inline. Runs both audits headless (`claude --print`) against the repo, parses their findings, and files/updates a single GitHub issue labelled `audit-drift` (opens on new findings, updates the open issue, closes/notes when clean). SKIPs cleanly (exit 0) without a usable model key, so a normal `test.sh` / non-model CI never invokes it. (The former `.github/workflows/audit-nightly.yml` nightly CI job was removed by F000080; the script name is retained.) | On-demand / local (`bash scripts/audit-nightly.sh`) |
 | `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |
 | `lint-skill.sh` | Checks SKILL.md content quality | After writing a skill |
@@ -557,7 +563,7 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `post-land-sync.sh` | Post-land local sync: resolve `.source` from the manifest, guard (`.source` exists / on `main` / clean tracked tree), `git pull --ff-only` + `skills-deploy install` from `.source`, report `collection_version` before→after. `--dry-run` previews. Closes the gap where a remote `gh pr merge` bypasses the local post-merge auto-sync hook, leaving merged skills uninstalled + the manifest version lagging `.source`. | After `gh pr merge` + verify MERGED + branch cleanup (the merge convention's post-land step) |
 | `cj-worktree-cleanup.sh` | Post-run worktree janitor (T000036): the teardown mirror of `cj-worktree-init.sh`. PR-state-gated sweep of landed `cj-(feat\|def\|todo\|task)-*` worktrees (REMOVE only on `PR_STATE ∈ {MERGED,CLOSED}` via `cj-goal-common.sh --phase pr-check` — NOT branch ancestry, this is a squash-merge repo), `git worktree prune`, an orphan-dir sweep (`rm -rf` leftover `cj-*` dirs git no longer tracks — basename-matched so it's symlink-robust, cj-* scoped, registered/current always skipped), + guarded root-`main` refresh. Skips current/locked/dirty/OPEN-PR/no-PR/non-cj. `--dry-run` previews (`WOULD-REMOVE`/`WOULD-SKIP`, mutates nothing); `--caller {feature\|defect\|todo\|task}`. Best-effort — always exits 0; never halts the calling run. | Invoked automatically at each `CJ_goal_*` orchestrator's post-land terminal (feature/defect via `cj-goal-common.sh --phase cleanup`; todo directly). Run `--dry-run` by hand to preview a sweep. |
 | `cj-id-claim.sh` | Scaffold-time atomic work-item ID claim (F000048): the 4th ID source for `/CJ_scaffold-work-item` Step 5.1. Atomically claims the next `{F\|S\|T\|D}` ID via `mkdir "$(git rev-parse --git-common-dir)/cj-id-claims/<ID>"` (a compare-and-swap — git worktrees share one `.git`, so the claim is visible to sibling worktrees BEFORE any push), closing the pre-push collision race the 3-source check (local / open-PRs / origin) cannot see. Lazy reaping (TTL + already-on-origin); same-branch reuse keeps re-runs idempotent. Args: `--prefix <F\|S\|T\|D> --floor <N> [--ttl-hours 72] [--dry-run]`. Same-machine/same-clone scope; cross-machine stays covered post-push. | Called by `/CJ_scaffold-work-item` Step 5.1 (fail-soft — scaffold falls back to the 3-source `printf` if the helper is absent). |
-| `cj-e2e-gate.sh` | Deterministic build-gate auto-answer VERDICT helper (F000071/S000120, Part A — the dormant foundation the local happy-path E2E harness (`e2e-local.sh`, Part B) drives). `--gate <design-gate\|qa-audit> [--digest <doc:..,test:..>]` → prints exactly one `AUTO=continue\|halt\|inactive`, exit 0. Returns `inactive` UNLESS BOTH `CJ_GOAL_E2E_AUTO=1` AND a `.cj-e2e-sandbox` marker at the repo root AND the gate is in the hardcoded allowlist `{design-gate, qa-audit}`; qa-audit `continue`s ONLY on a fully-green digest (`doc:ok` AND `test:ok`), else `halt`; design-gate `continue`s (feature-only). **Safety:** any non-allowlisted gate id (`ship`/merge/`land`/…) → `inactive` — the seam can NEVER auto-answer a gstack ship/merge/deploy gate. The script + its `{design-gate, qa-audit}` allowlist are UNCHANGED by F000076; the `qa-audit` arm is simply dormant-for-orchestrators now (the orchestrators dropped the inline qa-audit checkpoint that called it — the audit moved to nightly CI), so the only live orchestrator call site is `design-gate` in `/CJ_goal_feature` (agent-prose), generalizing `todo_fix --quiet`'s green-continue: a normal run (no flag/marker) is behavior-unchanged. `.cj-e2e-sandbox` is gitignored + `validate.sh` **Check 29** hard-fails if it is tracked. | Called by the 4 cj_goal pipelines at their build gates (dormant unless the double guard is set — i.e. only under the local-E2E harness). Unit-tested by `tests/cj-e2e-gate.test.sh`. |
+| `cj-e2e-gate.sh` | Deterministic build-gate auto-answer VERDICT helper (F000071/S000120, Part A — the dormant foundation the local happy-path E2E harness (`e2e-local.sh`, Part B) drives). `--gate <design-gate\|qa-audit> [--digest <doc:..,test:..>]` → prints exactly one `AUTO=continue\|halt\|inactive`, exit 0. Returns `inactive` UNLESS BOTH `CJ_GOAL_E2E_AUTO=1` AND a `.cj-e2e-sandbox` marker at the repo root AND the gate is in the hardcoded allowlist `{design-gate, qa-audit}`; qa-audit `continue`s ONLY on a fully-green digest (`doc:ok` AND `test:ok`), else `halt`; design-gate `continue`s (feature-only). **Safety:** any non-allowlisted gate id (`ship`/merge/`land`/…) → `inactive` — the seam can NEVER auto-answer a gstack ship/merge/deploy gate. The script + its `{design-gate, qa-audit}` allowlist are UNCHANGED by F000076; the `qa-audit` arm is simply dormant-for-orchestrators now (the orchestrators dropped the inline qa-audit checkpoint that called it — the audit moved off the inline path and now runs on-demand), so the only live orchestrator call site is `design-gate` in `/CJ_goal_feature` (agent-prose), generalizing `todo_fix --quiet`'s green-continue: a normal run (no flag/marker) is behavior-unchanged. `.cj-e2e-sandbox` is gitignored + `validate.sh` **Check 29** hard-fails if it is tracked. | Called by the 4 cj_goal pipelines at their build gates (dormant unless the double guard is set — i.e. only under the local-E2E harness). Unit-tested by `tests/cj-e2e-gate.test.sh`. |
 | `e2e-local.sh` | Local happy-path E2E harness (F000071/S000121, Part B). Runs a REAL `/CJ_goal_task` build end to end in a throwaway sandbox (a `mktemp` clone + a `.cj-e2e-sandbox` marker + a LOCAL bare origin that accepts push but defeats `gh pr create`), driven unattended through the build gates by the Part-A seam (`cj-e2e-gate.sh`), stopping at the `/ship` boundary, and writes a **materialized report** (`tests/e2e-local/reports/<verb>-<UTC-ts>.md` + a `.json` sibling) whose coverage rows are labelled DETERMINISTIC vs `claude --print` and whose Outcome is DERIVED from real post-run evidence (a new `work-items/tasks/T*/` dir, a non-empty diff, the run's `end_state`) — a row without evidence renders `unverified`, never a false pass. **LOCAL-only:** gated on `CJ_E2E_LOCAL=1` plus gstack + a usable claude login (`ANTHROPIC_API_KEY`, or a `claude auth login` confirmed by a tiny live probe — a stored login is not trusted blindly, since some managed environments report logged-in yet a subprocess 401s) + `claude` + `gh`; with the flag unset or any prerequisite missing it SKIPs (exit 0) so CI + a normal `test.sh` never touch a model. **Safety:** activates only the Part-A seam (allowlist `{design-gate, qa-audit}` — NEVER ship/merge/deploy); the no-remote bare origin is the sole auto-ship backstop. Its deterministic half (SKIP path + `lib/sandbox.sh` + `lib/report.sh`) is unit-tested with no Claude by `tests/e2e-local.test.sh`; `tests/e2e-local/reports/` is gitignored except the committed `EXAMPLE.md`. | Run locally (`CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh`) to prove the whole cj_goal build works end to end; SKIPs cleanly everywhere else. |
 | `skills-update-check` | Passive update detector — emits `SKILLS_UPGRADE_AVAILABLE` banner when origin/main has a newer collection version. Subcommands: `--snooze [hours]`, `--skip <ver>`, `--prompted <session>`, `--should-prompt <session>`. Called from each active skill's preamble. | Auto-invoked from skill preambles. Not a maintainer tool. |
 | `doc-spec.sh` | Parse + validate the two-tier doc-spec registry (the doc contract): the GENERAL `spec/doc-spec.md` (byte-identical to `--seed`, never edited in place) merged with the optional `spec/doc-spec-custom.md` overlay (same 3-column Markdown-table grammar — `\| Doc \| Purpose \| Requirement \|`; the overlay always resolves next to the general file). The table IS the registry — `audit_class` is DERIVED from the path (a path under `docs/` or the root `README.md` is a human-doc, else operational), not a declared column; the tier is the file (general vs overlay), not a per-row field. All list subcommands + `--validate` operate on the MERGE; a path duplicated across the two files is a `--validate` error. Subcommands: `--validate` (exit 0 + `OK schema_version=<n>`, else `[doc-sync-no-config]` + exit 1 — incl. a present-but-invalid overlay or a malformed table row / literal `\|` in a cell), `--check-on-disk` (the audit Stage-1 engine: FOUR deterministic conformance checks of the merged registry vs the disk — declared-exists, orphans incl. an undeclared overlay, root-declared, human-doc-ids; `check: <id> — PASS` / `FINDING: stage1/<id>` lines + `CHECKS_RUN=`/`FINDINGS=` tail; probes registry existence BEFORE the parse gates — absent ⇒ `REGISTRY=absent` + exit 0, present-but-invalid ⇒ the `[doc-sync-no-config]` halt), `--list-declared`, `--list-human-docs` (the path-derived human-doc paths), `--expand-whitelist` (the doc-only auto-commit whitelist = merged declared paths + the contract files + `docs/**/*.md`), `--seed` (the portable general file, for self-bootstrap; 3-way byte-identical with `spec/doc-spec.md` + `templates/doc-spec-common.md`). Resolves the registry `spec/doc-spec.md`-then-root via `git rev-parse --show-toplevel`, so a `_cj-shared`-resolved copy parses the cwd repo's registry. Consumed by `validate.sh` Checks 15/16/17/19 + `/CJ_document-release` + `/CJ_doc_audit`. | Auto-invoked by `validate.sh` + `/CJ_document-release` + `/CJ_doc_audit`. |
@@ -610,8 +616,8 @@ fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
 The DETERMINISTIC doc-sync — regenerating the generated catalogs so the per-PR
 gate stays green — runs INLINE on every common main-moving path; the slow AGENTIC
-doc/test sync (prose rewrite + overlay-amendment sweep) DEFERS to nightly CI
-(F000079):
+doc/test sync (prose rewrite + overlay-amendment sweep) DEFERS to the on-demand
+audit (F000079; F000080 re-homed that audit off nightly CI):
 
 - **Orchestrator paths** — each `cj_goal` orchestrator (`/CJ_goal_feature`,
   `/CJ_goal_task`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) folds the regenerated
@@ -623,8 +629,8 @@ doc/test sync (prose rewrite + overlay-amendment sweep) DEFERS to nightly CI
   NOR the slow agent-judged doc/test SYNC (F000079): QA passes `DEFER_AUDIT: true`
   + `DEFER_SYNC: true` (it runs only the deterministic new-surface row inline and
   skips the agentic amendment sweep + the audit), and the `/CJ_doc_audit` +
-  `/CJ_test_audit` sweep runs NIGHTLY instead — see `## Nightly doc/test-drift
-  audit` below. The deterministic per-PR gate (`validate.sh` / `validate.yml` / the
+  `/CJ_test_audit` sweep runs ON-DEMAND / locally instead — see `## Deferred
+  doc/test-drift audit` below. The deterministic per-PR gate (`validate.sh` / `validate.yml` / the
   pre-commit hook) is UNCHANGED and still blocks a broken change per-PR.
 - **`/ship` paths** — `/ship` Step 18 dispatches `/document-release` on every
   invocation, after the push and before the PR exists, so a manual `/ship` still
@@ -645,29 +651,32 @@ AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).
 
-## Nightly doc/test-drift audit (F000076; also the deferred SYNC safety net, F000079)
+## Deferred doc/test-drift audit (F000076; deferred SYNC safety net, F000079; re-homed off nightly CI to on-demand, F000080)
 
 The agent-judged doc/test-drift audit (`/CJ_doc_audit` + `/CJ_test_audit`) used
 to run inline on every `cj_goal` build, right after doc-sync, gated by a QA-audit
-checkpoint AUQ. F000076 moved it OFF the per-PR path onto a nightly CI cadence.
+checkpoint AUQ. F000076 moved it OFF the per-PR path; F000080 then re-homed it
+from a nightly CI cadence to ON-DEMAND / local (the nightly workflow was deleted,
+the `scripts/audit-nightly.sh` script stays).
 The four `CJ_goal_*` orchestrators (feature / task / defect / todo_fix) no longer
 run this audit inline and no longer surface the QA-audit checkpoint — QA passes
-`DEFER_AUDIT: true`, which now means **"QA skips the inline agent-judged audit;
-nightly CI covers it."** **F000079 widened what this nightly sweep is the safety
-net FOR:** the orchestrators also stopped running the slow inline doc-sync
-(`/CJ_document-release` prose rewrite → replaced by a deterministic doc-regen at
-Step 5.5) and the agent-judged test-sync overlay-amendment sweep (QA 8.6a/8.6b,
-now `DEFER_SYNC: true`). That deferred agentic drift is caught by the SAME nightly
-sweep — `/CJ_doc_audit` Stage 3 (docs reflect reality) + `/CJ_test_audit` (overlay
-truthfulness) — filed to the same `audit-drift` issue, so **no new nightly job was
-added.** The consciously-accepted trade: semantic doc/spec *prose* freshness now
+`DEFER_AUDIT: true`, which now means **"QA skips the inline agent-judged audit; it
+runs on-demand off the build path."** **F000079 widened what this deferred sweep
+is the safety net FOR:** the orchestrators also stopped running the slow inline
+doc-sync (`/CJ_document-release` prose rewrite → replaced by a deterministic
+doc-regen at Step 5.5) and the agent-judged test-sync overlay-amendment sweep (QA
+8.6a/8.6b, now `DEFER_SYNC: true`). That deferred agentic drift is caught by the
+SAME on-demand sweep — `/CJ_doc_audit` Stage 3 (docs reflect reality) +
+`/CJ_test_audit` (overlay truthfulness) — filed to the same `audit-drift` issue.
+The consciously-accepted trade: semantic doc/spec *prose* freshness now
 lands post-merge via the issue, not in the same PR (F000036's same-PR thesis
 narrows to STRUCTURE, which the deterministic Step 5.5 + `validate.sh` still keep
 in-PR).
 
-- **Producer** — `scripts/audit-nightly.sh`, driven by
-  `.github/workflows/audit-nightly.yml` (the `CI-nightly` cadence +
-  `workflow_dispatch`). It runs both audit verbs headless (`claude --print`),
+- **Producer** — `scripts/audit-nightly.sh`, run ON-DEMAND / locally (the former
+  `.github/workflows/audit-nightly.yml` nightly CI job was removed by F000080; the
+  script also stays runnable directly, and `/CJ_doc_audit` + `/CJ_test_audit` can
+  be invoked as verbs). It runs both audit verbs headless (`claude --print`),
   parses their findings, and files/updates a single GitHub issue labelled
   `audit-drift`. It SKIPs cleanly (exit 0) without a usable model key, so a normal
   `test.sh` and non-model CI never invoke a model.
@@ -727,7 +736,8 @@ cross-checks every declared literal marker against the four `CJ_goal_*` pipeline
 As of F000076 the inline gate sequence ends at the `doc-sync` gate (order 45) →
 `ship` (order 70): the former `qa-audit` gate (order 50) and its literal markers
 `[qa-audit-declined]` / `[qa-audit-waived]` were REMOVED when the agent-judged
-doc/test audit moved to nightly CI (see `## Nightly doc/test-drift audit`). Each
+doc/test audit moved off the inline path (it now runs on-demand — see `## Deferred
+doc/test-drift audit`). Each
 pipeline's halt-taxonomy names `spec/test-spec.md` as the canonical gate sequence.
 
 ## Doc contract (doc-spec.md)
@@ -816,7 +826,7 @@ the portable contract adopts it — or Check 17 flags it.
 
 ## /CJ_document-release doc audit conventions
 
-`/CJ_document-release` (the standalone / nightly doc-sync wrapper — no longer the
+`/CJ_document-release` (the standalone / on-demand doc-sync wrapper — no longer the
 inline Step 5.5 call as of F000079, which replaced it with a deterministic
 doc-regen) is the keeper of the
 doc contract. On every run it reads `doc-spec.md`, self-bootstraps a missing
@@ -965,7 +975,8 @@ PR via `gh pr list` + the diff-review AUQ at their own cadence (the autonomy
 ceiling per F000021). Halt-on-red entries are still written to tracker journals;
 the loop still STOPS on red regardless of `--quiet`. (Since F000076 there is no
 inline QA-audit checkpoint for `--quiet` to auto-answer — the agent-judged
-doc/test audit runs nightly in CI, not per-drained-TODO; `--quiet`'s other
+doc/test audit runs on-demand, off the build path, not per-drained-TODO;
+`--quiet`'s other
 behaviors above are unchanged.) The /schedule integration
 is doc-only — no schema-binding lock-in; the /schedule skill (upstream gstack)
 remains independent and the cron-pattern above is just a copy-paste example.
