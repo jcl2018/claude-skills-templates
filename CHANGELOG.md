@@ -3,6 +3,32 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.112] - 2026-07-03
+
+### Changed
+- **F000079 — slim the cj_goal build gate: take inline doc-sync + test-sync off the
+  per-PR path (deterministic-agentic split).** cj_goal builds (feature/task/defect/
+  todo_fix) no longer pay for the two slow agent-driven sync steps on the critical
+  path. Step 5.5 doc-sync swaps the slow `/CJ_document-release` LLM prose pass for a
+  fast deterministic `--render-docs` regen (the `Step 5.5: Doc-sync` heading +
+  `[doc-sync-red]`/`[doc-sync-non-doc-write]` markers are reframed to the
+  deterministic engine) across all four pipelines; QA gains a `DEFER_SYNC: true`
+  directive (sibling of `DEFER_AUDIT`) that skips the agent-judged 8.6a/8.6b
+  overlay-amendment sweep while still adding the deterministic new-surface `units:`
+  row the per-PR gate needs. The slow agentic doc/test sync defers to the EXISTING
+  nightly audit (`audit-nightly.yml` → the `audit-drift` issue) — no new job.
+- **Enforced via the two-axis test contract.** A `level: integration` behavior
+  `build-gate-no-inline-slow-sync` + a `workflow`/`CI-push` `cj-goal-gate-shape`
+  category test (runnable by name via `/CJ_test_run`, reported wired by
+  `/CJ_test_audit`), backed by the extended `cj-goal-doc-sync-wiring` guard
+  (checks 7-9: no inline `/CJ_document-release`, the deterministic regen present,
+  `DEFER_SYNC` wired). The complement to F000078's nightly `doc-sync` workflow test.
+- The deterministic per-PR gate (`validate.sh` / `validate.yml` / pre-commit) and the
+  standalone `/CJ_qa-work-item` / `/CJ_document-release` / `/CJ_doc_audit` /
+  `/CJ_test_audit` skills are unchanged. Accepted trade: doc/spec *prose* freshness
+  now lands post-merge via the nightly issue (F000036's same-PR thesis narrows to
+  structure, which the deterministic Step 5.5 + `validate.sh` keep in-PR).
+
 ## [6.0.111] - 2026-07-03
 
 ### Changed
