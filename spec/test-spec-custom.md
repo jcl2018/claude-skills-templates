@@ -118,25 +118,31 @@ sub-suites* and the *inline `test.sh` families*:
 
 | Check / Unit | What it asserts |
 |---|---|
-| skills-deploy suite — install/doctor/remove in isolation | Template ownership, drift overwrite, copy-mode and doctor verdicts in temp homes. |
 | Windows smoke — CRLF + portable date + copy-mode | Git Bash assertions: CRLF tolerance, portable date math, copy-mode install stamp. |
+
+(The `skills-deploy` / `test-deploy` standalone suite is re-layered to `CI-nightly` —
+see the section below.)
 
 **GitHub Actions workflows** (CI-push subset):
 
 | Check / Unit | What it asserts |
 |---|---|
-| validate workflow — PR gate | Runs the validator, full test suite and shellcheck on every PR. |
+| validate workflow — PR gate | Runs the validator, the FAST test subset (`TEST_FAST=1` — skips the heavy `test-deploy` suite) and shellcheck on every PR. |
 | windows workflow — Git Bash smoke gate | Runs the fast Windows smoke under Git Bash on PR + push-main (CI-push cadence). |
 
 ### Handled by `CI-nightly` (heavier DETERMINISTIC checks off the PR path, on a nightly schedule)
 
-Deterministic-only. F000080 removed the two agentic nightly workflows
-(`eval-nightly.yml` + `audit-nightly.yml`); the sole remaining scheduled surface is
-the `windows-nightly` GitHub Actions workflow (`nightly` trigger, `layer:
-CI-nightly`). The `portability-deploy` workflow-category test shares that cadence.
+Deterministic-only. Two scheduled workflows run here: `nightly.yml` (the ubuntu
+full `scripts/test.sh`, F000081/WS4) and `windows-nightly.yml` (the windows-latest
+skills-deploy suite, F000080). The heavy `skills-deploy` / `test-deploy` suite is
+re-layered to this cadence (F000081 follow-up): the per-PR `test.sh` skips it under
+`TEST_FAST=1`, so it gates via `nightly.yml` rather than on every PR. The
+`portability-deploy` workflow-category test shares this cadence.
 
 | Check / Unit | What it asserts |
 |---|---|
+| nightly workflow — full test suite | Runs the FULL scripts/test.sh (including test-deploy.sh) on ubuntu-latest nightly + on dispatch (CI-nightly cadence). |
+| skills-deploy suite — install/doctor/remove in isolation | Template ownership, drift overwrite, copy-mode and doctor verdicts in temp homes; re-layered from CI-push (the per-PR test.sh skips it under TEST_FAST=1). |
 | windows-nightly workflow — nightly skills-deploy suite | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest nightly + on dispatch (CI-nightly cadence). |
 
 ### Handled by `local-hook` (at `git commit`, or run on-demand before code leaves the machine)
@@ -1090,10 +1096,10 @@ units:
     label: "skills-deploy suite — install/doctor/remove in isolation"
     anchor: "scripts/test-deploy.sh"
     source: scripts/test.sh
-    layer: CI-push
+    layer: CI-nightly
     disposition: hard-fail
-    trigger: "pr-ci manual"
-    purpose: "Template ownership, drift overwrite, copy-mode fallback, shared-script orphan pruning (manifest-keyed, ownership-safe), and doctor verdicts (incl. the shared-scripts health section) in isolated temp homes; runs inside the test suite (via scripts/test.sh) and by hand — its standalone Windows run moved to the nightly windows-nightly.yml (owned by ci-windows-nightly)."
+    trigger: "nightly manual"
+    purpose: "Template ownership, drift overwrite, copy-mode fallback, shared-script orphan pruning (manifest-keyed, ownership-safe), and doctor verdicts (incl. the shared-scripts health section) in isolated temp homes; runs inside the test suite (via scripts/test.sh) and by hand. Re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it now gates via the nightly full-suite (.github/workflows/nightly.yml), NOT per-PR; its standalone Windows run is the nightly windows-nightly.yml (owned by ci-windows-nightly)."
   - id: suite-eval
     family: eval
     label: "behavioral eval harness — headless skill evals"
@@ -1523,12 +1529,12 @@ categories:
     purpose: "The full behavioral test suite — runs validate.sh, every registered tests/*.test.sh sub-suite, test-deploy.sh, and windows-smoke.sh."
   - name: test-deploy
     category: infra
-    layer: CI-push
+    layer: CI-nightly
     mode: deterministic
     command: "bash scripts/test-deploy.sh"
     tier: free
-    doc: "docs/tests/infra/CI-push/test-deploy.md"
-    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host push-cadence run."
+    doc: "docs/tests/infra/CI-nightly/test-deploy.md"
+    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it gates via the nightly full-suite (nightly.yml), not per-PR."
   # ---- infra: the deploy/install (portability) harness, at all three test levels —
   #      CI-push {the Check-18 declared-vs-actual lint + the Git-Bash smoke},
   #      CI-nightly {the Windows-native deploy suite}, local-hook {the version-check} ----

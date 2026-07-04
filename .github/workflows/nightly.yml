@@ -10,12 +10,14 @@ name: Nightly (full test suite)
 # can be OOM-flaky on a shared runner. Moving it to a nightly cadence keeps the
 # heavy work off every PR.
 #
-# SAFE-ADDITIVE (F000081/WS4): this workflow ADDS a nightly run; it removes
-# nothing. The per-PR gate .github/workflows/validate.yml is UNTRIMMED this feature
-# (it still runs validate.sh + the full test.sh + shellcheck on every PR). Trimming
-# validate.yml's per-PR coverage to the fast set — and the matching `layer` reclass
-# of the moved units to CI-nightly — is a deferred, attended follow-up work-item; an
-# autonomous PR-stop can't verify a trimmed gate, so it is out of scope here.
+# CI-nightly home for the heavy suite. This nightly run is now where the heavy
+# skills-deploy fixture suite (test-deploy.sh) actually gates: the per-PR
+# .github/workflows/validate.yml runs test.sh with TEST_FAST=1 (skipping
+# test-deploy.sh), while THIS workflow runs the FULL test.sh (no flag) every night,
+# so test-deploy regressions are caught nightly rather than on every PR. The per-PR
+# gate still runs validate.sh + every fast unit sub-suite + shellcheck. (The
+# F000081/WS4 trim was deferred as an attended follow-up because an autonomous
+# PR-stop cannot verify a trimmed gate; it was done attended after F000081 landed.)
 #
 # Manual runs: gh workflow run nightly.yml
 

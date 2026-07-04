@@ -1715,12 +1715,23 @@ set -e
 # end-to-end so template-ownership regressions in skills-deploy fail in CI loudly
 # instead of rotting silently — closes the meta-bug behind D000016.
 echo ""
-echo "Running scripts/test-deploy.sh end-to-end..."
-if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
-  ok "scripts/test-deploy.sh passed end-to-end (skills-deploy template-ownership tests)"
+# TEST_FAST (F000081 follow-up): test-deploy.sh is the heavy skills-deploy fixture
+# suite (many throwaway temp-dir installs) — the slowest deterministic sub-suite and
+# the biggest remaining CI-push cost after the negative-test speedup. It is re-layered
+# to CI-nightly: the per-PR gate (.github/workflows/validate.yml) runs test.sh with
+# TEST_FAST=1 to SKIP it, and the full nightly suite (.github/workflows/nightly.yml,
+# no flag) still runs it every night. TEST_FAST gates ONLY this heavy suite; every
+# fast unit sub-suite + the inline integration tests still run on every PR.
+if [ "${TEST_FAST:-0}" = "1" ]; then
+  echo "SKIP: scripts/test-deploy.sh (TEST_FAST=1 — the heavy skills-deploy fixture suite runs on the CI-nightly cadence via .github/workflows/nightly.yml, not per-PR)"
 else
-  _td_rc=$?
-  fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+  echo "Running scripts/test-deploy.sh end-to-end..."
+  if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
+    ok "scripts/test-deploy.sh passed end-to-end (skills-deploy template-ownership tests)"
+  else
+    _td_rc=$?
+    fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+  fi
 fi
 
 # Smoke-test scripts/check-version-queue.sh
