@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 # skills-update-check — passive update detector for claude-skills-templates consumers.
 #
-# Default action: read manifest + cache, fetch origin/main once per 24h, compare
-# manifest.collection_version vs origin/main:VERSION. Print SKILLS_UPGRADE_AVAILABLE
-# if newer; print SKILLS_JUST_UPGRADED once after a successful skills-deploy install
-# --from-upgrade. All errors silenced — never block a skill workflow.
+# Default action (F000081/WS3 — checkout-independent): read manifest + cache, and
+# once per 24h read the max published v<X.Y.Z> tag from the upstream repo via
+# `git ls-remote --tags <upstream_url>`. Compare manifest.collection_version (LOCAL)
+# vs that remote tag; print SKILLS_UPGRADE_AVAILABLE if the remote is newer. This
+# works on ANY machine — a remote host or a consumer/foreign repo with NO live
+# workbench `.git` checkout — because the remote read is an anonymous ls-remote
+# against the published repo, not a fetch into a local clone. The old `.source`/.git
+# gate is GONE; `.source`, when present, is used only for the richer git-pull upgrade
+# ACTION (in the skill preamble) + origin-URL pinning. Print SKILLS_JUST_UPGRADED
+# once after a successful skills-deploy install --from-upgrade. All errors silenced —
+# ls-remote unreachable / no v-tags → silent (never a false nudge); never blocks a
+# skill workflow.
 #
 # Subcommands let skill bodies write cache state without writing JSON themselves:
 #   --snooze [hours]            (default 24)
@@ -17,13 +25,23 @@
 #   cache:     $HOME/.claude/.skills-templates-update.json
 #   marker:    $HOME/.claude/.skills-templates-just-upgraded
 #
+# Test seams (hermetic, no real network):
+#   SKILLS_TEMPLATES_MANIFEST   override the manifest path
+#   SKILLS_UPDATE_REMOTE_URL    the remote URL to ls-remote (bypasses upstream_url);
+#                               point it at a local bare repo / a PATH-stubbed git
+#   SKILLS_UPDATE_STATE_DIR     repoint the cache + marker into a throwaway dir
+#
 # Reuses version_gte from scripts/lib.sh (sourced if available).
 
 set -euo pipefail
 
 MANIFEST="${SKILLS_TEMPLATES_MANIFEST:-$HOME/.claude/.skills-templates.json}"
-CACHE="${SKILLS_TEMPLATES_CACHE:-$HOME/.claude/.skills-templates-update.json}"
-MARKER="${SKILLS_TEMPLATES_MARKER:-$HOME/.claude/.skills-templates-just-upgraded}"
+# SKILLS_UPDATE_STATE_DIR (F000081/WS3) — a hermetic test override that repoints the
+# cache + marker into a throwaway dir so the unit test never touches ~/.claude state.
+# Explicit SKILLS_TEMPLATES_CACHE / SKILLS_TEMPLATES_MARKER still win (back-compat).
+_STATE_DIR="${SKILLS_UPDATE_STATE_DIR:-$HOME/.claude}"
+CACHE="${SKILLS_TEMPLATES_CACHE:-$_STATE_DIR/.skills-templates-update.json}"
+MARKER="${SKILLS_TEMPLATES_MARKER:-$_STATE_DIR/.skills-templates-just-upgraded}"
 
 # Strip CRLF from jq output on Windows (jq.exe writes \r\n). No-op on Unix.
 jq() { command jq "$@" | tr -d '\r'; }
@@ -93,6 +111,65 @@ manifest_field() {
 # components — a 4-digit pair like 1.2.3.9 vs 1.2.3.10 would silently compare equal.
 is_semver() {
   printf '%s' "$1" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
+}
+
+# Normalize an upstream URL to a form `git ls-remote` can read anonymously.
+# ssh-form (git@github.com:OWNER/REPO.git) → https (https://github.com/OWNER/REPO.git)
+# so a consumer/remote install with no ssh key can still read public tags. Any URL
+# already https/http/git:// (or a local path) passes through unchanged — git handles
+# ssh + https + non-GitHub hosts, so we only rewrite the one form anonymous reads need.
+normalize_upstream_url() {
+  local url="$1"
+  case "$url" in
+    git@*:*)
+      # git@host:owner/repo(.git) → https://host/owner/repo(.git)
+      local host_path="${url#git@}"          # host:owner/repo.git
+      local host="${host_path%%:*}"          # host
+      local path="${host_path#*:}"           # owner/repo.git
+      printf 'https://%s/%s' "$host" "$path"
+      ;;
+    ssh://git@*)
+      # ssh://git@host/owner/repo(.git) → https://host/owner/repo(.git)
+      printf 'https://%s' "${url#ssh://git@}"
+      ;;
+    *)
+      printf '%s' "$url"
+      ;;
+  esac
+}
+
+# Read the max published v<X.Y.Z> release tag from a remote via `git ls-remote`.
+# Checkout-INDEPENDENT (F000081/WS3): no local .git checkout required — anonymous
+# ls-remote against the published repo. Prints the bare X.Y.Z (no `v`) of the highest
+# 3-digit v-tag, or nothing (fail-soft) when the remote is unreachable / has no v-tags.
+# GIT_TERMINAL_PROMPT=0 + GIT_ASKPASS=true + a batch-mode ssh + a short timeout keep it
+# from ever hanging a skill preamble on an auth or network stall.
+remote_max_tag() {
+  local url="$1"
+  [ -n "$url" ] || return 0
+  local raw
+  # ls-remote --tags <url> 'v*' → lines: "<sha>\trefs/tags/vX.Y.Z". Strip to the
+  # X.Y.Z, keep only 3-digit semver tags, sort version-descending, take the top.
+  raw=$(GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true \
+        GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
+        git ls-remote --tags "$url" 'v*' 2>/dev/null | tr -d '\r') || return 0
+  [ -n "$raw" ] || return 0
+  # For each line: take the ref (2nd field), drop a peeled-tag `^{}` suffix, keep only
+  # refs/tags/v<3-digit-semver>, strip the `refs/tags/v` prefix, then sort semver-desc.
+  # The `|| true` neutralizes grep's exit 1 when NO v-tag matches (a legit
+  # "no release tags" case) so this never trips the caller's `set -e` — an empty
+  # print is the fail-soft signal, not an error. Capture then echo so the function
+  # itself always returns 0.
+  local max
+  max=$(printf '%s\n' "$raw" \
+    | awk '{print $2}' \
+    | sed 's/\^{}$//' \
+    | grep -E '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \
+    | sed 's#^refs/tags/v##' \
+    | sort -t. -k1,1n -k2,2n -k3,3n \
+    | tail -1) || true
+  printf '%s' "$max"
+  return 0
 }
 
 now_epoch() { date +%s; }
@@ -194,18 +271,41 @@ cmd_default() {
   source_path=$(manifest_field "source")
   local_version=$(manifest_field "collection_version")
   expected_upstream=$(manifest_field "upstream_url")
-  [ -n "$source_path" ] || exit 0
-  [ -d "$source_path/.git" ] || exit 0
+  # Checkout-INDEPENDENT (F000081/WS3): the ONLY hard requirement now is a local
+  # version to compare against. The old `.source` + `[ -d .source/.git ]` gate was
+  # removed — a remote machine / consumer repo with no live workbench checkout still
+  # gets a staleness nudge, because the remote read below is an anonymous
+  # `git ls-remote` against the published upstream, not a fetch into a local clone.
+  # `.source` is now used ONLY for the richer git-pull upgrade ACTION + origin-pinning
+  # (both best-effort, below); its absence never suppresses the banner.
   [ -n "$local_version" ] || exit 0
 
-  # Origin URL pinning (T000031). If the manifest recorded an upstream_url at
-  # install time, verify the source repo's current origin matches before
-  # recommending an upgrade. Mismatch means someone (legitimate remote change,
-  # or attacker) redirected origin since install — suppress the banner and
-  # warn so the user decides whether to re-run `skills-deploy install` to
-  # re-pin or investigate. Pre-T000031 manifests have no upstream_url field;
-  # treat empty as "not pinned" for backward compatibility.
-  if [ -n "$expected_upstream" ]; then
+  # Resolve the remote URL to read published tags from. A test seam
+  # (SKILLS_UPDATE_REMOTE_URL) wins for hermetic no-network runs; otherwise the
+  # manifest upstream_url, normalized ssh→https so anonymous public reads work.
+  local remote_url
+  if [ -n "${SKILLS_UPDATE_REMOTE_URL:-}" ]; then
+    remote_url="$SKILLS_UPDATE_REMOTE_URL"
+  else
+    remote_url=$(normalize_upstream_url "$expected_upstream")
+  fi
+  # Backward-compat fallback (F000081/WS3): a pre-upstream_url (legacy) manifest
+  # carries no upstream_url, but when a live .source checkout is present we can still
+  # resolve a remote to read tags from via its origin URL. Keeps legacy manifests
+  # detecting updates; a remote/consumer install with neither an upstream_url nor a
+  # .source checkout simply can't resolve a remote and exits silent below.
+  if [ -z "$remote_url" ] && [ -n "$source_path" ] && [ -d "$source_path/.git" ]; then
+    remote_url=$(normalize_upstream_url "$(git -C "$source_path" remote get-url origin 2>/dev/null || true)")
+  fi
+  [ -n "$remote_url" ] || exit 0
+
+  # Origin URL pinning (T000031) — best-effort, and ONLY when a live .source git
+  # checkout exists. If the manifest recorded an upstream_url and .source's current
+  # origin has been redirected since install, suppress the banner + warn (someone —
+  # legit or attacker — repointed origin). A consumer/remote install with no .source
+  # checkout simply skips this pin (nothing local to compare) and reads the remote
+  # directly. Pre-T000031 manifests have no upstream_url; treat empty as "not pinned".
+  if [ -n "$expected_upstream" ] && [ -n "$source_path" ] && [ -d "$source_path/.git" ]; then
     local current_upstream
     current_upstream=$(git -C "$source_path" remote get-url origin 2>/dev/null || true)
     if [ -n "$current_upstream" ] && [ "$current_upstream" != "$expected_upstream" ]; then
@@ -245,35 +345,20 @@ cmd_default() {
   fi
 
   if [ "$need_fetch" = "1" ]; then
-    # Fetch + read remote VERSION. On any failure, fall back to stale cache.
-    # GIT_TERMINAL_PROMPT=0 prevents auth prompts from popping mid-skill.
-    # GIT_ASKPASS=true (the literal `true` command) returns success-but-empty
-    # for any credential request, so HTTPS clones requiring creds fail fast
-    # instead of hanging. Same for SSH passphrase via GIT_SSH_COMMAND.
-    # Fork-aware remote resolution: try origin first (common: origin IS canonical),
-    # fall back to upstream if origin is missing OR origin's fetch fails (dead URL,
-    # deleted/renamed branch, no main on that remote, etc.). Silent no-op if
-    # neither remote yields a VERSION.
+    # Read the max published v<X.Y.Z> tag via `git ls-remote --tags` (checkout-
+    # independent). On any failure (unreachable remote / no v-tags) remote_max_tag
+    # prints nothing and we fall back to the stale cache; if the cache is also empty
+    # we exit silent — never a false nudge. `v`-tag assumption: this reads the latest
+    # release v-tag (collection v-tags are ratcheted by validate.sh Error check 8); a
+    # consumer whose upstream_url repo doesn't tag releases fail-softs to silent.
     local fresh_remote=""
-    local remote=""
-    for try_remote in origin upstream; do
-      git -C "$source_path" config --get "remote.${try_remote}.url" >/dev/null 2>&1 || continue
-      if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
-         git -C "$source_path" fetch --quiet "$try_remote" main 2>/dev/null; then
-        fresh_remote=$(git -C "$source_path" show "${try_remote}/main:VERSION" 2>/dev/null | tr -d '[:space:]')
-        if [ -n "$fresh_remote" ]; then
-          remote="$try_remote"
-          break
-        fi
-      fi
-    done
-    [ -z "$remote" ] && exit 0
+    fresh_remote=$(remote_max_tag "$remote_url")
     if [ -n "$fresh_remote" ] && is_semver "$fresh_remote"; then
       remote_version="$fresh_remote"
       cache_read | jq --argjson t "$now_ts" --arg lv "$local_version" --arg rv "$remote_version" \
         '. + {checked_at: $t, local_version: $lv, remote_version: $rv}' | cache_write
     fi
-    # If fetch/show failed AND cache had nothing, exit silent.
+    # If the remote read failed AND cache had nothing, exit silent.
     if [ -z "$remote_version" ]; then
       exit 0
     fi

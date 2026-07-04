@@ -264,26 +264,6 @@ privacy gate); all rows land with `<!--impr-draft-->` markers.
 - **Scripts · tools · shell:** the `/browse` skill (URL fetch), WebSearch; an mkdir-based write lock + atomic `mv`; Read / Edit.
 - **Reads / writes:** reads the fetched article + the repo (audit mode) + `skills-catalog.json`; appends `<!--impr-draft-->`-marked draft rows to `TODOS.md` (backup-rotated).
 
-#### CJ_portability-audit
-
-**Status:** experimental
-**Category:** workbench (operates ON the workbench — reaches its own root engine
-via the deployed shared home; matches `skills-catalog.json`)
-**Source:** `skills/CJ_portability-audit/SKILL.md` ·
-`skills/CJ_portability-audit/USAGE.md` · engine
-`scripts/cj-portability-audit.sh`
-**Invoke when:** you want to verify the workbench's own skills HONESTLY declare
-their `portability` — a static lint over the catalog that flags a skill declaring
-`standalone` while it *executes* a repo-local workbench helper a fresh target
-repo won't have; read-only and advisory (also wired into `validate.sh` as an
-advisory check). The full correct-behavior spec is in
-[utility-audits.md](utility-audits.md) `## Utility audits` ->
-`### /CJ_portability-audit`.
-**Touches:**
-
-- **Scripts · tools · shell:** `scripts/cj-portability-audit.sh` (the shared engine, resolved repo-local-first then via the deployed shared home); Bash / Read / Grep. Also invoked by `scripts/validate.sh`.
-- **Reads / writes:** reads `skills-catalog.json` (+ optional `portability_requires`) + each audited skill's files; read-only — prints the per-skill verdict table, mutates nothing.
-
 #### CJ_test_run
 
 **Status:** experimental

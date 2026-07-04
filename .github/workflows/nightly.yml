@@ -1,0 +1,54 @@
+name: Nightly (full test suite)
+
+# The nightly full test suite — the `CI-nightly` cadence `nightly` `ci` unit
+# (F000081 / WS4). It runs the FULL scripts/test.sh on ubuntu-latest on a nightly
+# schedule (plus a manual dispatch), giving the heavy suite a home OFF the per-PR
+# path.
+#
+# Why nightly: scripts/test.sh is slow (it re-runs the whole validator plus every
+# registered tests/*.test.sh sub-suite, test-deploy.sh and windows-smoke.sh) and
+# can be OOM-flaky on a shared runner. Moving it to a nightly cadence keeps the
+# heavy work off every PR.
+#
+# CI-nightly home for the heavy suite. This nightly run is now where the heavy
+# skills-deploy fixture suite (test-deploy.sh) actually gates: the per-PR
+# .github/workflows/validate.yml runs test.sh with TEST_FAST=1 (skipping
+# test-deploy.sh), while THIS workflow runs the FULL test.sh (no flag) every night,
+# so test-deploy regressions are caught nightly rather than on every PR. The per-PR
+# gate still runs validate.sh + every fast unit sub-suite + shellcheck. (The
+# F000081/WS4 trim was deferred as an attended follow-up because an autonomous
+# PR-stop cannot verify a trimmed gate; it was done attended after F000081 landed.)
+#
+# Manual runs: gh workflow run nightly.yml
+
+on:
+  schedule:
+    # 08:41 UTC daily. Offset from :00 to avoid GitHub Actions cron contention
+    # (top-of-hour slots queue against millions of other jobs and can drift), and
+    # offset from windows-nightly's :23 so the two nightly workflows don't collide.
+    - cron: '41 8 * * *'
+  # Manual trigger for debug/verification without waiting for cron.
+  workflow_dispatch:
+
+# Limit GITHUB_TOKEN to read-only contents access (defense-in-depth); this job
+# needs no write access to anything.
+permissions:
+  contents: read
+
+# Prevent concurrent cron + manual triggers from running the suite twice.
+# cancel-in-progress: false queues the second run rather than killing the first.
+concurrency:
+  group: nightly-full-suite
+  cancel-in-progress: false
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y jq shellcheck
+
+      - name: Full test suite
+        run: ./scripts/test.sh

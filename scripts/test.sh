@@ -39,11 +39,25 @@ if ! git config user.name >/dev/null 2>&1; then
   git config user.email "test@test.local"
 fi
 
+# NOTE: keep this banner EXACT — it is the `testsh-validate-rerun` units-row anchor
+# in spec/test-spec-custom.md (validate.sh Check 24 forward-check greps it verbatim).
 echo "=== Running validate.sh ==="
-if "$REPO_ROOT/scripts/validate.sh"; then
+# Run the full validator ONCE and reuse its output + exit code for every clean-tree
+# guard below (S000094 Check 21, S000096 Check 24 + exit-0, F000060 Check 24). Those
+# guards used to re-invoke validate.sh 4-5x back-to-back, which built runner memory
+# pressure and OOM-killed a later run — the chronic "validate.sh exits non-zero" flake.
+# Capturing once (not re-running) fixes it, the same way F000081 fixed the negatives.
+# Capture output + real exit code without tripping errexit (CI runs `bash -e test.sh`).
+# The assignment lives in an `if` condition (errexit-exempt) so a non-zero validate.sh
+# is TOLERATED and surfaced as a clear fail_test below — not a silent `set -e` death.
+# (An `A=$(...) || B` / `A && B || C` form would either lose the exit code or trip
+# SC2015, which CI shellcheck flags; the if-form avoids both.)
+if _VALIDATE_OUT=$("$REPO_ROOT/scripts/validate.sh" 2>&1); then _VALIDATE_RC=0; else _VALIDATE_RC=$?; fi
+printf '%s\n' "$_VALIDATE_OUT"
+if [ "$_VALIDATE_RC" -eq 0 ]; then
   ok "validate.sh passed"
 else
-  fail_test "validate.sh failed"
+  fail_test "validate.sh failed (exit $_VALIDATE_RC)"
 fi
 
 echo ""
@@ -105,10 +119,10 @@ else
   for _v in git-push-to-main gh-pr-merge rm network-egress; do
     bash "$_S94_PP" --deny-verbs 2>/dev/null | grep -qx "$_v" || fail_test "S000094: risky verb '$_v' not declared deny in the policy"
   done
-  # S4: Check 21 is wired into validate.sh and passes on the in-sync tree (advisory, exit 0).
-  _S94_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S94_V" | grep -q 'Check 21: cj_goal permission-policy drift' || fail_test "S000094: validate.sh missing Check 21"
-  printf '%s\n' "$_S94_V" | grep -q 'PASS: permission policy + enforcement points in sync' || fail_test "S000094: Check 21 did not PASS on the in-sync tree"
+  # S4: Check 21 is wired into validate.sh and passes on the in-sync tree (advisory,
+  # exit 0). Reuse the single top-of-suite validate.sh capture (no redundant re-run).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 21: cj_goal permission-policy drift' || fail_test "S000094: validate.sh missing Check 21"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: permission policy + enforcement points in sync' || fail_test "S000094: Check 21 did not PASS on the in-sync tree"
   # Drift path (E1, isolated — no real-file mutation): a missing policy makes the
   # parser fail closed with the no-config halt (the "policy does not parse" drift).
   # if-then (not `A && B || C`) avoids SC2015, which CI's shellcheck flags as info.
@@ -156,11 +170,11 @@ else
     || fail_test "S000096: isolation marker [task-not-isolated] absent from the task mode's files"
   # S3: the marker-drift cross-check is folded into validate.sh Check 24, advisory,
   # and PASSes on the in-sync tree (exit 0; only the coverage portion can hard-fail).
-  _S96_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S96_V" | grep -q 'Check 24: test-spec coverage cross-check + gate marker drift' || fail_test "S000096: validate.sh Check 24 missing the merged banner"
-  printf '%s\n' "$_S96_V" | grep -q 'PASS: gate marker drift — the gates: array + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 24 marker-drift did not PASS on the in-sync tree"
+  # Reuse the single top-of-suite validate.sh capture (no redundant re-run — the OOM fix).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 24: test-spec coverage cross-check + gate marker drift' || fail_test "S000096: validate.sh Check 24 missing the merged banner"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: gate marker drift — the gates: array + the four CJ_goal_\* pipelines in sync' || fail_test "S000096: Check 24 marker-drift did not PASS on the in-sync tree"
   # Advisory posture: validate.sh exits 0 (no hard-fail from the marker-drift portion).
-  "$REPO_ROOT/scripts/validate.sh" >/dev/null 2>&1 || fail_test "S000096: validate.sh exits non-zero with Check 24 active"
+  [ "$_VALIDATE_RC" -eq 0 ] || fail_test "S000096: validate.sh exits non-zero with Check 24 active"
   # Drift path (isolated — no real-file mutation): a missing registry makes the
   # parser classify absent (REGISTRY=absent + exit 0); a malformed one fails closed.
   [ "$(TEST_SPEC_PATH=/nonexistent-test-spec.md bash "$_S96_TS" --list-gates 2>/dev/null)" = "REGISTRY=absent" ] \
@@ -220,10 +234,10 @@ else
   bash "$_S60_TS" --check-coverage >/dev/null 2>&1 || fail_test "F000060: test-spec.sh --check-coverage has findings on the live tree"
   # S4: Check 24 is wired into validate.sh (validate-first, then coverage) and
   # PASSes on the in-sync tree.
-  _S60_V=$("$REPO_ROOT/scripts/validate.sh" 2>&1 || true)
-  printf '%s\n' "$_S60_V" | grep -q 'Check 24: test-spec coverage cross-check' || fail_test "F000060: validate.sh missing the swapped Check 24"
-  printf '%s\n' "$_S60_V" | grep -q 'PASS: test-spec registry valid' || fail_test "F000060: Check 24 registry-validate step did not PASS"
-  printf '%s\n' "$_S60_V" | grep -q 'PASS: test-spec coverage cross-check clean' || fail_test "F000060: Check 24 coverage did not PASS on the live tree"
+  # Reuse the single top-of-suite validate.sh capture (no redundant re-run — the OOM fix).
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'Check 24: test-spec coverage cross-check' || fail_test "F000060: validate.sh missing the swapped Check 24"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: test-spec registry valid' || fail_test "F000060: Check 24 registry-validate step did not PASS"
+  printf '%s\n' "$_VALIDATE_OUT" | grep -q 'PASS: test-spec coverage cross-check clean' || fail_test "F000060: Check 24 coverage did not PASS on the live tree"
   # Absent-vs-invalid split (isolated — no real-file mutation): an ABSENT
   # registry classifies as REGISTRY=absent + exit 0 (skip, not finding); a
   # PRESENT-but-invalid registry fails closed with the no-config halt.
@@ -498,21 +512,27 @@ fi
 # STRAY.md is not declared in the doc-spec.md registry` — the `  ERROR:` form
 # Checks 15/16/17 use, NOT `  FAIL:`). Then rm it → assert validate.sh exits 0
 # again. STRAY.md is removed before Step 4 so it never leaks into a later test.
+# TARGETED (F000081/WS4): the negative planted-fault check invokes ONLY Check 17's
+# engine (doc-spec.sh --check-on-disk, the root-declared conformance check) instead
+# of the whole validate.sh — same fault caught, no ~16x whole-validator re-run
+# (the OOM flake). The engine's finding is `stage1/root-declared` (its wrapper form
+# in validate.sh is the `  ERROR: root doc … not declared` line; both are the same
+# check). REPO_ROOT is exported so the engine resolves the registry against the repo.
 touch "$REPO_ROOT/STRAY.md"
-if _C17_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 17: validate.sh should have exited non-zero with a stray root doc (STRAY.md), but exited 0"
+if _C17_OUT=$( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk 2>&1 ); then
+  fail_test "Check 17: doc-spec.sh --check-on-disk should have exited non-zero with a stray root doc (STRAY.md), but exited 0"
 else
-  if echo "$_C17_OUT" | grep -qF "  ERROR: root doc STRAY.md is not declared in the doc-spec.md registry"; then
-    ok "Check 17: stray root doc STRAY.md triggers orphan ERROR + non-zero exit"
+  if echo "$_C17_OUT" | grep -qF "FINDING: stage1/root-declared" && echo "$_C17_OUT" | grep -qF "STRAY.md"; then
+    ok "Check 17: stray root doc STRAY.md triggers the root-declared FINDING + non-zero exit (targeted engine)"
   else
-    fail_test "Check 17: validate.sh exited non-zero but missing '  ERROR: root doc STRAY.md is not declared in the doc-spec.md registry' substring; output: $_C17_OUT"
+    fail_test "Check 17: doc-spec.sh --check-on-disk exited non-zero but missing the stage1/root-declared STRAY.md finding; output: $_C17_OUT"
   fi
 fi
 rm -f "$REPO_ROOT/STRAY.md"
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 17: validate.sh exits 0 again after the stray root doc is removed"
+if ( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk >/dev/null 2>&1 ); then
+  ok "Check 17: doc-spec.sh --check-on-disk exits 0 again after the stray root doc is removed"
 else
-  fail_test "Check 17: validate.sh should have exited 0 after STRAY.md removed, but exited non-zero"
+  fail_test "Check 17: doc-spec.sh --check-on-disk should have exited 0 after STRAY.md removed, but exited non-zero"
 fi
 
 # Step 3b' (F000057 / S000099 / TEST-SPEC S2,S3): the new Check 15a spec/*.md
@@ -524,21 +544,25 @@ fi
 # exits non-zero AND emits the literal spec/ orphan ERROR (`  ERROR: spec/STRAY.md
 # is in spec/ but not declared in the doc-spec.md registry`), then rm it → assert
 # validate.sh exits 0 again. STRAY is removed before later tests so it never leaks.
+# TARGETED (F000081/WS4): the negative planted-fault check invokes ONLY Check 15a's
+# engine (doc-spec.sh --check-on-disk, the spec/ orphan sweep) instead of the whole
+# validate.sh — same fault caught, no whole-validator re-run. The engine's finding
+# is `stage1/orphans` (the validate.sh wrapper form is `  ERROR: spec/… not declared`).
 touch "$REPO_ROOT/spec/STRAY.md"
-if _C15A_SPEC_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 15a spec/: validate.sh should have exited non-zero with an undeclared spec/STRAY.md, but exited 0"
+if _C15A_SPEC_OUT=$( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk 2>&1 ); then
+  fail_test "Check 15a spec/: doc-spec.sh --check-on-disk should have exited non-zero with an undeclared spec/STRAY.md, but exited 0"
 else
-  if echo "$_C15A_SPEC_OUT" | grep -qF "  ERROR: spec/STRAY.md is in spec/ but not declared in the doc-spec.md registry"; then
-    ok "Check 15a spec/: stray spec/STRAY.md triggers orphan ERROR + non-zero exit"
+  if echo "$_C15A_SPEC_OUT" | grep -qF "FINDING: stage1/orphans" && echo "$_C15A_SPEC_OUT" | grep -qF "spec/STRAY.md"; then
+    ok "Check 15a spec/: stray spec/STRAY.md triggers the orphans FINDING + non-zero exit (targeted engine)"
   else
-    fail_test "Check 15a spec/: validate.sh exited non-zero but missing '  ERROR: spec/STRAY.md is in spec/ but not declared in the doc-spec.md registry' substring; output: $_C15A_SPEC_OUT"
+    fail_test "Check 15a spec/: doc-spec.sh --check-on-disk exited non-zero but missing the stage1/orphans spec/STRAY.md finding; output: $_C15A_SPEC_OUT"
   fi
 fi
 rm -f "$REPO_ROOT/spec/STRAY.md"
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 15a spec/: validate.sh exits 0 again after the stray spec/ doc is removed"
+if ( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk >/dev/null 2>&1 ); then
+  ok "Check 15a spec/: doc-spec.sh --check-on-disk exits 0 again after the stray spec/ doc is removed"
 else
-  fail_test "Check 15a spec/: validate.sh should have exited 0 after spec/STRAY.md removed, but exited non-zero"
+  fail_test "Check 15a spec/: doc-spec.sh --check-on-disk should have exited 0 after spec/STRAY.md removed, but exited non-zero"
 fi
 
 # Step 3c (F000050 / TEST-SPEC S3): Check 19 no-work-item-refs-in-human-docs lint.
@@ -549,25 +573,30 @@ fi
 # literal Check 19 prefix, then restore the file and assert validate.sh exits 0
 # again. The plant is done on a backup-and-restore basis so the checkout is never
 # left dirty. Proves Check 19 actually FIRES, not just defaults green.
+# TARGETED (F000081/WS4): the negative planted-fault check invokes ONLY Check 19's
+# engine (doc-spec.sh --check-on-disk, the human-doc-ids conformance check) instead
+# of the whole validate.sh — same fault caught, no whole-validator re-run. The
+# engine's finding is `stage1/human-doc-ids` (the validate.sh wrapper form is the
+# `  ERROR: human-doc … contains work-item ref(s)` line; same check).
 _C19_HUMANDOC="$REPO_ROOT/docs/philosophy.md"
 if [ -f "$_C19_HUMANDOC" ]; then
   cp "$_C19_HUMANDOC" "/tmp/c19-humandoc-backup-$$"
   printf '\n<!-- planted ref for Check 19 negative test: F000999 -->\n' >> "$_C19_HUMANDOC"
-  if _C19_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-    fail_test "Check 19: validate.sh should have exited non-zero with a planted F000999 in a human-doc, but exited 0"
+  if _C19_OUT=$( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk 2>&1 ); then
+    fail_test "Check 19: doc-spec.sh --check-on-disk should have exited non-zero with a planted F000999 in a human-doc, but exited 0"
   else
-    if echo "$_C19_OUT" | grep -qF "  ERROR: human-doc docs/philosophy.md contains work-item ref(s)"; then
-      ok "Check 19: planted F000999 in docs/philosophy.md triggers no-work-item-ref ERROR + non-zero exit"
+    if echo "$_C19_OUT" | grep -qF "FINDING: stage1/human-doc-ids" && echo "$_C19_OUT" | grep -qF "docs/philosophy.md"; then
+      ok "Check 19: planted F000999 in docs/philosophy.md triggers the human-doc-ids FINDING + non-zero exit (targeted engine)"
     else
-      fail_test "Check 19: validate.sh exited non-zero but missing the Check-19 human-doc ERROR for docs/philosophy.md; output: $_C19_OUT"
+      fail_test "Check 19: doc-spec.sh --check-on-disk exited non-zero but missing the stage1/human-doc-ids finding for docs/philosophy.md; output: $_C19_OUT"
     fi
   fi
   cp "/tmp/c19-humandoc-backup-$$" "$_C19_HUMANDOC"
   rm -f "/tmp/c19-humandoc-backup-$$"
-  if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-    ok "Check 19: validate.sh exits 0 again after the planted ref is removed"
+  if ( cd "$REPO_ROOT" && bash scripts/doc-spec.sh --check-on-disk >/dev/null 2>&1 ); then
+    ok "Check 19: doc-spec.sh --check-on-disk exits 0 again after the planted ref is removed"
   else
-    fail_test "Check 19: validate.sh should have exited 0 after the planted F000999 was removed, but exited non-zero"
+    fail_test "Check 19: doc-spec.sh --check-on-disk should have exited 0 after the planted F000999 was removed, but exited non-zero"
   fi
 else
   fail_test "Check 19: docs/philosophy.md (a registry human-doc) not found for the negative test"
@@ -587,28 +616,27 @@ fi
 # AND emits the literal Check 25 stale ERROR, then restore README.md from the
 # generator → assert validate.sh exits 0 again. Proves Check 25 actually FIRES,
 # not just defaults green.
-_C25_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
-if echo "$_C25_OUT_OK" | grep -qF "  PASS: README.md matches generate-readme.sh output"; then
-  ok "Check 25: README.md is in sync with generate-readme.sh on the live tree (PASS)"
+# TARGETED (F000081/WS4): Check 25 IS a diff of generate-readme.sh's output vs
+# README.md. The negative planted-fault check invokes ONLY that targeted diff
+# instead of the whole validate.sh — same fault caught (a drifted README diverges
+# from the generator), no whole-validator re-run. POSITIVE: the live tree matches.
+if diff <( "$REPO_ROOT/scripts/generate-readme.sh" 2>/dev/null ) "$REPO_ROOT/README.md" >/dev/null 2>&1; then
+  ok "Check 25: README.md is in sync with generate-readme.sh on the live tree (targeted diff)"
 else
-  fail_test "Check 25: validate.sh did not emit the Check-25 PASS on the in-sync live tree; output: $_C25_OUT_OK"
+  fail_test "Check 25: README.md does not match generate-readme.sh output on the in-sync live tree"
 fi
 printf '\n<!-- planted drift for Check 25 negative test -->\n' >> "$REPO_ROOT/README.md"
-if _C25_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 25: validate.sh should have exited non-zero with a drifted README.md, but exited 0"
+if diff <( "$REPO_ROOT/scripts/generate-readme.sh" 2>/dev/null ) "$REPO_ROOT/README.md" >/dev/null 2>&1; then
+  fail_test "Check 25: the README diff should have detected the planted drift, but reported in-sync"
 else
-  if echo "$_C25_OUT" | grep -qF "  ERROR: README.md is stale vs generate-readme.sh"; then
-    ok "Check 25: a drifted README.md triggers the stale ERROR + non-zero exit"
-  else
-    fail_test "Check 25: validate.sh exited non-zero but missing '  ERROR: README.md is stale vs generate-readme.sh'; output: $_C25_OUT"
-  fi
+  ok "Check 25: a drifted README.md is detected by the generate-readme.sh diff (targeted engine)"
 fi
 # Restore README.md from the generator (its single source of truth), then assert green.
 "$REPO_ROOT/scripts/generate-readme.sh" > "$REPO_ROOT/README.md" 2>/dev/null
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 25: validate.sh exits 0 again after README.md is regenerated"
+if diff <( "$REPO_ROOT/scripts/generate-readme.sh" 2>/dev/null ) "$REPO_ROOT/README.md" >/dev/null 2>&1; then
+  ok "Check 25: README.md matches the generator again after regeneration"
 else
-  fail_test "Check 25: validate.sh should have exited 0 after README.md was regenerated, but exited non-zero"
+  fail_test "Check 25: README.md should have matched the generator after regeneration, but still drifted"
 fi
 
 # Step 3e (F000069 / Check 26): docs/tests/ + docs/test-catalog.md ↔
@@ -625,28 +653,31 @@ fi
 # → assert validate.sh exits non-zero AND emits the literal Check 26 stale ERROR,
 # then regenerate the catalog from the registry → assert validate.sh exits 0
 # again. Proves Check 26 actually FIRES, not just defaults green.
-_C26_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
-if echo "$_C26_OUT_OK" | grep -qF "  PASS: docs/tests/ + docs/test-catalog.md match test-spec.sh --render-docs"; then
-  ok "Check 26: generated test catalog is in sync with test-spec.sh --render-docs on the live tree (PASS)"
+# TARGETED (F000081/WS4): Check 26 IS test-spec.sh --render-docs --check (render to
+# a temp dir + diff vs on-disk). The negative planted-fault check invokes ONLY that
+# targeted engine instead of the whole validate.sh — same fault caught, no
+# whole-validator re-run. The engine's finding is `FINDING: render — … stale`.
+if _C26_OK=$( cd "$REPO_ROOT" && bash scripts/test-spec.sh --render-docs --check 2>&1 ) && echo "$_C26_OK" | grep -qF "OK render"; then
+  ok "Check 26: generated test catalog is in sync with test-spec.sh --render-docs on the live tree (targeted engine)"
 else
-  fail_test "Check 26: validate.sh did not emit the Check-26 PASS on the in-sync live tree; output: $_C26_OUT_OK"
+  fail_test "Check 26: test-spec.sh --render-docs --check did not report OK render on the in-sync live tree; output: $_C26_OK"
 fi
 printf '\n<!-- planted drift for Check 26 negative test -->\n' >> "$REPO_ROOT/docs/test-catalog.md"
-if _C26_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 26: validate.sh should have exited non-zero with a drifted test catalog, but exited 0"
+if _C26_OUT=$( cd "$REPO_ROOT" && bash scripts/test-spec.sh --render-docs --check 2>&1 ); then
+  fail_test "Check 26: test-spec.sh --render-docs --check should have exited non-zero with a drifted test catalog, but exited 0"
 else
-  if echo "$_C26_OUT" | grep -qF "  ERROR: the generated test catalog is stale vs the registry"; then
-    ok "Check 26: a drifted docs/test-catalog.md triggers the stale ERROR + non-zero exit"
+  if echo "$_C26_OUT" | grep -qF "FINDING: render" && echo "$_C26_OUT" | grep -qF "test-catalog.md"; then
+    ok "Check 26: a drifted docs/test-catalog.md triggers the render FINDING + non-zero exit (targeted engine)"
   else
-    fail_test "Check 26: validate.sh exited non-zero but missing '  ERROR: the generated test catalog is stale vs the registry'; output: $_C26_OUT"
+    fail_test "Check 26: test-spec.sh --render-docs --check exited non-zero but missing the render/test-catalog.md finding; output: $_C26_OUT"
   fi
 fi
 # Regenerate the catalog from the registry (its single source of truth), then assert green.
 bash "$REPO_ROOT/scripts/test-spec.sh" --render-docs >/dev/null 2>&1
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 26: validate.sh exits 0 again after the test catalog is regenerated"
+if ( cd "$REPO_ROOT" && bash scripts/test-spec.sh --render-docs --check >/dev/null 2>&1 ); then
+  ok "Check 26: test-spec.sh --render-docs --check is clean again after the test catalog is regenerated"
 else
-  fail_test "Check 26: validate.sh should have exited 0 after the test catalog was regenerated, but exited non-zero"
+  fail_test "Check 26: test-spec.sh --render-docs --check should have been clean after regeneration, but reported stale"
 fi
 
 # Step 3f (F000069 / S000115 / Check 27): docs/workflow.md + docs/workflows/*.md ↔
@@ -663,28 +694,31 @@ fi
 # → assert validate.sh exits non-zero AND emits the literal Check 27 stale ERROR,
 # then regenerate the surface from the registry → assert validate.sh exits 0
 # again. Proves Check 27 actually FIRES, not just defaults green.
-_C27_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
-if echo "$_C27_OUT_OK" | grep -qF "  PASS: docs/workflow.md + docs/workflows/ match workflow-spec.sh --render-docs"; then
-  ok "Check 27: generated workflow surface is in sync with workflow-spec.sh --render-docs on the live tree (PASS)"
+# TARGETED (F000081/WS4): Check 27 IS workflow-spec.sh --render-docs --check (render
+# to a temp dir + diff vs on-disk). The negative planted-fault check invokes ONLY
+# that targeted engine instead of the whole validate.sh — same fault caught, no
+# whole-validator re-run. The engine's finding is `FINDING: render — … stale`.
+if _C27_OK=$( cd "$REPO_ROOT" && bash scripts/workflow-spec.sh --render-docs --check 2>&1 ) && echo "$_C27_OK" | grep -qF "OK render"; then
+  ok "Check 27: generated workflow surface is in sync with workflow-spec.sh --render-docs on the live tree (targeted engine)"
 else
-  fail_test "Check 27: validate.sh did not emit the Check-27 PASS on the in-sync live tree; output: $_C27_OUT_OK"
+  fail_test "Check 27: workflow-spec.sh --render-docs --check did not report OK render on the in-sync live tree; output: $_C27_OK"
 fi
 printf '\n<!-- planted drift for Check 27 negative test -->\n' >> "$REPO_ROOT/docs/workflow.md"
-if _C27_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 27: validate.sh should have exited non-zero with a drifted workflow surface, but exited 0"
+if _C27_OUT=$( cd "$REPO_ROOT" && bash scripts/workflow-spec.sh --render-docs --check 2>&1 ); then
+  fail_test "Check 27: workflow-spec.sh --render-docs --check should have exited non-zero with a drifted workflow surface, but exited 0"
 else
-  if echo "$_C27_OUT" | grep -qF "  ERROR: the generated workflow surface is stale vs the registry"; then
-    ok "Check 27: a drifted docs/workflow.md triggers the stale ERROR + non-zero exit"
+  if echo "$_C27_OUT" | grep -qF "FINDING: render" && echo "$_C27_OUT" | grep -qF "workflow.md"; then
+    ok "Check 27: a drifted docs/workflow.md triggers the render FINDING + non-zero exit (targeted engine)"
   else
-    fail_test "Check 27: validate.sh exited non-zero but missing '  ERROR: the generated workflow surface is stale vs the registry'; output: $_C27_OUT"
+    fail_test "Check 27: workflow-spec.sh --render-docs --check exited non-zero but missing the render/workflow.md finding; output: $_C27_OUT"
   fi
 fi
 # Regenerate the workflow surface from the registry (its single source of truth), then assert green.
 bash "$REPO_ROOT/scripts/workflow-spec.sh" --render-docs >/dev/null 2>&1
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 27: validate.sh exits 0 again after the workflow surface is regenerated"
+if ( cd "$REPO_ROOT" && bash scripts/workflow-spec.sh --render-docs --check >/dev/null 2>&1 ); then
+  ok "Check 27: workflow-spec.sh --render-docs --check is clean again after the workflow surface is regenerated"
 else
-  fail_test "Check 27: validate.sh should have exited 0 after the workflow surface was regenerated, but exited non-zero"
+  fail_test "Check 27: workflow-spec.sh --render-docs --check should have been clean after regeneration, but reported stale"
 fi
 
 # Step 3g (F000070 / S000119 / Check 28): the workflow-coverage gate. THE PARALLEL
@@ -699,15 +733,14 @@ fi
 # reverse-orphan / registry-absent NEGATIVE paths are exercised hermetically in
 # tests/workflow-coverage.test.sh (registered below + as a units row). This block
 # proves Check 28 actually FIRES its PASS on the live tree, not just defaults green.
-_C28_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
-if echo "$_C28_OUT_OK" | grep -qF "  PASS: every declared CJ_goal_* orchestrator has a level:workflow behavior"; then
-  ok "Check 28: workflow-coverage gate PASSes on the in-sync live tree (every CJ_goal_* orchestrator has a level:workflow behavior)"
-else
-  fail_test "Check 28: validate.sh did not emit the Check-28 PASS on the in-sync live tree; output: $_C28_OUT_OK"
-fi
-# Direct gate assertion: the engine itself is green from birth on the live tree.
+# TARGETED (F000081/WS4): Check 28 IS test-spec.sh --check-workflow-coverage (a
+# forward+reverse cross-check, NOT a generated-doc diff — there is no on-disk drift
+# to plant). The positive assertion invokes ONLY that targeted engine instead of the
+# whole validate.sh — same signal, no whole-validator re-run. The forward-miss /
+# reverse-orphan / registry-absent NEGATIVE paths are exercised hermetically in
+# tests/workflow-coverage.test.sh (registered below + as a units row).
 if bash "$REPO_ROOT/scripts/test-spec.sh" --check-workflow-coverage 2>&1 | grep -qE '^workflow coverage: .*findings=0$'; then
-  ok "Check 28: test-spec.sh --check-workflow-coverage reports findings=0 on the live tree"
+  ok "Check 28: test-spec.sh --check-workflow-coverage reports findings=0 on the live tree (targeted engine — every CJ_goal_* orchestrator has a level:workflow behavior)"
 else
   fail_test "Check 28: test-spec.sh --check-workflow-coverage did not report findings=0 on the live tree"
 fi
@@ -724,30 +757,30 @@ fi
 # POSITIVE: on the live tree (no tracked marker) Check 29 PASSes. The marker is
 # untracked + removed in a cleanup that runs regardless, so it never leaks into a
 # later test or the working tree.
-_C29_OUT_OK=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 )
-if echo "$_C29_OUT_OK" | grep -qF "  PASS: .cj-e2e-sandbox is not tracked"; then
-  ok "Check 29: cj_goal E2E sandbox marker is absent from the tracked tree on the live tree (PASS)"
+# TARGETED (F000081/WS4): Check 29 IS a `git ls-files` probe for a TRACKED
+# .cj-e2e-sandbox marker (the build-gate seam's guard, which must never ship). The
+# negative planted-fault check invokes ONLY that targeted git probe instead of the
+# whole validate.sh — same fault caught, no whole-validator re-run.
+# `git ls-files --error-unmatch <path>` exits 0 iff the path is TRACKED.
+if ! git -C "$REPO_ROOT" ls-files --error-unmatch .cj-e2e-sandbox >/dev/null 2>&1; then
+  ok "Check 29: cj_goal E2E sandbox marker is absent from the tracked tree on the live tree (targeted git probe)"
 else
-  fail_test "Check 29: validate.sh did not emit the Check-29 PASS on the live tree; output: $_C29_OUT_OK"
+  fail_test "Check 29: .cj-e2e-sandbox is unexpectedly tracked on the live tree"
 fi
 touch "$REPO_ROOT/.cj-e2e-sandbox"
 git -C "$REPO_ROOT" add -f .cj-e2e-sandbox >/dev/null 2>&1
-if _C29_OUT=$( cd "$REPO_ROOT" && ./scripts/validate.sh 2>&1 ); then
-  fail_test "Check 29: validate.sh should have exited non-zero with a tracked .cj-e2e-sandbox, but exited 0"
+if git -C "$REPO_ROOT" ls-files --error-unmatch .cj-e2e-sandbox >/dev/null 2>&1; then
+  ok "Check 29: a tracked .cj-e2e-sandbox is detected by the git ls-files probe (targeted engine)"
 else
-  if echo "$_C29_OUT" | grep -qF "  ERROR: .cj-e2e-sandbox is in the tracked tree"; then
-    ok "Check 29: a tracked .cj-e2e-sandbox triggers the marker ERROR + non-zero exit"
-  else
-    fail_test "Check 29: validate.sh exited non-zero but missing '  ERROR: .cj-e2e-sandbox is in the tracked tree'; output: $_C29_OUT"
-  fi
+  fail_test "Check 29: git ls-files should have detected the force-added .cj-e2e-sandbox as tracked, but did not"
 fi
 # Cleanup (runs regardless of the assertions above): untrack + remove the marker.
 git -C "$REPO_ROOT" rm --cached -f .cj-e2e-sandbox >/dev/null 2>&1 || true
 rm -f "$REPO_ROOT/.cj-e2e-sandbox"
-if ( cd "$REPO_ROOT" && ./scripts/validate.sh >/dev/null 2>&1 ); then
-  ok "Check 29: validate.sh exits 0 again after the tracked marker is removed"
+if ! git -C "$REPO_ROOT" ls-files --error-unmatch .cj-e2e-sandbox >/dev/null 2>&1; then
+  ok "Check 29: .cj-e2e-sandbox is untracked again after the marker is removed (targeted git probe)"
 else
-  fail_test "Check 29: validate.sh should have exited 0 after the tracked .cj-e2e-sandbox was removed, but exited non-zero"
+  fail_test "Check 29: .cj-e2e-sandbox should have been untracked after cleanup, but is still tracked"
 fi
 
 # Step 4: frontmatter is parseable
@@ -1696,12 +1729,23 @@ set -e
 # end-to-end so template-ownership regressions in skills-deploy fail in CI loudly
 # instead of rotting silently — closes the meta-bug behind D000016.
 echo ""
-echo "Running scripts/test-deploy.sh end-to-end..."
-if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
-  ok "scripts/test-deploy.sh passed end-to-end (skills-deploy template-ownership tests)"
+# TEST_FAST (F000081 follow-up): test-deploy.sh is the heavy skills-deploy fixture
+# suite (many throwaway temp-dir installs) — the slowest deterministic sub-suite and
+# the biggest remaining CI-push cost after the negative-test speedup. It is re-layered
+# to CI-nightly: the per-PR gate (.github/workflows/validate.yml) runs test.sh with
+# TEST_FAST=1 to SKIP it, and the full nightly suite (.github/workflows/nightly.yml,
+# no flag) still runs it every night. TEST_FAST gates ONLY this heavy suite; every
+# fast unit sub-suite + the inline integration tests still run on every PR.
+if [ "${TEST_FAST:-0}" = "1" ]; then
+  echo "SKIP: scripts/test-deploy.sh (TEST_FAST=1 — the heavy skills-deploy fixture suite runs on the CI-nightly cadence via .github/workflows/nightly.yml, not per-PR)"
 else
-  _td_rc=$?
-  fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+  echo "Running scripts/test-deploy.sh end-to-end..."
+  if "$REPO_ROOT/scripts/test-deploy.sh" >/dev/null 2>&1; then
+    ok "scripts/test-deploy.sh passed end-to-end (skills-deploy template-ownership tests)"
+  else
+    _td_rc=$?
+    fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+  fi
 fi
 
 # Smoke-test scripts/check-version-queue.sh
@@ -2274,6 +2318,14 @@ if bash "$REPO_ROOT/tests/workflow-coverage.test.sh" >/dev/null 2>&1; then
 else
   _wfc_rc=$?
   fail_test "tests/workflow-coverage.test.sh failed (rc=$_wfc_rc) — run \`bash tests/workflow-coverage.test.sh\` directly to see"
+fi
+
+echo "Running tests/skills-update-check.test.sh (F000081/WS3 checkout-independent git-ls-remote version-notification, hermetic — stubbed ls-remote, no network / no real ~/.claude)..."
+if bash "$REPO_ROOT/tests/skills-update-check.test.sh" >/dev/null 2>&1; then
+  ok "tests/skills-update-check.test.sh: banner-when-newer / silent-when-equal-or-older / fail-soft-when-unreachable-or-untagged / override / ssh-normalize / no-.git-gate all pass"
+else
+  _suc_rc=$?
+  fail_test "tests/skills-update-check.test.sh failed (rc=$_suc_rc) — run \`bash tests/skills-update-check.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

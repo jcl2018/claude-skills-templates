@@ -112,5 +112,8 @@ any executed runner failing ⇒ `fail` + exit 1; ≥1 green and none failed ⇒
 - **/CJ_doc_audit** — the sibling doc contract audit.
 - **/CJ_qa-work-item** — the orchestrated QA phase that enforces a work-item's
   test rows during a cj_goal run (the gate; this skill is an operator report).
-- **/CJ_portability-audit** — the other engine-in-script operator lint over the
-  catalog.
+- **`scripts/cj-portability-audit.sh` + `validate.sh` Check 18** — the other
+  engine-in-script operator lint over the catalog. Its former standalone
+  `/CJ_portability-audit` verb was retired by F000081; the engine + Check 18 stay,
+  and portability is covered as `infra` category tests (`portability-check18-lint`,
+  `portability-smoke`, `portability-deploy`, `portability-version-check`).

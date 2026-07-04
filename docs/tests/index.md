@@ -2,17 +2,28 @@
 
 <!-- SEEDED / REFRESHED by /CJ_test_audit from the spec/test-spec-custom.md
      categories: axis. The index references every declared category test by
-     name; each name links to its docs/tests/<category>/<layer>/<name>.md page. -->
+     name; each name links to its docs/tests/<category>/<layer>/<name>.md page.
+     The Topic column is a hand-maintained grouping annotation (NOT sourced from
+     the categories: axis) — kept in sync by hand when tests are added/removed. -->
 
-| Name | Category | Layer | Mode | Tier | Doc |
-|------|----------|-------|------|------|-----|
-| `suite` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/suite.md](tests/infra/CI-push/suite.md) |
-| `test-deploy` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/test-deploy.md](tests/infra/CI-push/test-deploy.md) |
-| `validate` | `infra` | `CI-push` | deterministic | free | [docs/tests/infra/CI-push/validate.md](tests/infra/CI-push/validate.md) |
-| `portability-deploy` | `workflow` | `CI-nightly` | deterministic | free | [docs/tests/workflow/CI-nightly/portability-deploy.md](tests/workflow/CI-nightly/portability-deploy.md) |
-| `cj-goal-gate-shape` | `workflow` | `CI-push` | deterministic | free | [docs/tests/workflow/CI-push/cj-goal-gate-shape.md](tests/workflow/CI-push/cj-goal-gate-shape.md) |
-| `portability-smoke` | `workflow` | `CI-push` | deterministic | free | [docs/tests/workflow/CI-push/portability-smoke.md](tests/workflow/CI-push/portability-smoke.md) |
-| `doc-sync` | `workflow` | `local-hook` | agentic | paid | [docs/tests/workflow/local-hook/doc-sync.md](tests/workflow/local-hook/doc-sync.md) |
-| `goal-feature-eval` | `workflow` | `local-hook` | agentic | paid | [docs/tests/workflow/local-hook/goal-feature-eval.md](tests/workflow/local-hook/goal-feature-eval.md) |
-| `goal-task-eval` | `workflow` | `local-hook` | agentic | paid | [docs/tests/workflow/local-hook/goal-task-eval.md](tests/workflow/local-hook/goal-task-eval.md) |
-| `e2e-local` | `workflow` | `local-hook` | agentic | local-only | [docs/tests/workflow/local-hook/e2e-local.md](tests/workflow/local-hook/e2e-local.md) |
+The **Topic** column groups tests that together fully cover one concern, so you
+can see at a glance which set to run to exercise a topic end to end. For example,
+the `portability` topic is fully covered by four tests spanning all three layers:
+the Git-Bash smoke + the declared-vs-actual lint (`CI-push`), the Windows-native
+deploy suite (`CI-nightly`), and the version-notification check (`local-hook`) —
+run all four to fully test portability.
+
+| Name | Category | Layer | Mode | Tier | Topic | Doc |
+|------|----------|-------|------|------|-------|-----|
+| `portability-deploy` | `infra` | `CI-nightly` | deterministic | free | portability | [docs/tests/infra/CI-nightly/portability-deploy.md](tests/infra/CI-nightly/portability-deploy.md) |
+| `portability-check18-lint` | `infra` | `CI-push` | deterministic | free | portability | [docs/tests/infra/CI-push/portability-check18-lint.md](tests/infra/CI-push/portability-check18-lint.md) |
+| `portability-smoke` | `infra` | `CI-push` | deterministic | free | portability | [docs/tests/infra/CI-push/portability-smoke.md](tests/infra/CI-push/portability-smoke.md) |
+| `portability-version-check` | `infra` | `local-hook` | deterministic | free | portability | [docs/tests/infra/local-hook/portability-version-check.md](tests/infra/local-hook/portability-version-check.md) |
+| `validate` | `infra` | `CI-push` | deterministic | free | core-suite | [docs/tests/infra/CI-push/validate.md](tests/infra/CI-push/validate.md) |
+| `suite` | `infra` | `CI-push` | deterministic | free | core-suite | [docs/tests/infra/CI-push/suite.md](tests/infra/CI-push/suite.md) |
+| `test-deploy` | `infra` | `CI-nightly` | deterministic | free | core-suite | [docs/tests/infra/CI-nightly/test-deploy.md](tests/infra/CI-nightly/test-deploy.md) |
+| `cj-goal-gate-shape` | `workflow` | `CI-push` | deterministic | free | cj-goal-workflows | [docs/tests/workflow/CI-push/cj-goal-gate-shape.md](tests/workflow/CI-push/cj-goal-gate-shape.md) |
+| `doc-sync` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/doc-sync.md](tests/workflow/local-hook/doc-sync.md) |
+| `e2e-local` | `workflow` | `local-hook` | agentic | local-only | cj-goal-workflows | [docs/tests/workflow/local-hook/e2e-local.md](tests/workflow/local-hook/e2e-local.md) |
+| `goal-feature-eval` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/goal-feature-eval.md](tests/workflow/local-hook/goal-feature-eval.md) |
+| `goal-task-eval` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/goal-task-eval.md](tests/workflow/local-hook/goal-task-eval.md) |

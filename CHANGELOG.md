@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.114] - 2026-07-04
+## [6.0.118] - 2026-07-04
 
 ### Fixed
 - **D000040 — jq CRLF re-taints the `CJ_goal_*` / `check-*` orchestrator helpers
@@ -29,6 +29,102 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `spec/test-spec-custom.md` `units:` row (Check 24). Scope: bucket (a) of the
   Windows P0; buckets (b) drill-harness robustness + (c) template drift remain
   separate follow-on tasks.
+
+## [6.0.117] - 2026-07-04
+
+### Added
+- **`docs/tests/index.md` gained a `Topic` column (T000056)** grouping the declared
+  category tests by topic, so a reader can see at a glance which set of tests together
+  fully covers one concern. The four portability tests → `portability` (Git-Bash smoke +
+  Check-18 lint at CI-push, the Windows deploy suite at CI-nightly, the
+  version-notification check at local-hook — run all four to fully test portability);
+  `validate`/`suite`/`test-deploy` → `core-suite`; the cj_goal
+  eval/doc-sync/e2e/gate-shape rows → `cj-goal-workflows`. Rows reordered to sit
+  together by topic + a one-line intro added. Docs-only, hand-maintained (the `Topic`
+  column is not sourced from the `categories:` axis); every declared test name is still
+  referenced (`--check-structure` check (e) green) and `--render-docs` leaves the index
+  byte-identical (owned by `--seed-docs`, present⇒skip).
+
+## [6.0.116] - 2026-07-04
+
+### Fixed
+- **Killed the residual OOM flake in the full test suite: the early clean-tree
+  guards now reuse ONE `validate.sh` run.** `scripts/test.sh` ran the whole
+  `validate.sh` five times back-to-back within the first ~230 lines (the top-of-suite
+  run + the S000094 / S000096 / F000060 regression guards, which each re-invoked it to
+  grep a banner or assert exit 0). Running the ~29-check validator five times in quick
+  succession built runner memory pressure and OOM-killed a later invocation — the
+  chronic `FAIL: S000096: validate.sh exits non-zero with Check 24 active` flake (seen
+  on the v6.0.115 nightly dispatch, where the FIRST run printed `Errors: 0` but the
+  re-run OOM'd). Fix: capture the top-of-suite `validate.sh` output + exit code once
+  (`_VALIDATE_OUT` / `_VALIDATE_RC`) and have every clean-tree guard grep that capture
+  instead of re-running the validator — same approach F000081 used for the negative
+  tests. Guard coverage is unchanged (same banners, same exit-0 assertion).
+
+## [6.0.115] - 2026-07-04
+
+### Changed
+- **Trimmed the per-PR CI gate to a fast subset; re-layered the heavy `test-deploy`
+  suite to CI-nightly** (the deferred F000081 follow-up, done attended). `scripts/test.sh`
+  gained a `TEST_FAST` env: when `TEST_FAST=1` it SKIPS the heavy `scripts/test-deploy.sh`
+  fixture suite (the slowest deterministic sub-suite — many throwaway temp-dir
+  installs). `.github/workflows/validate.yml` now runs `TEST_FAST=1 ./scripts/test.sh`
+  on every PR, so the per-PR gate keeps `validate.sh` + every fast unit sub-suite +
+  shellcheck but no longer pays the `test-deploy` cost; the full
+  `.github/workflows/nightly.yml` run (no flag) executes `test-deploy` every night. The
+  `test-deploy` unit + `categories:` rows are re-layered CI-push → CI-nightly (the
+  front-door doc moved to `docs/tests/infra/CI-nightly/test-deploy.md` + the
+  `docs/tests/index.md` index updated), so the contract matches where the suite actually
+  runs. Combined with F000081's targeted-negative-test speedup, the ~11-min OOM-flaky
+  per-PR gate is now fast.
+
+## [6.0.114] - 2026-07-04
+
+### Added
+- **F000081 — three-layer test contract per category + git-ls-remote
+  version-notification + safe-additive nightly CI.** (1) `spec/test-spec.md` (and
+  its byte-identical `test-spec.sh --seed` heredoc) gains a "three test levels per
+  category" subsection — every category SHOULD reach CI-push (quick deterministic),
+  CI-nightly (large deterministic), and local-hook (quick agentic) — and
+  `test-spec.sh --check-structure` now prints an ADVISORY per-category ×
+  {CI-push, CI-nightly, local-hook} coverage matrix with a `NOTE:` per empty cell
+  (findings-are-the-product, exit 0 always). (2) `scripts/skills-update-check` is
+  reworked to be **checkout-independent**: local = manifest `collection_version`,
+  remote = the max `v<X.Y.Z>` tag from `git ls-remote --tags <upstream_url>` (ssh
+  URLs normalized to https), with the `.git`-gate removed as the hard stop — a
+  remote machine / consumer repo with NO live workbench checkout now gets a
+  staleness nudge; `.source` is kept only for the richer git-pull upgrade action.
+  Fail-soft (unreachable / untagged → silent). Proven by a new hermetic root test
+  `tests/skills-update-check.test.sh` (stubbed `ls-remote`, no network). (3) A
+  new `.github/workflows/nightly.yml` runs the FULL `scripts/test.sh` on ubuntu on
+  a nightly schedule (+ `workflow_dispatch`) — the safe-additive CI-nightly home
+  for the heavy suite; the per-PR `validate.yml` is UNTRIMMED (that trim is a
+  deferred follow-up). Both the new workflow and the new test register as
+  `spec/test-spec-custom.md` units (Check 24 green).
+
+### Changed
+- **Portability reclassified `workflow` → `infra` + backfilled to all three
+  levels (F000081).** The `portability-smoke` (CI-push) and `portability-deploy`
+  (CI-nightly) `categories:` rows are now `category: infra` — they are the
+  standing deploy/install harness, not a user-facing workflow — with their
+  front-door docs hand-moved under `docs/tests/infra/…` (+ the `spec/doc-spec-custom.md`
+  rows) and the flat catalog regenerated. Two command-only `infra` rows complete
+  the triple: `portability-check18-lint` (CI-push, the Check-18 declared-vs-actual
+  lint) and `portability-version-check` (local-hook, the version-notification
+  sandbox check). The targeted-negative-test refactor in `scripts/test.sh` makes
+  each planted-fault negative invoke only its one targeted check (no whole-`validate.sh`
+  re-run), killing the ~16× re-run OOM flake.
+
+### Removed
+- **Retired the standalone `/CJ_portability-audit` verb (F000081).** Portability is
+  now a property the test contract proves automatically (the per-PR Check 18 lint +
+  the reclassified `infra` tests), so the manual verb is redundant. Removed from the
+  catalog (marked `deprecated`, source relocated under `deprecated/CJ_portability-audit/`),
+  `rules/skill-routing.md` / `CLAUDE.md` routing prose, `spec/workflow-spec.md`
+  (both roster bodies), and `docs/philosophy.md`'s decision tree. **KEPT:** the
+  engine `scripts/cj-portability-audit.sh` + `validate.sh` Check 18 (strict-by-default)
+  + the `portability-audit` / `validate-check-18` overlay rows — the engine still
+  runs on every PR. Mirrors the `/CJ_repo-init` retirement precedent.
 
 ## [6.0.113] - 2026-07-03
 

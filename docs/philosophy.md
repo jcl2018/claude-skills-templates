@@ -456,7 +456,6 @@ map for *using* it. Every `CJ_` front door converges on the same downstream chai
 | Drain shippable `TODOS.md` rows | `/CJ_goal_todo_fix [<id> \| "<frag>"]` |
 | "What should I work on?" | `/CJ_suggest` |
 | "Is my `~/.claude/` healthy?" | `/CJ_system-health` |
-| "Are my skills' `portability` labels honest?" | `/CJ_portability-audit` |
 | "Do this repo's docs follow its doc contract?" | `/CJ_doc_audit` |
 | "Are this repo's tests aligned with its test contract?" | `/CJ_test_audit` |
 | "Do this repo's tests pass?" (run them, not just audit wiring) | `/CJ_test_run` |

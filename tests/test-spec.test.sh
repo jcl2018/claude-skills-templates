@@ -953,21 +953,24 @@ echo "--- 10. category axis (F000074; two-axis reframe F000078): subcommands + s
 # (name/category/layer/mode/command/tier/doc/purpose).
 _CAT_LIVE=$(bash "$HELPER" --list-categories 2>/dev/null); _CAT_LIVE_RC=$?
 if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	infra	CI-push	deterministic	' \
-   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^portability-deploy	workflow	CI-nightly	deterministic	' \
+   && printf '%s\n' "$_CAT_LIVE" | grep -qE '^portability-deploy	infra	CI-nightly	deterministic	' \
    && printf '%s\n' "$_CAT_LIVE" | grep -qE '^e2e-local	workflow	local-hook	agentic	'; then
   ok "S1: --list-categories lists the two-axis rows (name/category/layer/mode/... 8-col TSV)"
 else
   fail_test "S1: --list-categories did not list the expected two-axis rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
 fi
-# --names + --category filters (infra holds validate; workflow holds portability-deploy).
+# --names + --category filters (F000081: portability reclassified workflow->infra —
+# infra now holds validate + portability-deploy; workflow holds e2e-local).
 _CAT_NAMES=$(bash "$HELPER" --list-categories --names 2>/dev/null)
 _CAT_INFRA=$(bash "$HELPER" --list-categories --category infra 2>/dev/null | awk -F'\t' '{print $1}')
 _CAT_WORKFLOW=$(bash "$HELPER" --list-categories --category workflow 2>/dev/null | awk -F'\t' '{print $1}')
 if printf '%s\n' "$_CAT_NAMES" | grep -qx 'portability-smoke' \
    && printf '%s\n' "$_CAT_INFRA" | grep -qx 'validate' \
+   && printf '%s\n' "$_CAT_INFRA" | grep -qx 'portability-deploy' \
    && ! printf '%s\n' "$_CAT_INFRA" | grep -qx 'e2e-local' \
-   && printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'portability-deploy' \
-   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'validate'; then
+   && printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'e2e-local' \
+   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'validate' \
+   && ! printf '%s\n' "$_CAT_WORKFLOW" | grep -qx 'portability-deploy'; then
   ok "S1: --list-categories --names / --category <c> filter correctly (infra / workflow)"
 else
   fail_test "S1: --list-categories filters wrong (names='$_CAT_NAMES' infra='$_CAT_INFRA' workflow='$_CAT_WORKFLOW')"
@@ -1400,6 +1403,138 @@ if printf '%s\n' "$_AGENTICFREE" | grep -qF 'RC=1' && printf '%s\n' "$_AGENTICFR
   ok "S3: a mode:agentic + tier:free row HALTS --validate (agentic => tier != free cross-check)"
 else
   fail_test "S3: agentic+free did not halt --validate: $_AGENTICFREE"
+fi
+
+# ---- S6 (F000081/WS1): the advisory per-category × 3-layer coverage matrix ----
+# --check-structure prints a per-category × {CI-push, CI-nightly, local-hook} MATRIX
+# and emits an advisory NOTE: per empty cell, ALWAYS exiting 0 (an empty cell is a
+# coverage gap, never a hard-fail). Three fixture cases: (M1) a category missing a
+# level => a NOTE: for that cell; (M2) a category covering all three => no empty
+# cells + "every declared category covers all three test levels"; (M3) no categories:
+# axis => the inactive path prints NO matrix at all.
+_MATRIX=$(mk_tmp)
+mkdir -p "$_MATRIX/spec" "$_MATRIX/tests" "$_MATRIX/docs"
+: > "$_MATRIX/tests/x.test.sh"
+bash "$HELPER" --seed > "$_MATRIX/spec/test-spec.md"
+cat > "$_MATRIX/spec/test-spec-custom.md" <<'MATRIXEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  # workflow: all three levels covered => no empty cell for workflow
+  - name: wf-push
+    category: workflow
+    layer: CI-push
+    mode: deterministic
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/CI-push/wf-push.md"
+    purpose: "workflow CI-push"
+  - name: wf-nightly
+    category: workflow
+    layer: CI-nightly
+    mode: deterministic
+    command: "true"
+    tier: free
+    doc: "docs/tests/workflow/CI-nightly/wf-nightly.md"
+    purpose: "workflow CI-nightly"
+  - name: wf-local
+    category: workflow
+    layer: local-hook
+    mode: agentic
+    command: "true"
+    tier: paid
+    doc: "docs/tests/workflow/local-hook/wf-local.md"
+    purpose: "workflow local-hook"
+  # infra: only CI-push => CI-nightly + local-hook cells empty => two NOTE:s
+  - name: infra-push
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "true"
+    tier: free
+    doc: "docs/tests/infra/CI-push/infra-push.md"
+    purpose: "infra CI-push only"
+```
+MATRIXEOF
+_matrixrun() { REPO_ROOT="$_MATRIX" TEST_SPEC_PATH="$_MATRIX/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_MATRIX/spec/test-spec-custom.md" bash "$HELPER" "$@"; }
+_MX_OUT=$(_matrixrun --check-structure); _MX_RC=$?
+# M1: infra is missing CI-nightly + local-hook => an advisory NOTE: per empty cell,
+# exit 0; workflow (all three) produces NO NOTE:.
+if [ "$_MX_RC" -eq 0 ] \
+   && printf '%s\n' "$_MX_OUT" | grep -qF 'MATRIX: per-category' \
+   && printf '%s\n' "$_MX_OUT" | grep -qF "NOTE: coverage gap — category/level cell 'infra/CI-nightly' has 0 declared tests" \
+   && printf '%s\n' "$_MX_OUT" | grep -qF "NOTE: coverage gap — category/level cell 'infra/local-hook' has 0 declared tests" \
+   && ! printf '%s\n' "$_MX_OUT" | grep -qF "cell 'workflow/"; then
+  ok "S6 (F000081/WS1): --check-structure matrix emits an advisory NOTE: per empty (category,level) cell and exits 0 (empty cell = coverage gap, never a hard-fail)"
+else
+  fail_test "S6 (F000081/WS1): matrix missing-level NOTE: wrong (rc=$_MX_RC): $_MX_OUT"
+fi
+# M1b: the NOTE: is advisory — it must NOT be counted as a structure FINDING nor a
+# STRUCTURE findings tally (findings-are-the-product: the six a-f checks own findings,
+# the matrix owns NOTE:s). The docs are unseeded here so d/e findings exist, but the
+# matrix NOTE:s themselves are never "FINDING:" lines.
+if printf '%s\n' "$_MX_OUT" | grep -F 'coverage gap' | grep -qvF 'FINDING:'; then
+  ok "S6 (F000081/WS1): matrix coverage-gap lines are advisory NOTE:s, never FINDING: lines"
+else
+  fail_test "S6 (F000081/WS1): a coverage-gap line was emitted as a FINDING: (must be advisory NOTE:): $_MX_OUT"
+fi
+
+# M2: a fixture where EVERY declared category covers all three levels => no empty
+# cells, and the "every declared category covers all three test levels" line prints.
+_MATRIXFULL=$(mk_tmp)
+mkdir -p "$_MATRIXFULL/spec" "$_MATRIXFULL/tests" "$_MATRIXFULL/docs"
+: > "$_MATRIXFULL/tests/x.test.sh"
+bash "$HELPER" --seed > "$_MATRIXFULL/spec/test-spec.md"
+cat > "$_MATRIXFULL/spec/test-spec-custom.md" <<'FULLEOF'
+# overlay
+```yaml
+schema_version: 1
+categories:
+  - name: only-push
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "true"
+    tier: free
+    doc: "docs/tests/infra/CI-push/only-push.md"
+    purpose: "infra CI-push"
+  - name: only-nightly
+    category: infra
+    layer: CI-nightly
+    mode: deterministic
+    command: "true"
+    tier: free
+    doc: "docs/tests/infra/CI-nightly/only-nightly.md"
+    purpose: "infra CI-nightly"
+  - name: only-local
+    category: infra
+    layer: local-hook
+    mode: agentic
+    command: "true"
+    tier: paid
+    doc: "docs/tests/infra/local-hook/only-local.md"
+    purpose: "infra local-hook"
+```
+FULLEOF
+_MXF_OUT=$(REPO_ROOT="$_MATRIXFULL" TEST_SPEC_PATH="$_MATRIXFULL/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_MATRIXFULL/spec/test-spec-custom.md" bash "$HELPER" --check-structure); _MXF_RC=$?
+if [ "$_MXF_RC" -eq 0 ] \
+   && printf '%s\n' "$_MXF_OUT" | grep -qF 'MATRIX: every declared category covers all three test levels' \
+   && ! printf '%s\n' "$_MXF_OUT" | grep -qF 'coverage gap'; then
+  ok "S6 (F000081/WS1): a category covering all three levels => no empty-cell NOTE:s ('every declared category covers all three test levels')"
+else
+  fail_test "S6 (F000081/WS1): full-matrix case wrong (rc=$_MXF_RC): $_MXF_OUT"
+fi
+
+# M3: no categories: axis => the inactive path prints the "not adopted" note and NO
+# matrix at all (the matrix is only rendered when the categories: axis is present).
+_MXNONE=$(REPO_ROOT="$_NOCAT" TEST_SPEC_PATH="$_NOCAT/spec/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_NOCAT/spec/test-spec-custom.md" bash "$HELPER" --check-structure); _MXNONE_RC=$?
+if [ "$_MXNONE_RC" -eq 0 ] \
+   && printf '%s\n' "$_MXNONE" | grep -qF 'category contract not adopted / inactive' \
+   && ! printf '%s\n' "$_MXNONE" | grep -qF 'MATRIX:'; then
+  ok "S6 (F000081/WS1): no categories: axis => inactive note, the matrix is not rendered"
+else
+  fail_test "S6 (F000081/WS1): inactive-path matrix leak (rc=$_MXNONE_RC): $_MXNONE"
 fi
 
 echo
