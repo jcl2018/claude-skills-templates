@@ -107,7 +107,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   fi
   echo "DRY RUN: would dispatch /investigate against the draft (Agent subagent, sentinel JSON)"
   echo "DRY RUN: on a populated root cause, would promote to work-items/defects/uncategorized/D<next>_$SLUG"
-  echo "DRY RUN: would write RCA + test-plan, then chain /CJ_qa-work-item (DEFER_AUDIT: true — QA skips the inline agent-judged audit; the nightly CI job covers it) → pre-doc-sync commit (Step 8.4; idempotent) → /CJ_document-release (Step 5.5 doc-sync) → /ship (Gate #2) → /land-and-deploy --suppress-readiness-gate"
+  echo "DRY RUN: would write RCA + test-plan, then chain /CJ_qa-work-item (DEFER_AUDIT: true + DEFER_SYNC: true — QA skips the inline agent-judged audit + overlay-amendment sweep; the nightly CI job covers both) → pre-doc-sync commit (Step 8.4; idempotent) → deterministic doc-regen (Step 5.5) → /ship (Gate #2) → /land-and-deploy --suppress-readiness-gate"
   echo "DRY RUN: writes nothing. Re-running the same phrase later would resume this draft; reworded text would create a different draft."
   echo "Suggested resume: /CJ_goal_defect \"$BUG_DESC\""
   # Telemetry: end_state=dry_run_preview (Step 11 schema; write before exit)
@@ -640,7 +640,7 @@ promoted_from_draft: .inbox/$DRAFT_SLUG
 ### Phase 3: Ship
 
 1. /CJ_qa-work-item — verify the test-plan rows (Step 8)
-2. /CJ_document-release — doc-sync (Step 5.5)
+2. Deterministic doc-regen — doc-sync (Step 5.5)
 3. /ship — open the fix PR (Step 9)
 4. /land-and-deploy — merge + verify (Step 10)
 
@@ -743,9 +743,10 @@ happens HERE, before QA:
   implementer gate is checked — and that gate is only honest once the fix is
   actually committed. (The Step 7.4 tracker pre-marks it checked; this commit
   makes it true.)
-- **`/CJ_document-release` clean-tree gate (Step 5.5).** It refuses on any
-  uncommitted NON-DOC change; the fix files + the work-item artifacts are
-  non-doc.
+- **Deterministic doc-regen clean-tree gate (Step 5.5).** Its defensive
+  `[doc-sync-non-doc-write]` check halts on any uncommitted NON-DOC change after
+  the regen; the fix files + the work-item artifacts are non-doc, so they must be
+  committed first.
 
 Commit the investigate-written fix together with the just-scaffolded work-item
 artifacts (TRACKER + RCA + test-plan):
@@ -762,21 +763,26 @@ squash-merge subject is reconciled at land time per the repo's merge convention.
 ## Step 8: Chain to /CJ_qa-work-item
 
 Invoke `/CJ_qa-work-item` via the Skill tool on the canonical defect dir
-(`$DEFECT_DIR`), embedding the literal directive `DEFER_AUDIT: true` in the
-invocation context so QA SKIPS its three-stage inline audit (qa.md Step
-8.6c/8.6d) — that agent-judged doc/test audit now runs in the nightly CI job
+(`$DEFECT_DIR`), embedding TWO sibling directives in the invocation context —
+`DEFER_AUDIT: true` so QA SKIPS its three-stage inline audit (qa.md Step
+8.6c/8.6d), and `DEFER_SYNC: true` so QA SKIPS the agent-judged overlay
+AMENDMENT sweep in 8.6a/8.6b (F000079). Both the agent-judged doc/test audit and
+the agentic sync now run in the nightly CI job
 (`.github/workflows/audit-nightly.yml`) over `main`, not inline on the build path
-(F000076). QA still runs its 8.6a/8.6b overlay writes inline and returns
-`AUDITS=deferred` with NO `AUDIT_FINDINGS` block. The compliant Step 7.4 tracker
-+ the Step 7.6 commit mean the boundary check passes; the QA skill runs the smoke
-rows from the test-plan and records a `[qa-pass]` journal entry (defects emit
-`E2E=ambiguous`).
+(F000076 for the audit; F000079 for the sync). QA still runs the fast
+DETERMINISTIC half of its 8.6a/8.6b overlay writes inline (a new `tests/*.test.sh`
+gets its required `units:` row, a new declared doc gets its overlay row — the
+parts `validate.sh` requires) and returns `AUDITS=deferred` with NO
+`AUDIT_FINDINGS` block. The compliant Step 7.4 tracker + the Step 7.6 commit mean
+the boundary check passes; the QA skill runs the smoke rows from the test-plan and
+records a `[qa-pass]` journal entry (defects emit `E2E=ambiguous`).
 
 Invocation directive (the greppable literal qa.md Step 8.6.0 inspects):
 
 ```
 /CJ_qa-work-item "$DEFECT_DIR"
 DEFER_AUDIT: true   (skip 8.6c/8.6d inline; the nightly CI audit job covers it — F000076)
+DEFER_SYNC: true    (skip the agent-judged 8.6a/8.6b amendment sweep inline; nightly CI covers it — F000079)
 ```
 
 If QA returns red: halt with `[qa-red]` (re-use the existing CJ_qa-work-item
@@ -794,7 +800,8 @@ in CI (F000076).
 The Step 7.6 commit already captured the investigate-written fix + the scaffolded
 artifacts before QA. After QA, the tracker has new journal lines (the QA
 `[qa-pass]`, the deferral `[qa-audit]` line) — a still-uncommitted NON-DOC change
-that `/CJ_document-release` (Step 5.5) would refuse on (`[doc-sync-red]`). Commit
+that the Step 5.5 deterministic doc-regen would halt on via its defensive
+`[doc-sync-non-doc-write]` check. Commit
 it here so Step 5.5's clean-tree gate sees a clean non-doc tree. The commit is
 **idempotent**: it skips when the tree is already clean at HEAD, so a resume does
 not double-commit. It records NO new phase boundary (it is gated on the live tree
@@ -812,83 +819,93 @@ fi
 
 Only after a clean tree is established does control proceed to Step 5.5 (doc-sync).
 
-### Step 5.5: Doc-sync (INLINE — CJ_document-release wrapper around upstream /document-release)
+### Step 5.5: Doc-sync (INLINE — deterministic doc-regen; F000079)
 
-Doc-sync runs INLINE between the pre-doc-sync commit and /ship, so
-any doc updates fold into the SAME defect PR as the fix. There is no post-merge
-doc-drift window for orchestrator-driven paths: the doc update ships in the same
-PR as the fix. (The agent-judged doc/test audit that used to run after doc-sync
-now runs nightly in CI — F000076 — so the build path ends at doc-sync → /ship,
-with no inline audit or checkpoint.)
+Doc-sync runs INLINE between the pre-doc-sync commit and /ship, so the GENERATED
+doc catalogs stay in sync in the SAME defect PR as the fix. **As of F000079 this
+is a FAST, model-free DETERMINISTIC regen — NOT the slow `/CJ_document-release`
+LLM pass.** The slow agent-judged doc-sync (rewriting README/CHANGELOG/CLAUDE.md
+prose to reflect semantics) + the agent-judged overlay-amendment sweep are
+advisory drift-catches that now DEFER to the nightly audit
+(`.github/workflows/audit-nightly.yml` → the `audit-drift` issue; F000076
+relocated the audit, F000079 the agentic sync), off the per-PR build path. The
+deterministic per-PR gate (`validate.sh` Checks 15-19/24/26/27/28) is UNCHANGED
+and still hard-blocks a broken contract.
 
-Invoke `/CJ_document-release` via the **Skill** tool with NO `--docs` flag
-(v1 orchestrator wiring runs a full audit; the per-doc subset flag is for
-manual operator invocations). The skill returns one of three RESULTs:
-
-- `RESULT: green` — `/document-release` ran clean and the wrapper
-  auto-committed doc-only changes (whitelist: `README|CHANGELOG|CLAUDE|
-  ARCHITECTURE.md` + `doc/.+\.md` + `templates/doc-.*\.md`). Continue to
-  Step 9 (/ship). The next phase will see a clean tree with a doc commit
-  already present.
-- `RESULT: green-noop` — `/document-release` ran clean and no doc changes
-  were needed. Continue to Step 9 (/ship). The PR will be code-only.
-- `RESULT: red; HALT_MARKER=[doc-sync-red]` — `/document-release` itself
-  returned non-green (audit error, mid-write failure, hard-abort, base-
-  branch refusal, or a pre-run non-doc dirty tree). **HALT** with halt
-  class `halted_at_doc_sync`; the orchestrator writes a journal entry and
-  exits.
-- `RESULT: red; HALT_MARKER=[doc-sync-non-doc-write]` — `/document-release`
-  succeeded but wrote files OUTSIDE the doc-only whitelist (upstream-
-  misbehaved). **HALT** with halt class `halted_at_doc_sync_non_doc_write`;
-  the orchestrator writes a journal entry naming the non-doc files and
-  exits.
-
-Halt-marker shape (mirrors the family contract — `next_action=` /
-`resume_cmd=` / `pr_url=`):
+Regenerate the two GENERATED catalogs (the test catalog + the workflow docs) so
+`validate.sh` Check 26/27 stay green, then commit any doc-only delta. The
+regenerators are idempotent — a build that already regenerated leaves a clean
+tree (no-op). NO model spend, NO prose rewrite.
 
 ```bash
-# Pseudocode — the orchestrator's Step 5.5 dispatch handler:
-case "$DOC_SYNC_RESULT" in
-  green|green-noop)
-    echo "[doc-sync] $DOC_SYNC_RESULT — continuing to /ship"
-    # No state change beyond the doc commit /CJ_document-release made.
-    ;;
-  *red*\[doc-sync-red\]*)
-    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat >> "$TRACKER" <<EOF
-
-- $TS [doc-sync-red] /CJ_document-release returned RESULT=red; halt class halted_at_doc_sync.
-  next_action=Inspect /document-release output; fix doc errors; re-run /CJ_document-release manually, then resume /CJ_goal_defect.
-  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/doc-sync-raw.txt
-EOF
-    echo "Why it stopped: /CJ_document-release failed (upstream /document-release non-green or pre-run gate refused)."
-    echo "State preserved: defect $DEFECT_ID intact at $DEFECT_DIR; doc-sync did NOT commit doc files."
-    echo "Next: inspect the failure, fix manually, then /CJ_goal_defect \"$DRAFT_DESC\""
-    # Telemetry: end_state=halted_at_doc_sync
-    exit 1
-    ;;
-  *red*\[doc-sync-non-doc-write\]*)
-    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat >> "$TRACKER" <<EOF
-
-- $TS [doc-sync-non-doc-write] /CJ_document-release refused to auto-commit because upstream wrote files outside the doc-only whitelist.
-  next_action=Inspect uncommitted non-doc files; revert if unexpected; re-run /CJ_document-release manually, then resume /CJ_goal_defect.
-  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
-  pr_url=N/A
-  raw_output_path=$RAW_DIR/doc-sync-raw.txt
-EOF
-    echo "Why it stopped: /CJ_document-release refused — upstream /document-release wrote files outside the doc-only whitelist."
-    echo "State preserved: defect $DEFECT_ID intact at $DEFECT_DIR; nothing auto-committed."
-    echo "Next: inspect the non-doc files, revert if unexpected, then /CJ_goal_defect \"$DRAFT_DESC\""
-    # Telemetry: end_state=halted_at_doc_sync_non_doc_write
-    exit 1
-    ;;
-esac
+# Step 5.5 — deterministic doc-regen (replaces the slow /CJ_document-release; F000079)
+_TS_ENGINE="$_REPO_ROOT/scripts/test-spec.sh"
+_WF_ENGINE="$_REPO_ROOT/scripts/workflow-spec.sh"
+_REGEN_FAIL=0
+[ -x "$_TS_ENGINE" ] && { bash "$_TS_ENGINE" --render-docs >/dev/null 2>&1 || _REGEN_FAIL=1; }
+[ -x "$_WF_ENGINE" ] && { bash "$_WF_ENGINE" --render-docs >/dev/null 2>&1 || _REGEN_FAIL=1; }
 ```
 
-Only on green or green-noop does control proceed to Step 9 (/ship).
+The step keeps the same two halt markers as the family contract (`next_action=` /
+`resume_cmd=` / `pr_url=`), reframed to the deterministic engine:
+
+- **`[doc-sync-red]`** — a `--render-docs` engine returned non-zero (a genuine
+  regen failure): **HALT** with halt class `halted_at_doc_sync`; the orchestrator
+  writes a journal entry and exits.
+- **`[doc-sync-non-doc-write]`** (defensive) — after the regen, a NON-`docs/`
+  file is dirty. The deterministic regen must only touch `docs/`; anything else
+  means an engine misbehaved: **HALT** with halt class
+  `halted_at_doc_sync_non_doc_write`; the orchestrator writes a journal entry
+  naming the non-doc files and exits.
+
+```bash
+if [ "$_REGEN_FAIL" = "1" ]; then
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$TRACKER" <<EOF
+
+- $TS [doc-sync-red] a --render-docs engine returned non-zero (deterministic doc-regen failed); halt class halted_at_doc_sync.
+  next_action=Run scripts/test-spec.sh --render-docs and scripts/workflow-spec.sh --render-docs manually; fix the engine/registry error; then resume /CJ_goal_defect.
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+  echo "Why it stopped: the deterministic doc-regen failed (a --render-docs engine returned non-zero)."
+  echo "State preserved: defect $DEFECT_ID intact at $DEFECT_DIR; no catalogs committed."
+  echo "Next: fix the regen error, then /CJ_goal_defect \"$DRAFT_DESC\""
+  # Telemetry: end_state=halted_at_doc_sync
+  exit 1
+fi
+# Defensive: only docs/ may have changed from the regen.
+_NONDOC=$(git -C "$_REPO_ROOT" status --porcelain -- . ':(exclude)docs/' 2>/dev/null | head -1)
+if [ -n "$_NONDOC" ]; then
+  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  cat >> "$TRACKER" <<EOF
+
+- $TS [doc-sync-non-doc-write] the deterministic doc-regen dirtied a non-docs/ file ("$_NONDOC"); halt class halted_at_doc_sync_non_doc_write.
+  next_action=Inspect the unexpected non-doc change; revert it; re-run the regen manually, then resume /CJ_goal_defect.
+  resume_cmd=/CJ_goal_defect "$DRAFT_DESC"
+  pr_url=N/A
+  raw_output_path=$RAW_DIR/doc-sync-raw.txt
+EOF
+  echo "Why it stopped: the deterministic doc-regen touched a non-docs/ file ($_NONDOC), which it must never do."
+  echo "State preserved: defect $DEFECT_ID intact at $DEFECT_DIR; nothing auto-committed."
+  echo "Next: revert the unexpected change, then /CJ_goal_defect \"$DRAFT_DESC\""
+  # Telemetry: end_state=halted_at_doc_sync_non_doc_write
+  exit 1
+fi
+# Clean regen: commit any doc-only delta and continue to /ship.
+if ! git -C "$_REPO_ROOT" diff --quiet -- docs/ || ! git -C "$_REPO_ROOT" diff --cached --quiet -- docs/; then
+  git -C "$_REPO_ROOT" add -A docs/
+  git -C "$_REPO_ROOT" commit -m "docs: regenerate catalogs (deterministic doc-regen; Step 5.5)" >/dev/null
+  echo "[doc-sync] deterministic doc-regen: committed regenerated catalogs — continuing to /ship"
+else
+  echo "[doc-sync] deterministic doc-regen: catalogs already fresh (no-op) — continuing to /ship"
+fi
+```
+
+The agent-judged doc/test audit + the agentic overlay sweep run nightly in CI
+(audit-nightly.yml), NOT inline (F000076/F000079). Only on a clean regen does
+control proceed to Step 9 (/ship).
 
 ## Step 9: Chain to /ship
 

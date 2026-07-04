@@ -1237,8 +1237,8 @@ gates:
       task:    "[doc-sync-red]"
       todo:    "[doc-sync-red]"
     disposition: halt
-    backing: "/CJ_document-release (Step 5.5 doc-sync)"
-    checks: "doc drift is folded into the same PR (registry parses; declared docs current)"
+    backing: "deterministic doc-regen (Step 5.5 — test-spec.sh + workflow-spec.sh --render-docs)"
+    checks: "the generated catalogs are regenerated into the same PR (Check 26/27 stay green); the slow /CJ_document-release LLM pass was replaced by the deterministic regen — the agentic prose/overlay sync defers to the nightly audit"
   # --- feature/defect/task run a ship gate with a literal marker; todo ships via /land-and-deploy ---
   - id: ship
     layer: pipeline-gate
@@ -1356,6 +1356,12 @@ behaviors:
     level: contract
     area: execution-engine
     purpose: "Each edge is machine-classifiable — never inference, never a fabricated ledger, never fake green."
+  # ---- the cj_goal build-gate slimmed-shape invariant ----
+  - id: build-gate-no-inline-slow-sync
+    statement: "No CJ_goal_* orchestrator (feature/task/defect/todo_fix) runs an inline slow doc-sync (/CJ_document-release) or an inline agent-judged test-sync amendment sweep: Step 5.5 is a deterministic doc-regen (--render-docs) and QA's 8.6a/8.6b agentic sweep is gated by the DEFER_SYNC dispatch directive, so the agentic doc/test sync defers to the nightly audit while the deterministic per-PR gate stays green."
+    level: integration
+    area: build-gate-shape
+    purpose: "Makes the build-path invariant a first-class enforced entry: a future edit that re-introduces an inline /CJ_document-release call or drops the DEFER_SYNC gate is caught by the linked guard test (which /CJ_test_run executes). Deliberately level:integration, not level:workflow — it spans the four orchestrators + qa.md, not one orchestrator's run (the workflow-coverage gate governs only orchestrator-to-level:workflow), mirroring the workflow-doc-audit-runs behavior."
 behavior_coverage:
   - behavior: seed-byte-identical
     unit: test-test-spec
@@ -1428,6 +1434,10 @@ behavior_coverage:
     unit: test-test-run
     source: tests/test-run.test.sh
     anchor: "SKIP: no runners declared + exit 0"
+  - behavior: build-gate-no-inline-slow-sync
+    unit: test-cj-goal-doc-sync-wiring
+    source: tests/cj-goal-doc-sync-wiring.test.sh
+    anchor: "build-gate deterministic-agentic split"
 runners:
   # ---- the runners: axis (F000072): HOW to run this repo's tests ----
   # Overlay-only + optional; consumed by scripts/test-run.sh (plan / tiered
@@ -1558,4 +1568,12 @@ categories:
     tier: local-only
     doc: "docs/tests/workflow/local-hook/e2e-local.md"
     purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary; agentic + local-only (runs on your machine, never in CI)."
+  - name: cj-goal-gate-shape
+    category: workflow
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/cj-goal-doc-sync-wiring.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-push/cj-goal-gate-shape.md"
+    purpose: "The cj_goal build-gate shape guard — proves no CJ_goal_* orchestrator runs an inline slow doc-sync (/CJ_document-release) or agent-judged test-sync sweep: Step 5.5 is a deterministic doc-regen and QA's 8.6a/8.6b agentic sweep is DEFER_SYNC-gated, so the agentic doc/test sync defers to the nightly audit. Deterministic (grep, no model), runs per-PR; the complement to the doc-sync workflow test that proves the nightly safety net."
 ```

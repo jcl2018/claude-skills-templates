@@ -157,13 +157,15 @@ render (the physical migration of the 29 flat `tests/*.test.sh` into
 gate, and the category↔behavior cross-check are DEFERRED
 follow-ups); the audit REPORTS structural gaps + seeds docs but NEVER moves test
 scripts, so it stays standalone-safe on a repo it does not own.
-/CJ_document-release is the inline doc-sync wrapper invoked at
-Step 5.5 of every cj_goal orchestrator (between the QA pass and `/ship`) — folds
-doc updates into the same code PR rather than chasing them post-merge. (As of
-F000076 there is no post-sync agent-judged audit / QA-audit checkpoint between
-Step 5.5 and `/ship`; that audit moved to nightly CI — see `## Doc-sync
-coverage`.) It is also
-a keeper of the doc contract: it reads the merged doc-spec registry,
+/CJ_document-release is the standalone doc-sync wrapper + doc-contract keeper. As
+of F000079 the cj_goal orchestrators NO LONGER call it inline: Step 5.5 is now a
+fast DETERMINISTIC doc-regen (`test-spec.sh` + `workflow-spec.sh --render-docs`)
+that folds the generated catalogs into the same code PR, while the slow
+agent-judged doc-sync (`/CJ_document-release`'s prose rewrite) + the QA 8.6a/8.6b
+overlay-amendment sweep DEFER to the nightly audit (F000076 relocated the audit,
+F000079 the agentic sync — see `## Nightly doc/test-drift audit`). Run manually or
+by the nightly job, `/CJ_document-release` is still the
+keeper of the doc contract: it reads the merged doc-spec registry,
 self-bootstraps a missing `spec/doc-spec.md` from the portable seed, and
 stub-scaffolds any declared-but-missing doc (the duty that replaced the retired
 `/CJ_repo-init`; `spec/test-spec.md` is stubbed via `test-spec.sh --seed` so the
@@ -604,21 +606,26 @@ checkout whose `origin/main` to compare against — under install==clone that
 Out of scope for v1: work-copilot/ Copilot consumers (no preamble surface),
 fork-aware detection (`upstream/main` fallback when `origin/main` is missing).
 
-## Doc-sync coverage (F000028/F000029 marker mechanism retired by F000040)
+## Doc-sync coverage (F000028/F000029 marker retired by F000040; inline sync narrowed to DETERMINISTIC by F000079)
 
-Doc-sync now runs INLINE on every common main-moving path:
+The DETERMINISTIC doc-sync — regenerating the generated catalogs so the per-PR
+gate stays green — runs INLINE on every common main-moving path; the slow AGENTIC
+doc/test sync (prose rewrite + overlay-amendment sweep) DEFERS to nightly CI
+(F000079):
 
 - **Orchestrator paths** — each `cj_goal` orchestrator (`/CJ_goal_feature`,
-  `/CJ_goal_defect`, `/CJ_goal_todo_fix`) folds doc updates into the same code PR
-  at **Step 5.5** (`/CJ_document-release`, after an idempotent pre-doc-sync commit
-  and BEFORE `/ship`). **As of F000076, Step 5.5 is followed directly by `/ship`** —
-  the four orchestrators no longer run a post-sync agent-judged doc/test audit or
-  surface a QA-audit checkpoint AUQ. QA passes `DEFER_AUDIT: true` (now meaning
-  "QA skips the inline agent-judged audit; nightly CI covers it"), and the
-  `/CJ_doc_audit` + `/CJ_test_audit` audit runs NIGHTLY instead — see
-  `## Nightly doc/test-drift audit` below. The deterministic per-PR gate
-  (`validate.sh` / `validate.yml` / the pre-commit hook) is UNCHANGED and still
-  blocks a broken change per-PR.
+  `/CJ_goal_task`, `/CJ_goal_defect`, `/CJ_goal_todo_fix`) folds the regenerated
+  catalogs into the same code PR at **Step 5.5** — as of F000079 a fast
+  DETERMINISTIC doc-regen (`test-spec.sh` + `workflow-spec.sh --render-docs`, after
+  an idempotent pre-doc-sync commit and BEFORE `/ship`), NOT the slow inline
+  `/CJ_document-release` LLM pass. **Step 5.5 is followed directly by `/ship`.** The
+  four orchestrators no longer run an inline agent-judged doc/test AUDIT (F000076)
+  NOR the slow agent-judged doc/test SYNC (F000079): QA passes `DEFER_AUDIT: true`
+  + `DEFER_SYNC: true` (it runs only the deterministic new-surface row inline and
+  skips the agentic amendment sweep + the audit), and the `/CJ_doc_audit` +
+  `/CJ_test_audit` sweep runs NIGHTLY instead — see `## Nightly doc/test-drift
+  audit` below. The deterministic per-PR gate (`validate.sh` / `validate.yml` / the
+  pre-commit hook) is UNCHANGED and still blocks a broken change per-PR.
 - **`/ship` paths** — `/ship` Step 18 dispatches `/document-release` on every
   invocation, after the push and before the PR exists, so a manual `/ship` still
   lands doc updates in the PR.
@@ -638,7 +645,7 @@ AUQ kept firing for drift already folded into the same PR. Operators with
 leftover state can safely delete the orphaned marker + cache JSON files under
 `~/.gstack/` (inspect via `ls ~/.gstack/`).
 
-## Nightly doc/test-drift audit (F000076)
+## Nightly doc/test-drift audit (F000076; also the deferred SYNC safety net, F000079)
 
 The agent-judged doc/test-drift audit (`/CJ_doc_audit` + `/CJ_test_audit`) used
 to run inline on every `cj_goal` build, right after doc-sync, gated by a QA-audit
@@ -646,7 +653,17 @@ checkpoint AUQ. F000076 moved it OFF the per-PR path onto a nightly CI cadence.
 The four `CJ_goal_*` orchestrators (feature / task / defect / todo_fix) no longer
 run this audit inline and no longer surface the QA-audit checkpoint — QA passes
 `DEFER_AUDIT: true`, which now means **"QA skips the inline agent-judged audit;
-nightly CI covers it."**
+nightly CI covers it."** **F000079 widened what this nightly sweep is the safety
+net FOR:** the orchestrators also stopped running the slow inline doc-sync
+(`/CJ_document-release` prose rewrite → replaced by a deterministic doc-regen at
+Step 5.5) and the agent-judged test-sync overlay-amendment sweep (QA 8.6a/8.6b,
+now `DEFER_SYNC: true`). That deferred agentic drift is caught by the SAME nightly
+sweep — `/CJ_doc_audit` Stage 3 (docs reflect reality) + `/CJ_test_audit` (overlay
+truthfulness) — filed to the same `audit-drift` issue, so **no new nightly job was
+added.** The consciously-accepted trade: semantic doc/spec *prose* freshness now
+lands post-merge via the issue, not in the same PR (F000036's same-PR thesis
+narrows to STRUCTURE, which the deterministic Step 5.5 + `validate.sh` still keep
+in-PR).
 
 - **Producer** — `scripts/audit-nightly.sh`, driven by
   `.github/workflows/audit-nightly.yml` (the `CI-nightly` cadence +
@@ -799,7 +816,9 @@ the portable contract adopts it — or Check 17 flags it.
 
 ## /CJ_document-release doc audit conventions
 
-`/CJ_document-release` (the inline Step 5.5 doc-sync wrapper) is the keeper of the
+`/CJ_document-release` (the standalone / nightly doc-sync wrapper — no longer the
+inline Step 5.5 call as of F000079, which replaced it with a deterministic
+doc-regen) is the keeper of the
 doc contract. On every run it reads `doc-spec.md`, self-bootstraps a missing
 `doc-spec.md` from the portable Common seed (`doc-spec.sh --seed`), stub-scaffolds
 any declared-but-missing doc, derives the doc-only auto-commit whitelist from the
