@@ -70,13 +70,18 @@ The CJ_ skill family in this workbench is fronted by two intent-named verbs:
 (/CJ_personal-workflow), per-phase skills (/CJ_scaffold-work-item,
 /CJ_implement-from-spec, /CJ_qa-work-item, /CJ_document-release) that the
 orchestrators dispatch as leaf subagents, and standalone utilities
-(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix, /CJ_portability-audit,
+(/CJ_system-health, /CJ_suggest, /CJ_goal_todo_fix,
 /CJ_doc_audit, /CJ_test_audit, /CJ_test_run). /CJ_goal_todo_fix bridges
 TODOS.md rows to the shipping pipeline in one keystroke — see
 `skills/CJ_goal_todo_fix/SKILL.md`.
-/CJ_portability-audit is the producer-side static lint that checks each catalog
-skill's declared `portability` against its actual repo-local dependencies (wired
-into `validate.sh` as an advisory check).
+The producer-side portability lint (`scripts/cj-portability-audit.sh`, wired into
+`validate.sh` as strict-by-default Check 18) is now a contract property proven
+automatically — its former standalone `/CJ_portability-audit` verb was RETIRED by
+F000081 (the engine + Check 18 stay; source under `deprecated/CJ_portability-audit/`).
+Portability is covered as `infra` at all three test levels via the
+`spec/test-spec-custom.md` `categories:` axis: `portability-check18-lint` +
+`portability-smoke` (CI-push), `portability-deploy` (CI-nightly), and
+`portability-version-check` (local-hook).
 /CJ_doc_audit + /CJ_test_audit are the operator audit verbs — runnable
 standalone in ANY repo, each a THREE-STAGE audit: they seed-deliver the
 two-tier doc/test contracts (`spec/doc-spec.md` / `spec/test-spec.md` via

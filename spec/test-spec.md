@@ -144,6 +144,29 @@ The **layer is the closed set `{CI-push, CI-nightly, pipeline-gate, local-hook}`
 `layer` is **descriptive metadata** (the real cron/trigger stays in
 `.github/workflows/*.yml`, kept consistent by hand).
 
+**The three test levels per category.** Of the four layers, three are the
+*per-category test levels* every category SHOULD reach — a category is only fully
+covered when it has a test at each. `pipeline-gate` is an inline-orchestrator halt,
+not a per-category test level, so it is excluded here:
+
+- **CI-push** — a *quick deterministic* check: the fast per-PR merge signal
+  (`mode: deterministic`, `tier: free`). Heavy deterministic work defaults OFF this
+  level so the per-PR gate stays fast.
+- **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
+  that would slow every PR, moved off the PR path onto a nightly cadence
+  (`mode: deterministic`).
+- **local-hook** — a *quick agentic* check that verifies locally on demand
+  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
+  on their own machine, never on a CI schedule.
+
+An empty (category, level) cell is a *coverage gap*, not an error: some cells are
+intentionally empty and a category need not fill all three. `test-spec.sh
+--check-structure` therefore REPORTS the per-category × {CI-push, CI-nightly,
+local-hook} matrix and emits an advisory `NOTE:` per empty cell — it never
+hard-fails a gap (findings-are-the-product, exit 0 always). The matrix is a map of
+where a category is thin, read by a maintainer (and surfaced in `/CJ_test_audit`
+Stage 1), not a gate.
+
 An adopting repo adds a `categories:` array to its `test-spec-custom.md` overlay
 (**optional-on-schema-1**, overlay-only — the machine block in this general file
 is unchanged). Each row declares one named test: `name` (a stable slug — it IS the

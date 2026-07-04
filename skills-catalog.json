@@ -356,7 +356,7 @@
   {
     "name": "CJ_portability-audit",
     "version": "0.1.0",
-    "description": "Static dependency lint for declared skill portability. Compares each catalog skill's declared portability field against its ACTUAL executed repo-local dependencies (root scripts/*.sh helpers, root config, CLAUDE.md, the manifest .source reach-back) using a strict tier ladder (standalone < local-only < workbench), an EXECUTED-vs-documented precision rule, bundled-own-script + scoped self-resolution-preamble carve-outs, and an optional portability_requires accepted-deps field. Emits a per-skill verdict (portable / portable-with-notes / findings:<list>). Engine-in-script (scripts/cj-portability-audit.sh, resolved repo-local-first then via .source); also wired into validate.sh as Check 18 (strict-by-default — a finding hard-fails; PORTABILITY_STRICT=0 downgrades to advisory). Workbench-only. Use when: 'audit skill portability', 'check declared-vs-actual dependencies', 'is this skill really standalone'.",
+    "description": "DEPRECATED (retired by F000081 — the portability property is now proven automatically by the test contract, not a verb to remember). The engine scripts/cj-portability-audit.sh + validate.sh Check 18 (the strict-by-default declared-vs-actual portability lint) are KEPT and still run per-PR; only the standalone /CJ_portability-audit routable verb is retired. Portability is covered as infra at all three test levels: the Check-18 lint (portability-check18-lint, CI-push) + the Git-Bash smoke (portability-smoke, CI-push), the Windows-native deploy suite (portability-deploy, CI-nightly), and the version-notification (portability-version-check, local-hook). Source relocated under deprecated/CJ_portability-audit/; not deployed.",
     "source": "local",
     "depends": {
       "skills": [],
@@ -371,11 +371,10 @@
     },
     "portability": "workbench",
     "files": [
-      "skills/CJ_portability-audit/SKILL.md"
+      "deprecated/CJ_portability-audit/SKILL.md"
     ],
     "templates": [],
-    "doc_requirement": "The SKILL.md tier ladder + EXECUTED-vs-documented rule + carve-outs match scripts/cj-portability-audit.sh; the engine-resolution preamble + advisory-check posture (exit 0 default, PORTABILITY_STRICT=1 opt-in) match validate.sh; USAGE.md is current.",
-    "status": "experimental"
+    "status": "deprecated"
   },
   {
     "name": "CJ_doc_audit",

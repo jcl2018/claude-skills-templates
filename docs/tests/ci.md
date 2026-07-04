@@ -11,6 +11,7 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
+| nightly workflow — nightly full test suite | CI-nightly | hard-fail | nightly manual | `.github/workflows/nightly.yml` · `name: Nightly (full test suite)` | Runs the FULL scripts/test.sh on ubuntu-latest on a nightly schedule, with a manual dispatch trigger — the safe-additive CI-nightly home for the heavy suite that would slow every PR; mirrors windows-nightly.yml. The per-PR validate.yml is UNTRIMMED (that trim is a deferred follow-up), so the suite still also runs on every PR. |
 | validate workflow — PR gate | CI-push | hard-fail | pr-ci | `.github/workflows/validate.yml` · `name: Validate Skills` | Runs the validator, the full test suite and shellcheck on every pull request. |
 | windows workflow — Git Bash smoke gate | CI-push | hard-fail | pr-ci push-main | `.github/workflows/windows.yml` · `name: Windows (Git Bash)` | Runs the fast Windows smoke (windows-smoke.sh) under Git Bash on every pull request and push to main — the CI-push cadence; the slow skills-deploy suite moved to the nightly workflow. |
 | windows-nightly workflow — nightly skills-deploy suite | CI-nightly | hard-fail | nightly manual | `.github/workflows/windows-nightly.yml` · `name: Windows Nightly (skills-deploy suite)` | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest under Git Bash on a nightly schedule, with a manual dispatch trigger — the CI-nightly cadence windows-deploy test. |

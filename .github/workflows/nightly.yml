@@ -1,0 +1,52 @@
+name: Nightly (full test suite)
+
+# The nightly full test suite — the `CI-nightly` cadence `nightly` `ci` unit
+# (F000081 / WS4). It runs the FULL scripts/test.sh on ubuntu-latest on a nightly
+# schedule (plus a manual dispatch), giving the heavy suite a home OFF the per-PR
+# path.
+#
+# Why nightly: scripts/test.sh is slow (it re-runs the whole validator plus every
+# registered tests/*.test.sh sub-suite, test-deploy.sh and windows-smoke.sh) and
+# can be OOM-flaky on a shared runner. Moving it to a nightly cadence keeps the
+# heavy work off every PR.
+#
+# SAFE-ADDITIVE (F000081/WS4): this workflow ADDS a nightly run; it removes
+# nothing. The per-PR gate .github/workflows/validate.yml is UNTRIMMED this feature
+# (it still runs validate.sh + the full test.sh + shellcheck on every PR). Trimming
+# validate.yml's per-PR coverage to the fast set — and the matching `layer` reclass
+# of the moved units to CI-nightly — is a deferred, attended follow-up work-item; an
+# autonomous PR-stop can't verify a trimmed gate, so it is out of scope here.
+#
+# Manual runs: gh workflow run nightly.yml
+
+on:
+  schedule:
+    # 08:41 UTC daily. Offset from :00 to avoid GitHub Actions cron contention
+    # (top-of-hour slots queue against millions of other jobs and can drift), and
+    # offset from windows-nightly's :23 so the two nightly workflows don't collide.
+    - cron: '41 8 * * *'
+  # Manual trigger for debug/verification without waiting for cron.
+  workflow_dispatch:
+
+# Limit GITHUB_TOKEN to read-only contents access (defense-in-depth); this job
+# needs no write access to anything.
+permissions:
+  contents: read
+
+# Prevent concurrent cron + manual triggers from running the suite twice.
+# cancel-in-progress: false queues the second run rather than killing the first.
+concurrency:
+  group: nightly-full-suite
+  cancel-in-progress: false
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y jq shellcheck
+
+      - name: Full test suite
+        run: ./scripts/test.sh
