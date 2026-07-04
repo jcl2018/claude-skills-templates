@@ -21,6 +21,15 @@
 #       6c  MINOR: --dry-run creates ZERO directories
 #   (7) cwd-independence (common-dir resolves to the shared root [AC-7 / S6b]
 #       from a linked worktree AND from a nested subdir)
+#   (8) SLUG-LESS feature tracker `${id}_TRACKER.md` is matched on   [D-regress]
+#       BOTH reap paths (regression for the reap regex/glob that
+#       required a `_<slug>_` segment and so never matched a merged
+#       FEATURE claim → stale claims accrued → next scaffold re-handed
+#       an already-used F/S ID):
+#       8a  reap-on-origin: a feature ID whose `${id}_TRACKER.md` is on
+#           origin/main IS reaped (id_on_origin optional-slug regex)
+#       8b  materialized-dir: once `${id}_TRACKER.md` exists locally the
+#           same-branch reuse ADVANCES (id_has_workitem_dir two-name find)
 #
 # Harness style mirrors tests/cj-worktree-init.test.sh: ok/fail_test counters,
 # a per-case temp git sandbox, subshell-per-case with _rc accounting, and a
@@ -83,8 +92,8 @@ claim_root_of() {
 }
 
 SBX1="" ; SBX2="" ; SBX3="" ; SBX4="" ; SBX5="" ; SBX6="" ; SBX7=""
-SBX6A="" ; SBX6B="" ; SBX6C=""
-trap 'cleanup_sandboxes "$SBX1" "$SBX2" "$SBX3" "$SBX4" "$SBX5" "$SBX6" "$SBX7" "$SBX6A" "$SBX6B" "$SBX6C"' EXIT
+SBX6A="" ; SBX6B="" ; SBX6C="" ; SBX8="" ; SBX8B=""
+trap 'cleanup_sandboxes "$SBX1" "$SBX2" "$SBX3" "$SBX4" "$SBX5" "$SBX6" "$SBX7" "$SBX6A" "$SBX6B" "$SBX6C" "$SBX8" "$SBX8B"' EXIT
 
 # ---------- Case 1: single claim above floor → floor+1 ----------
 
@@ -454,6 +463,94 @@ SBX7=$(mk_sandbox)
 )
 case_7_rc=$?
 [ "$case_7_rc" -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+# ---------- Case 8: SLUG-LESS feature tracker matched on both reap paths --------
+#
+# REGRESSION for the reap regex/glob that REQUIRED a `_<slug>_` segment between the
+# work-item ID and `_TRACKER.md` (id_on_origin: `${id}_[^/]*_TRACKER\.md$`;
+# id_has_workitem_dir: `find -name "${id}_*_TRACKER.md"`). FEATURE-level trackers
+# are named `${id}_TRACKER.md` with NO slug (e.g. F000077_TRACKER.md), so neither
+# matcher ever fired for a feature → merged feature claims were never reaped from
+# cj-id-claims/, stale claim dirs accrued, and the next scaffold's reuse/next-ID
+# math could hand back an already-used F/S ID (parallel builds collided on the same
+# ID + VERSION — hit live twice on 2026-07-03). The fix makes the slug OPTIONAL.
+#
+# These two sub-cases use the SLUG-LESS shape exclusively (Case 3 / Case 6.0 use a
+# `_demo_` slug, so they never exercised this path). Each FAILS before the fix and
+# PASSES after: 8a — a stale F000048 claim whose `F000048_TRACKER.md` is on
+# origin/main is REAPED (so floor 47 → F000048 again); 8b — once `F000048_TRACKER.md`
+# materializes locally, same-branch reuse ADVANCES instead of re-handing F000048.
+
+echo ""
+echo "Case 8a: reap-on-origin matches a SLUG-LESS feature tracker \${id}_TRACKER.md..."
+SBX8=$(mk_sandbox)
+(
+  cd "$SBX8"
+  # Bare origin whose main carries the SLUG-LESS feature tracker F000048_TRACKER.md.
+  ORIGIN_DIR=$(mktemp -d -t cj-id-origin8.XXXXXX)
+  git init -q --bare "$ORIGIN_DIR"
+  git remote add origin "$ORIGIN_DIR"
+  mkdir -p work-items/features/ops
+  echo "tracker" > work-items/features/ops/F000048_TRACKER.md
+  git add work-items/features/ops/F000048_TRACKER.md
+  git commit -qm "add slug-less F000048 feature tracker"
+  git push -q origin main
+  # Remove it locally so id_has_workitem_dir is false, leaving it only on origin.
+  git rm -q work-items/features/ops/F000048_TRACKER.md
+  git commit -qm "remove local tracker (keep on origin)"
+  # Pre-create a stale claim dir for F000048 (a merged feature claim never reaped).
+  CR=$(claim_root_of)
+  mkdir -p "$CR/F000048"
+  echo "branch=other" > "$CR/F000048/meta"
+  OUT=$(bash "$HELPER" --prefix F --floor 47 2>&1)
+  RC=$?
+  ID=$(printf '%s\n' "$OUT" | sed -n 's/^CLAIMED_ID=//p')
+  # BEFORE the fix id_on_origin's required-slug regex never matched
+  # F000048_TRACKER.md, so the stale claim was NOT reaped and counted toward the
+  # live max → the mint ADVANCED to F000049. WITH the fix it is reaped + not
+  # counted → floor 47 re-mints F000048, and its meta is rewritten by this run.
+  if [ "$RC" -eq 0 ] && [ "$ID" = "F000048" ] && [ -d "$CR/F000048" ]; then
+    NEWBRANCH=$(sed -n 's/^branch=//p' "$CR/F000048/meta" | head -1)
+    CURB=$(git branch --show-current)
+    if [ "$NEWBRANCH" = "$CURB" ]; then
+      ok "Case 8a: slug-less on-origin feature claim reaped + re-minted (meta → $NEWBRANCH); CLAIMED_ID=$ID"
+    else
+      fail_test "Case 8a: F000048 present but meta not rewritten this run (branch='$NEWBRANCH' want '$CURB') — reap regex still requires a slug?"
+    fi
+  else
+    fail_test "Case 8a: expected slug-less feature reap → CLAIMED_ID=F000048 (got rc=$RC id='$ID'). BEFORE-fix symptom: advances to F000049 because \${id}_TRACKER.md never matched the reap regex."
+  fi
+  rm -rf "$ORIGIN_DIR"
+)
+case_8a_rc=$?
+[ "$case_8a_rc" -ne 0 ] && ERRORS=$((ERRORS + 1))
+
+echo ""
+echo "Case 8b: materialized SLUG-LESS \${id}_TRACKER.md makes same-branch reuse advance..."
+SBX8B=$(mk_sandbox)
+(
+  cd "$SBX8B"
+  # First claim mints F000090 (floor 89); a live same-branch re-run reuses it.
+  ID_FIRST=$(bash "$HELPER" --prefix F --floor 89 | sed -n 's/^CLAIMED_ID=//p')   # F000090
+  ID_REUSE=$(bash "$HELPER" --prefix F --floor 89 | sed -n 's/^CLAIMED_ID=//p')   # reuse → F000090
+  if [ "$ID_FIRST" = "F000090" ] && [ "$ID_REUSE" = "$ID_FIRST" ]; then
+    # Materialize the work-item dir with a SLUG-LESS feature tracker
+    # ${ID}_TRACKER.md (NOT ${ID}_slug_TRACKER.md). id_has_workitem_dir must now
+    # see it so the next same-branch run ADVANCES past F000090.
+    mkdir -p "work-items/features/ops/${ID_FIRST}_some_feature"
+    echo "t" > "work-items/features/ops/${ID_FIRST}_some_feature/${ID_FIRST}_TRACKER.md"
+    ID_AFTER=$(bash "$HELPER" --prefix F --floor 89 | sed -n 's/^CLAIMED_ID=//p')  # advance → F000091
+    if [ "$ID_AFTER" = "F000091" ]; then
+      ok "Case 8b: slug-less ${ID_FIRST}_TRACKER.md detected → reuse advanced to $ID_AFTER"
+    else
+      fail_test "Case 8b: after slug-less ${ID_FIRST}_TRACKER.md created, expected advance to F000091; got '$ID_AFTER'. BEFORE-fix symptom: id_has_workitem_dir's \${id}_*_TRACKER.md glob misses the slug-less file, so reuse re-hands $ID_FIRST."
+    fi
+  else
+    fail_test "Case 8b: expected reuse F000090==F000090; got first='$ID_FIRST' reuse='$ID_REUSE'"
+  fi
+)
+case_8b_rc=$?
+[ "$case_8b_rc" -ne 0 ] && ERRORS=$((ERRORS + 1))
 
 # ---------- Summary ----------
 
