@@ -3,6 +3,31 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.121] - 2026-07-05
+
+### Fixed
+- **D000043 — `skills-deploy doctor` missed CRLF line-ending drift in deployed
+  templates (Windows `test.sh` P0, bucket c).** The committed template content is LF
+  (`.gitattributes eol=lf`), but a Windows checkout (`core.autocrlf=true`) can leave
+  CRLF; `skills-deploy install` copies the CRLF template AND records the CRLF
+  `source_checksum`, so `doctor`'s checksum comparison passed while the deployed copy
+  was still CRLF — checksum-invisible, surfacing only as a downstream `test.sh`
+  D000012 byte-`cmp` failure from an LF checkout. Added an independent CR probe to
+  `do_doctor`'s template health loop: a deployed template with any CR byte is flagged
+  as CRLF drift regardless of the checksum. Regression: `test-deploy.sh` Test 8c
+  (install → drift one deployed template to CRLF → doctor WARNs).
+
+### Changed
+- **Closed the Windows `test.sh` P0** (struck in `TODOS.md`). All three buckets resolved:
+  **(a)** the jq-CRLF orchestrator-helper sweep shipped as D000040 / PR #328 (v6.0.118);
+  **(b)** drill-harness SIGPIPE/CRLF robustness was resolved by F000081 (targeted-engine
+  negative tests, no more whole-`validate.sh` re-runs) + D000040's `_VALIDATE_OUT`
+  here-string SIGPIPE fix — a full `test.sh` reproduction now passes every drill-harness
+  check (Check 17/19/24-29, S000094/S000096, F000060) with 0 failures; **(c)**
+  deployed-template CRLF drift was cleared operationally (renormalize the root +
+  `~/.claude/templates/*` to LF + `skills-deploy install --overwrite` from an LF
+  checkout) and is now caught early by the doctor CR probe.
+
 ## [6.0.120] - 2026-07-05
 
 ### Fixed

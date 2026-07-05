@@ -1969,6 +1969,16 @@ do_doctor() {
         else
           echo "  OK: $tpl"
         fi
+        # Line-ending drift (D000040 bucket c) — checked independently of the
+        # checksum: the committed content is LF (.gitattributes eol=lf), so a
+        # deployed copy with CR bytes is always Windows drift. It is
+        # checksum-invisible when a CRLF install recorded the CRLF sum too, so the
+        # comparison above can pass while the copy is still CRLF. Re-copy from an
+        # LF checkout to clear it.
+        if [ -n "$(tr -cd '\r' < "$tpl_file" 2>/dev/null)" ]; then
+          echo "  WARN: $tpl — deployed copy has CRLF line endings (Windows drift; re-run 'skills-deploy install --overwrite' from an LF checkout)"
+          warnings=$((warnings + 1))
+        fi
       fi
 
       # Check for orphaned owners

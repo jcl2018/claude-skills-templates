@@ -180,6 +180,28 @@ else
 fi
 teardown_env
 
+# Test 8c: Doctor flags CRLF line-ending drift in a deployed template (D000040 bucket c).
+# The committed template content is LF (.gitattributes eol=lf); a deployed copy with CR
+# bytes is Windows drift. The doctor CR probe flags it independently of the source-checksum
+# comparison (a CRLF install can record the CRLF sum, making the checksum match while the
+# copy is still CRLF). sed 's/$/\r/' appends a CR to every line to simulate that drift.
+echo "Test 8c: Doctor flags CRLF template drift (D000040)"
+setup_env
+"$DEPLOY" install >/dev/null 2>&1
+_crlf_tpl=$(find "$SKILLS_DEPLOY_TEMPLATES_TARGET" -name '*.md' 2>/dev/null | head -1)
+if [ -n "$_crlf_tpl" ]; then
+  sed 's/$/\r/' "$_crlf_tpl" > "$_crlf_tpl.crlf" && mv "$_crlf_tpl.crlf" "$_crlf_tpl"
+  output=$("$DEPLOY" doctor 2>&1)
+  if echo "$output" | grep -q "CRLF line endings"; then
+    ok "Doctor flags a CRLF-drifted deployed template"
+  else
+    fail_test "Doctor did not flag CRLF template drift: $(echo "$output" | grep -iE 'templat|CRLF' | tr '\n' '|')"
+  fi
+else
+  ok "Doctor CRLF test skipped (fixture deployed no templates)"
+fi
+teardown_env
+
 # Test 8b: Worktree VERSION split must NOT produce a spurious drift WARN.
 # Regression for T000025: it moved manifest `source` to the main repo toplevel
 # but left `col_ver` reading from `$REPO_ROOT/VERSION` (the ephemeral worktree).
