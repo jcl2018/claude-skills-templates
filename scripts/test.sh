@@ -2407,6 +2407,20 @@ else
   fail_test "tests/portability-version-agentic.test.sh did not exit 0 (rc=$_pva_rc) — it must SKIP cleanly without CJ_E2E_LOCAL=1; run \`bash tests/portability-version-agentic.test.sh\` directly to see"
 fi
 
+# T000057 — the hermetic detail-surfacing regression: proves run_preamble_via_claude
+# exposes the exact cold-agent prompt (byte-identically, via a stubbed claude — no
+# model), the agentic test emits the AGENTIC-DETAIL block past its SKIP gate, and
+# scripts/test-run.sh folds it into the materialized report. Fully offline (stub +
+# source greps); provides the live `bash tests/...` invocation the Check-24 forward
+# grep needs to prove tests/portability-version-agentic-detail.test.sh is wired.
+echo "Running tests/portability-version-agentic-detail.test.sh (T000057 cold-agent prompt+response surfacing; hermetic, no model)..."
+if bash "$REPO_ROOT/tests/portability-version-agentic-detail.test.sh" >/dev/null 2>&1; then
+  ok "tests/portability-version-agentic-detail.test.sh: the detailed prompt/response report plumbing is wired (prompt exposed byte-identically, block emitted past the SKIP gate, folded into the test-run report)"
+else
+  _pvad_rc=$?
+  fail_test "tests/portability-version-agentic-detail.test.sh failed (rc=$_pvad_rc) — the T000057 detail-surfacing plumbing regressed; run \`bash tests/portability-version-agentic-detail.test.sh\` directly to see"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # F000026 / S000056 — scripts/cj-handoff-gate.sh test rows
 # Tests 1-11 of the TEST-SPEC, executed against the deterministic gate helper.

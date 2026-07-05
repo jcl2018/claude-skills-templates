@@ -22,6 +22,14 @@
 # and extracts a {surfaced_nudge, evidence} verdict — PASS iff the agent surfaces the
 # SKILLS_UPGRADE_AVAILABLE nudge, not merely that the banner text exists.
 #
+# DETAILED REPORT (T000057): on the LIVE path (NOT the SKIP path), it prints a
+# clearly-delimited `AGENTIC-DETAIL BEGIN/END` block showing the cold agent's full
+# exchange — the EXACT prompt sent to `claude --print` (captured via
+# run_preamble_via_claude's 6th prompt-out arg), the raw claude RESPONSE JSON, and the
+# extracted verdict — in addition to the existing one-line PASS:/FAIL: summary. When
+# run via /CJ_test_run, scripts/test-run.sh folds this block into the materialized
+# report. The SKIP path emits nothing extra (no model spend).
+#
 # Exit: 0 = SKIP (flag/prereq missing) OR PASS (agent surfaced the nudge).
 #       non-zero = a real FAIL (the agent did not surface the nudge, or an infra error).
 
@@ -88,8 +96,11 @@ SANDBOX=$(mk_neutral_sandbox "$LOCAL_VER" "https://github.com/jcl2018/claude-ski
 BARE=$(mk_tagged_bare_upstream "$NEWER_VER") || { echo "FAIL: portability-version-agentic (tagged bare upstream provision failed)"; rm -rf "$SANDBOX"; exit 1; }
 STATE=$(mktemp -d "${TMPDIR:-/tmp}/cj-agentic-state-XXXXXX")
 MANIFEST="$SANDBOX/.skills-templates.json"
-# Clean up all three throwaway dirs regardless of how we exit.
-trap 'rm -rf "$SANDBOX" "$(dirname "$BARE")" "$STATE"' EXIT INT TERM
+# T000057: capture the EXACT prompt sent to claude --print (written by
+# run_preamble_via_claude's 6th arg) so the detailed report can show it verbatim.
+PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/cj-agentic-prompt-XXXXXX")
+# Clean up all four throwaway paths regardless of how we exit.
+trap 'rm -rf "$SANDBOX" "$(dirname "$BARE")" "$STATE"; rm -f "$PROMPT_FILE"' EXIT INT TERM
 
 # Sanity pre-check (deterministic, no model): the seam itself must produce the banner,
 # so a FAIL below is unambiguously the AGENT not surfacing it, not a broken sandbox.
@@ -103,11 +114,31 @@ fi
 rm -rf "$STATE"; STATE=$(mktemp -d "${TMPDIR:-/tmp}/cj-agentic-state-XXXXXX")
 
 echo "[PORTABILITY-AGENTIC] driving the skills-update-check preamble through claude --print (budget \$$BUDGET) ..."
-OUTPUT=$(run_preamble_via_claude "$SANDBOX" "$MANIFEST" "$STATE" "$BARE" "$BUDGET") && CLAUDE_RC=0 || CLAUDE_RC=$?
+OUTPUT=$(run_preamble_via_claude "$SANDBOX" "$MANIFEST" "$STATE" "$BARE" "$BUDGET" "$PROMPT_FILE") && CLAUDE_RC=0 || CLAUDE_RC=$?
 
 VERDICT=$(printf '%s' "$OUTPUT" | jq -r '.result | fromjson | .surfaced_nudge' 2>/dev/null || echo "parse-error")
 EVIDENCE=$(printf '%s' "$OUTPUT" | jq -r '.result | fromjson | .evidence' 2>/dev/null || echo "")
 COST=$(printf '%s' "$OUTPUT" | jq -r '.total_cost_usd // 0' 2>/dev/null || echo 0)
+
+# ---- Detailed report (T000057): on the LIVE path only, show the cold agent's --------
+# full exchange — the exact PROMPT sent to claude --print, the raw RESPONSE JSON, and
+# the extracted verdict — so /CJ_test_run's report is more than a one-line PASS/FAIL.
+# This is stdout (captured into the materialized report by test-run.sh's agentic-detail
+# passthrough). The SKIP path returns above and never reaches here, so a skipped run
+# emits nothing extra + spends no model. The BEGIN/END markers below are load-bearing:
+# the regression test greps for them, and test-run.sh keys the report passthrough on
+# `AGENTIC-DETAIL BEGIN`.
+_PROMPT_SENT=$(cat "$PROMPT_FILE" 2>/dev/null || echo "(prompt file unavailable)")
+echo "=== AGENTIC-DETAIL BEGIN (portability-version-agentic) ==="
+echo "--- PROMPT sent to \`claude --print\` (verbatim) ---"
+printf '%s\n' "$_PROMPT_SENT"
+echo "--- RESPONSE (raw claude --print JSON) ---"
+printf '%s\n' "$OUTPUT"
+echo "--- VERDICT (extracted) ---"
+echo "surfaced_nudge: $VERDICT"
+echo "evidence:       $EVIDENCE"
+echo "cost_usd:       $COST"
+echo "=== AGENTIC-DETAIL END (portability-version-agentic) ==="
 
 if [ "$CLAUDE_RC" -ne 0 ]; then
   echo "FAIL: portability-version-agentic (claude exit $CLAUDE_RC, subtype: $(printf '%s' "$OUTPUT" | jq -r '.subtype // "unknown"' 2>/dev/null))"

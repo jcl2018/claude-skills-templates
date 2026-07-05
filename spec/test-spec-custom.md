@@ -982,6 +982,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The agentic counterpart to skills-update-check.test.sh: portability's local-hook agentic level asserts an AGENT running the update-check preamble in a repo-neutral sandbox (a bare upstream tagged v-newer via SKILLS_UPDATE_REMOTE_URL) SURFACES the SKILLS_UPGRADE_AVAILABLE nudge — the green-but-inert catch the deterministic version-check cannot see. Local-only (tier local-only via the categories: row): it SKIPs cleanly (exit 0, no model spend) without CJ_E2E_LOCAL=1 + a claude login, so in CI / test.sh only the SKIP path runs (the live claude --print path is a local /CJ_test_run --topic portability --e2e run). Registered here so the Check-24 forward grep proves the file is wired."
+  - id: test-portability-version-agentic-detail
+    family: test
+    label: "portability-version-agentic detail — the cold-agent prompt+response surfacing plumbing (hermetic, no model)"
+    anchor: "tests/portability-version-agentic-detail.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The hermetic regression for the detailed-report plumbing: run_preamble_via_claude's optional 6th prompt-out-path arg writes the EXACT prompt sent to claude byte-identically (proved against a stubbed claude that records its -p value — expose, don't alter) and is a no-op when absent; the portability-version-agentic test emits the delimited AGENTIC-DETAIL BEGIN/END block (prompt + raw response + verdict) only PAST the SKIP gate (the real test still SKIPs clean with no such block when CJ_E2E_LOCAL is unset); and scripts/test-run.sh folds that block into the materialized category report via the marker-keyed _cm_extract_detail passthrough. Spends no model (stubbed claude + source greps)."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test

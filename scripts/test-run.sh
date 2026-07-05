@@ -30,6 +30,13 @@
 # wrapper below), and ALL JSON string encoding goes through jq -R/-Rs (never
 # hand-escaped — verbatim output tails carry quotes/backslashes).
 #
+# Agentic detail (T000057): in CATEGORY MODE, if a selected test prints a delimited
+# `=== AGENTIC-DETAIL BEGIN ... END ===` block (an agentic test surfacing the cold
+# agent's exact prompt + raw response — e.g. portability-version-agentic), that block
+# is folded verbatim into the materialized report under "## Agentic detail" instead of
+# being discarded. Marker-keyed + generic: a test emitting no such block adds nothing,
+# so non-agentic selections are unaffected.
+#
 # Usage:
 #   test-run.sh --dry-run [--evals] [--e2e] [--all]   # print the plan; execute nothing
 #   test-run.sh [--evals] [--e2e] [--all]             # execute + write report + ledger
@@ -317,8 +324,22 @@ EOF
   _cm_json=""            # comma-joined test objects
   _cm_md_rows=""         # markdown table rows
   _cm_fail_blocks=""     # verbatim FAIL tails
+  _cm_detail_blocks=""   # (T000057) verbatim AGENTIC-DETAIL blocks (prompt+response)
   _cm_executed=0; _cm_green=0; _cm_failed=0
   _cm_json_str() { printf '%s' "$1" | jq -Rs .; }
+
+  # (T000057) Extract an AGENTIC-DETAIL block (the cold-agent prompt+response an
+  # agentic test emits between `=== AGENTIC-DETAIL BEGIN` and `=== AGENTIC-DETAIL END`)
+  # from a test's captured stdout, so it lands in the materialized report instead of
+  # being discarded. Generic + marker-keyed: a test that emits no such block yields
+  # nothing here, so non-agentic tests are unaffected. Echoes the block (empty if none).
+  _cm_extract_detail() {
+    printf '%s\n' "$1" | awk '
+      /=== AGENTIC-DETAIL BEGIN/ { grab=1 }
+      grab { print }
+      /=== AGENTIC-DETAIL END/   { grab=0 }
+    '
+  }
 
   echo "=== test-run CATEGORY EXECUTE ($_CM_LABEL; flags: $FLAGS) ==="
   echo "registry: valid   selection: $_CM_LABEL   HEAD: $_cm_head"
@@ -339,6 +360,18 @@ EOF
     echo "  RUN  $_cm_name ($_cm_cat/$_cm_layer, $_cm_tier): $_cm_cmd"
     _cm_o=$( (cd "$REPO_ROOT_RESOLVED" && eval "$_cm_cmd") 2>&1 ) && _cm_rc=0 || _cm_rc=$?
     _cm_first=$(printf '%s\n' "$_cm_o" | head -1)
+    # (T000057) Fold any AGENTIC-DETAIL block (the cold-agent prompt+response) this
+    # test printed into the report — regardless of pass/fail — so /CJ_test_run surfaces
+    # it. Empty for tests that emit none (non-agentic runs are untouched).
+    _cm_detail=$(_cm_extract_detail "$_cm_o")
+    if [ -n "$_cm_detail" ]; then
+      _cm_detail_blocks="$_cm_detail_blocks
+
+### $_cm_name — agentic detail
+\`\`\`
+$_cm_detail
+\`\`\`"
+    fi
     if [ "$_cm_rc" -eq 0 ] && printf '%s' "$_cm_first" | grep -q '^SKIP:'; then
       _cm_out="skipped:self-gated"
       echo "       -> skipped(self-gated): $_cm_first"
@@ -387,6 +420,11 @@ EOF
     echo "| name | category | layer | command | tier | rc | outcome |"
     echo "|------|----------|-------|---------|------|----|---------|"
     printf '%s\n' "$_cm_md_rows" | sed '/^$/d'
+    if [ -n "$_cm_detail_blocks" ]; then
+      echo ""
+      echo "## Agentic detail (cold-agent prompt + response)"
+      printf '%s\n' "$_cm_detail_blocks"
+    fi
     if [ -n "$_cm_fail_blocks" ]; then
       echo ""
       echo "## Failures (verbatim)"
