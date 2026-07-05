@@ -134,7 +134,7 @@ A skill preamble SURFACES an available upgrade to the operator when that command
     --output-format json \
     --json-schema "$_rpc_schema" \
     --add-dir "$_rpc_sandbox" \
-    --model sonnet \
+    --model haiku \
     --max-budget-usd "$_rpc_budget" \
     --no-session-persistence \
     --permission-mode bypassPermissions \
