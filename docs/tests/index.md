@@ -15,6 +15,14 @@ version-notification check AND the agentic version-notification proof (the
 `claude --print` sandbox that asserts an agent actually surfaces the nudge) —
 run all five to fully test portability.
 
+For an enrolled topic, the end goal and the "how it is achieved" breakdown live in
+a dedicated topic subdir. For `portability`: the
+[topic overview](topics/portability/index.md) (property → test → layer map + the
+coverage matrix, organized by layer) is anchored to its
+[dream doc](../goals/portability.md) (the end goal + the three properties). The
+topic subdir + dream doc are required for every enrolled topic by
+`test-spec.sh --check-topic-docs` (`validate.sh` Check 31).
+
 | Name | Category | Layer | Mode | Tier | Topic | Doc |
 |------|----------|-------|------|------|-------|-----|
 | `portability-deploy` | `infra` | `CI-nightly` | deterministic | free | portability | [docs/tests/infra/CI-nightly/portability-deploy.md](tests/infra/CI-nightly/portability-deploy.md) |

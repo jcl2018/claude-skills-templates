@@ -12,9 +12,11 @@
 # split, CLAUDE.md "Novel pattern callout"). This script does the static lint
 # ONLY; the /CJ_portability-audit SKILL.md prose owns the rich report rendering.
 #
-# Two entry points share this engine:
-#   - /CJ_portability-audit skill  -> rich per-skill report table.
-#   - scripts/validate.sh advisory check -> prints findings, exits 0 in v1.
+# This engine is invoked by scripts/validate.sh Check 18, which runs it
+# STRICT-by-default (PORTABILITY_STRICT=1 since T000054): findings HARD-FAIL the
+# build. (The standalone /CJ_portability-audit verb was retired by F000081; the
+# engine + Check 18 stay. Invoked directly the engine still defaults to
+# advisory/exit-0 — validate.sh is what opts into strict.)
 #
 # STRICT TIER LADDER (the bar is "works in a repo that has never seen this
 # workbench"). Each tier's ALLOWED dependency set:
@@ -64,7 +66,8 @@
 #                        catalog's repo root (its files[] are repo-relative).
 #   --help|-h            usage.
 #
-# Exit codes: 0 = advisory clean / advisory-with-findings (default v1 posture);
+# Exit codes: 0 = clean, or findings-but-advisory (the engine's direct-invocation
+#             default; validate.sh Check 18 opts into strict);
 #             1 = findings remain AND PORTABILITY_STRICT=1, or a usage error.
 
 set -uo pipefail

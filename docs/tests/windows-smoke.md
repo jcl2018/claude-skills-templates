@@ -11,4 +11,4 @@ source reference, never a claim.
 
 | Label | Layer | Disposition | Trigger | Source · anchor | Purpose |
 |-------|-------|-------------|---------|-----------------|---------|
-| Windows smoke — CRLF + portable date + copy-mode | CI-push | hard-fail | pr-ci push-main manual | `scripts/test.sh` · `scripts/windows-smoke.sh` | Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp. |
+| Windows smoke — CRLF + portable date + copy-mode + parity (completeness/fidelity) | CI-push | hard-fail | pr-ci push-main manual | `scripts/test.sh` · `scripts/windows-smoke.sh` | Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp (S1-S4), plus the fast per-PR parity assertions (S5 completeness — a full install lands every catalog skill, count == SKILL_COUNT; S6 fidelity — deployed source_checksums match) that gate 'another machine gets the same skills' on every PR without the slow deploy suite. |

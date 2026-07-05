@@ -1,10 +1,10 @@
 # Test: `portability-deploy` (`infra` / `CI-nightly`)
 
-<!-- SEEDED STUB — the authoritative per-test front door (What it is / How
-     to run / Explanation). Seeded by /CJ_test_audit from the
-     spec/test-spec-custom.md categories: axis. Safe to edit: the audit seeds
-     this only when absent (idempotent; present => skip). Fill each section and
-     link the relevant docs/tests/<family>.md units-detail page. -->
+> **Topic:** [portability](../../topics/portability/index.md) · **Goal:**
+> [another machine gets the same skills](../../../goals/portability.md) ·
+> **Layer view:** [CI-nightly](../../topics/portability/CI-nightly.md).
+> This test achieves **completeness** + **fidelity** exhaustively (the full
+> catalog), off the per-PR path.
 
 | Field | Value |
 |-------|-------|
@@ -17,27 +17,48 @@
 
 ## What it is
 
-The skills-deploy end-to-end run of the deploy/install harness on windows-latest, run nightly (windows-nightly.yml) — standing verification infra (the install/remove/relink/doctor harness) held Windows-native; same script as the push-cadence test-deploy, a distinct CI context (platform + cadence).
+The full `skills-deploy` end-to-end harness — install / remove / relink / doctor /
+drift across the *entire* catalog. It is the heavy `CI-nightly` sibling of
+`portability-smoke`: the same "same skills" properties, proven exhaustively on a
+Windows-native runner (`.github/workflows/windows-nightly.yml`) rather than on
+every PR (it is too slow for the push cadence).
+
+## What it proves
+
+| Case | Assertion | Achieves |
+|------|-----------|----------|
+| **Test 1** | install all → deployed skill-dir count `== SKILL_COUNT` (catalog-derived: non-deprecated skills with files) | **Completeness** (full catalog) |
+| **Test 4** | a second install is idempotent (still `== SKILL_COUNT`) | Completeness (stable) |
+| **C1** | the manifest records non-empty per-file `source_checksums`; each matches the installed copy's SHA-256 | **Fidelity** (bytes match) |
+| **C3** | `doctor` FAILs when a deployed file is edited away from source | **Fidelity** (drift *detected*) |
+| **C4** | `relink` re-copies a drifted file back to source → `doctor` healthy again | **Fidelity** (self-heal) |
+| **Test 8c** | `doctor` flags a CRLF-rewritten template independently of the checksum | **Fidelity** (Windows line-ending drift) |
 
 ## How to run
 
 ```bash
-bash scripts/test-deploy.sh
+bash scripts/test-deploy.sh                  # full harness (runs on the host platform)
+# via the contract:
+/CJ_test_run portability-deploy
+/CJ_test_run --category infra
+/CJ_test_run --layer CI-nightly
 ```
-
-Run via the category contract: `/CJ_test_run portability-deploy` (single test),
-`/CJ_test_run --category infra` (the whole category), or
-`/CJ_test_run --layer CI-nightly` (the whole layer).
 
 ## Explanation
 
-This test proves the **full skills-deploy harness** (install / remove / relink /
-doctor / drift) holds on a Windows-native runner. It is the heavier `CI-nightly`
-sibling of `portability-smoke`: same `infra` category (standing verification of the
-deploy/install harness), but the full `test-deploy.sh` suite runs on
-`windows-latest` on a nightly schedule (`.github/workflows/windows-nightly.yml`)
-rather than gating every PR, because it is too slow for the push cadence. Locally
-the same `test-deploy.sh` runs on the host platform.
+This is the exhaustive proof of the two "same skills" halves of the
+[dream](../../../goals/portability.md). **Completeness**: Test 1 installs the whole
+catalog and asserts the deployed count equals `SKILL_COUNT`, so a deploy bug that
+drops even one skill fails here. **Fidelity**: C1 proves the recorded checksums
+match the bytes; C3 proves drift is *detected* (not merely recorded — a subtle gap,
+since a CRLF install can record the CRLF sum); C4 proves `relink` *repairs* it; and
+Test 8c catches a Windows CRLF rewrite the checksum comparison alone could miss.
+
+On a normal per-PR `test.sh` this suite is skipped under `TEST_FAST=1` and gates
+via the nightly full-suite instead; the fast per-PR stand-ins for its two core
+properties are `portability-smoke` S5/S6 (see
+[portability @ CI-push](../../topics/portability/CI-push.md)).
 
 For the per-unit breakdown of what the suite asserts, see the
-[test-deploy family doc](../../../test-deploy.md).
+[test-deploy family doc](../../test-deploy.md); for the layer-level "how", see
+[portability @ CI-nightly](../../topics/portability/CI-nightly.md).

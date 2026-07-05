@@ -18,5 +18,5 @@ catalog is a rendered view kept fresh by `validate.sh` Check 26.
 | `hook` | 2 | [docs/tests/hook.md](tests/hook.md) |
 | `test` | 50 | [docs/tests/test.md](tests/test.md) |
 | `test-deploy` | 1 | [docs/tests/test-deploy.md](tests/test-deploy.md) |
-| `validate` | 31 | [docs/tests/validate.md](tests/validate.md) |
+| `validate` | 32 | [docs/tests/validate.md](tests/validate.md) |
 | `windows-smoke` | 1 | [docs/tests/windows-smoke.md](tests/windows-smoke.md) |

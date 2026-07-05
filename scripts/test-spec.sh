@@ -127,6 +127,18 @@
 #                      absent test-spec registry / no categories: axis / no
 #                      topic_contracts: enrollment => inactive note + exit 0.
 #                      Surfaced by validate.sh + /CJ_test_audit Stage 1.
+#   --check-topic-docs (F000083) the topic dream-doc + topic-subdir contract. For
+#                      every ENROLLED topic (topic_contracts:), require, HARD (exit
+#                      1 on any finding): a docs/goals/<topic>.md dream doc (the
+#                      end-goal WHAT), a docs/tests/topics/<topic>/index.md landing
+#                      page that REFERENCES the dream doc, and a per-layer page
+#                      docs/tests/topics/<topic>/<layer>.md for EACH layer the
+#                      topic's categories: rows span (the HOW, grouped by layer).
+#                      The doc-legibility companion to --check-topic-contract (which
+#                      proves the TESTS reach the layers; this proves the topic's
+#                      testing is DOCUMENTED end to end). Declaration-only =>
+#                      CI-safe. Same registry-gated skips as --check-topic-contract.
+#                      Surfaced by validate.sh Check 31 + /CJ_test_audit Stage 1.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -1374,6 +1386,80 @@ EOF
   _TC_N=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
   echo "topic contract: enrolled=$_TC_N findings=$_TC_FINDINGS"
   [ "$_TC_FINDINGS" -eq 0 ]
+}
+
+# ---- --check-topic-docs: the topic dream-doc + topic-subdir contract (F000083) --
+# The HARD, declaration-only (CI-safe, zero model spend) enforcement that every
+# ENROLLED topic (topic_contracts:) materializes its testing LEGIBLY:
+#   1. a "dream doc" at docs/goals/<topic>.md (the end goal + properties — the WHAT),
+#   2. a topic subdir index at docs/tests/topics/<topic>/index.md (the HOW landing),
+#   3. that index REFERENCES the dream doc (a link to goals/<topic>.md), and
+#   4. a per-layer page docs/tests/topics/<topic>/<layer>.md for EACH DISTINCT layer
+#      the topic's categories: rows span (the HOW, grouped by layer).
+# The doc-legibility companion to --check-topic-contract: that check proves the
+# TESTS reach all layers; this proves the topic's testing is DOCUMENTED as a whole
+# (a dream doc + a topic-by-layer subdir) so a maintainer can learn from the docs
+# WHAT the topic proves and HOW. Same registry-gated skips. Findings print verbatim,
+# a summary line last, exit 1 on any finding.
+_run_topic_docs() {
+  # test-spec registry-absent → inactive skip (callers must not parse halt prose).
+  if [ ! -f "$TEST_SPEC_PATH" ]; then
+    echo "topic docs contract inactive — test-spec registry absent (no enrollment to cross-check)"
+    return 0
+  fi
+  if [ -z "$_CATEGORIES" ]; then
+    echo "topic docs contract inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (with a topic:) + topic_contracts: to activate"
+    return 0
+  fi
+  if [ -z "$_TOPIC_CONTRACTS" ]; then
+    echo "topic docs contract inactive — no topic_contracts: enrollment in spec/test-spec-custom.md; enroll a topic (topic_contracts: [<topic>]) to activate"
+    return 0
+  fi
+
+  _TD_DOCS=$(_STRUCT_DOCS_DEFAULT)
+  _TD_FINDINGS=0
+
+  while IFS= read -r _tdt; do
+    [ -n "$_tdt" ] || continue
+
+    # 1. dream doc (the WHAT — the end goal + properties the tests realize).
+    if [ ! -f "$_TD_DOCS/goals/$_tdt.md" ]; then
+      echo "FINDING: topic-docs — enrolled topic '$_tdt' has no dream doc at docs/goals/$_tdt.md (the end-goal / properties doc the topic's tests realize — the WHAT)"
+      _TD_FINDINGS=$((_TD_FINDINGS + 1))
+    fi
+
+    # 2. topic subdir index (the HOW landing page).
+    _td_index="$_TD_DOCS/tests/topics/$_tdt/index.md"
+    if [ ! -f "$_td_index" ]; then
+      echo "FINDING: topic-docs — enrolled topic '$_tdt' has no topic index at docs/tests/topics/$_tdt/index.md (the topic-by-layer HOW landing page)"
+      _TD_FINDINGS=$((_TD_FINDINGS + 1))
+    else
+      # 3. the index must REFERENCE the dream doc (the HOW points back to the WHAT).
+      if ! grep -qF "goals/$_tdt.md" "$_td_index" 2>/dev/null; then
+        echo "FINDING: topic-docs — enrolled topic '$_tdt' index (docs/tests/topics/$_tdt/index.md) does not reference its dream doc (a link to goals/$_tdt.md); the HOW must point back to the WHAT"
+        _TD_FINDINGS=$((_TD_FINDINGS + 1))
+      fi
+    fi
+
+    # 4. a per-layer page for EACH DISTINCT layer the topic's tests span (field 3 =
+    #    layer, field 9 = topic on the categories: TSV rows).
+    _td_layers=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v t="$_tdt" 'NF && $9 == t {print $3}' | sort -u)
+    while IFS= read -r _td_layer; do
+      [ -n "$_td_layer" ] || continue
+      if [ ! -f "$_TD_DOCS/tests/topics/$_tdt/$_td_layer.md" ]; then
+        echo "FINDING: topic-docs — enrolled topic '$_tdt' covers layer '$_td_layer' but has no per-layer page at docs/tests/topics/$_tdt/$_td_layer.md (each layer the topic spans needs its 'how to achieve' page)"
+        _TD_FINDINGS=$((_TD_FINDINGS + 1))
+      fi
+    done <<LAYERS
+$_td_layers
+LAYERS
+  done <<EOF
+$_TOPIC_CONTRACTS
+EOF
+
+  _TD_N=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
+  echo "topic docs contract: enrolled=$_TD_N findings=$_TD_FINDINGS"
+  [ "$_TD_FINDINGS" -eq 0 ]
 }
 
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
@@ -2833,6 +2919,17 @@ case "${1:-}" in
     _run_registry_gates
     _run_topic_contract
     ;;
+  --check-topic-docs)
+    # The topic dream-doc + topic-subdir contract (F000083): every ENROLLED topic
+    # (topic_contracts:) has a docs/goals/<topic>.md dream doc AND a
+    # docs/tests/topics/<topic>/ subdir (index referencing the dream + a per-layer
+    # page for each layer it covers). Declaration-only → CI-safe. Registry-gated
+    # skip (absent registry / no categories: axis / no enrollment → inactive +
+    # exit 0). HARD (exit 1) only on a real missing-doc finding. Surfaced by
+    # validate.sh Check 31 + /CJ_test_audit Stage 1.
+    _run_registry_gates
+    _run_topic_docs
+    ;;
   --render-docs)
     # (F000069/S000114) Render the generated human test catalog from the merged
     # registry. `--render-docs` writes docs/tests/<family>.md + docs/test-catalog.md;
@@ -2879,6 +2976,7 @@ Usage:
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
   test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic,agentic} with its front-door doc (registry-gated skip)
+  test-spec.sh --check-topic-docs # HARD (declaration-only, CI-safe): every enrolled topic has a docs/goals/<topic>.md dream doc + a docs/tests/topics/<topic>/ subdir (index refs the dream + a page per covered layer); registry-gated skip
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
@@ -2892,7 +2990,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--check-topic-docs|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

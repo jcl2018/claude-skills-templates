@@ -670,6 +670,15 @@ units:
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} + a local-hook{agentic} test, each with its front-door doc. Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — the agentic behavior is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
+  - id: validate-check-31
+    family: validate
+    label: "Check 31 — topic docs contract (enrolled topics have a dream doc + topic-by-layer subdir)"
+    anchor: "=== Check 31:"
+    source: scripts/validate.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pre-commit pr-ci"
+    purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -1157,13 +1166,13 @@ units:
     purpose: "Spawns the headless CLI against scratch worktrees per eval case with JSON-schema output validation; budget-capped per case and per run. Run on-demand (bash scripts/eval.sh) — no longer on a nightly CI schedule."
   - id: suite-windows-smoke
     family: windows-smoke
-    label: "Windows smoke — CRLF + portable date + copy-mode"
+    label: "Windows smoke — CRLF + portable date + copy-mode + parity (completeness/fidelity)"
     anchor: "scripts/windows-smoke.sh"
     source: scripts/test.sh
     layer: CI-push
     disposition: hard-fail
     trigger: "pr-ci push-main manual"
-    purpose: "Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp."
+    purpose: "Git Bash portability assertions: CRLF tolerance, portable date math, copy-mode install and the in-place install stamp (S1-S4), plus the fast per-PR parity assertions (S5 completeness — a full install lands every catalog skill, count == SKILL_COUNT; S6 fidelity — deployed source_checksums match) that gate 'another machine gets the same skills' on every PR without the slow deploy suite."
   # ---- ci family: GitHub Actions workflows ----
   - id: ci-validate
     family: ci
