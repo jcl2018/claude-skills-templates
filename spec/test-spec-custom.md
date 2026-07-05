@@ -810,6 +810,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "No executable line in any of the four cj_goal pipeline.md passes a multi-line shell payload through awk -v; only the safe --body-file filename idiom and the warning comments remain, and each file keeps its gh pr edit --body-file splice."
+  - id: test-cj-goal-jq-crlf
+    family: test
+    label: "goal jq-CRLF drill — CR-stripping jq() wrapper in the 5 orchestrator helpers"
+    anchor: "tests/cj-goal-jq-crlf.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The CR-stripping jq() wrapper (mirrors lib.sh:24) is present in cj-goal-common.sh, cj-worktree-init.sh, cj-worktree-cleanup.sh, check-version-queue.sh and check-gates-update.sh, and under a CRLF-emitting jq shim it strips CR from jq output and preserves jq's non-zero exit status without pipefail — so a Windows jq's CRLF cannot re-taint the orchestrator helpers (breaking the src directory guard and silently skipping the sync/pr-check phases)."
   - id: test-post-land-sync
     family: test
     label: "post-land-sync suite — post-merge local sync helper"

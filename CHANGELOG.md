@@ -3,7 +3,7 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [6.0.117] - 2026-07-04
+## [6.0.119] - 2026-07-04
 
 ### Added
 - **F000082 — three-layer test contract per topic: the local layer now carries
@@ -44,6 +44,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `--e2e`/`--all`, so a default free run never spends a model). `scripts/test-spec.sh`
   widens the `categories:` TSV to 9 columns across all six consumer sites and keeps
   the `_emit_seed` heredoc byte-identical to `spec/test-spec.md`.
+
+## [6.0.118] - 2026-07-04
+
+### Fixed
+- **D000040 — jq CRLF re-taints the `CJ_goal_*` / `check-*` orchestrator helpers
+  on Windows.** A Windows jq build emits CRLF, so a raw `$(jq -r ...)` capture in
+  `scripts/cj-goal-common.sh`, `cj-worktree-init.sh`, `cj-worktree-cleanup.sh`,
+  `check-version-queue.sh` and `check-gates-update.sh` left a trailing `\r` on
+  every value — breaking `[ -d "$src" ]` so the pre-build skills-sync / pr-check
+  phases silently degraded to `skipped` (fail-soft hid it). Added the canonical
+  CR-stripping wrapper `jq() { command jq "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }`
+  (mirrors `scripts/lib.sh:24`) to all five helpers. The **pipefail-independent**
+  form (`return "${PIPESTATUS[0]}"`) preserves jq's exit status in the two helpers
+  that deliberately omit `set -o pipefail`, keeping their `if jq -nc` / `jq -e`
+  exit-status sites correct without a risky global `set -o pipefail`. The
+  orchestrator-helper sibling of D000038 (which fixed the same class in the spec
+  engines).
+- **CI `validate` false-fail from a SIGPIPE in the `test.sh` early guards.** The
+  S000094 / S000096 / F000060 guards greped the reused `$_VALIDATE_OUT` capture via
+  `printf '%s\n' "$_VALIDATE_OUT" | grep -q …`. Once F000081's output growth pushed
+  validate.sh past the ~64KB pipe buffer, `grep -q` matched and closed the pipe while
+  `printf` was still writing, so `printf` took SIGPIPE (exit 141) — and under GitHub
+  Actions' `-o pipefail` that propagated as a false `FAIL: … missing the swapped
+  Check 24`. Converted all 7 sites to pipe-free here-strings
+  (`grep -q … <<< "$_VALIDATE_OUT"`). A latent main bug that any large-output PR would
+  now trip; this PR was the first.
+
+### Added
+- **`tests/cj-goal-jq-crlf.test.sh`** — regression drill for the class: structural
+  (the CR-stripping `jq()` wrapper present in all 5 helpers) + mechanism (under a
+  CRLF-emitting jq shim the wrapper strips CR *and* preserves jq's non-zero exit
+  status with `pipefail` off) + end-to-end (`cj-goal-common.sh --phase worktree
+  --dry-run` emits CR-free output). Wired into `scripts/test.sh` + a
+  `spec/test-spec-custom.md` `units:` row (Check 24). Scope: bucket (a) of the
+  Windows P0; buckets (b) drill-harness robustness + (c) template drift remain
+  separate follow-on tasks.
+
+## [6.0.117] - 2026-07-04
+
+### Added
+- **`docs/tests/index.md` gained a `Topic` column (T000056)** grouping the declared
+  category tests by topic, so a reader can see at a glance which set of tests together
+  fully covers one concern. The four portability tests → `portability` (Git-Bash smoke +
+  Check-18 lint at CI-push, the Windows deploy suite at CI-nightly, the
+  version-notification check at local-hook — run all four to fully test portability);
+  `validate`/`suite`/`test-deploy` → `core-suite`; the cj_goal
+  eval/doc-sync/e2e/gate-shape rows → `cj-goal-workflows`. Rows reordered to sit
+  together by topic + a one-line intro added. Docs-only, hand-maintained (the `Topic`
+  column is not sourced from the `categories:` axis); every declared test name is still
+  referenced (`--check-structure` check (e) green) and `--render-docs` leaves the index
+  byte-identical (owned by `--seed-docs`, present⇒skip).
 
 ## [6.0.116] - 2026-07-04
 

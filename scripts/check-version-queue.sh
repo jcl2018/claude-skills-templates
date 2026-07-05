@@ -19,6 +19,13 @@
 #   1 — bad invocation (e.g., not a git repo)
 set -euo pipefail
 
+# Strip CRLF from jq output — a Windows jq build emits \r\n, so a raw
+# $(jq -r ...) capture leaves a trailing \r on every value (breaking
+# `[ -d "$src" ]` and friends). `return "${PIPESTATUS[0]}"` preserves jq's exit
+# status independent of `set -o pipefail`. No-op on Unix. Mirrors
+# scripts/lib.sh:24; covers every jq call site below.
+jq() { command jq "$@" | tr -d '\r'; return "${PIPESTATUS[0]}"; }
+
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "ERROR: not in a git repo" >&2; exit 1
 }
