@@ -3,6 +3,17 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.123] - 2026-07-05
+
+### Changed
+- **TODOS.md hygiene — struck two resolved-but-unstruck rows** that were topping
+  `/CJ_suggest`. (1) "version-notification is INERT … releases aren't tagged
+  `vX.Y.Z`" (P1) — closed by D000042 (v6.0.120, PR #330); `scripts/tag-release.sh`
+  now publishes a `v<VERSION>` tag at land, confirmed live (`v6.0.120`/`121`/`122`
+  on origin). (2) "a skill to explicitly RUN the repo's tests" (P2) — shipped as
+  `/CJ_test_run` (F000072), the "does it pass?" executor that drives the `runners:`
+  axis (`test.sh`/`eval.sh`/`e2e-local.sh`) to an evidence-derived verdict.
+
 ## [6.0.122] - 2026-07-05
 
 ### Added
