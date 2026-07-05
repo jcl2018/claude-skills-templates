@@ -3,6 +3,31 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.120] - 2026-07-05
+
+### Fixed
+- **D000042 — the `git ls-remote` version-notification was inert against the real
+  upstream because releases were never tagged `vX.Y.Z`.** F000081's
+  `skills-update-check` derives its staleness signal from the newest published
+  `v<X.Y.Z>` tag read via `git ls-remote --tags`, but the land flow bumped VERSION +
+  CHANGELOG on every release and never created/pushed a git tag — so origin stayed
+  frozen at `v1.1.0` while VERSION advanced to 6.0.119, the compare was permanently
+  `remote < local`, and the `SKILLS_UPGRADE_AVAILABLE` nudge could never fire on any
+  consumer machine (the feature shipped green only because its hermetic + agentic
+  tests stub a *tagged* upstream). Fix: new **`scripts/tag-release.sh`** — at land, if
+  origin lacks a `v<VERSION>` tag it creates an annotated tag and `git push origin
+  v<VERSION>` (idempotent no-op if the tag exists; **fail-soft** — a create/push
+  failure WARNs and exits 0 so it NEVER halts a land; `--strict`/`--version`/
+  `--dry-run`/`--remote`/`--ref` flags). Wired fail-soft into
+  **`scripts/post-land-sync.sh`** after `skills-deploy install`, surfaced in its
+  `--dry-run` plan + header. **No per-PR gate is added** — VERSION is bumped in the PR
+  before any tag exists at land, so a per-PR "tag exists" check would fail on every PR;
+  the producer runs post-merge only. Hermetic 9-assert regression
+  (**`tests/tag-release.test.sh`** — a local `git init --bare` fake origin, no
+  network), registered in `spec/test-spec-custom.md` + wired into `scripts/test.sh`.
+  (The one-time operational backfill — pushing a real tag to origin so the nudge works
+  today — rides the first land of this fix via `post-land-sync.sh`.)
+
 ## [6.0.119] - 2026-07-04
 
 ### Added
