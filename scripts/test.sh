@@ -2128,11 +2128,12 @@ fi
 # --strict-fails / default-fail-softs push-failure split.
 echo ""
 echo "Running tests/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
-if bash "$REPO_ROOT/tests/tag-release.test.sh" >/dev/null 2>&1; then
+if _tr_out=$(bash "$REPO_ROOT/tests/tag-release.test.sh" 2>&1); then
   ok "tests/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
 else
   _tr_rc=$?
-  fail_test "tests/tag-release.test.sh failed (rc=$_tr_rc) — run \`bash tests/tag-release.test.sh\` directly to see"
+  fail_test "tests/tag-release.test.sh failed (rc=$_tr_rc):"
+  printf '%s\n' "$_tr_out" | sed 's/^/    [tag-release] /' >&2
 fi
 
 # Regression test (F000045 / S000081): scripts/cj-goal-common.sh `--phase sync`
