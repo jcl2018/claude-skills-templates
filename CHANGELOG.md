@@ -3,6 +3,42 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.124] - 2026-07-05
+
+### Added
+- **F000083 — materialize + enforce the portability test contract.** The
+  `portability` topic's testing is now legible end to end and structurally cannot
+  rot back to one-line stubs.
+  - **Dream doc** `docs/goals/portability.md` — the end goal ("another machine gets
+    the same skills as in this repo") and the three properties it decomposes into
+    (completeness, fidelity, cross-platform parity) plus the supporting guarantees
+    (no-hidden-coupling precondition, freshness signal) — the WHAT the topic's tests
+    realize. A new hand-authored `docs/goals/` "dream docs" home.
+  - **Topic subdir** `docs/tests/topics/portability/` — an `index.md` (property →
+    test → layer map + coverage matrix) plus a page per layer (`CI-push.md`,
+    `CI-nightly.md`, `local-hook.md`) explaining how each layer achieves the dream —
+    the HOW, grouped by layer, each referencing the dream doc.
+  - **Enriched per-test docs** — all five `docs/tests/infra/**/portability-*.md`
+    front doors now carry a `## What it proves` assertion→property table (was a
+    one-line seeded stub); also fixed a broken `../../../<family>.md` link the seeded
+    stubs shipped with.
+  - **New enforcement** `scripts/test-spec.sh --check-topic-docs` → `scripts/validate.sh`
+    **Check 31** + a hermetic `scripts/test.sh` negative test: every enrolled topic
+    MUST have its dream doc + topic-by-layer subdir (index referencing the dream + a
+    page per covered layer). Declaration-only ⇒ CI-safe, registry-gated (a consumer
+    with no enrollment passes vacuously).
+  - **Completeness + fidelity now gate on CI-push** via fast `scripts/windows-smoke.sh`
+    S5 (a full install lands every catalog skill — `count == SKILL_COUNT`) + S6
+    (deployed `source_checksums` match source), WITHOUT moving the slow
+    `scripts/test-deploy.sh` suite (stays CI-nightly) — so "another machine gets the
+    same skills" gates every PR while CI-push stays fast.
+
+### Changed
+- `scripts/cj-portability-audit.sh` header wording corrected — the validator's
+  Check 18 has run the portability lint strict-by-default since T000054, so the
+  engine comment no longer claims "advisory … exits 0 in v1" (functional behavior
+  unchanged).
+
 ## [6.0.123] - 2026-07-05
 
 ### Changed

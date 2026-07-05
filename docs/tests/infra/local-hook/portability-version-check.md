@@ -1,10 +1,10 @@
 # Test: `portability-version-check` (`infra` / `local-hook`)
 
-<!-- SEEDED STUB — the authoritative per-test front door (What it is / How
-     to run / Explanation). Seeded by /CJ_test_audit from the
-     spec/test-spec-custom.md categories: axis. Safe to edit: the audit seeds
-     this only when absent (idempotent; present => skip). Fill each section and
-     link the relevant docs/tests/<family>.md units-detail page. -->
+> **Topic:** [portability](../../topics/portability/index.md) · **Goal:**
+> [another machine gets the same skills](../../../goals/portability.md) ·
+> **Layer view:** [local-hook](../../topics/portability/local-hook.md).
+> This test achieves the **freshness-signal** guarantee (deterministic half): the
+> script emits the upgrade banner.
 
 | Field | Value |
 |-------|-------|
@@ -17,32 +17,46 @@
 
 ## What it is
 
-The local sandbox check of the deploy/install harness's version-notification — a stubbed git ls-remote + a .source-absent manifest proving skills-update-check nudges when a newer release is published; portability's local-hook level (deterministic fill; the agentic model-surfaced-prompt variant is deferred).
+A hermetic regression for `scripts/skills-update-check`'s checkout-independent
+version notification. It NEVER touches the real `~/.claude` and NEVER hits the
+network: it stubs `git ls-remote --tags` with canned tags, points state at a
+throwaway dir, and drives a `.source`-absent manifest (the remote-machine /
+consumer shape). It proves the *mechanism* that keeps an installed machine from
+drifting away from the repo actually fires.
+
+## What it proves
+
+| Case | Assertion | Achieves |
+|------|-----------|----------|
+| **Banner** | remote (max v-tag) > local, `.source` absent → prints `SKILLS_UPGRADE_AVAILABLE <local> <remote>` | Freshness signal fires |
+| **Max-tag** | the highest 3-digit v-tag wins; a peeled `^{}` ref is ignored | Correct target version |
+| **Silent (equal)** | remote `==` local → no output, exit 0 | No false nudge |
+| **Silent (downgrade)** | remote `<` local → no output, exit 0 | Never a downgrade nudge |
+| **Fail-soft** | `ls-remote` errors, or no v-tags exist → no output, exit 0 | Robust (never crashes a skill preamble) |
+| **Override / normalize** | `SKILLS_UPDATE_REMOTE_URL` wins with no `upstream_url`; an ssh-form URL is normalized to https | Works on a fresh consumer clone |
 
 ## How to run
 
 ```bash
-bash tests/skills-update-check.test.sh
+bash tests/skills-update-check.test.sh       # hermetic — no network, no real ~/.claude
+# via the contract:
+/CJ_test_run portability-version-check
+/CJ_test_run --layer local-hook
 ```
-
-Run via the category contract: `/CJ_test_run portability-version-check` (single test),
-`/CJ_test_run --category infra` (the whole category), or
-`/CJ_test_run --layer local-hook` (the whole layer).
 
 ## Explanation
 
-This test is portability's **local-hook level**: a quick, local proof that the
-deploy/install harness's version-notification (`scripts/skills-update-check`)
-correctly nudges an operator when a newer release is published. It runs the
-`skills-update-check` unit test, which stubs `git ls-remote` on PATH and points the
-script at a `.source`-absent manifest, then asserts the `SKILLS_UPGRADE_AVAILABLE`
-banner fires when the remote tag is newer, stays silent when equal/older, and
-fail-softs silently when the remote is unreachable — all with no real network. It
-is an `infra` test (standing verification of the deploy/install harness, the same
-harness `portability-smoke` / `portability-deploy` cover at the other layers) filled
-DETERMINISTICALLY; the canonical "quick agentic" local-hook variant (a real
-`claude --print` skill preamble in a stale sandbox asserting the model surfaces the
-nudge) is a deferred follow-up.
+The [dream](../../../goals/portability.md) decays over time if a machine that
+installed once is never told to re-sync — so the **freshness signal** is a
+supporting guarantee the goal depends on. This test proves the deterministic half:
+the `skills-update-check` script, run from a stale checkout-independent install,
+correctly emits the upgrade banner *and* stays silent (and fail-soft) in every case
+where it should. Its agentic sibling —
+[`portability-version-agentic`](portability-version-agentic.md) — proves the *other*
+half: that an agent running the skill preamble actually *surfaces* the nudge to a
+human, closing the green-but-inert blind spot a script-only test cannot see.
 
 For the per-unit breakdown of the `skills-update-check` regression this drives, see
-the [test family doc](../../../test.md).
+the [test family doc](../../test.md); for the layer-level "how" and why the agentic
+proof is local-only, see
+[portability @ local-hook](../../topics/portability/local-hook.md).

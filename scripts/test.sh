@@ -833,6 +833,44 @@ else
 fi
 rm -rf "$_C30_TMP"
 
+# Step 3j (F000083 / Check 31): the topic DOCS contract — the doc-legibility companion
+# to Check 30. THE PARALLEL test.sh EDIT the new validate.sh Check 31 needs (same
+# zzz-mirror discipline as Check 30). Check 31 IS test-spec.sh --check-topic-docs: for
+# every ENROLLED topic (portability today), assert a docs/goals/<topic>.md dream doc AND
+# a docs/tests/topics/<topic>/ subdir (index referencing the dream + a per-layer page per
+# covered layer). The negative path plants the fault HERMETICALLY (a temp docs tree via
+# the TESTDOC_OUT override with the dream doc OMITTED) and asserts the targeted engine
+# exits non-zero naming the missing dream doc, then confirms the LIVE tree passes — never
+# mutating the real docs. TARGETED: invokes ONLY the engine, no whole-validator re-run.
+# POSITIVE: on the live tree Check 31 reports findings=0.
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-docs 2>&1 | grep -qE '^topic docs contract: .*findings=0$'; then
+  ok "Check 31: test-spec.sh --check-topic-docs reports findings=0 on the live tree (targeted engine — every enrolled topic has its dream doc + topic-by-layer subdir)"
+else
+  fail_test "Check 31: test-spec.sh --check-topic-docs did not report findings=0 on the live tree"
+fi
+# NEGATIVE (hermetic): a temp docs tree with the topic subdir present but the dream doc
+# OMITTED, pointed at via the TESTDOC_OUT docs-root override; assert the engine hard-fails
+# naming the missing dream doc. The real docs/ is untouched (the engine reads the LIVE
+# registry for enrollment; only the docs root is redirected).
+_C31_TMP=$(mktemp -d -t test-sh-c31-XXXXXX)
+mkdir -p "$_C31_TMP/docs/tests/topics/portability" "$_C31_TMP/docs/goals"
+cp "$REPO_ROOT/docs/tests/topics/portability/"*.md "$_C31_TMP/docs/tests/topics/portability/" 2>/dev/null || true
+# (deliberately do NOT copy docs/goals/portability.md — the planted fault)
+_C31_OUT=$(
+  export TESTDOC_OUT="$_C31_TMP/docs"
+  bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-docs 2>&1
+) && _C31_RC=0 || _C31_RC=$?
+if [ "$_C31_RC" -eq 0 ]; then
+  fail_test "Check 31: --check-topic-docs should have exited non-zero with the dream doc removed, but exited 0; output: $_C31_OUT"
+else
+  if echo "$_C31_OUT" | grep -qF "has no dream doc" && echo "$_C31_OUT" | grep -qF "portability"; then
+    ok "Check 31: removing portability's dream doc triggers the topic-docs FINDING + non-zero exit (targeted engine, hermetic)"
+  else
+    fail_test "Check 31: --check-topic-docs exited non-zero but missing the expected dream-doc finding; output: $_C31_OUT"
+  fi
+fi
+rm -rf "$_C31_TMP"
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then

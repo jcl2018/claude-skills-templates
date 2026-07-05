@@ -9,6 +9,13 @@
 #   S000078  portable date — the GNU-vs-BSD date probe resolves on this host
 #   S000079  copy-mode      — skills-deploy installs as real files when symlinks are unusable
 #
+# Plus the fast per-PR portability PARITY assertions (F000083) — the CI-push
+# stand-ins for the heavy nightly portability-deploy harness, so "another machine
+# gets the same skills" gates on every PR without moving the slow test-deploy suite:
+#
+#   S5  completeness — a full install lands EVERY catalog skill (count == SKILL_COUNT)
+#   S6  fidelity     — the deployed bytes match source (manifest source_checksums match)
+#
 # Deliberately PORTABLE: it passes on macOS/Linux too (copy-mode via the
 # SKILLS_DEPLOY_FORCE_COPY override), so the same script is exercised by
 # scripts/test.sh on the ubuntu CI + locally — it is not Windows-only-untested
@@ -165,6 +172,41 @@ if [ -f "$s5_sk" ] && grep -qF '_UC=' "$s5_sk" && grep -qF '_cj-shared' "$s5_sk"
   ok "copy-installed orchestrator resolves update-check from _cj-shared (de-coupled, no .source)"
 else
   fail_test "copy-installed orchestrator update-check did not de-couple to _cj-shared"
+fi
+
+# ---------------------------------------------------------------------------
+# S5 (F000083) — COMPLETENESS: a full `skills-deploy install` lands EVERY catalog
+# skill on another machine. Deployed skill-dir count == SKILL_COUNT (catalog-
+# derived: non-deprecated skills with files), so a deploy that silently drops a
+# skill fails here. The fast per-PR stand-in for portability-deploy Test 1 (which
+# re-checks the full catalog nightly, Windows-native). REUSES S4's full FORCE_COPY
+# install at $s5_dir — host-independent (green on macOS/Linux too).
+# ---------------------------------------------------------------------------
+echo "S5: full install lands every catalog skill — completeness (F000083)"
+CATALOG="$REPO_ROOT/skills-catalog.json"
+SKILL_COUNT=$(jq '[.[] | select(.files | length > 0) | select((.status // "active") != "deprecated")] | length' "$CATALOG" 2>/dev/null || echo 0)
+s5_count=$(find "$s5_dir/skills" -mindepth 1 -maxdepth 1 -type d ! -path "$s5_dir/skills/templates" ! -path "$s5_dir/skills/rules" 2>/dev/null | wc -l | tr -d ' ')
+if [ "${SKILL_COUNT:-0}" -gt 0 ] && [ "${s5_count:-0}" -eq "${SKILL_COUNT:-0}" ]; then
+  ok "full install deployed all $SKILL_COUNT catalog skills (completeness)"
+else
+  fail_test "completeness: expected $SKILL_COUNT skill dirs, got ${s5_count:-0}"
+fi
+
+# ---------------------------------------------------------------------------
+# S6 (F000083) — FIDELITY: the deployed bytes match source. Copy-mode records a
+# per-file source_checksum in the manifest; each must equal the installed copy's
+# actual hash, so a corrupted/CRLF-rewritten copy cannot masquerade as source. The
+# fast per-PR stand-in for portability-deploy C1/C3 (which additionally prove doctor
+# DETECTS drift + relink REPAIRS it, nightly). Reuses the S4 install.
+# ---------------------------------------------------------------------------
+echo "S6: deployed checksums match source — fidelity (F000083)"
+s6_sk="$s5_dir/skills/CJ_system-health/SKILL.md"
+s6_rec=$(jq -r '.skills["CJ_system-health"].source_checksums["SKILL.md"] // ""' "$s5_dir/m.json" 2>/dev/null)
+s6_act=$( (shasum -a 256 "$s6_sk" 2>/dev/null || sha256sum "$s6_sk" 2>/dev/null) | awk '{print $1}')
+if [ -n "$s6_rec" ] && [ "$s6_rec" = "$s6_act" ]; then
+  ok "recorded source_checksum matches the installed copy (fidelity)"
+else
+  fail_test "fidelity: SKILL.md checksum mismatch (recorded='$s6_rec' actual='$s6_act')"
 fi
 
 echo ""

@@ -191,7 +191,26 @@ labeled topics keep the advisory matrix until their missing-mode test is built
 a targeted `scripts/test.sh` negative test (plant→fail→restore→pass, invoking ONLY
 the engine), surfaced in `/CJ_test_audit` Stage 1; `/CJ_test_run` gains a `--topic`
 selector. A repo with no `categories:` axis or no `topic_contracts:` enrollment
-reports "topic contract inactive" and passes vacuously. The **dual-write footgun:**
+reports "topic contract inactive" and passes vacuously.
+
+**Topic docs materialization (F000083).** The topic contract's DOC-legibility
+companion: an enrolled topic must also be DOCUMENTED as a whole — a **dream doc**
+`docs/goals/<topic>.md` (the end goal + the three properties — the WHAT the tests
+realize) plus a **topic subdir** `docs/tests/topics/<topic>/` (`index.md` +
+`<layer>.md` per covered layer — the HOW, grouped by layer, referencing the dream).
+For `portability` the end goal is "another machine gets the same skills as in this
+repo," decomposed into completeness / fidelity / cross-platform parity + the
+no-hidden-coupling precondition + the freshness signal. Enforced by
+`validate.sh` **Check 31** (`test-spec.sh --check-topic-docs`; see `## Doc contract`).
+F000083 also promoted **completeness + fidelity onto the per-PR CI-push path** via
+fast `scripts/windows-smoke.sh` assertions **S5** (a full install lands every catalog
+skill — `count == SKILL_COUNT`) + **S6** (deployed `source_checksums` match source),
+WITHOUT moving the slow `test-deploy.sh` suite (which stays CI-nightly) — so
+"same skills on another machine" gates every merge while CI-push stays fast. (Check 18
+was already strict-by-default since T000054; F000083 only corrected the engine
+header's stale "advisory" wording.)
+
+The **dual-write footgun:**
 any edit to `spec/test-spec.md` prose (the topic-axis section) MUST be mirrored
 byte-identically into the `_emit_seed` heredoc in `scripts/test-spec.sh` (guarded by
 the seed-identity test).
@@ -873,6 +892,22 @@ source, the prose explains it.
   Paired with a targeted `scripts/test.sh` negative test (hermetically removes
   portability's agentic row from a temp registry copy → expect the finding, invoking
   ONLY the engine).
+- **Check 31** — the **topic docs contract** (HARD, registry-gated, F000083): the
+  doc-legibility companion to Check 30. Every ENROLLED topic MUST also be DOCUMENTED
+  end to end — a **dream doc** at `docs/goals/<topic>.md` (the end goal + the
+  properties the tests realize — the WHAT) PLUS a **topic subdir**
+  `docs/tests/topics/<topic>/` (an `index.md` that REFERENCES the dream doc + a
+  per-layer page `<layer>.md` for each layer the topic spans — the HOW, grouped by
+  layer). Check 30 proves the enrolled topic's TESTS reach every layer; Check 31
+  proves its testing is LEGIBLE (a maintainer can learn from the docs what the topic
+  proves and how) and cannot rot back to one-line stubs. Engine:
+  `test-spec.sh --check-topic-docs`; **declaration-only ⇒ CI-safe**. SKIPs when the
+  registry / `categories:` axis / `topic_contracts:` enrollment is absent (a consumer
+  passes vacuously). Surfaced in `/CJ_test_audit` Stage 1. Paired with a targeted
+  `scripts/test.sh` negative test (a temp docs tree via the `TESTDOC_OUT` override
+  with the dream doc omitted → expect the finding, invoking ONLY the engine). The
+  `docs/goals/` dream docs + `docs/tests/topics/**` pages are hand-authored human-docs
+  (declared in `spec/doc-spec-custom.md`; no work-item IDs).
 
 Add a repo-specific doc by adding a table row to `spec/doc-spec-custom.md`
 (and creating the file) — never by editing the general `spec/doc-spec.md` (it

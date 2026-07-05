@@ -1172,6 +1172,34 @@ else
   fi
 fi
 
+# Check 31: every ENROLLED test topic is DOCUMENTED end to end — a docs/goals/<topic>.md
+# dream doc + a docs/tests/topics/<topic>/ subdir (index referencing the dream + a
+# per-layer page for each layer it covers). F000083's doc-legibility companion to
+# Check 30: Check 30 proves the enrolled topic's TESTS reach all layers; Check 31
+# proves its testing is DOCUMENTED as a whole (the WHAT — a dream doc — plus the HOW —
+# a topic-by-layer subdir), so a maintainer can learn from the docs what the topic
+# proves and how, and the docs cannot rot back to one-line stubs. Declaration-only ⇒
+# CI-safe. Engine: scripts/test-spec.sh --check-topic-docs (registry-gates itself).
+# Registry-gated: skips when the engine is absent OR the contract reports inactive
+# (no test-spec registry / no categories: axis / no topic_contracts: enrollment).
+echo ""
+echo "=== Check 31: every enrolled test topic is documented (dream doc + topic-by-layer subdir) ==="
+TESTSPEC_TD="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC_TD" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+else
+  C31_OUT=$(bash "$TESTSPEC_TD" --check-topic-docs 2>&1) && C31_RC=0 || C31_RC=$?
+  if printf '%s\n' "$C31_OUT" | grep -qE '^(REGISTRY=absent|topic docs contract inactive)'; then
+    echo "  SKIP: topic docs contract inactive (no test-spec registry, no categories: axis, or no topic_contracts: enrollment — registry-gated)"
+  elif [ "$C31_RC" -eq 0 ]; then
+    pass "every enrolled topic has its dream doc + topic-by-layer subdir ($(printf '%s\n' "$C31_OUT" | grep '^topic docs contract:' | head -1))"
+  else
+    echo "  ERROR: the topic docs contract has findings — an enrolled topic is missing its dream doc or a per-layer topic page"
+    printf '%s\n' "$C31_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

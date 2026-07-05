@@ -1,10 +1,10 @@
 # Test: `portability-version-agentic` (`infra` / `local-hook`)
 
-<!-- SEEDED STUB — the authoritative per-test front door (What it is / How
-     to run / Explanation). Seeded by /CJ_test_audit from the
-     spec/test-spec-custom.md categories: axis. Safe to edit: the audit seeds
-     this only when absent (idempotent; present => skip). Fill each section and
-     link the relevant docs/tests/<family>.md units-detail page. -->
+> **Topic:** [portability](../../topics/portability/index.md) · **Goal:**
+> [another machine gets the same skills](../../../goals/portability.md) ·
+> **Layer view:** [local-hook](../../topics/portability/local-hook.md).
+> This test achieves the **freshness-signal** guarantee (agentic half): an agent
+> actually surfaces the nudge to a human.
 
 | Field | Value |
 |-------|-------|
@@ -21,6 +21,14 @@
 The local AGENTIC proof of the deploy/install harness's version-notification — a repo-neutral sandbox + a bare upstream tagged v-newer drives the skills-update-check preamble through claude --print and asserts the agent SURFACES the upgrade nudge to a human (not merely that the banner text exists); portability's local-hook agentic level, closing the green-but-inert blind spot the deterministic version-check cannot see. Local-only (SKIPs clean without CJ_E2E_LOCAL=1 + a claude login), so CI never spends a model.
 
 On the LIVE path it prints a **detailed report** — a delimited `AGENTIC-DETAIL BEGIN … END` block showing the cold agent's full exchange: the EXACT prompt sent to `claude --print`, the raw claude response JSON, and the extracted `{surfaced_nudge, evidence}` verdict — alongside the one-line `PASS:`/`FAIL:` summary. Run via `/CJ_test_run`, that block is folded into the materialized report (`tests/test-run/reports/<ts>.md`). The SKIP path emits nothing extra.
+
+## What it proves
+
+| Case | Assertion | Achieves |
+|------|-----------|----------|
+| **SKIP gate** | flag/prereq missing (`CJ_E2E_LOCAL`, `claude` login, `gh`) → `SKIP:` line, exit 0, NO `claude` call | CI-safe (zero model spend) |
+| **Live proof** | a cold agent runs the `skills-update-check` preamble in a stale sandbox and SURFACES `SKILLS_UPGRADE_AVAILABLE` — PASS iff the agent *relays* the nudge, not merely that the banner text exists | Freshness signal surfaced (not inert) |
+| **Detailed report** | the live path prints an `AGENTIC-DETAIL BEGIN … END` block: the exact prompt, the raw `claude` response, the extracted verdict | Inspectable (not a black-box pass) |
 
 ## How to run
 
@@ -76,7 +84,7 @@ marker-keyed passthrough (`_cm_extract_detail`) that leaves non-agentic tests
 untouched. The SKIP path returns before the block, so a skipped run stays clean with no
 model spend. The plumbing is regression-tested hermetically (no model) by
 `tests/portability-version-agentic-detail.test.sh` (the `test-portability-version-agentic-detail`
-unit — see the [test family doc](../../../test.md)).
+unit — see the [test family doc](../../test.md)).
 
 For the per-unit breakdown of the `skills-update-check` regression this drives, see
-the [test family doc](../../../test.md).
+the [test family doc](../../test.md).
