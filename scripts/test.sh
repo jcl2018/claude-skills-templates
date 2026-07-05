@@ -2121,6 +2121,21 @@ else
   fail_test "tests/post-land-sync.test.sh failed (rc=$_pls_rc) — run \`bash tests/post-land-sync.test.sh\` directly to see"
 fi
 
+# Regression: scripts/tag-release.sh — the post-land v<VERSION> tag publish that
+# makes scripts/skills-update-check's ls-remote read non-inert. Hermetic: a local
+# bare repo as a fake origin (no network, no real origin), asserting the tag is
+# created + pushed, idempotent, --version override, non-semver → exit 1, and the
+# --strict-fails / default-fail-softs push-failure split.
+echo ""
+echo "Running tests/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
+if _tr_out=$(bash "$REPO_ROOT/tests/tag-release.test.sh" 2>&1); then
+  ok "tests/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
+else
+  _tr_rc=$?
+  fail_test "tests/tag-release.test.sh failed (rc=$_tr_rc):"
+  printf '%s\n' "$_tr_out" | sed 's/^/    [tag-release] /' >&2
+fi
+
 # Regression test (F000045 / S000081): scripts/cj-goal-common.sh `--phase sync`
 # (Fork 2) — dry-run previews without mutation, --no-sync short-circuits to
 # skipped (no install), guard refusals (.source off-main / dirty / missing) →

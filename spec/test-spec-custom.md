@@ -89,6 +89,7 @@ sub-suites* and the *inline `test.sh` families*:
 | doc-release config suite — doc registry + helper + seed | Doc registry table shape, every doc-spec subcommand, no-config gates, embedded seed. |
 | goal doc-sync wiring suite — symmetric step wiring | Doc-sync step and halt-taxonomy rows present and ordered in orchestrators. |
 | post-land-sync suite — post-merge local sync helper | Sync-helper guards refuse a bad source; dry-run previews without mutating. |
+| tag-release suite — post-land v<VERSION> tag publish | Publishes the v<VERSION> tag to a fake bare origin so the update-check ls-remote read sees the newest release; idempotent, fail-soft. |
 | goal-common sync suite — pre-build skills-sync phase | Dry-run, opt-out, guard-refusal and real-run paths emit the four-key schema. |
 | cj-id-claim suite — atomic work-item ID claim | Concurrent-race uniqueness, both reap modes, prefix isolation and reuse. |
 | feature-path smoke suite — worktree entry + common phases | Feature worktree entry, the shared helper's phases, and leaf dispatch targets. |
@@ -828,6 +829,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Sync-helper guards refuse a bad source checkout; dry-run previews without mutating the live home."
+  - id: test-tag-release
+    family: test
+    label: "tag-release suite — post-land v<VERSION> tag publish (the inert-notification fix)"
+    anchor: "tests/tag-release.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "scripts/tag-release.sh publishes the v<VERSION> release tag to origin at LAND (called fail-soft from post-land-sync.sh) so scripts/skills-update-check's `git ls-remote --tags` read can see the newest release — the regression that guards the previously-inert version-notification, where the land flow bumped VERSION but never tagged so origin's newest tag stayed v1.1.0 forever. Hermetic: a local `git init --bare` fake origin (no network), asserting the tag is created + pushed, idempotent on re-run, --version override, non-semver → exit 1, and the --strict-fails / default-fail-softs push-failure split."
   - id: test-cj-goal-common-sync
     family: test
     label: "goal-common sync suite — pre-build skills-sync phase"
