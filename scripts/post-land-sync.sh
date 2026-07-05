@@ -8,8 +8,16 @@
 # `skills-deploy install`. This helper collapses that ritual into one correct
 # command: resolve `.source` from the manifest, guard it, `git pull --ff-only`,
 # then run `skills-deploy install` FROM `.source` (not from a worktree — a
-# worktree-invoked install skips foreign-owned skills), and report the
-# collection_version before→after.
+# worktree-invoked install skips foreign-owned skills), publish the `v<VERSION>`
+# release tag to origin if absent (via scripts/tag-release.sh — fail-soft), and
+# report the collection_version before→after.
+#
+# The tag step exists because scripts/skills-update-check reads the newest published
+# `v<X.Y.Z>` tag via `git ls-remote` to decide whether to nudge consumers. The land
+# flow bumps VERSION but never tagged, so origin's newest tag stayed v1.1.0 and the
+# nudge was inert on every machine. Tagging at LAND (here) — not per-PR (VERSION is
+# bumped in the PR before the tag exists, so a per-PR gate would always fail) — is
+# what makes the notification actually fire.
 #
 # F000049 / S4 (S000088) — install == clone: under the in-place install model the
 # manifest `.source` IS the dev checkout (install_mode: in-place), so this helper's
@@ -117,6 +125,7 @@ VERSION_BEFORE=$(manifest_field "collection_version")
 
 PULL_CMD="git -C \"$SRC\" pull --ff-only"
 INSTALL_CMD="\"$SRC/scripts/skills-deploy\" install   (run from $SRC)"
+TAG_CMD="\"$SRC/scripts/tag-release.sh\"   (publish v<VERSION> to origin if absent)"
 
 if [ "$DRY_RUN" = "1" ]; then
   echo "post-land-sync: DRY RUN — no mutation."
@@ -126,6 +135,7 @@ if [ "$DRY_RUN" = "1" ]; then
   echo "  collection_version:      $VERSION_BEFORE"
   echo "  would run:               $PULL_CMD"
   echo "  would run:               $INSTALL_CMD"
+  echo "  would run:               $TAG_CMD"
   exit 0
 fi
 
@@ -139,6 +149,18 @@ echo "  + skills-deploy install (from $SRC)"
 # CRITICAL: run skills-deploy install FROM $SRC (the main checkout), not from a
 # worktree — installs invoked from a worktree skip foreign-owned skills.
 ( cd "$SRC" && "$SRC/scripts/skills-deploy" install )
+
+# --- publish the release tag (fail-soft) ---
+# The merged VERSION is now on local main (post-ff-pull above). Publish `v<VERSION>`
+# to origin if it isn't there yet, so scripts/skills-update-check's ls-remote read
+# can actually see the newest release on every consumer machine. Without this the
+# newest origin tag stays stale (v1.1.0) forever and the update nudge is inert.
+# tag-release.sh is idempotent (no-op if the tag exists) and fail-soft by default
+# (a push failure WARNs + exits 0) — it never turns a successful land into a failure.
+if [ -x "$SRC/scripts/tag-release.sh" ]; then
+  echo "  + tag-release (publish v<VERSION> to origin if absent)"
+  ( cd "$SRC" && "$SRC/scripts/tag-release.sh" ) || true
+fi
 
 # --- report (after) ---
 VERSION_AFTER=$(manifest_field "collection_version")
