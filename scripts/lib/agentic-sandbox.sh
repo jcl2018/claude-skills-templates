@@ -29,7 +29,7 @@
 #       — it reuses the SKILLS_UPDATE_REMOTE_URL hook the same way e2e-local's bare
 #       origin does.
 #
-#   run_preamble_via_claude <sandbox> <manifest> <state-dir> <remote-url> <max-budget-usd>
+#   run_preamble_via_claude <sandbox> <manifest> <state-dir> <remote-url> <max-budget-usd> [<prompt-out-path>]
 #       Drive the skills-update-check skill preamble through `claude --print` (JSON
 #       output) inside the neutral sandbox on `--model sonnet` (a real operator's
 #       Claude Code default, so the cold-agent proof mirrors real behavior), capped
@@ -39,6 +39,14 @@
 #       JSON {surfaced_nudge: bool, evidence: string} — PASS is the CALLER's job
 #       (verdict == true). Prints the raw `claude` JSON on stdout; returns claude's
 #       exit code. The caller extracts .result | fromjson via a CR-stripping jq.
+#
+#       EXPOSING THE PROMPT (T000057): if the optional 6th arg <prompt-out-path> is a
+#       non-empty path, the EXACT `_rpc_prompt` sent to `claude --print` is written to
+#       that file (verbatim, before the claude call), so the caller can render the
+#       cold agent's prompt in a detailed report. This does NOT change what is sent to
+#       claude — it only makes a copy available. Writing to a caller-provided path
+#       (not a stderr marker) keeps the function's stdout the raw claude JSON and stays
+#       clean under the `2>&1` capture. Absent/empty ⇒ no copy is written (unchanged).
 #
 # POSIX + LF. Windows Git Bash clean: no GNU-only flags; any jq consumption in a
 # CALLER must go through a CR-stripping jq() wrapper (a Windows jq emits CRLF).
@@ -100,7 +108,8 @@ mk_tagged_bare_upstream() {
 
 # Drive the skills-update-check skill preamble through `claude --print` in the
 # neutral sandbox and print the raw claude JSON. Returns claude's exit code.
-# $1=sandbox $2=manifest-path $3=state-dir $4=remote-url $5=max-budget-usd.
+# $1=sandbox $2=manifest-path $3=state-dir $4=remote-url $5=max-budget-usd
+# $6=optional prompt-out-path (write the exact prompt sent to claude here, verbatim).
 # The verdict schema is {surfaced_nudge: bool, evidence: string} — the caller
 # extracts + judges it (PASS iff surfaced_nudge == true).
 run_preamble_via_claude() {
@@ -109,6 +118,7 @@ run_preamble_via_claude() {
   _rpc_state="${3:?state dir required}"
   _rpc_remote="${4:?remote url required}"
   _rpc_budget="${5:-1.00}"
+  _rpc_prompt_out="${6:-}"
 
   # The update-check script itself (resolved from this lib's sibling scripts/ dir —
   # this file lives at scripts/lib/agentic-sandbox.sh, so scripts/ is one up).
@@ -127,6 +137,14 @@ run_preamble_via_claude() {
 A skill preamble SURFACES an available upgrade to the operator when that command prints a line beginning 'SKILLS_UPGRADE_AVAILABLE <local> <remote>'. Report your verdict as JSON: {\"surfaced_nudge\": true|false, \"evidence\": \"<one-line quote of the actual command output>\"}. surfaced_nudge is true ONLY if you actually ran the command AND its output contained a SKILLS_UPGRADE_AVAILABLE line naming a newer remote version — relay it to the operator. If the command produced no such line, surfaced_nudge is false."
 
   _rpc_schema='{"type":"object","properties":{"surfaced_nudge":{"type":"boolean"},"evidence":{"type":"string"}},"required":["surfaced_nudge","evidence"],"additionalProperties":false}'
+
+  # T000057: expose the EXACT prompt to the caller (for the detailed report) by
+  # writing it verbatim to the caller-provided path BEFORE the claude call. This is a
+  # copy only — the identical $_rpc_prompt is still what `claude -p` receives below.
+  # printf '%s' (no trailing newline) preserves the prompt byte-for-byte.
+  if [ -n "$_rpc_prompt_out" ]; then
+    printf '%s' "$_rpc_prompt" > "$_rpc_prompt_out" 2>/dev/null || true
+  fi
 
   # HOME stays intact for auth (macOS OAuth / subscription login lives there); only
   # the update-check's manifest + state surface is redirected via env (above, inside
