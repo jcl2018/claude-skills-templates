@@ -55,7 +55,7 @@ When run locally with a login, it builds a repo-**neutral** sandbox (a
 `.source`-absent manifest via `scripts/lib/agentic-sandbox.sh`) plus a
 `git init --bare` upstream tagged `v<newer>`, points `skills-update-check` at it via
 the documented `SKILLS_UPDATE_REMOTE_URL` seam (no PATH-prepended `git` shim), drives
-the update-check preamble through `claude --print` (JSON output, budget `$0.50`), and
+the update-check preamble through `claude --print` (JSON output, `--model sonnet`, budget `$1.00`), and
 extracts a `{surfaced_nudge, evidence}` verdict — PASS iff the agent relays the
 upgrade nudge, not merely that the banner text exists. Because `mode: agentic ⇒
 tier: local-only`, the row is present in CI but never executed there; the per-PR

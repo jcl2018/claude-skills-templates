@@ -18,7 +18,7 @@
 # When live: builds a repo-NEUTRAL sandbox (a .source-absent manifest) + a
 # `git init --bare` upstream tagged v<newer> via SKILLS_UPDATE_REMOTE_URL (the
 # documented remote seam — NO PATH-prepended `git` shim), drives the
-# skills-update-check skill preamble through `claude --print` (JSON, budget $0.50),
+# skills-update-check skill preamble through `claude --print` (JSON, sonnet, budget $1.00),
 # and extracts a {surfaced_nudge, evidence} verdict — PASS iff the agent surfaces the
 # SKILLS_UPGRADE_AVAILABLE nudge, not merely that the banner text exists.
 #
@@ -79,7 +79,7 @@ echo "[PORTABILITY-AGENTIC] auth: $_auth"
 # shellcheck source=scripts/lib/agentic-sandbox.sh
 . "$LIB"
 
-BUDGET="${PORTABILITY_AGENTIC_BUDGET_USD:-0.50}"
+BUDGET="${PORTABILITY_AGENTIC_BUDGET_USD:-1.00}"
 LOCAL_VER="6.0.100"     # the STALE installed version recorded in the sandbox manifest
 NEWER_VER="9.9.9"       # the newer release published on the tagged bare upstream
 

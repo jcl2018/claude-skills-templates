@@ -29,7 +29,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   throwaway sandbox with a `.source`-absent manifest + a `git init --bare` upstream
   tagged `v<newer>` (via the existing `SKILLS_UPDATE_REMOTE_URL` seam — no `git`
   shim), drives the `skills-update-check` preamble through `claude --print` (budget
-  cap `$0.50`), and PASSes iff the agent SURFACES the upgrade nudge to the operator
+  cap `$1.00`, on `--model sonnet` — a real operator's default, so the cold-agent
+  proof mirrors real behavior), and PASSes iff the agent SURFACES the upgrade nudge to the operator
   (a `{surfaced_nudge, evidence}` verdict). `local-only` tier: it SKIPs cleanly
   (exit 0, no model spend) without `CJ_E2E_LOCAL=1` + a verified claude login, so
   `scripts/test.sh` and CI never touch a model.

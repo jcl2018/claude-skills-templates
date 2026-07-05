@@ -31,8 +31,10 @@
 #
 #   run_preamble_via_claude <sandbox> <manifest> <state-dir> <remote-url> <max-budget-usd>
 #       Drive the skills-update-check skill preamble through `claude --print` (JSON
-#       output) inside the neutral sandbox, capped at <max-budget-usd> (the caller
-#       passes 0.50, matching run-portability-case.sh). The prompt asks the model to
+#       output) inside the neutral sandbox on `--model sonnet` (a real operator's
+#       Claude Code default, so the cold-agent proof mirrors real behavior), capped
+#       at <max-budget-usd> (the caller passes 1.00 — headroom over a cold sonnet
+#       call's ~$0.55 context-read floor). The prompt asks the model to
 #       run the update-check exactly as a skill preamble does and report a verdict
 #       JSON {surfaced_nudge: bool, evidence: string} — PASS is the CALLER's job
 #       (verdict == true). Prints the raw `claude` JSON on stdout; returns claude's
@@ -106,7 +108,7 @@ run_preamble_via_claude() {
   _rpc_manifest="${2:?manifest path required}"
   _rpc_state="${3:?state dir required}"
   _rpc_remote="${4:?remote url required}"
-  _rpc_budget="${5:-0.50}"
+  _rpc_budget="${5:-1.00}"
 
   # The update-check script itself (resolved from this lib's sibling scripts/ dir —
   # this file lives at scripts/lib/agentic-sandbox.sh, so scripts/ is one up).
@@ -134,7 +136,7 @@ A skill preamble SURFACES an available upgrade to the operator when that command
     --output-format json \
     --json-schema "$_rpc_schema" \
     --add-dir "$_rpc_sandbox" \
-    --model haiku \
+    --model sonnet \
     --max-budget-usd "$_rpc_budget" \
     --no-session-persistence \
     --permission-mode bypassPermissions \
