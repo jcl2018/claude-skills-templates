@@ -20,7 +20,7 @@
 
 The local AGENTIC proof of the deploy/install harness's version-notification — a repo-neutral sandbox + a bare upstream tagged v-newer drives the skills-update-check preamble through claude --print and asserts the agent SURFACES the upgrade nudge to a human (not merely that the banner text exists); portability's local-hook agentic level, closing the green-but-inert blind spot the deterministic version-check cannot see. Local-only (SKIPs clean without CJ_E2E_LOCAL=1 + a claude login), so CI never spends a model.
 
-On the LIVE path it prints a **detailed report** (T000057) — a delimited `AGENTIC-DETAIL BEGIN … END` block showing the cold agent's full exchange: the EXACT prompt sent to `claude --print`, the raw claude response JSON, and the extracted `{surfaced_nudge, evidence}` verdict — alongside the one-line `PASS:`/`FAIL:` summary. Run via `/CJ_test_run`, that block is folded into the materialized report (`tests/test-run/reports/<ts>.md`). The SKIP path emits nothing extra.
+On the LIVE path it prints a **detailed report** — a delimited `AGENTIC-DETAIL BEGIN … END` block showing the cold agent's full exchange: the EXACT prompt sent to `claude --print`, the raw claude response JSON, and the extracted `{surfaced_nudge, evidence}` verdict — alongside the one-line `PASS:`/`FAIL:` summary. Run via `/CJ_test_run`, that block is folded into the materialized report (`tests/test-run/reports/<ts>.md`). The SKIP path emits nothing extra.
 
 ## How to run
 
@@ -64,7 +64,7 @@ tier: local-only`, the row is present in CI but never executed there; the per-PR
 hard Check (`test-spec.sh --check-topic-contract`) proves this coverage point is
 DECLARED, while `/CJ_test_run --e2e` proves the BEHAVIOR, local-only.
 
-**Detailed report (T000057).** So the run is inspectable rather than a black-box
+**Detailed report.** So the run is inspectable rather than a black-box
 `PASS`, the live path surfaces the cold agent's full exchange. `run_preamble_via_claude`
 takes an optional 6th `prompt-out-path` argument and writes the EXACT prompt it sends
 to `claude --print` there (a byte-identical copy — it never alters the payload); the
