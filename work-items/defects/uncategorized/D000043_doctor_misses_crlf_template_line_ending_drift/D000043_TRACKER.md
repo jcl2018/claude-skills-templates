@@ -47,8 +47,8 @@ promoted_from_draft: .inbox/doctor_misses_crlf_template_line_ending_drift
 4. /land-and-deploy — merge + verify
 
 **Gates:**
-- [ ] /CJ_personal-workflow check — validation passed
-- [ ] Test-plan verified (regression scenarios passing)
+- [x] /CJ_personal-workflow check — validation passed
+- [x] Test-plan verified (regression scenarios passing)
 - [ ] /ship — PR created
 - [ ] /land-and-deploy — merged and deployed
 
@@ -87,3 +87,4 @@ templates + `doc-SKILL-DESIGN.md` were CRLF while source was LF; `doctor` said O
 
 ## Journal
 - 2026-07-05T00:00:00Z [auto-scaffolded] /CJ_goal_defect ("finish all the p0 ones"): confirmed bucket (b) resolved via reproduction, cleared bucket (c) drift operationally, and shipped the doctor CR probe closing the P0's last gap. Promoted to D000043.
+- 2026-07-05T00:00:00Z [qa-pass] /CJ_personal-workflow check VALID (3 artifacts, 0 missing, 0 drift; 3 phases, 11 gates). Test-plan green: test-deploy.sh Test 8c passes in isolation (doctor WARNs on a CRLF-drifted deployed template; silent on a clean LF install), shellcheck clean on skills-deploy + test-deploy.sh, and the live machine is clean (deployed templates LF, doctor 0 CRLF warnings, D000012 drift 0). E2E=ambiguous (defect). AUDITS=deferred (runs on-demand off the build path).
