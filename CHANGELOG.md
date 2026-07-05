@@ -3,6 +3,49 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.119] - 2026-07-04
+
+### Added
+- **F000082 — three-layer test contract per topic: the local layer now carries
+  both a deterministic AND an agentic test, enforced by a hard Check.** Builds on
+  F000078's category × layer model and F000081's advisory three-level matrix by
+  adding a first-class **`topic:`** axis to every `categories:` row (a 9th column,
+  backfilled on all 13 rows) plus a per-topic **`topic_contracts:`** enrollment
+  list. `test-spec.sh --check-topic-contract` (new) HARD-fails when an ENROLLED
+  topic does not reach all three layers (CI-push + CI-nightly + local-hook) with
+  BOTH a `deterministic` and an `agentic` local-hook test, each carrying its
+  front-door doc. Wired into `validate.sh` as the new hard **Check 30**
+  (registry-gated, declaration-only → CI-safe, zero model spend) + a paired
+  single-check-targeted negative test in `scripts/test.sh`, and surfaced by
+  `/CJ_test_audit` Stage 1. `portability` is the first ENROLLED topic; the other 11
+  topics are labeled + grandfathered (advisory matrix), with follow-up TODOs to
+  enroll them. The enrollment seam is what keeps the hard Check from red-ing the
+  build on landing (the workflow topics are all agentic-only at local-hook today).
+- **Portability's deferred agentic local-hook proof, in a repo-neutral sandbox.**
+  `tests/portability-version-agentic.test.sh` (new) closes the gap F000081 left:
+  the version-notification had only a deterministic (stubbed-`ls-remote`) local
+  test, so a green suite could hide an inert nudge (as observed — the real upstream
+  is stuck at `v1.1.0` while VERSION is 6.0.11x). The agentic test builds a
+  throwaway sandbox with a `.source`-absent manifest + a `git init --bare` upstream
+  tagged `v<newer>` (via the existing `SKILLS_UPDATE_REMOTE_URL` seam — no `git`
+  shim), drives the `skills-update-check` preamble through `claude --print` (budget
+  cap `$1.00`, on `--model sonnet` — a real operator's default, so the cold-agent
+  proof mirrors real behavior), and PASSes iff the agent SURFACES the upgrade nudge to the operator
+  (a `{surfaced_nudge, evidence}` verdict). `local-only` tier: it SKIPs cleanly
+  (exit 0, no model spend) without `CJ_E2E_LOCAL=1` + a verified claude login, so
+  `scripts/test.sh` and CI never touch a model.
+- **`scripts/lib/agentic-sandbox.sh` — a reusable repo-neutral agentic-sandbox
+  primitive** (3 POSIX+LF helpers: `mk_neutral_sandbox`, `mk_tagged_bare_upstream`,
+  `run_preamble_via_claude`), generalized from `eval.sh --portability` +
+  `e2e-local.sh` so the next enrolled topic writes ~20 lines, not a new harness.
+
+### Changed
+- **`/CJ_test_run` gains a `--topic <slug>` selector** (standalone, mutually
+  exclusive with a bare name; `local-only`/agentic rows stay gated behind
+  `--e2e`/`--all`, so a default free run never spends a model). `scripts/test-spec.sh`
+  widens the `categories:` TSV to 9 columns across all six consumer sites and keeps
+  the `_emit_seed` heredoc byte-identical to `spec/test-spec.md`.
+
 ## [6.0.118] - 2026-07-04
 
 ### Fixed

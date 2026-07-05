@@ -949,13 +949,15 @@ fi
 echo "--- 10. category axis (F000074; two-axis reframe F000078): subcommands + structure + seed-docs ---"
 
 # S1 (additivity): the LIVE overlay declares two-axis categories AND every
-# pre-existing subcommand still exits 0 unchanged. The TSV is now 8 columns
-# (name/category/layer/mode/command/tier/doc/purpose).
+# pre-existing subcommand still exits 0 unchanged. The TSV is now 9 columns
+# (name/category/layer/mode/command/tier/doc/purpose/topic — the 9th topic field
+# added by F000082; the prefix greps below match the first four columns and are
+# unaffected by the added trailing field).
 _CAT_LIVE=$(bash "$HELPER" --list-categories 2>/dev/null); _CAT_LIVE_RC=$?
 if [ "$_CAT_LIVE_RC" -eq 0 ] && printf '%s\n' "$_CAT_LIVE" | grep -qE '^validate	infra	CI-push	deterministic	' \
    && printf '%s\n' "$_CAT_LIVE" | grep -qE '^portability-deploy	infra	CI-nightly	deterministic	' \
    && printf '%s\n' "$_CAT_LIVE" | grep -qE '^e2e-local	workflow	local-hook	agentic	'; then
-  ok "S1: --list-categories lists the two-axis rows (name/category/layer/mode/... 8-col TSV)"
+  ok "S1: --list-categories lists the two-axis rows (name/category/layer/mode/... 9-col TSV)"
 else
   fail_test "S1: --list-categories did not list the expected two-axis rows (rc=$_CAT_LIVE_RC): $_CAT_LIVE"
 fi

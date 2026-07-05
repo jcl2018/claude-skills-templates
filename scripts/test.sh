@@ -783,6 +783,56 @@ else
   fail_test "Check 29: .cj-e2e-sandbox should have been untracked after cleanup, but is still tracked"
 fi
 
+# Step 3i (F000082 / S000132 / Check 30): the three-layer topic contract. THE
+# PARALLEL test.sh EDIT the new validate.sh Check 30 needs — pre-flighted in lockstep
+# with the check add (the standing F000032/34/35 zzz-mirror blind spot that bit Check
+# 25/26/27/28/29 too, defused here for Check 30). Check 30 IS test-spec.sh
+# --check-topic-contract: for every ENROLLED topic (topic_contracts:, portability
+# today), assert >=1 CI-push + >=1 CI-nightly + >=1 local-hook{deterministic} + >=1
+# local-hook{agentic} test carrying that topic, each with its front-door doc. It is
+# NOT a generated-doc diff, so the negative path plants the fault HERMETICALLY (a temp
+# copy of the merged registry with portability's agentic row removed) and asserts the
+# targeted engine exits non-zero AND names the missing local-hook+agentic coverage,
+# then confirms the LIVE tree passes — never mutating the real overlay.
+# TARGETED (F000081/WS4): the positive + negative assertions invoke ONLY that targeted
+# engine instead of the whole validate.sh — same signal, no whole-validator re-run.
+# POSITIVE: on the live (enrolled + fully-covered) tree Check 30 reports findings=0.
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1 | grep -qE '^topic contract: .*findings=0$'; then
+  ok "Check 30: test-spec.sh --check-topic-contract reports findings=0 on the live tree (targeted engine — every enrolled topic reaches all three layers + both local modes)"
+else
+  fail_test "Check 30: test-spec.sh --check-topic-contract did not report findings=0 on the live tree"
+fi
+# NEGATIVE (hermetic): remove portability's local-hook+agentic row from a TEMP copy of
+# the merged registry, point the engine at it via TEST_SPEC_PATH/TEST_SPEC_CUSTOM_PATH,
+# and assert it hard-fails naming the missing coverage. The real overlay is untouched.
+_C30_TMP=$(mktemp -d -t test-sh-c30-XXXXXX)
+cp "$REPO_ROOT/spec/test-spec.md" "$_C30_TMP/test-spec.md"
+# Drop the 9-line `- name: portability-version-agentic` block (name..topic).
+awk '
+  /^  - name: portability-version-agentic$/ { skip=9 }
+  skip>0 { skip--; next }
+  { print }
+' "$REPO_ROOT/spec/test-spec-custom.md" > "$_C30_TMP/test-spec-custom.md"
+# Export the temp-registry env for the forked test-spec.sh (a bare assignment +
+# separate rc capture — the env-prefix-in-subshell form shellcheck misreads under
+# `if`; SC2097/SC2098). The subshell isolates the exports from the rest of test.sh;
+# REPO_ROOT is inherited from the parent (no self-re-export — that trips SC2030/2031).
+_C30_OUT=$(
+  export TEST_SPEC_PATH="$_C30_TMP/test-spec.md"
+  export TEST_SPEC_CUSTOM_PATH="$_C30_TMP/test-spec-custom.md"
+  bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1
+) && _C30_RC=0 || _C30_RC=$?
+if [ "$_C30_RC" -eq 0 ]; then
+  fail_test "Check 30: --check-topic-contract should have exited non-zero with portability's agentic row removed, but exited 0; output: $_C30_OUT"
+else
+  if echo "$_C30_OUT" | grep -qF "missing a local-hook + agentic test" && echo "$_C30_OUT" | grep -qF "portability"; then
+    ok "Check 30: removing portability's local-hook+agentic row triggers the topic-contract FINDING + non-zero exit (targeted engine, hermetic)"
+  else
+    fail_test "Check 30: --check-topic-contract exited non-zero but missing the expected agentic-coverage finding; output: $_C30_OUT"
+  fi
+fi
+rm -rf "$_C30_TMP"
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -2326,6 +2376,20 @@ if bash "$REPO_ROOT/tests/skills-update-check.test.sh" >/dev/null 2>&1; then
 else
   _suc_rc=$?
   fail_test "tests/skills-update-check.test.sh failed (rc=$_suc_rc) — run \`bash tests/skills-update-check.test.sh\` directly to see"
+fi
+
+# F000082 / S000132 — the AGENTIC counterpart to skills-update-check.test.sh:
+# portability's local-hook agentic proof (does an AGENT surface the upgrade nudge?).
+# It is local-only + SKIPs cleanly (exit 0, no model spend) without CJ_E2E_LOCAL=1 +
+# a claude login, so running it here NEVER touches a model in CI / a normal test.sh
+# — it exercises only the SKIP path and provides the live `bash tests/...` invocation
+# the Check-24 forward-coverage grep needs to prove the file is wired.
+echo "Running tests/portability-version-agentic.test.sh (F000082 portability local-hook agentic proof; SKIPs clean without CJ_E2E_LOCAL=1 + a claude login — no model spend in CI)..."
+if bash "$REPO_ROOT/tests/portability-version-agentic.test.sh" >/dev/null 2>&1; then
+  ok "tests/portability-version-agentic.test.sh: SKIPs cleanly (exit 0) without the local gate (CI never spends a model); the live model path is a local /CJ_test_run --e2e run"
+else
+  _pva_rc=$?
+  fail_test "tests/portability-version-agentic.test.sh did not exit 0 (rc=$_pva_rc) — it must SKIP cleanly without CJ_E2E_LOCAL=1; run \`bash tests/portability-version-agentic.test.sh\` directly to see"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

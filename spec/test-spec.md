@@ -219,6 +219,49 @@ rewrites test scripts: physically reorganizing a repo's tests into
 `tests/<category>/<layer>/` is a one-time migration, not a run-time audit action,
 so the audit stays standalone-safe on a repo it does not own.
 
+## The topic axis + the three-layer topic contract (optional, overlay-only)
+
+The `category` × `layer` axes place a single test; they do not say that a test
+*topic* — a concern like portability or doc-sync that legitimately spans several
+rows — is proven at every layer. A repo MAY add ONE more optional attribute plus an
+enrollment list in its `test-spec-custom.md` overlay (both **optional-on-schema-1**,
+overlay-only — the machine block in this general file is unchanged):
+
+- **`topic:`** — an optional 9th field on any `categories:` row (a slug,
+  `[a-z0-9-]+`) attributing that test to a *topic*. A row need not carry one; a
+  topic simply clusters the rows that share it.
+- **`topic_contracts:`** — an overlay-level list (e.g.
+  `topic_contracts: [portability]`) naming the topics placed **under the
+  three-layer contract**. Enrollment is the load-bearing seam: only enrolled topics
+  are hard-checked, so adopting the contract for one topic never reds the build for
+  the topics that are not yet ready.
+
+**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
+test can run*: an agentic test needs a machine with Claude, which is the
+`local-hook` layer, so agentic model spend stays out of CI by construction. An
+enrolled topic must therefore reach **all three verification layers AND carry both
+modes at local-hook**:
+
+- ≥1 `CI-push` test (the fast per-PR signal),
+- ≥1 `CI-nightly` test (the heavier cadence off the PR path),
+- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
+  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
+  deterministic layer structurally cannot (a stubbed test can pass while the real
+  behavior an operator sees is broken).
+
+Each required coverage point must also carry its front-door
+`docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
+mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
+or doc); it is **declaration-only**, so it runs in plain CI with **zero model
+spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
+but never *executed* there. The hard Check proves the coverage is DECLARED; the
+executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
+A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
+contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
+owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
+with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
+hollow prompt.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's

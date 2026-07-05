@@ -8,10 +8,12 @@
 
 The **Topic** column groups tests that together fully cover one concern, so you
 can see at a glance which set to run to exercise a topic end to end. For example,
-the `portability` topic is fully covered by four tests spanning all three layers:
+the `portability` topic is fully covered by five tests spanning all three layers:
 the Git-Bash smoke + the declared-vs-actual lint (`CI-push`), the Windows-native
-deploy suite (`CI-nightly`), and the version-notification check (`local-hook`) —
-run all four to fully test portability.
+deploy suite (`CI-nightly`), and — at `local-hook` — BOTH the deterministic
+version-notification check AND the agentic version-notification proof (the
+`claude --print` sandbox that asserts an agent actually surfaces the nudge) —
+run all five to fully test portability.
 
 | Name | Category | Layer | Mode | Tier | Topic | Doc |
 |------|----------|-------|------|------|-------|-----|
@@ -19,6 +21,7 @@ run all four to fully test portability.
 | `portability-check18-lint` | `infra` | `CI-push` | deterministic | free | portability | [docs/tests/infra/CI-push/portability-check18-lint.md](tests/infra/CI-push/portability-check18-lint.md) |
 | `portability-smoke` | `infra` | `CI-push` | deterministic | free | portability | [docs/tests/infra/CI-push/portability-smoke.md](tests/infra/CI-push/portability-smoke.md) |
 | `portability-version-check` | `infra` | `local-hook` | deterministic | free | portability | [docs/tests/infra/local-hook/portability-version-check.md](tests/infra/local-hook/portability-version-check.md) |
+| `portability-version-agentic` | `infra` | `local-hook` | agentic | local-only | portability | [docs/tests/infra/local-hook/portability-version-agentic.md](tests/infra/local-hook/portability-version-agentic.md) |
 | `validate` | `infra` | `CI-push` | deterministic | free | core-suite | [docs/tests/infra/CI-push/validate.md](tests/infra/CI-push/validate.md) |
 | `suite` | `infra` | `CI-push` | deterministic | free | core-suite | [docs/tests/infra/CI-push/suite.md](tests/infra/CI-push/suite.md) |
 | `test-deploy` | `infra` | `CI-nightly` | deterministic | free | core-suite | [docs/tests/infra/CI-nightly/test-deploy.md](tests/infra/CI-nightly/test-deploy.md) |

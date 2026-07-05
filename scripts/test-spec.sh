@@ -113,6 +113,20 @@
 #                      orchestrators passes vacuously). HARD (exit 1) on any
 #                      forward/reverse finding. Surfaced by validate.sh Check 28
 #                      + /CJ_test_audit Stage 1.
+#   --check-topic-contract  (F000082) the three-layer topic contract. For every
+#                      ENROLLED topic (an overlay `topic_contracts:` entry),
+#                      require, HARD (exit 1 on any finding): >=1 CI-push test,
+#                      >=1 CI-nightly test, >=1 local-hook+deterministic test AND
+#                      >=1 local-hook+agentic test carrying `topic: <t>` on their
+#                      categories: rows, each with its front-door
+#                      docs/tests/<cat>/<layer>/<name>.md. Declaration-only =>
+#                      CI-safe, zero model spend (the agentic BEHAVIOR is proven
+#                      local-only by /CJ_test_run --e2e; mode:agentic => tier!=free,
+#                      so the agentic row is present-in-CI-but-never-executed).
+#                      Registry-gated skip (mirror of --check-workflow-coverage):
+#                      absent test-spec registry / no categories: axis / no
+#                      topic_contracts: enrollment => inactive note + exit 0.
+#                      Surfaced by validate.sh + /CJ_test_audit Stage 1.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -604,14 +618,16 @@ EOF
   true
 }
 
-# Parse one file's categories[] block into TSV rows (8 columns):
-#   name, category, layer, mode, command, tier, doc, purpose
+# Parse one file's categories[] block into TSV rows (9 columns):
+#   name, category, layer, mode, command, tier, doc, purpose, topic
 # Flag-based, key-anchored — UNLIKE every other block, a category row keys on
 # `- name:` (the stable slug that IS the doc filename + the /CJ_test_run
 # argument), not `- id:`. command/doc/purpose are quoted single-line values
-# stripped of the `key: "…"` wrapper; category/layer/mode/tier are bare tokens.
-# The two orthogonal axes (F000078): category (KIND) x layer (WHERE/WHEN), plus
-# the per-test mode {deterministic, agentic}.
+# stripped of the `key: "…"` wrapper; category/layer/mode/tier/topic are bare
+# tokens. The two orthogonal axes (F000078): category (KIND) x layer (WHERE/WHEN),
+# plus the per-test mode {deterministic, agentic}; the OPTIONAL 9th `topic` field
+# (F000082) attributes a row to a test topic (closed to [a-z0-9-]+) — the seam the
+# three-layer topic contract (topic_contracts: + --check-topic-contract) enrolls on.
 #
 # The `categories:` axis (F000074) is the category-based test contract's PRIMARY
 # axis: category -> tests, one row per named test. It is ADDITIVE + OPTIONAL —
@@ -632,9 +648,9 @@ _parse_categories_file() {
     function nz(v) { return (v == "" ? "-" : v) }
     function flush() {
       if (cur_name != "") {
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_name), nz(cur_cat), nz(cur_layer), nz(cur_mode), nz(cur_cmd), nz(cur_tier), nz(cur_doc), nz(cur_purpose)
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_name), nz(cur_cat), nz(cur_layer), nz(cur_mode), nz(cur_cmd), nz(cur_tier), nz(cur_doc), nz(cur_purpose), nz(cur_topic)
       }
-      cur_name=""; cur_cat=""; cur_layer=""; cur_mode=""; cur_cmd=""; cur_tier=""; cur_doc=""; cur_purpose=""
+      cur_name=""; cur_cat=""; cur_layer=""; cur_mode=""; cur_cmd=""; cur_tier=""; cur_doc=""; cur_purpose=""; cur_topic=""
     }
     /^categories:/                                                          { in_c=1; next }
     /^(rules|units|layers|gates|behaviors|behavior_coverage|runners):/       { flush(); in_c=0; next }
@@ -648,6 +664,7 @@ _parse_categories_file() {
     /^[[:space:]]*tier:/     { cur_tier=$2; next }
     /^[[:space:]]*doc:/      { cur_doc=strip($0); next }
     /^[[:space:]]*purpose:/  { cur_purpose=strip($0); next }
+    /^[[:space:]]*topic:/    { cur_topic=$2; next }
     END { if (in_c) flush() }
   '
 }
@@ -658,6 +675,53 @@ _parse_categories() {
   while IFS= read -r _rf; do
     [ -n "$_rf" ] || continue
     _parse_categories_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
+# Parse one file's `topic_contracts:` list (F000082) — the OVERLAY-ONLY, OPTIONAL
+# enrollment list naming the test topics UNDER the three-layer topic contract.
+# Emits one topic slug per line. Two accepted YAML shapes:
+#   topic_contracts: [portability, foo]     (inline flow list)
+#   topic_contracts:                        (block list)
+#     - portability
+#     - foo
+# Only enrolled topics are hard-checked by --check-topic-contract; every other
+# topic keeps the advisory matrix (the grandfather seam). Absent => empty.
+_parse_topic_contracts_file() {
+  _extract_yaml_file "$1" | awk '
+    /^topic_contracts:[[:space:]]*\[/ {
+      # Inline flow list on the same line: topic_contracts: [a, b, c]
+      v=$0
+      sub(/^topic_contracts:[[:space:]]*\[/, "", v)
+      sub(/\].*$/, "", v)
+      n=split(v, parts, ",")
+      for (i=1; i<=n; i++) {
+        t=parts[i]; gsub(/[[:space:]]/, "", t)
+        if (t != "") print t
+      }
+      next
+    }
+    /^topic_contracts:[[:space:]]*$/ { in_tc=1; next }
+    # A new top-level key closes the block list.
+    in_tc && /^[a-z_]+:/ { in_tc=0 }
+    in_tc && /^[[:space:]]*-[[:space:]]*/ {
+      t=$0; sub(/^[[:space:]]*-[[:space:]]*/, "", t)
+      sub(/[[:space:]]*#.*$/, "", t); gsub(/[[:space:]]/, "", t)
+      if (t != "") print t
+      next
+    }
+  ' "$1"
+}
+
+# Merged topic_contracts across general + overlay (overlay-only in practice — the
+# general seed carries no enrollment list). Deduped, registry order.
+_parse_topic_contracts() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_topic_contracts_file "$_rf"
   done <<EOF
 $(_registry_files)
 EOF
@@ -699,6 +763,7 @@ EOF
   _BEHAVIOR_COVERAGE=$(_parse_behavior_coverage)
   _RUNNERS=$(_parse_runners)
   _CATEGORIES=$(_parse_categories)
+  _TOPIC_CONTRACTS=$(_parse_topic_contracts)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -930,10 +995,12 @@ EOF
   #   tier     — closed enum {free, paid, local-only}
   #   doc      — optional docs/tests/<category>/<layer>/<name>.md pointer
   #   purpose  — optional short description
+  #   topic    — optional test-topic slug ([a-z0-9-]+); the enrollment seam for
+  #              the three-layer topic contract (F000082)
   # command/purpose are the rendered-field ID lint targets (like a unit's
-  # label/purpose); name/category/layer/mode/tier/doc are structural.
+  # label/purpose); name/category/layer/mode/tier/doc/topic are structural.
   if [ -n "$_CATEGORIES" ]; then
-    while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose; do
+    while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose _cttopic; do
       [ -n "$_ctname" ] || continue
       # Normalize the `-` empty-field placeholders back to "".
       [ "$_ctcat" = "-" ] && _ctcat=""
@@ -943,6 +1010,7 @@ EOF
       [ "$_cttier" = "-" ] && _cttier=""
       [ "$_ctdoc" = "-" ] && _ctdoc=""
       [ "$_ctpurpose" = "-" ] && _ctpurpose=""
+      [ "$_cttopic" = "-" ] && _cttopic=""
       case "$_ctname" in
         *[!a-z0-9-]*) emit_halt "category test name '$_ctname' is not a slug ([a-z0-9-]+ only; it IS the doc filename + the /CJ_test_run argument)" ;;
       esac
@@ -972,6 +1040,13 @@ EOF
       if [ "$_ctmode" = "agentic" ] && [ "$_cttier" = "free" ]; then
         emit_halt "category test '$_ctname' is mode: agentic with tier: free — an agentic (token-spending) test must declare tier: paid or local-only"
       fi
+      # The optional topic (F000082): a slug ([a-z0-9-]+) when present; empty is fine
+      # (a row need not carry a topic — enrollment is opt-in per topic).
+      if [ -n "$_cttopic" ]; then
+        case "$_cttopic" in
+          *[!a-z0-9-]*) emit_halt "category test '$_ctname' has topic '$_cttopic' that is not a slug ([a-z0-9-]+ only)" ;;
+        esac
+      fi
       # Rendered-field work-item-ID lint: command + purpose are the fields a
       # generated view renders (and the audit skills quote); they must be ID-free.
       if printf '%s %s' "$_ctcmd" "$_ctpurpose" | grep -qE '[FSTD][0-9]{6}'; then
@@ -980,6 +1055,25 @@ EOF
     done <<EOF
 $_CATEGORIES
 EOF
+  fi
+
+  # Per-enrolled-topic slug validation (F000082). Runs INDEPENDENT of the units:
+  # gate (BEFORE the no-units early return). Each `topic_contracts:` entry must be
+  # a slug; whether an enrolled topic actually reaches all three layers is the
+  # --check-topic-contract engine's job, NOT a --validate halt (so a mid-adoption
+  # overlay still validates). A DUPLICATE enrolled topic is a validate error.
+  if [ -n "$_TOPIC_CONTRACTS" ]; then
+    while IFS= read -r _tc; do
+      [ -n "$_tc" ] || continue
+      case "$_tc" in
+        *[!a-z0-9-]*) emit_halt "topic_contracts entry '$_tc' is not a slug ([a-z0-9-]+ only)" ;;
+      esac
+    done <<EOF
+$_TOPIC_CONTRACTS
+EOF
+    _N_TC=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
+    _N_TCU=$(printf '%s\n' "$_TOPIC_CONTRACTS" | sort -u | grep -c . || true)
+    [ "$_N_TC" -eq "$_N_TCU" ] || emit_halt "duplicate topic_contracts entr(ies): $(printf '%s\n' "$_TOPIC_CONTRACTS" | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-unit required keys + closed enums + the rendered-field work-item-ID lint.
@@ -1190,6 +1284,96 @@ EOF
   _WFB_N=$(printf '%s\n' "$_WF_BEHAVIORS" | grep -c . || true)
   echo "workflow coverage: orchestrators=$_ORCH_N level:workflow behaviors=$_WFB_N findings=$_WFC_FINDINGS"
   [ "$_WFC_FINDINGS" -eq 0 ]
+}
+
+# ---- --check-topic-contract: the three-layer topic contract (F000082) ----------
+# The HARD, declaration-only (CI-safe, zero model spend) enforcement that every
+# ENROLLED topic (topic_contracts:) reaches all three verification layers AND
+# carries both modes at local-hook. Mirrors --check-workflow-coverage's shape:
+# forward per-enrolled-topic requirement checks over the categories: rows, findings
+# printed verbatim, a summary line last, exit 1 on any finding. For each enrolled
+# topic, require (each with its front-door docs/tests/<cat>/<layer>/<name>.md):
+#   >=1 CI-push test,
+#   >=1 CI-nightly test,
+#   >=1 local-hook + deterministic test,
+#   >=1 local-hook + agentic test.
+# Registry-gated skip: an ABSENT test-spec registry exits 0 via the REGISTRY=absent
+# path; an overlay with NO categories: axis OR NO topic_contracts: enrollment prints
+# the inactive note + exits 0 (a consumer with no enrollment passes vacuously). Only
+# DECLARATION is proven here (the row + its front-door doc exist) — the agentic
+# BEHAVIOR is proven by /CJ_test_run --e2e, local-only (mode:agentic ⇒ tier≠free, so
+# the agentic row is present-in-CI-but-never-executed). Surfaced by validate.sh
+# (a new hard Check) + /CJ_test_audit Stage 1.
+_run_topic_contract() {
+  # test-spec registry-absent → inactive skip (callers must not parse halt prose).
+  if [ ! -f "$TEST_SPEC_PATH" ]; then
+    echo "topic contract inactive — test-spec registry absent (no categories/enrollment to cross-check)"
+    return 0
+  fi
+  if [ -z "$_CATEGORIES" ]; then
+    echo "topic contract inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (with a topic:) + topic_contracts: to activate"
+    return 0
+  fi
+  if [ -z "$_TOPIC_CONTRACTS" ]; then
+    echo "topic contract inactive — no topic_contracts: enrollment in spec/test-spec-custom.md; enroll a topic (topic_contracts: [<topic>]) to activate the three-layer contract"
+    return 0
+  fi
+
+  _TC_DOCS=$(_STRUCT_DOCS_DEFAULT)
+  _TC_FINDINGS=0
+
+  # For each enrolled topic, assert the four required (layer, mode) coverage
+  # points exist AND each satisfying row has its front-door doc. A required point
+  # with NO row is a coverage finding; a row present but its front-door doc
+  # missing is a doc finding (the row is declared but under-documented).
+  while IFS= read -r _tct; do
+    [ -n "$_tct" ] || continue
+
+    # The rows carrying this topic (field 9 == topic). name<t>cat<t>layer<t>mode<t>tier.
+    _TC_ROWS=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v t="$_tct" 'NF && $9 == t {print $1"\t"$2"\t"$3"\t"$4"\t"$6}')
+
+    if [ -z "$_TC_ROWS" ]; then
+      echo "FINDING: topic-contract — enrolled topic '$_tct' has NO categories: row carrying 'topic: $_tct' (an enrolled topic must have tests attributed to it across the three layers)"
+      _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      continue
+    fi
+
+    # The four required coverage points: (CI-push, any), (CI-nightly, any),
+    # (local-hook, deterministic), (local-hook, agentic). "req_label|awk-filter".
+    for _tc_req in \
+      "a CI-push test|\$3 == \"CI-push\"" \
+      "a CI-nightly test|\$3 == \"CI-nightly\"" \
+      "a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\"" \
+      "a local-hook + agentic test|\$3 == \"local-hook\" && \$4 == \"agentic\""; do
+      _tc_lbl=${_tc_req%%|*}
+      _tc_filt=${_tc_req#*|}
+      _tc_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' "$_tc_filt" | grep -c . || true)
+      if [ "$_tc_hit" -lt 1 ]; then
+        echo "FINDING: topic-contract — enrolled topic '$_tct' is missing $_tc_lbl (the three-layer contract requires CI-push + CI-nightly + local-hook{deterministic,agentic}); declare one in spec/test-spec-custom.md categories: with topic: $_tct"
+        _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      fi
+    done
+
+    # Front-door doc presence for every row of this topic (its declared coverage
+    # must be documented — the same front-door rule --check-structure (d) enforces,
+    # asserted here per-enrolled-topic so an enrolled topic's rows can't be doc-less).
+    while IFS="$(printf '\t')" read -r _tc_name _tc_cat _tc_layer _tc_mode _tc_tier; do
+      [ -n "$_tc_name" ] || continue
+      _tc_doc="$_TC_DOCS/tests/$_tc_cat/$_tc_layer/$_tc_name.md"
+      if [ ! -f "$_tc_doc" ]; then
+        echo "FINDING: topic-contract — enrolled topic '$_tct' test '$_tc_name' ($_tc_cat/$_tc_layer) has no front-door doc at docs/tests/$_tc_cat/$_tc_layer/$_tc_name.md (an enrolled topic's tests must be documented); run /CJ_test_audit to seed the stub"
+        _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      fi
+    done <<INNER
+$_TC_ROWS
+INNER
+  done <<EOF
+$_TOPIC_CONTRACTS
+EOF
+
+  _TC_N=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
+  echo "topic contract: enrolled=$_TC_N findings=$_TC_FINDINGS"
+  [ "$_TC_FINDINGS" -eq 0 ]
 }
 
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
@@ -1602,7 +1786,7 @@ EOF
 
   # (d) docs/tests/<category>/<layer>/ exists for each declared test, with exactly
   # ONE .md per declared test (docs/tests/<category>/<layer>/<name>.md).
-  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose; do
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose _cttopic; do
     [ -n "$_ctname" ] || continue
     _cs_docpath="$_CS_DOCS/tests/$_ctcat/$_ctlayer/$_ctname.md"
     if [ ! -f "$_cs_docpath" ]; then
@@ -1655,7 +1839,7 @@ EOF
   # exists, so the two checks don't double-count a missing file. Findings are the
   # product (exit 0 always); the headings must match the seed template + the filled
   # docs exactly (`## What it is` / `## How to run` / `## Explanation`).
-  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose; do
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose _cttopic; do
     [ -n "$_ctname" ] || continue
     _cs_docpath="$_CS_DOCS/tests/$_ctcat/$_ctlayer/$_ctname.md"
     [ -f "$_cs_docpath" ] || continue   # missing doc is a check-(d) finding, not (f)
@@ -1724,9 +1908,10 @@ EOF
 # the audit's idempotency.
 
 # Render a single category-test doc stub to stdout. $1=name $2=category $3=layer
-# $4=mode $5=command $6=tier $7=purpose. Deterministic; ID-free by the
+# $4=mode $5=command $6=tier $7=purpose $8=topic. Deterministic; ID-free by the
 # rendered-field lint on command/purpose (masked defensively for symmetry with
-# --render-docs).
+# --render-docs). The optional topic (F000082) renders as a Field/Value row when
+# present (a row without a topic omits it).
 #
 # The stub is the authoritative per-test front door (the GENERAL rule in
 # spec/test-spec.md): it carries the three required section headings — `## What it
@@ -1739,7 +1924,8 @@ EOF
 # docs/tests/<category>/<layer>/<name>.md (2-deep), so the relative link back to
 # the catalog is ../../../test-catalog.md.
 _render_category_doc_stub() {
-  _rcd_name="$1"; _rcd_cat="$2"; _rcd_layer="$3"; _rcd_mode="$4"; _rcd_cmd="$5"; _rcd_tier="$6"; _rcd_purpose="$7"
+  _rcd_name="$1"; _rcd_cat="$2"; _rcd_layer="$3"; _rcd_mode="$4"; _rcd_cmd="$5"; _rcd_tier="$6"; _rcd_purpose="$7"; _rcd_topic="${8:-}"
+  [ "$_rcd_topic" = "-" ] && _rcd_topic=""
   echo "# Test: \`$_rcd_name\` (\`$_rcd_cat\` / \`$_rcd_layer\`)"
   echo ""
   echo "<!-- SEEDED STUB — the authoritative per-test front door (What it is / How"
@@ -1756,6 +1942,7 @@ _render_category_doc_stub() {
   echo "| Mode | \`$_rcd_mode\` |"
   echo "| Command | \`$(_mask_ids "$_rcd_cmd")\` |"
   echo "| Tier | \`$_rcd_tier\` |"
+  [ -n "$_rcd_topic" ] && echo "| Topic | \`$_rcd_topic\` |"
   echo ""
   echo "## What it is"
   echo ""
@@ -1796,7 +1983,7 @@ _render_category_index() {
   echo "| Name | Category | Layer | Mode | Tier | Doc |"
   echo "|------|----------|-------|------|------|-----|"
   printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF' | LC_ALL=C sort -t"$(printf '\t')" -k2,2 -k3,3 -k1,1 | \
-  while IFS="$(printf '\t')" read -r _ci_name _ci_cat _ci_layer _ci_mode _ci_cmd _ci_tier _ci_doc _ci_purpose; do
+  while IFS="$(printf '\t')" read -r _ci_name _ci_cat _ci_layer _ci_mode _ci_cmd _ci_tier _ci_doc _ci_purpose _ci_topic; do
     [ -n "$_ci_name" ] || continue
     [ "$_ci_tier" = "-" ] && _ci_tier=""
     [ "$_ci_mode" = "-" ] && _ci_mode=""
@@ -1810,18 +1997,19 @@ _seed_category_docs() {
   _sc_seeded=0
   _sc_skipped=0
   # Per declared test: seed docs/tests/<category>/<layer>/<name>.md when absent.
-  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose; do
+  while IFS="$(printf '\t')" read -r _ctname _ctcat _ctlayer _ctmode _ctcmd _cttier _ctdoc _ctpurpose _cttopic; do
     [ -n "$_ctname" ] || continue
     [ "$_ctmode" = "-" ] && _ctmode=""
     [ "$_ctcmd" = "-" ] && _ctcmd=""
     [ "$_ctpurpose" = "-" ] && _ctpurpose=""
+    [ "$_cttopic" = "-" ] && _cttopic=""
     _sc_path="$_sc_docs/tests/$_ctcat/$_ctlayer/$_ctname.md"
     if [ -f "$_sc_path" ]; then
       echo "skip: docs/tests/$_ctcat/$_ctlayer/$_ctname.md already exists (idempotent — not overwritten)"
       _sc_skipped=$((_sc_skipped + 1))
     else
       mkdir -p "$_sc_docs/tests/$_ctcat/$_ctlayer"
-      _render_category_doc_stub "$_ctname" "$_ctcat" "$_ctlayer" "$_ctmode" "$_ctcmd" "$_cttier" "$_ctpurpose" > "$_sc_path"
+      _render_category_doc_stub "$_ctname" "$_ctcat" "$_ctlayer" "$_ctmode" "$_ctcmd" "$_cttier" "$_ctpurpose" "$_cttopic" > "$_sc_path"
       echo "seeded: docs/tests/$_ctcat/$_ctlayer/$_ctname.md"
       _sc_seeded=$((_sc_seeded + 1))
     fi
@@ -2407,6 +2595,49 @@ rewrites test scripts: physically reorganizing a repo's tests into
 `tests/<category>/<layer>/` is a one-time migration, not a run-time audit action,
 so the audit stays standalone-safe on a repo it does not own.
 
+## The topic axis + the three-layer topic contract (optional, overlay-only)
+
+The `category` × `layer` axes place a single test; they do not say that a test
+*topic* — a concern like portability or doc-sync that legitimately spans several
+rows — is proven at every layer. A repo MAY add ONE more optional attribute plus an
+enrollment list in its `test-spec-custom.md` overlay (both **optional-on-schema-1**,
+overlay-only — the machine block in this general file is unchanged):
+
+- **`topic:`** — an optional 9th field on any `categories:` row (a slug,
+  `[a-z0-9-]+`) attributing that test to a *topic*. A row need not carry one; a
+  topic simply clusters the rows that share it.
+- **`topic_contracts:`** — an overlay-level list (e.g.
+  `topic_contracts: [portability]`) naming the topics placed **under the
+  three-layer contract**. Enrollment is the load-bearing seam: only enrolled topics
+  are hard-checked, so adopting the contract for one topic never reds the build for
+  the topics that are not yet ready.
+
+**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
+test can run*: an agentic test needs a machine with Claude, which is the
+`local-hook` layer, so agentic model spend stays out of CI by construction. An
+enrolled topic must therefore reach **all three verification layers AND carry both
+modes at local-hook**:
+
+- ≥1 `CI-push` test (the fast per-PR signal),
+- ≥1 `CI-nightly` test (the heavier cadence off the PR path),
+- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
+  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
+  deterministic layer structurally cannot (a stubbed test can pass while the real
+  behavior an operator sees is broken).
+
+Each required coverage point must also carry its front-door
+`docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
+mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
+or doc); it is **declaration-only**, so it runs in plain CI with **zero model
+spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
+but never *executed* there. The hard Check proves the coverage is DECLARED; the
+executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
+A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
+contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
+owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
+with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
+hollow prompt.
+
 ## The canonical contract-file template
 
 The audit verbs (`/CJ_test_audit`, `/CJ_doc_audit`) own this contract's
@@ -2525,12 +2756,12 @@ case "${1:-}" in
     exit 0
     ;;
   --list-categories)
-    # (F000074/F000078) The parsed categories[] rows machine-readably: one row per
-    # named category test, tab-separated name, category, layer, mode, command,
-    # tier, doc (`-` when unset), purpose (`-` when unset). test-run.sh consumes
-    # this for category/layer/name selection. `--names` prints just the names
-    # (registry order), `--category <c>` filters to one category. Empty when no
-    # overlay declares categories.
+    # (F000074/F000078/F000082) The parsed categories[] rows machine-readably: one row
+    # per named category test, tab-separated name, category, layer, mode, command,
+    # tier, doc (`-` when unset), purpose (`-` when unset), topic (`-` when unset).
+    # test-run.sh consumes this for category/layer/name/topic selection. `--names`
+    # prints just the names (registry order), `--category <c>` filters to one
+    # category. Empty when no overlay declares categories.
     _run_registry_gates
     if [ "${2:-}" = "--names" ]; then
       [ -n "$_CATEGORIES" ] && printf '%s\n' "$_CATEGORIES" | awk -F'\t' 'NF {print $1}'
@@ -2591,6 +2822,17 @@ case "${1:-}" in
     _run_registry_gates
     _run_workflow_coverage
     ;;
+  --check-topic-contract)
+    # The three-layer topic contract (F000082): every ENROLLED topic
+    # (topic_contracts:) reaches all three layers AND carries both modes at
+    # local-hook, each with its front-door doc. Declaration-only → CI-safe, zero
+    # model spend. Registry-gated skip: an ABSENT test-spec registry exits 0 via the
+    # REGISTRY=absent path; an overlay with no categories: axis OR no
+    # topic_contracts: enrollment prints the inactive note + exits 0. HARD (exit 1)
+    # only on a real coverage/doc finding. Surfaced by validate.sh + /CJ_test_audit.
+    _run_registry_gates
+    _run_topic_contract
+    ;;
   --render-docs)
     # (F000069/S000114) Render the generated human test catalog from the merged
     # registry. `--render-docs` writes docs/tests/<family>.md + docs/test-catalog.md;
@@ -2636,6 +2878,7 @@ Usage:
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
+  test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic,agentic} with its front-door doc (registry-gated skip)
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
@@ -2649,7 +2892,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

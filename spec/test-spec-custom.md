@@ -660,6 +660,15 @@ units:
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "The marker-absence guard for the build-gate auto-answer seam: git ls-files must never track .cj-e2e-sandbox (the second half of the seam's double guard, CJ_GOAL_E2E_AUTO=1 AND the marker). A committed marker could make the seam live in a real repo with only an env flag; this check hard-fails the moment git tracks it, anywhere in the tree (the gitignored sandbox copy passes cleanly)."
+  - id: validate-check-30
+    family: validate
+    label: "Check 30 — three-layer topic contract (enrolled topics reach all layers + both local modes)"
+    anchor: "=== Check 30:"
+    source: scripts/validate.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pre-commit pr-ci"
+    purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} + a local-hook{agentic} test, each with its front-door doc. Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — the agentic behavior is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -954,6 +963,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "scripts/skills-update-check reads local = manifest collection_version and remote = the max v<X.Y.Z> tag from a stubbed git ls-remote, emitting the SKILLS_UPGRADE_AVAILABLE banner when remote > local, staying silent when equal/older, and fail-softing silent when the remote is unreachable or has no v-tags — with the .source/.git gate removed (a non-checkout .source no longer suppresses the banner), the ssh→https upstream_url normalization, and the SKILLS_UPDATE_REMOTE_URL / SKILLS_UPDATE_STATE_DIR test seams (hermetic, no real network / no real ~/.claude)."
+  - id: test-portability-version-agentic
+    family: test
+    label: "portability-version-agentic — the local-hook AGENTIC proof of the version-notification (SKIP path in CI)"
+    anchor: "tests/portability-version-agentic.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The agentic counterpart to skills-update-check.test.sh: portability's local-hook agentic level asserts an AGENT running the update-check preamble in a repo-neutral sandbox (a bare upstream tagged v-newer via SKILLS_UPDATE_REMOTE_URL) SURFACES the SKILLS_UPGRADE_AVAILABLE nudge — the green-but-inert catch the deterministic version-check cannot see. Local-only (tier local-only via the categories: row): it SKIPs cleanly (exit 0, no model spend) without CJ_E2E_LOCAL=1 + a claude login, so in CI / test.sh only the SKIP path runs (the live claude --print path is a local /CJ_test_run --topic portability --e2e run). Registered here so the Check-24 forward grep proves the file is wired."
   # ---- test family: inline scripts/test.sh families (banner-anchored) ----
   - id: testsh-validate-rerun
     family: test
@@ -1492,6 +1510,23 @@ runners:
     covers: [test]
     platform: any
     note: "The local happy-path E2E harness — a real /CJ_goal_task build in a sandbox; self-gates (first-line ^SKIP:) without CJ_E2E_LOCAL + gstack + a claude login; runs only under --e2e / --all."
+# ---- topic_contracts (F000082): enrollment into the three-layer topic contract ----
+# The OPT-IN seam: only the topics listed here are HARD-checked by
+# test-spec.sh --check-topic-contract (surfaced by validate.sh + /CJ_test_audit
+# Stage 1) — an enrolled topic MUST reach all three layers (CI-push + CI-nightly +
+# local-hook{deterministic,agentic}), each with its front-door doc. Every other
+# topic keeps the advisory per-category × 3-layer matrix (the grandfather seam), so
+# enrolling one topic never reds the build for the rest.
+#
+# `portability` is the FIRST (and currently only) enrolled topic — it already had
+# CI-push (portability-check18-lint / portability-smoke) + CI-nightly
+# (portability-deploy) + a local-hook deterministic test (portability-version-check),
+# and this feature added its missing local-hook AGENTIC test
+# (portability-version-agentic), so it is green from enrollment. The 11 other topics
+# (validator / full-suite / deploy-harness / cj-goal-eval / doc-sync / e2e /
+# cj-goal-gate) are labeled but UNENROLLED — each needs its missing-mode local test
+# built before it can enroll (tracked as follow-up TODOs in TODOS.md).
+topic_contracts: [portability]
 categories:
   # ---- the categories: axis (F000074; two-axis reframe F000078): the
   # category-based test contract ----
@@ -1528,6 +1563,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-push/validate.md"
     purpose: "The repo validator (the CI-push layer): all numbered + error + warning checks against the catalog, docs, and spec family."
+    topic: validator
   - name: suite
     category: infra
     layer: CI-push
@@ -1536,6 +1572,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-push/suite.md"
     purpose: "The full behavioral test suite — runs validate.sh, every registered tests/*.test.sh sub-suite, test-deploy.sh, and windows-smoke.sh."
+    topic: full-suite
   - name: test-deploy
     category: infra
     layer: CI-nightly
@@ -1544,6 +1581,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-nightly/test-deploy.md"
     purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it gates via the nightly full-suite (nightly.yml), not per-PR."
+    topic: deploy-harness
   # ---- infra: the deploy/install (portability) harness, at all three test levels —
   #      CI-push {the Check-18 declared-vs-actual lint + the Git-Bash smoke},
   #      CI-nightly {the Windows-native deploy suite}, local-hook {the version-check} ----
@@ -1555,6 +1593,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-push/portability-check18-lint.md"
     purpose: "The declared-vs-actual portability lint (validate.sh Check 18's engine): each catalog skill's declared portability tier is checked against its actual repo-local dependencies — the fast per-PR portability signal of the deploy/install harness."
+    topic: portability
   - name: portability-smoke
     category: infra
     layer: CI-push
@@ -1563,6 +1602,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-push/portability-smoke.md"
     purpose: "The Windows Git Bash portability smoke of the deploy/install harness (copy-mode install, in-place stamp, _cj-shared update-check resolution) — standing verification infra, not a user-facing workflow; the fast per-PR Windows signal."
+    topic: portability
   - name: portability-deploy
     category: infra
     layer: CI-nightly
@@ -1571,6 +1611,7 @@ categories:
     tier: free
     doc: "docs/tests/infra/CI-nightly/portability-deploy.md"
     purpose: "The skills-deploy end-to-end run of the deploy/install harness on windows-latest, run nightly (windows-nightly.yml) — standing verification infra (the install/remove/relink/doctor harness) held Windows-native; same script as the push-cadence test-deploy, a distinct CI context (platform + cadence)."
+    topic: portability
   - name: portability-version-check
     category: infra
     layer: local-hook
@@ -1578,7 +1619,17 @@ categories:
     command: "bash tests/skills-update-check.test.sh"
     tier: free
     doc: "docs/tests/infra/local-hook/portability-version-check.md"
-    purpose: "The local sandbox check of the deploy/install harness's version-notification — a stubbed git ls-remote + a .source-absent manifest proving skills-update-check nudges when a newer release is published; portability's local-hook level (deterministic fill; the agentic model-surfaced-prompt variant is deferred)."
+    purpose: "The local sandbox check of the deploy/install harness's version-notification — a stubbed git ls-remote + a .source-absent manifest proving skills-update-check nudges when a newer release is published; portability's local-hook level (deterministic fill; the agentic model-surfaced-prompt variant is the sibling portability-version-agentic row)."
+    topic: portability
+  - name: portability-version-agentic
+    category: infra
+    layer: local-hook
+    mode: agentic
+    command: "bash tests/portability-version-agentic.test.sh"
+    tier: local-only
+    doc: "docs/tests/infra/local-hook/portability-version-agentic.md"
+    purpose: "The local AGENTIC proof of the deploy/install harness's version-notification — a repo-neutral sandbox + a bare upstream tagged v-newer drives the skills-update-check preamble through claude --print and asserts the agent SURFACES the upgrade nudge to a human (not merely that the banner text exists); portability's local-hook agentic level, closing the green-but-inert blind spot the deterministic version-check cannot see. Local-only (SKIPs clean without CJ_E2E_LOCAL=1 + a claude login), so CI never spends a model."
+    topic: portability
   # ---- workflow — proves a whole user-facing workflow runs end to end: the
   #      cj_goal orchestrators, the doc-sync pipeline, and the local happy-path E2E
   #      harness (the portability install/deploy harness rows moved to infra) ----
@@ -1590,6 +1641,7 @@ categories:
     tier: paid
     doc: "docs/tests/workflow/local-hook/goal-task-eval.md"
     purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex); agentic (spends model tokens), so it runs on-demand at the local-hook layer, never on a CI schedule or the free-tier default."
+    topic: cj-goal-eval
   - name: goal-feature-eval
     category: workflow
     layer: local-hook
@@ -1598,6 +1650,7 @@ categories:
     tier: paid
     doc: "docs/tests/workflow/local-hook/goal-feature-eval.md"
     purpose: "The /CJ_goal_feature workflow eval — drives the feature orchestrator through its dry-run chain-plan preview on the gstack-independent path (end_state dry_run_preview); backs the workflow-cj-goal-feature-runs level:workflow behavior; agentic, on-demand local-hook cadence."
+    topic: cj-goal-eval
   - name: doc-sync
     category: workflow
     layer: local-hook
@@ -1606,6 +1659,7 @@ categories:
     tier: paid
     doc: "docs/tests/workflow/local-hook/doc-sync.md"
     purpose: "The doc/test-sync audit workflow — exercises the /CJ_doc_audit + /CJ_test_audit logic end to end via the scripts/audit-nightly.sh runner; agentic (claude --print), so it runs on-demand at the local-hook layer and never on the free-tier default."
+    topic: doc-sync
   - name: e2e-local
     category: workflow
     layer: local-hook
@@ -1614,6 +1668,7 @@ categories:
     tier: local-only
     doc: "docs/tests/workflow/local-hook/e2e-local.md"
     purpose: "The local happy-path E2E harness — a real /CJ_goal_task build in a throwaway sandbox, driven through the build gates to the /ship boundary; agentic + local-only (runs on your machine, never in CI)."
+    topic: e2e
   - name: cj-goal-gate-shape
     category: workflow
     layer: CI-push
@@ -1622,4 +1677,5 @@ categories:
     tier: free
     doc: "docs/tests/workflow/CI-push/cj-goal-gate-shape.md"
     purpose: "The cj_goal build-gate shape guard — proves no CJ_goal_* orchestrator runs an inline slow doc-sync (/CJ_document-release) or agent-judged test-sync sweep: Step 5.5 is a deterministic doc-regen and QA's 8.6a/8.6b agentic sweep is DEFER_SYNC-gated, so the agentic doc/test sync defers to the nightly audit. Deterministic (grep, no model), runs per-PR; the complement to the doc-sync workflow test that proves the nightly safety net."
+    topic: cj-goal-gate
 ```
