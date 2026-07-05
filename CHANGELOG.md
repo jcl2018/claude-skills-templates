@@ -3,6 +3,21 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.122] - 2026-07-05
+
+### Added
+- **T000057 — `/CJ_test_run` surfaces the agentic cold-agent prompt + response.**
+  The `portability-version-agentic` test printed only a one-line `PASS`/`FAIL`
+  summary; the cold-agent exchange (the exact prompt sent to `claude --print`, the
+  raw response, the verdict) was discarded. Now `run_preamble_via_claude`
+  (`scripts/lib/agentic-sandbox.sh`) exposes the verbatim prompt via an optional 6th
+  `prompt-out-path` arg (byte-identical to what's sent; no-op when absent); the test
+  emits an `=== AGENTIC-DETAIL BEGIN/END ===` block on the LIVE path (SKIP path
+  unchanged — no block, no model spend); and `scripts/test-run.sh` folds it into
+  `/CJ_test_run`'s materialized report under `## Agentic detail`. Hermetic regression
+  (`tests/portability-version-agentic-detail.test.sh` — stubs `claude` on PATH, no
+  model), registered in `spec/test-spec-custom.md` + wired into `scripts/test.sh`.
+
 ## [6.0.121] - 2026-07-05
 
 ### Fixed
