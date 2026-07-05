@@ -49,7 +49,7 @@ promoted_from_draft: .inbox/doctor_misses_crlf_template_line_ending_drift
 **Gates:**
 - [x] /CJ_personal-workflow check — validation passed
 - [x] Test-plan verified (regression scenarios passing)
-- [ ] /ship — PR created
+- [x] /ship — PR created
 - [ ] /land-and-deploy — merged and deployed
 
 ## Reproduction Steps
@@ -75,7 +75,7 @@ templates + `doc-SKILL-DESIGN.md` were CRLF while source was LF; `doctor` said O
 
 ## PRs
 
-<!-- PR links populated at /ship. -->
+- https://github.com/jcl2018/claude-skills-templates/pull/331 (v6.0.121) — OPEN, closes the Windows test.sh P0
 
 ## Files
 
