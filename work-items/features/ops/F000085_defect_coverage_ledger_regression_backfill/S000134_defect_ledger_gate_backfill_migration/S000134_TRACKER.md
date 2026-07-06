@@ -46,8 +46,8 @@ blocked_by: ""
 6. Update Files section with changed file paths
 
 **Gates:**
-- [ ] Acceptance criteria verified met
-- [ ] Smoke tests pass
+- [x] Acceptance criteria verified met
+- [x] Smoke tests pass
 - [x] Todos section reflects remaining work (no stale items)
 - [x] Files section updated with changed files
 
@@ -67,7 +67,7 @@ blocked_by: ""
 **Gates:**
 - [ ] `/CJ_personal-workflow check` — validation passed
 - [ ] Smoke tests pass in CI
-- [ ] E2E walked manually
+- [x] E2E walked manually
 - [ ] All children shipped (if any)
 - [ ] `/ship` — PR created (with pre-landing review)
 - [ ] `/land-and-deploy` — merged and deployed
@@ -76,14 +76,14 @@ blocked_by: ""
 
 <!-- What "done" looks like for this story. -->
 
-- [ ] AC-1: `defect_coverage:` overlay axis parses — `--validate` passes with the new block (disposition closed-enum + duplicate-`defect:`-key checks); `--list-defect-coverage` echoes parsed rows; block placed LAST in the overlay yaml and added to the eight block-close regexes
-- [ ] AC-2: `--check-defect-coverage` runs forward (every `work-items/defects/**/D??????_*` dir has exactly one row) + reverse (dir exists; `covered-by` resolves to a live deterministic `categories:` row; `covered-by-anchor` greps live; `waived` has non-empty reason); named vacuous SKIP (exit 0) when registry/axis/`work-items/defects/` absent; prints the machine-classifiable summary/inactive lines
-- [ ] AC-3: `validate.sh` Check 32 (HARD, registry-gated) wired with its `validate-check-32` `units:` row; `/CJ_test_audit` Stage 1 surfaces the check via the `--help` capability-probe idiom
-- [ ] AC-4: hermetic `scripts/test.sh` negative test with TWO plants — unmapped defect dir → forward FINDING; `covered-by` citing a `mode: agentic` row → mode FINDING — each restore → pass, engine-only
-- [ ] AC-5: full 38-row verified backfill (verify-before-declare; every verification failure defaults to `waived: "gap — …"` + TODOS row; in-PR gap drills only if ≤30-line shape-guard, cap 3); TODOS rows filed for waived-gaps + the Check-30/agentic-purge collision
-- [ ] AC-6: reverse-sweep token grammar moved to full relative-path tokens at both sites, glob recursed (`tests/*.test.sh` + `tests/*/*/*.test.sh`), `$5 == "scripts/test.sh"` pin preserved; `tests/workflow/local-hook/doc-sync.test.sh` orphan wired into `scripts/test.sh` + owned by a `units:` row; Check 24 green
-- [ ] AC-7: 4 pure drills `git mv`'d to `tests/regression/CI-push/` with same-commit `scripts/test.sh` invocation-line + owning-units-row `anchor:` updates (`source:` stays `scripts/test.sh`); ledger rows re-anchored at the move commit, flipped to `covered-by` at the rows commit (intermediate-state rule — every commit green under Check 32)
-- [ ] AC-8: one regression `categories:` row per migrated drill (`category: regression`, `layer: CI-push`, `mode: deterministic`, `tier: free`); front-door docs seeded + filled in words (no D-IDs) + declared in `spec/doc-spec-custom.md`; stale ~:1580 comment rewritten; catalogs regenerated; `--list-categories --category regression` ≥4 rows; `/CJ_test_run --category regression` green, zero model spend
+- [x] AC-1: `defect_coverage:` overlay axis parses — `--validate` passes with the new block (disposition closed-enum + duplicate-`defect:`-key checks); `--list-defect-coverage` echoes parsed rows; block placed LAST in the overlay yaml and added to the eight block-close regexes
+- [x] AC-2: `--check-defect-coverage` runs forward (every `work-items/defects/**/D??????_*` dir has exactly one row) + reverse (dir exists; `covered-by` resolves to a live deterministic `categories:` row; `covered-by-anchor` greps live; `waived` has non-empty reason); named vacuous SKIP (exit 0) when registry/axis/`work-items/defects/` absent; prints the machine-classifiable summary/inactive lines
+- [x] AC-3: `validate.sh` Check 32 (HARD, registry-gated) wired with its `validate-check-32` `units:` row; `/CJ_test_audit` Stage 1 surfaces the check via the `--help` capability-probe idiom
+- [x] AC-4: hermetic `scripts/test.sh` negative test with TWO plants — unmapped defect dir → forward FINDING; `covered-by` citing a `mode: agentic` row → mode FINDING — each restore → pass, engine-only
+- [x] AC-5: full 38-row verified backfill (verify-before-declare; every verification failure defaults to `waived: "gap — …"` + TODOS row; in-PR gap drills only if ≤30-line shape-guard, cap 3); TODOS rows filed for waived-gaps + the Check-30/agentic-purge collision
+- [x] AC-6: reverse-sweep token grammar moved to full relative-path tokens at both sites, glob recursed (`tests/*.test.sh` + `tests/*/*/*.test.sh`), `$5 == "scripts/test.sh"` pin preserved; `tests/workflow/local-hook/doc-sync.test.sh` orphan wired into `scripts/test.sh` + owned by a `units:` row; Check 24 green
+- [x] AC-7: 4 pure drills `git mv`'d to `tests/regression/CI-push/` with same-commit `scripts/test.sh` invocation-line + owning-units-row `anchor:` updates (`source:` stays `scripts/test.sh`); ledger rows re-anchored at the move commit, flipped to `covered-by` at the rows commit (intermediate-state rule — every commit green under Check 32)
+- [x] AC-8: one regression `categories:` row per migrated drill (`category: regression`, `layer: CI-push`, `mode: deterministic`, `tier: free`); front-door docs seeded + filled in words (no D-IDs) + declared in `spec/doc-spec-custom.md`; stale ~:1580 comment rewritten; catalogs regenerated; `--list-categories --category regression` ≥4 rows; `/CJ_test_run --category regression` green, zero model spend
 
 ## Todos
 
@@ -146,3 +146,16 @@ blocked_by: ""
 - [impl-finding] 2026-07-06 — Summary: the 4 moved drills all resolved REPO_ROOT as SCRIPT_DIR/.. — moving them 2 levels deeper required the same-commit ../../.. fix (the doc-sync nested test's existing idiom); a move without it would have passed the sweep but failed at runtime.
 - [impl] 2026-07-06 — Summary: wrote 4 new files (front-door docs), moved 4 (git mv → tests/regression/CI-push/), modified 10 (test-spec.sh, validate.sh, test.sh, both overlays, CJ_test_audit SKILL+USAGE, TODOS.md, S000134/F000085 trackers) + 4 regenerated catalogs, across 6 ledger-first commits a6ffcd6/35c87f9/b752856/64776e1/434c3f7/cabacea; every commit verified green (validate + engine checks) before the next.
 - [impl-pass] 2026-07-06 — Summary: S000134: implementation complete. Phase 2 implementer-owned gates transitioned.
+- 2026-07-06 [qa-smoke] S1 (AC-1): green — `--validate` OK schema_version=1; `--list-defect-coverage` echoes 38 rows across all three disposition forms (26 covered-by-anchor / 4 covered-by / 8 waived); no sibling axis regressed (`--check-coverage` still OK)
+- 2026-07-06 [qa-smoke] S2 (AC-5): green — `--check-defect-coverage` prints exactly `defect coverage: dirs=38 rows=38 findings=0`, exit 0
+- 2026-07-06 [qa-smoke] S3 (AC-4): green — two-plant hermetic drill re-executed standalone: unmapped dir D999902 → forward FINDING (`resolves to 0 ledger row(s)`), covered-by citing planted `mode: agentic` row → mode FINDING (`MUST be mode: deterministic`), rc=1; restore → live tree findings=0
+- 2026-07-06 [qa-smoke] S4 (AC-3): green — full `validate.sh` RESULT: PASS (Errors: 0), incl. new Check 32 (`dirs=38 rows=38 findings=0`) and Check 24 post-token-grammar; sole warning is the pre-existing docs/goals orphan-dir advisory
+- 2026-07-06 [qa-smoke] S5 (AC-6): green — `--check-coverage` OK rows=93 reverse_tokens=73 findings=0 (full rel-path tokens, recursed glob); doc-sync.test.sh invoked at scripts/test.sh:2111 and owned by exactly one units row (test-doc-sync-workflow)
+- 2026-07-06 [qa-smoke-summary] green: 5/5 non-manual rows green (0 manual rows pending)
+- 2026-07-06 [qa-e2e-run-start] RUN_ID=20260706-111617-902933 commit=715c584
+- 2026-07-06 [qa-e2e] E1 (AC-8): green — `--list-categories --category regression` = 4 rows, ALL mode:deterministic tier:free; the 4 drills run green model-free; each `docs/tests/regression/CI-push/<name>.md` carries the three front-door sections in words with no work-item IDs (Check 19 clean)
+- 2026-07-06 [qa-e2e] E2 (AC-7): green — the 4 moved drills are wired in scripts/test.sh at their new tests/regression/CI-push/ paths (lines 2062/2187/2205/2300) and PASS individually; CI shellcheck (`shellcheck scripts/*.sh scripts/skills-deploy scripts/skills-update-check`, the exact validate.yml cmd) is CLEAN; Check 24 + Check 32 green at HEAD
+- 2026-07-06 [qa-e2e] E3 (AC-2): green — consumer vacuous skip verified: an empty `git init` repo prints `REGISTRY=absent` + exit 0 (named skip, never a finding/halt)
+- 2026-07-06 [qa-e2e-summary] green: 3/3 E2E rows green; all 8 ACs verified
+- 2026-07-06 [qa-suite-note] Full `scripts/test.sh` on THIS Windows box surfaced 2 sub-test reds ("validate.sh fails after manual skill creation"; Check 26 `docs/tests/test.md` stale) + a trailing `sed: zzz-test-scaffold/SKILL.md` error. ALL THREE are pre-existing test.sh harness pollution under a concurrent second worktree (observed running its own validate/test suites), NOT F000085 regressions — PROVEN in isolation on the clean committed tree: standalone `validate.sh` = PASS 0 errors; the exact failing assertion (`validate.sh` with zzz added) reproduced = exit 0; `--render-docs --check` = OK findings=0; `docs/tests/test.md` unmodified vs HEAD (in-sync at commit); the zzz `sed` at scripts/test.sh:951 is pre-existing (base c2cadc2 has it). Authoritative suite gate = CI (isolated ubuntu). See memory local-jq-cr-quirk (test.sh red-on-clean-tree on this box).
+- 2026-07-06 [qa-verdict] GREEN — DEFER_AUDIT + DEFER_SYNC honored (deterministic overlay obligations already present from implement; agent-judged audit deferred to on-demand). Phase 2 QA gates transitioned.
