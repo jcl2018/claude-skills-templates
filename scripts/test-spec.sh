@@ -116,13 +116,16 @@
 #   --check-topic-contract  (F000082) the three-layer topic contract. For every
 #                      ENROLLED topic (an overlay `topic_contracts:` entry),
 #                      require, HARD (exit 1 on any finding): >=1 CI-push test,
-#                      >=1 CI-nightly test, >=1 local-hook+deterministic test AND
-#                      >=1 local-hook+agentic test carrying `topic: <t>` on their
-#                      categories: rows, each with its front-door
-#                      docs/tests/<cat>/<layer>/<name>.md. Declaration-only =>
-#                      CI-safe, zero model spend (the agentic BEHAVIOR is proven
-#                      local-only by /CJ_test_run --e2e; mode:agentic => tier!=free,
-#                      so the agentic row is present-in-CI-but-never-executed).
+#                      >=1 CI-nightly test AND >=1 local-hook+deterministic test
+#                      carrying `topic: <t>` on their categories: rows, each with
+#                      its front-door docs/tests/<cat>/<layer>/<name>.md. The
+#                      (local-hook, agentic) point is ADVISORY: a missing agentic
+#                      row prints a per-topic `note:` (no finding, no exit-1) —
+#                      agentic proofs run on-demand, never required. Declaration-
+#                      only => CI-safe, zero model spend (an agentic BEHAVIOR,
+#                      where declared, is proven local-only by /CJ_test_run
+#                      --e2e; mode:agentic => tier!=free, so an agentic row is
+#                      present-in-CI-but-never-executed).
 #                      Registry-gated skip (mirror of --check-workflow-coverage):
 #                      absent test-spec registry / no categories: axis / no
 #                      topic_contracts: enrollment => inactive note + exit 0.
@@ -1300,22 +1303,25 @@ EOF
 
 # ---- --check-topic-contract: the three-layer topic contract (F000082) ----------
 # The HARD, declaration-only (CI-safe, zero model spend) enforcement that every
-# ENROLLED topic (topic_contracts:) reaches all three verification layers AND
-# carries both modes at local-hook. Mirrors --check-workflow-coverage's shape:
-# forward per-enrolled-topic requirement checks over the categories: rows, findings
+# ENROLLED topic (topic_contracts:) reaches all three verification layers
+# deterministically. Mirrors --check-workflow-coverage's shape: forward
+# per-enrolled-topic requirement checks over the categories: rows, findings
 # printed verbatim, a summary line last, exit 1 on any finding. For each enrolled
 # topic, require (each with its front-door docs/tests/<cat>/<layer>/<name>.md):
 #   >=1 CI-push test,
 #   >=1 CI-nightly test,
-#   >=1 local-hook + deterministic test,
-#   >=1 local-hook + agentic test.
+#   >=1 local-hook + deterministic test.
+# The 4th point — a local-hook + agentic test — is ADVISORY: absence prints a
+# per-topic `note:` line and never increments the findings counter (agentic
+# proofs run on-demand, never a requirement; the note keeps the gap visible
+# wherever the contract is read).
 # Registry-gated skip: an ABSENT test-spec registry exits 0 via the REGISTRY=absent
 # path; an overlay with NO categories: axis OR NO topic_contracts: enrollment prints
 # the inactive note + exits 0 (a consumer with no enrollment passes vacuously). Only
-# DECLARATION is proven here (the row + its front-door doc exist) — the agentic
-# BEHAVIOR is proven by /CJ_test_run --e2e, local-only (mode:agentic ⇒ tier≠free, so
-# the agentic row is present-in-CI-but-never-executed). Surfaced by validate.sh
-# (a new hard Check) + /CJ_test_audit Stage 1.
+# DECLARATION is proven here (the row + its front-door doc exist) — an agentic
+# BEHAVIOR, where a topic declares one, is proven by /CJ_test_run --e2e, local-only
+# (mode:agentic ⇒ tier≠free, so an agentic row is present-in-CI-but-never-executed).
+# Surfaced by validate.sh (a hard Check) + /CJ_test_audit Stage 1.
 _run_topic_contract() {
   # test-spec registry-absent → inactive skip (callers must not parse halt prose).
   if [ ! -f "$TEST_SPEC_PATH" ]; then
@@ -1334,10 +1340,12 @@ _run_topic_contract() {
   _TC_DOCS=$(_STRUCT_DOCS_DEFAULT)
   _TC_FINDINGS=0
 
-  # For each enrolled topic, assert the four required (layer, mode) coverage
-  # points exist AND each satisfying row has its front-door doc. A required point
-  # with NO row is a coverage finding; a row present but its front-door doc
-  # missing is a doc finding (the row is declared but under-documented).
+  # For each enrolled topic, assert the three required DETERMINISTIC (layer,
+  # mode) coverage points exist AND each satisfying row has its front-door doc.
+  # A required point with NO row is a coverage finding; a row present but its
+  # front-door doc missing is a doc finding (the row is declared but
+  # under-documented). The (local-hook, agentic) point is ADVISORY: absence
+  # prints a per-topic note, never a finding.
   while IFS= read -r _tct; do
     [ -n "$_tct" ] || continue
 
@@ -1350,21 +1358,31 @@ _run_topic_contract() {
       continue
     fi
 
-    # The four required coverage points: (CI-push, any), (CI-nightly, any),
-    # (local-hook, deterministic), (local-hook, agentic). "req_label|awk-filter".
+    # The three required DETERMINISTIC coverage points: (CI-push, any),
+    # (CI-nightly, any), (local-hook, deterministic). "req_label|awk-filter".
     for _tc_req in \
       "a CI-push test|\$3 == \"CI-push\"" \
       "a CI-nightly test|\$3 == \"CI-nightly\"" \
-      "a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\"" \
-      "a local-hook + agentic test|\$3 == \"local-hook\" && \$4 == \"agentic\""; do
+      "a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\""; do
       _tc_lbl=${_tc_req%%|*}
       _tc_filt=${_tc_req#*|}
       _tc_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' "$_tc_filt" | grep -c . || true)
       if [ "$_tc_hit" -lt 1 ]; then
-        echo "FINDING: topic-contract — enrolled topic '$_tct' is missing $_tc_lbl (the three-layer contract requires CI-push + CI-nightly + local-hook{deterministic,agentic}); declare one in spec/test-spec-custom.md categories: with topic: $_tct"
+        echo "FINDING: topic-contract — enrolled topic '$_tct' is missing $_tc_lbl (the three-layer contract requires CI-push + CI-nightly + local-hook{deterministic}); declare one in spec/test-spec-custom.md categories: with topic: $_tct"
         _TC_FINDINGS=$((_TC_FINDINGS + 1))
       fi
     done
+
+    # The (local-hook, agentic) coverage point is ADVISORY — never a FINDING,
+    # never a counter increment: agentic proofs run on-demand (they need a
+    # machine with Claude), so enrollment is never gated on the hardest-to-build
+    # test mode. Absence prints a per-topic note so the gap stays visible
+    # wherever the contract is read, without redding the build. Re-hardening is
+    # a one-line reversal (move this entry back into the FINDING loop above).
+    _tc_ag_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' '$3 == "local-hook" && $4 == "agentic"' | grep -c . || true)
+    if [ "$_tc_ag_hit" -lt 1 ]; then
+      echo "note: topic-contract — enrolled topic '$_tct' has no local-hook+agentic test (advisory — agentic proofs run on-demand, not required)"
+    fi
 
     # Front-door doc presence for every row of this topic (its declared coverage
     # must be documented — the same front-door rule --check-structure (d) enforces,
@@ -2617,9 +2635,11 @@ not a per-category test level, so it is excluded here:
 - **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
   that would slow every PR, moved off the PR path onto a nightly cadence
   (`mode: deterministic`).
-- **local-hook** — a *quick agentic* check that verifies locally on demand
-  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
-  on their own machine, never on a CI schedule.
+- **local-hook** — a *quick local* check a maintainer runs on their own machine:
+  deterministic by default (`mode: deterministic`, `tier: free` — the pre-commit
+  hook / run-before-push proof), optionally joined by an agentic proof
+  (`mode: agentic`, so `tier ≠ free`) that spends model tokens on demand, never
+  on a CI schedule.
 
 An empty (category, level) cell is a *coverage gap*, not an error: some cells are
 intentionally empty and a category need not fill all three. `test-spec.sh
@@ -2698,31 +2718,37 @@ overlay-only — the machine block in this general file is unchanged):
   are hard-checked, so adopting the contract for one topic never reds the build for
   the topics that are not yet ready.
 
-**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
-test can run*: an agentic test needs a machine with Claude, which is the
-`local-hook` layer, so agentic model spend stays out of CI by construction. An
-enrolled topic must therefore reach **all three verification layers AND carry both
-modes at local-hook**:
+**The three-deterministic-layers rule.** An enrolled topic must reach **all three
+verification layers deterministically**:
 
 - ≥1 `CI-push` test (the fast per-PR signal),
 - ≥1 `CI-nightly` test (the heavier cadence off the PR path),
-- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
-  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
-  deterministic layer structurally cannot (a stubbed test can pass while the real
-  behavior an operator sees is broken).
+- ≥1 `local-hook` + `deterministic` test (the quick local proof).
+
+A `local-hook` + `agentic` test is **advisory, never required**. Agentic proofs
+run on-demand — they need a machine with Claude, which is why an agentic test
+lives at `local-hook`, keeping model spend out of CI by construction — so
+enrollment is never gated on the hardest-to-build test mode. Where an enrolled
+topic has no agentic row, the check prints a per-topic advisory `note:`, keeping
+the gap visible wherever the contract is read without redding the build; where a
+topic does declare one, that proof catches the *green-but-inert* bugs the
+deterministic layer structurally cannot (a stubbed test can pass while the real
+behavior an operator sees is broken).
 
 Each required coverage point must also carry its front-door
 `docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
-mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
-or doc); it is **declaration-only**, so it runs in plain CI with **zero model
-spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
-but never *executed* there. The hard Check proves the coverage is DECLARED; the
-executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
+mechanizes this for every enrolled topic — HARD (exit 1) on any missing
+deterministic coverage point or front-door doc, an advisory `note:` (never a
+finding) for a missing agentic row; it is **declaration-only**, so it runs in
+plain CI with **zero model spend** — because `mode: agentic ⇒ tier ≠ free`, an
+agentic row is present in CI but never *executed* there. The hard Check proves
+the deterministic coverage is DECLARED; the executor (`/CJ_test_run --topic <t>
+--e2e`, local-only) proves the agentic BEHAVIOR where a topic declares one.
 A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
 contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
 owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
-with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
-hollow prompt.
+with Stage 2 judging — where an enrolled topic declares an agentic row — that the
+row names a real sandbox test, not a hollow prompt.
 
 ## The canonical contract-file template
 
@@ -2910,12 +2936,13 @@ case "${1:-}" in
     ;;
   --check-topic-contract)
     # The three-layer topic contract (F000082): every ENROLLED topic
-    # (topic_contracts:) reaches all three layers AND carries both modes at
-    # local-hook, each with its front-door doc. Declaration-only → CI-safe, zero
-    # model spend. Registry-gated skip: an ABSENT test-spec registry exits 0 via the
-    # REGISTRY=absent path; an overlay with no categories: axis OR no
-    # topic_contracts: enrollment prints the inactive note + exits 0. HARD (exit 1)
-    # only on a real coverage/doc finding. Surfaced by validate.sh + /CJ_test_audit.
+    # (topic_contracts:) reaches all three layers deterministically, each row with
+    # its front-door doc; a missing local-hook+agentic test is an ADVISORY note,
+    # never a finding. Declaration-only → CI-safe, zero model spend. Registry-gated
+    # skip: an ABSENT test-spec registry exits 0 via the REGISTRY=absent path; an
+    # overlay with no categories: axis OR no topic_contracts: enrollment prints the
+    # inactive note + exits 0. HARD (exit 1) only on a real deterministic-coverage /
+    # doc finding. Surfaced by validate.sh + /CJ_test_audit.
     _run_registry_gates
     _run_topic_contract
     ;;
@@ -2975,7 +3002,7 @@ Usage:
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
-  test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic,agentic} with its front-door doc (registry-gated skip)
+  test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic} with its front-door doc; a missing local-hook agentic test is an advisory note, never a finding (registry-gated skip)
   test-spec.sh --check-topic-docs # HARD (declaration-only, CI-safe): every enrolled topic has a docs/goals/<topic>.md dream doc + a docs/tests/topics/<topic>/ subdir (index refs the dream + a page per covered layer); registry-gated skip
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
