@@ -155,9 +155,11 @@ not a per-category test level, so it is excluded here:
 - **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
   that would slow every PR, moved off the PR path onto a nightly cadence
   (`mode: deterministic`).
-- **local-hook** — a *quick agentic* check that verifies locally on demand
-  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
-  on their own machine, never on a CI schedule.
+- **local-hook** — a *quick local* check a maintainer runs on their own machine:
+  deterministic by default (`mode: deterministic`, `tier: free` — the pre-commit
+  hook / run-before-push proof), optionally joined by an agentic proof
+  (`mode: agentic`, so `tier ≠ free`) that spends model tokens on demand, never
+  on a CI schedule.
 
 An empty (category, level) cell is a *coverage gap*, not an error: some cells are
 intentionally empty and a category need not fill all three. `test-spec.sh
@@ -236,31 +238,37 @@ overlay-only — the machine block in this general file is unchanged):
   are hard-checked, so adopting the contract for one topic never reds the build for
   the topics that are not yet ready.
 
-**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
-test can run*: an agentic test needs a machine with Claude, which is the
-`local-hook` layer, so agentic model spend stays out of CI by construction. An
-enrolled topic must therefore reach **all three verification layers AND carry both
-modes at local-hook**:
+**The three-deterministic-layers rule.** An enrolled topic must reach **all three
+verification layers deterministically**:
 
 - ≥1 `CI-push` test (the fast per-PR signal),
 - ≥1 `CI-nightly` test (the heavier cadence off the PR path),
-- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
-  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
-  deterministic layer structurally cannot (a stubbed test can pass while the real
-  behavior an operator sees is broken).
+- ≥1 `local-hook` + `deterministic` test (the quick local proof).
+
+A `local-hook` + `agentic` test is **advisory, never required**. Agentic proofs
+run on-demand — they need a machine with Claude, which is why an agentic test
+lives at `local-hook`, keeping model spend out of CI by construction — so
+enrollment is never gated on the hardest-to-build test mode. Where an enrolled
+topic has no agentic row, the check prints a per-topic advisory `note:`, keeping
+the gap visible wherever the contract is read without redding the build; where a
+topic does declare one, that proof catches the *green-but-inert* bugs the
+deterministic layer structurally cannot (a stubbed test can pass while the real
+behavior an operator sees is broken).
 
 Each required coverage point must also carry its front-door
 `docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
-mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
-or doc); it is **declaration-only**, so it runs in plain CI with **zero model
-spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
-but never *executed* there. The hard Check proves the coverage is DECLARED; the
-executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
+mechanizes this for every enrolled topic — HARD (exit 1) on any missing
+deterministic coverage point or front-door doc, an advisory `note:` (never a
+finding) for a missing agentic row; it is **declaration-only**, so it runs in
+plain CI with **zero model spend** — because `mode: agentic ⇒ tier ≠ free`, an
+agentic row is present in CI but never *executed* there. The hard Check proves
+the deterministic coverage is DECLARED; the executor (`/CJ_test_run --topic <t>
+--e2e`, local-only) proves the agentic BEHAVIOR where a topic declares one.
 A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
 contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
 owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
-with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
-hollow prompt.
+with Stage 2 judging — where an enrolled topic declares an agentic row — that the
+row names a real sandbox test, not a hollow prompt.
 
 ## The canonical contract-file template
 

@@ -783,33 +783,36 @@ else
   fail_test "Check 29: .cj-e2e-sandbox should have been untracked after cleanup, but is still tracked"
 fi
 
-# Step 3i (F000082 / S000132 / Check 30): the three-layer topic contract. THE
-# PARALLEL test.sh EDIT the new validate.sh Check 30 needs — pre-flighted in lockstep
-# with the check add (the standing F000032/34/35 zzz-mirror blind spot that bit Check
-# 25/26/27/28/29 too, defused here for Check 30). Check 30 IS test-spec.sh
-# --check-topic-contract: for every ENROLLED topic (topic_contracts:, portability
-# today), assert >=1 CI-push + >=1 CI-nightly + >=1 local-hook{deterministic} + >=1
-# local-hook{agentic} test carrying that topic, each with its front-door doc. It is
-# NOT a generated-doc diff, so the negative path plants the fault HERMETICALLY (a temp
-# copy of the merged registry with portability's agentic row removed) and asserts the
-# targeted engine exits non-zero AND names the missing local-hook+agentic coverage,
-# then confirms the LIVE tree passes — never mutating the real overlay.
-# TARGETED (F000081/WS4): the positive + negative assertions invoke ONLY that targeted
-# engine instead of the whole validate.sh — same signal, no whole-validator re-run.
+# Step 3i (F000082 / S000132 / Check 30; advisory-agentic semantics F000086): the
+# three-layer topic contract. THE PARALLEL test.sh EDIT the validate.sh Check 30
+# needs — pre-flighted in lockstep with the check add (the standing F000032/34/35
+# zzz-mirror blind spot that bit Check 25/26/27/28/29 too, defused here for Check
+# 30). Check 30 IS test-spec.sh --check-topic-contract: for every ENROLLED topic
+# (topic_contracts:, portability / validator / full-suite today), assert >=1
+# CI-push + >=1 CI-nightly + >=1 local-hook{deterministic} test carrying that
+# topic, each with its front-door doc — HARD; a missing local-hook{agentic} test
+# is an ADVISORY per-topic `note:` line, never a finding. The negative path
+# plants BOTH directions of that split HERMETICALLY (temp copies of the merged
+# registry, never the real overlay): (a) a missing DETERMINISTIC point still
+# hard-fails; (b) a missing AGENTIC row exits 0 with the advisory note present.
+# TARGETED (F000081/WS4): all assertions invoke ONLY that targeted engine instead
+# of the whole validate.sh — same signal, no whole-validator re-run.
 # POSITIVE: on the live (enrolled + fully-covered) tree Check 30 reports findings=0.
 if bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1 | grep -qE '^topic contract: .*findings=0$'; then
-  ok "Check 30: test-spec.sh --check-topic-contract reports findings=0 on the live tree (targeted engine — every enrolled topic reaches all three layers + both local modes)"
+  ok "Check 30: test-spec.sh --check-topic-contract reports findings=0 on the live tree (targeted engine — every enrolled topic reaches all three layers deterministically)"
 else
   fail_test "Check 30: test-spec.sh --check-topic-contract did not report findings=0 on the live tree"
 fi
-# NEGATIVE (hermetic): remove portability's local-hook+agentic row from a TEMP copy of
-# the merged registry, point the engine at it via TEST_SPEC_PATH/TEST_SPEC_CUSTOM_PATH,
-# and assert it hard-fails naming the missing coverage. The real overlay is untouched.
+# NEGATIVE (a) (hermetic): remove a DETERMINISTIC coverage point — full-suite's
+# CI-nightly row (suite-nightly) — from a TEMP copy of the merged registry, point
+# the engine at it via TEST_SPEC_PATH/TEST_SPEC_CUSTOM_PATH, and assert it STILL
+# hard-fails naming the missing deterministic coverage (the demotion must not have
+# softened the three deterministic points). The real overlay is untouched.
 _C30_TMP=$(mktemp -d -t test-sh-c30-XXXXXX)
 cp "$REPO_ROOT/spec/test-spec.md" "$_C30_TMP/test-spec.md"
-# Drop the 9-line `- name: portability-version-agentic` block (name..topic).
+# Drop the 9-line `- name: suite-nightly` block (name..topic).
 awk '
-  /^  - name: portability-version-agentic$/ { skip=9 }
+  /^  - name: suite-nightly$/ { skip=9 }
   skip>0 { skip--; next }
   { print }
 ' "$REPO_ROOT/spec/test-spec-custom.md" > "$_C30_TMP/test-spec-custom.md"
@@ -823,20 +826,51 @@ _C30_OUT=$(
   bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1
 ) && _C30_RC=0 || _C30_RC=$?
 if [ "$_C30_RC" -eq 0 ]; then
-  fail_test "Check 30: --check-topic-contract should have exited non-zero with portability's agentic row removed, but exited 0; output: $_C30_OUT"
+  fail_test "Check 30: --check-topic-contract should have exited non-zero with full-suite's CI-nightly row removed, but exited 0; output: $_C30_OUT"
 else
-  if echo "$_C30_OUT" | grep -qF "missing a local-hook + agentic test" && echo "$_C30_OUT" | grep -qF "portability"; then
-    ok "Check 30: removing portability's local-hook+agentic row triggers the topic-contract FINDING + non-zero exit (targeted engine, hermetic)"
+  if echo "$_C30_OUT" | grep -qF "missing a CI-nightly test" && echo "$_C30_OUT" | grep -qF "full-suite"; then
+    ok "Check 30: removing full-suite's CI-nightly row (a deterministic point) still triggers the topic-contract FINDING + non-zero exit (targeted engine, hermetic)"
   else
-    fail_test "Check 30: --check-topic-contract exited non-zero but missing the expected agentic-coverage finding; output: $_C30_OUT"
+    fail_test "Check 30: --check-topic-contract exited non-zero but missing the expected deterministic-coverage finding; output: $_C30_OUT"
   fi
 fi
 rm -rf "$_C30_TMP"
+# NEGATIVE (b) (hermetic): remove portability's local-hook+agentic row from a TEMP
+# copy — the ADVISORY direction: the engine must exit 0 with findings=0 AND print
+# the per-topic advisory note (agentic proofs run on-demand, never required). This
+# arm pins the demotion itself so it cannot silently re-harden or go mute.
+_C30B_TMP=$(mktemp -d -t test-sh-c30b-XXXXXX)
+cp "$REPO_ROOT/spec/test-spec.md" "$_C30B_TMP/test-spec.md"
+# Drop the 9-line `- name: portability-version-agentic` block (name..topic).
+awk '
+  /^  - name: portability-version-agentic$/ { skip=9 }
+  skip>0 { skip--; next }
+  { print }
+' "$REPO_ROOT/spec/test-spec-custom.md" > "$_C30B_TMP/test-spec-custom.md"
+# (env-command form, not a subshell export: a SECOND subshell re-exporting the
+#  same TEST_SPEC_* names would trip shellcheck SC2030/SC2031 against arm (a).)
+_C30B_OUT=$(
+  env TEST_SPEC_PATH="$_C30B_TMP/test-spec.md" \
+      TEST_SPEC_CUSTOM_PATH="$_C30B_TMP/test-spec-custom.md" \
+      bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1
+) && _C30B_RC=0 || _C30B_RC=$?
+if [ "$_C30B_RC" -ne 0 ]; then
+  fail_test "Check 30: --check-topic-contract should have exited 0 with portability's agentic row removed (advisory point), but exited $_C30B_RC; output: $_C30B_OUT"
+else
+  if echo "$_C30B_OUT" | grep -qE '^topic contract: .*findings=0$' \
+     && echo "$_C30B_OUT" | grep -qF "note: topic-contract — enrolled topic 'portability' has no local-hook+agentic test"; then
+    ok "Check 30: removing portability's local-hook+agentic row exits 0 with findings=0 AND the advisory note present (agentic point is advisory — targeted engine, hermetic)"
+  else
+    fail_test "Check 30: --check-topic-contract exited 0 but missing findings=0 and/or the portability advisory note; output: $_C30B_OUT"
+  fi
+fi
+rm -rf "$_C30B_TMP"
 
 # Step 3j (F000083 / Check 31): the topic DOCS contract — the doc-legibility companion
 # to Check 30. THE PARALLEL test.sh EDIT the new validate.sh Check 31 needs (same
 # zzz-mirror discipline as Check 30). Check 31 IS test-spec.sh --check-topic-docs: for
-# every ENROLLED topic (portability today), assert a docs/goals/<topic>.md dream doc AND
+# every ENROLLED topic (portability / validator / full-suite today), assert a
+# docs/goals/<topic>.md dream doc AND
 # a docs/tests/topics/<topic>/ subdir (index referencing the dream + a per-layer page per
 # covered layer). The negative path plants the fault HERMETICALLY (a temp docs tree via
 # the TESTDOC_OUT override with the dream doc OMITTED) and asserts the targeted engine

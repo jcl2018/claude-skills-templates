@@ -704,13 +704,13 @@ units:
     purpose: "The marker-absence guard for the build-gate auto-answer seam: git ls-files must never track .cj-e2e-sandbox (the second half of the seam's double guard, CJ_GOAL_E2E_AUTO=1 AND the marker). A committed marker could make the seam live in a real repo with only an env flag; this check hard-fails the moment git tracks it, anywhere in the tree (the gitignored sandbox copy passes cleanly)."
   - id: validate-check-30
     family: validate
-    label: "Check 30 — three-layer topic contract (enrolled topics reach all layers + both local modes)"
+    label: "Check 30 — three-layer topic contract (enrolled topics reach all three layers deterministically; agentic advisory)"
     anchor: "=== Check 30:"
     source: scripts/validate.sh
     layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} + a local-hook{agentic} test, each with its front-door doc. Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — the agentic behavior is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
+    purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability / validator / full-suite today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} test, each with its front-door doc; a missing local-hook{agentic} test is an ADVISORY per-topic note, never a finding (agentic proofs run on-demand, not required). Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — an agentic behavior, where declared, is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
   - id: validate-check-31
     family: validate
     label: "Check 31 — topic docs contract (enrolled topics have a dream doc + topic-by-layer subdir)"
@@ -719,7 +719,7 @@ units:
     layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
+    purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability / validator / full-suite today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
   - id: validate-check-32
     family: validate
     label: "Check 32 — defect-coverage ledger (every defect dir maps to a live proof row)"
@@ -1600,20 +1600,39 @@ runners:
 # ---- topic_contracts (F000082): enrollment into the three-layer topic contract ----
 # The OPT-IN seam: only the topics listed here are HARD-checked by
 # test-spec.sh --check-topic-contract (surfaced by validate.sh + /CJ_test_audit
-# Stage 1) — an enrolled topic MUST reach all three layers (CI-push + CI-nightly +
-# local-hook{deterministic,agentic}), each with its front-door doc. Every other
-# topic keeps the advisory per-category × 3-layer matrix (the grandfather seam), so
-# enrolling one topic never reds the build for the rest.
+# Stage 1) — an enrolled topic MUST reach all three layers DETERMINISTICALLY
+# (CI-push + CI-nightly + local-hook{deterministic}), each row with its front-door
+# doc. A local-hook AGENTIC test is ADVISORY, never required: agentic proofs run
+# on-demand (they need a machine with Claude), so enrollment is never gated on the
+# hardest-to-build test mode — a missing agentic row prints a per-topic `note:`
+# wherever the contract is read, without redding the build. (Re-hardening, if
+# agentic proofs ever become cheap here, is a one-line reversal in
+# _run_topic_contract plus the matching prose/seed mirror.) Every other topic keeps
+# the advisory per-category × 3-layer matrix (the grandfather seam), so enrolling
+# one topic never reds the build for the rest.
 #
-# `portability` is the FIRST (and currently only) enrolled topic — it already had
-# CI-push (portability-check18-lint / portability-smoke) + CI-nightly
-# (portability-deploy) + a local-hook deterministic test (portability-version-check),
-# and this feature added its missing local-hook AGENTIC test
-# (portability-version-agentic), so it is green from enrollment. The 11 other topics
-# (validator / full-suite / deploy-harness / cj-goal-eval / doc-sync / e2e /
-# cj-goal-gate) are labeled but UNENROLLED — each needs its missing-mode local test
-# built before it can enroll (tracked as follow-up TODOs in TODOS.md).
-topic_contracts: [portability]
+# Three enrolled topics:
+# - `portability` — CI-push (portability-check18-lint / portability-smoke) +
+#   CI-nightly (portability-deploy) + local-hook{deterministic}
+#   (portability-version-check); ALSO declares the advisory local-hook agentic
+#   proof (portability-version-agentic), runnable via
+#   /CJ_test_run --topic portability --e2e, so it gets no advisory note.
+# - `validator` — CI-push (the existing `validate` row) + CI-nightly
+#   (validate-nightly) + local-hook{deterministic} (validate-hook). No agentic
+#   row (advisory note expected).
+# - `full-suite` — CI-push (the existing `suite` row) + CI-nightly (suite-nightly)
+#   + local-hook{deterministic} (suite-local). No agentic row (advisory note
+#   expected).
+#
+# `deploy-harness` stays deliberately UNENROLLED: its missing CI-push point is a
+# conscious speed decision (test-deploy.sh runs nightly, off the per-PR gate), and
+# claiming windows-smoke as its CI-push row would double-count — windows-smoke is
+# portability's row, and honest coverage beats complete-looking coverage. The 5
+# remaining labeled topics (deploy-harness / cj-goal-eval / doc-sync / e2e /
+# cj-goal-gate) are labeled but UNENROLLED — each needs its missing deterministic
+# coverage points built before it can enroll (tracked as follow-up TODOs in
+# TODOS.md).
+topic_contracts: [portability, validator, full-suite]
 categories:
   # ---- the categories: axis (F000074; two-axis reframe F000078): the
   # category-based test contract ----
@@ -1675,6 +1694,47 @@ categories:
     doc: "docs/tests/infra/CI-nightly/test-deploy.md"
     purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it gates via the nightly full-suite (nightly.yml), not per-PR."
     topic: deploy-harness
+  # ---- infra: the validator + the full suite at their other two layers — the
+  #      CI-push level of each is carried by the EXISTING validate/suite rows
+  #      above; these rows fill CI-nightly + local-hook for the enrolled
+  #      validator/full-suite topics (same-command dual-row precedent:
+  #      test-deploy/portability-deploy — one script, distinct execution contexts) ----
+  - name: validate-hook
+    category: infra
+    layer: local-hook
+    mode: deterministic
+    command: "bash scripts/validate.sh"
+    tier: free
+    doc: "docs/tests/infra/local-hook/validate-hook.md"
+    purpose: "The repo validator as the pre-commit hook run — the setup-hooks.sh workbench pre-commit hook runs exactly this command at git commit, so a broken tree is caught before it leaves the machine; the validator topic's local-hook deterministic level. (The consumer-side cj-contract-gate.sh hook is a different, engine-only subset — deliberately not this row's evidence.)"
+    topic: validator
+  - name: validate-nightly
+    category: infra
+    layer: CI-nightly
+    mode: deterministic
+    command: "bash scripts/validate.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-nightly/validate-nightly.md"
+    purpose: "The repo validator as executed inside the nightly full-suite run (nightly.yml -> test.sh -> validate.sh) — the validator topic's CI-nightly level: same command as the per-PR validate row, a distinct cadence + context (the full non-TEST_FAST suite on a clean nightly runner)."
+    topic: validator
+  - name: suite-nightly
+    category: infra
+    layer: CI-nightly
+    mode: deterministic
+    command: "bash scripts/test.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-nightly/suite-nightly.md"
+    purpose: "The full behavioral test suite as nightly.yml's full non-TEST_FAST run — the full-suite topic's CI-nightly level: the heavy end-to-end pass (including test-deploy.sh, which the per-PR TEST_FAST=1 run skips) off the per-PR path."
+    topic: full-suite
+  - name: suite-local
+    category: infra
+    layer: local-hook
+    mode: deterministic
+    command: "bash scripts/test.sh"
+    tier: free
+    doc: "docs/tests/infra/local-hook/suite-local.md"
+    purpose: "The full behavioral test suite as the documented run-locally-before-push harness (the CI-gate convention: run the full test.sh locally before pushing, since per-PR CI fails on any finding) — the full-suite topic's local-hook deterministic level."
+    topic: full-suite
   # ---- infra: the deploy/install (portability) harness, at all three test levels —
   #      CI-push {the Check-18 declared-vs-actual lint + the Git-Bash smoke},
   #      CI-nightly {the Windows-native deploy suite}, local-hook {the version-check} ----

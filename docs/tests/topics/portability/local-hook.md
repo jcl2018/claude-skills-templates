@@ -46,8 +46,10 @@ CJ_E2E_LOCAL=1 bash tests/portability-version-agentic.test.sh
 
 `mode: agentic ⇒ tier: local-only`, so a default free `/CJ_test_run` and CI SKIP
 it (exit 0, no `claude` call). It runs only under `--e2e`/`--all` on a machine
-with a usable `claude` login. The **three-layer topic contract**
-(`test-spec.sh --check-topic-contract`, `validate.sh` Check 30) still HARD-requires
-the agentic row to be *declared* — so the coverage can't silently disappear — while
-the behavior is proven locally. This is why portability is the one enrolled topic:
-it earned its `local-hook` + `agentic` proof.
+with a usable `claude` login. Under the **three-layer topic contract**
+(`test-spec.sh --check-topic-contract`, `validate.sh` Check 30) an agentic row is
+*advisory*, never required — agentic proofs run on-demand, so enrollment is not
+gated on them. Portability declares its agentic row anyway (it earned the proof),
+so the check prints no advisory note for it: if this row were ever dropped, the
+gap would surface as a per-topic `note:` wherever the contract is read, while the
+build stays green.
