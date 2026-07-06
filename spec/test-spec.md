@@ -256,11 +256,29 @@ or doc); it is **declaration-only**, so it runs in plain CI with **zero model
 spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
 but never *executed* there. The hard Check proves the coverage is DECLARED; the
 executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
-A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
+A repo with no `categories:` axis or no enrollment in either list reports "topic
 contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
 owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
 with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
 hollow prompt.
+
+**The deterministic-only enrollment flavor.** Some topics must be held to the
+contract without depending on agentic rows at all — e.g. when a repo plans to
+remove its agentic tests, chaining enrollment to them would bake in a dependency
+already scheduled for deletion. A repo MAY therefore enroll a topic in a SECOND
+overlay-level list, **`topic_contracts_deterministic:`** (same slug grammar and
+YAML shapes; a topic listed in BOTH lists is a validate error — each topic is
+judged under exactly one rule). A deterministically-enrolled topic must reach the
+**three deterministic points** — ≥1 `CI-push` test, ≥1 `CI-nightly` test, and ≥1
+`local-hook` + `deterministic` test, each with its front-door doc — while agentic
+rows carrying the topic are *tolerated, never required*: deleting an agentic row
+later cannot red the check for a deterministically-enrolled topic. The check
+iterates the **union** of the two lists (each topic under its own list's rule) and
+reports "topic contract inactive" only when BOTH lists are empty; the topic-docs
+companion check applies the same dream-doc + topic-subdir rule to the same union.
+The conscious trade: a deterministically-enrolled topic re-opens the
+green-but-inert blind spot the agentic point exists to close — name that posture
+in the topic's dream doc.
 
 ## The canonical contract-file template
 
