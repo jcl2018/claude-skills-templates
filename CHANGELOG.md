@@ -4,6 +4,36 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.126] - 2026-07-06
+
+### Added
+- **F000085 — every defect now earns a declared, machine-checked regression
+  proof.** The test contract promised "defects earn regression tests," but the
+  38 defect work-item dirs under `work-items/defects/` had zero `regression`
+  rows and their proofs were scattered across dedicated test files, inline
+  `scripts/test.sh` guards, and — for a few — nothing at all. You couldn't
+  answer "is defect X still protected, and by what?" without archaeology (an
+  agent auditing this in-session confidently cited two test files that don't
+  exist). This adds a **`defect_coverage:` overlay axis** in
+  `spec/test-spec-custom.md` that maps every defect dir (keyed by full path, so
+  the duplicated `D000021` is unambiguous) to exactly one of three dispositions:
+  `covered-by` a named deterministic regression test, `covered-by-anchor` a live
+  grep into a shared suite / inline guard, or `waived` with a reason. The new
+  `test-spec.sh --check-defect-coverage` engine + **`validate.sh` Check 32**
+  (HARD, registry-gated, vacuous-skip for consumer repos) prove every dir is
+  dispositioned and every cited proof is live — a hermetic negative test drills
+  both an unmapped dir and the deterministic-only rule (a `covered-by` citing a
+  `mode: agentic` row is a finding, so a future agentic-test purge can't orphan
+  the ledger). `/CJ_test_audit` Stage 1 surfaces the check in any repo.
+- **The four pure defect drills now live in `tests/regression/CI-push/`** with
+  first-class `categories:` rows (`regression` / `CI-push` / deterministic /
+  free) + front-door docs, so `/CJ_test_run --category regression` runs them by
+  name, model-free. The reverse-sweep token grammar moved to full relative-path
+  tokens + a recursed glob so nested test dirs are visible, and the
+  long-orphaned `tests/workflow/local-hook/doc-sync.test.sh` is now wired into
+  the suite with its own `units:` row.
+
+
 ## [6.0.125] - 2026-07-06
 
 ### Changed
