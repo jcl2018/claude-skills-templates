@@ -871,6 +871,82 @@ else
 fi
 rm -rf "$_C31_TMP"
 
+# Step 3k (F000085 / Check 32): the defect-coverage LEDGER — every defect
+# work-item dir maps to exactly one live defect_coverage: row. THE PARALLEL
+# test.sh EDIT the new validate.sh Check 32 needs (same zzz-mirror discipline as
+# Checks 30/31). Check 32 IS test-spec.sh --check-defect-coverage: forward, every
+# work-items/defects/**/D??????_* dir has exactly one ledger row; reverse, every
+# row's proof is live (covered-by resolves to a DETERMINISTIC categories: row;
+# covered-by-anchor greps; waived has a reason). The negative path plants TWO
+# faults HERMETICALLY (a temp repo via the REPO_ROOT override + a temp registry
+# via TEST_SPEC_PATH/TEST_SPEC_CUSTOM_PATH — the real tree is untouched):
+#   (1) an UNMAPPED defect dir -> expect the forward FINDING;
+#   (2) a covered-by row citing a mode: agentic categories row -> expect the
+#       mode FINDING (the deterministic-only ledger rule).
+# TARGETED (F000081/WS4): positive + negative invoke ONLY the engine, no
+# whole-validator re-run. Invocations go through `env` (not subshell exports) so
+# the REPO_ROOT override never trips SC2030/2031.
+# POSITIVE: on the live (fully-backfilled) tree Check 32 reports findings=0.
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1 | grep -qE '^defect coverage: .*findings=0$'; then
+  ok "Check 32: test-spec.sh --check-defect-coverage reports findings=0 on the live tree (targeted engine — every defect dir dispositioned, every proof live)"
+else
+  fail_test "Check 32: test-spec.sh --check-defect-coverage did not report findings=0 on the live tree"
+fi
+# NEGATIVE (hermetic): a temp repo with two defect dirs, a temp registry (the
+# real general seed + a minimal overlay) whose ledger maps only ONE of them —
+# via a covered-by citing a planted mode: agentic categories row. One run
+# surfaces BOTH planted faults; the live tree is never mutated (restore = the
+# positive assertion above, re-checked after cleanup below).
+_C32_TMP=$(mktemp -d -t test-sh-c32-XXXXXX)
+mkdir -p "$_C32_TMP/repo/work-items/defects/uncategorized/D999901_planted_mapped" \
+         "$_C32_TMP/repo/work-items/defects/uncategorized/D999902_planted_unmapped"
+cp "$REPO_ROOT/spec/test-spec.md" "$_C32_TMP/test-spec.md"
+cat > "$_C32_TMP/test-spec-custom.md" <<'C32EOF'
+# hermetic Check-32 drill overlay
+```yaml
+schema_version: 1
+categories:
+  - name: planted-agentic
+    category: regression
+    layer: local-hook
+    mode: agentic
+    command: "bash tests/planted.test.sh"
+    tier: local-only
+defect_coverage:
+  - defect: uncategorized/D999901_planted_mapped
+    disposition: covered-by
+    test: planted-agentic
+```
+C32EOF
+_C32_OUT=$(env REPO_ROOT="$_C32_TMP/repo" \
+               TEST_SPEC_PATH="$_C32_TMP/test-spec.md" \
+               TEST_SPEC_CUSTOM_PATH="$_C32_TMP/test-spec-custom.md" \
+               bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1) && _C32_RC=0 || _C32_RC=$?
+if [ "$_C32_RC" -eq 0 ]; then
+  fail_test "Check 32: --check-defect-coverage should have exited non-zero with an unmapped defect dir + an agentic covered-by planted, but exited 0; output: $_C32_OUT"
+else
+  # Plant 1: the unmapped defect dir fires the forward FINDING.
+  if echo "$_C32_OUT" | grep -qF "D999902_planted_unmapped" && echo "$_C32_OUT" | grep -qF "resolves to 0 ledger row(s)"; then
+    ok "Check 32: an unmapped defect dir triggers the forward defect-coverage FINDING + non-zero exit (targeted engine, hermetic)"
+  else
+    fail_test "Check 32: --check-defect-coverage exited non-zero but missing the expected unmapped-dir forward finding; output: $_C32_OUT"
+  fi
+  # Plant 2: the covered-by citing a mode: agentic row fires the mode FINDING.
+  if echo "$_C32_OUT" | grep -qF "MUST be mode: deterministic" && echo "$_C32_OUT" | grep -qF "planted-agentic"; then
+    ok "Check 32: a covered-by citing a mode: agentic categories row triggers the deterministic-only mode FINDING (targeted engine, hermetic)"
+  else
+    fail_test "Check 32: --check-defect-coverage exited non-zero but missing the expected agentic-mode finding; output: $_C32_OUT"
+  fi
+fi
+rm -rf "$_C32_TMP"
+# RESTORE -> PASS: the plants lived only in the temp fixture; the live tree
+# still reports findings=0 (each plant's restore returns the engine to green).
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1 | grep -qE '^defect coverage: .*findings=0$'; then
+  ok "Check 32: live tree still reports findings=0 after the hermetic plants are removed (restore -> pass)"
+else
+  fail_test "Check 32: live tree no longer reports findings=0 after the hermetic drill (the drill leaked state)"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -1536,6 +1612,44 @@ if grep -qF 'overwritten by default' "$REPO_ROOT/CLAUDE.md"; then
   ok "CLAUDE.md documents new default install behavior (D000015)"
 else
   fail_test "CLAUDE.md still documents --overwrite as opt-in — D000015 docs not synced"
+fi
+
+echo ""
+echo "Regression test (D000018): QA E2E dispatch keeps the leaf-node + parent-inline execution contract..."
+
+# Background: the QA E2E subagent used to satisfy test rows by STRUCTURAL
+# INSPECTION (reading files) instead of executing them. The fix pinned two
+# load-bearing directives into skills/CJ_qa-work-item/qa.md: the dispatch
+# prompt's leaf-node constraint (a row genuinely needing recursive Agent
+# dispatch is marked ambiguous + deferred, never faked inline) and the
+# parent-inline execution path (the parent re-RUNS deferred recursive rows via
+# the Agent tool). This shape-guard fails loudly if either directive is edited
+# away in a qa.md refactor.
+_QA_MD="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
+if grep -qF -- 'needs recursive Agent — defer to parent-inline' "$_QA_MD" \
+   && grep -qF -- '**Recursive rows:** invoke the Agent tool per the row' "$_QA_MD"; then
+  ok "qa.md keeps the leaf-node ambiguous-defer directive + the parent-inline execution path (E2E rows are executed, not structurally inspected)"
+else
+  fail_test "qa.md lost the leaf-node/parent-inline E2E execution directives (D000018 guard)"
+fi
+
+echo ""
+echo "Regression test (D000025): D-ID allocator find sites carry no -maxdepth cap..."
+
+# Background: the D-ID allocator/resolver's find over work-items/defects/ used
+# a -maxdepth 2 cap that encoded a false structural assumption (defect dirs
+# live at varying component depths — ops/skills-deploy/D*, uncategorized/D*),
+# so nested dirs were invisible and already-used D-IDs were re-minted. The fix
+# dropped every depth cap. Guard: the DEFECTS_ROOT find site must exist AND no
+# find invocation in the defect pipeline may carry a -maxdepth cap.
+_DEF_PIPE="$REPO_ROOT/skills/CJ_goal_defect/pipeline.md"
+# shellcheck disable=SC2016 # literal $DEFECTS_ROOT is intentional — grepping for the exact source string in pipeline.md
+if ! grep -qF 'find "$DEFECTS_ROOT"' "$_DEF_PIPE"; then
+  fail_test "CJ_goal_defect pipeline.md lost its DEFECTS_ROOT find site — the D-ID allocator scan moved without updating the D000025 guard"
+elif grep -E 'find .*-maxdepth' "$_DEF_PIPE" >/dev/null 2>&1; then
+  fail_test "CJ_goal_defect pipeline.md re-introduced a -maxdepth cap on a find site — deep defect dirs become invisible to the D-ID allocator (D000025 guard)"
+else
+  ok "the defect pipeline's DEFECTS_ROOT find scans at any depth (no -maxdepth cap; deep defect dirs stay visible to the D-ID allocator)"
 fi
 
 echo ""

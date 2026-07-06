@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-07-03T23:28:27Z"
+last-updated: "2026-07-06T16:46:18Z"
 ---
 
 # Using /CJ_test_audit
@@ -94,7 +94,14 @@ carrying the three front-door section headings `## What it is` / `## How to run`
 preceded by an idempotent `--seed-docs` that seeds missing per-test doc stubs —
 already carrying those three sections — + the index (present ⇒ skip)
 but NEVER moves test scripts — findings are the product (exit 0 always), and an
-unadopted repo reports the honest "category contract not adopted / inactive" note.
+unadopted repo reports the honest "category contract not adopted / inactive" note;
+AND, when the engine carries it, `--check-defect-coverage` — the defect↔proof
+LEDGER check (the same owner `validate.sh` Check 32 calls): every
+`work-items/defects/**` dir maps to exactly one live `defect_coverage:` row (a
+`covered-by` resolves to a DETERMINISTIC `categories:` row, a
+`covered-by-anchor` greps live, a `waived` row has a reason), so an unmapped
+defect or a dead/hallucinated proof citation is caught standalone in any repo —
+an unadopted repo reports the named "defect coverage inactive" note.
 Findings carry the `stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence

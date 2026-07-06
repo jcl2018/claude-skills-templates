@@ -1200,6 +1200,42 @@ else
   fi
 fi
 
+# Check 32: every defect work-item dir maps to exactly one LIVE defect-coverage
+# ledger row (the defect↔proof ledger, HARD, registry-gated). F000085 adds an
+# overlay-level `defect_coverage:` axis to spec/test-spec-custom.md — one row per
+# work-items/defects/** dir (keyed by the FULL path relative to
+# work-items/defects/), each carrying one of three closed dispositions:
+# covered-by (a named deterministic regression categories: row), covered-by-anchor
+# (a shared-file proof: source + anchor, grep-live), or waived (a reason; gaps are
+# `waived: "gap — …"` + a todo pointer). This Check calls test-spec.sh
+# --check-defect-coverage: FORWARD, an unmapped (or duplicated) defect dir is an
+# ERROR; REVERSE, a dangling row, a covered-by citing a nonexistent or
+# NON-DETERMINISTIC categories row (the deterministic-only ledger rule — a future
+# agentic-test purge must never orphan defect coverage), a dead anchor, or an
+# empty waiver reason is an ERROR. So "is defect X still protected, and by what?"
+# is machine-answerable and a hallucinated proof citation cannot ship.
+# Registry-gated: skips when the test-spec engine is absent OR the check reports
+# inactive (no test-spec registry / no defect_coverage: axis / no
+# work-items/defects/ dir — a consumer repo passes vacuously). Mirror of Check
+# 24/26/27/28/30/31's engine-absent skip.
+echo ""
+echo "=== Check 32: every defect dir maps to a live defect-coverage ledger row (defect coverage) ==="
+TESTSPEC_DC="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC_DC" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+else
+  C32_OUT=$(bash "$TESTSPEC_DC" --check-defect-coverage 2>&1) && C32_RC=0 || C32_RC=$?
+  if printf '%s\n' "$C32_OUT" | grep -qE '^(REGISTRY=absent|defect coverage inactive)'; then
+    echo "  SKIP: defect coverage inactive (no test-spec registry, no defect_coverage: axis, or no work-items/defects/ — registry-gated)"
+  elif [ "$C32_RC" -eq 0 ]; then
+    pass "every defect dir is dispositioned and every declared proof is live ($(printf '%s\n' "$C32_OUT" | grep '^defect coverage:' | head -1))"
+  else
+    echo "  ERROR: the defect-coverage ledger has findings — an unmapped defect dir, a dangling row, a dead proof, or a non-deterministic covered-by target"
+    printf '%s\n' "$C32_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
 # Summary
 echo ""
 echo "=== Validation Summary ==="

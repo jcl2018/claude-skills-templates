@@ -334,6 +334,36 @@ fi
 - Engine without `--check-structure` (an older deployed engine) — skip cleanly
   with a one-line note; not a finding (the category axis simply isn't present).
 
+**Defect-coverage ledger check (portable, any repo).** When the engine supports
+`--check-defect-coverage` (the defect↔proof ledger), ALSO run it as part of
+Stage 1 — this is the same forward+reverse check that `validate.sh` Check 32
+calls (every `work-items/defects/**` dir maps to exactly one live
+`defect_coverage:` row; a `covered-by` resolves to a DETERMINISTIC `categories:`
+row, a `covered-by-anchor` greps live, a `waived` row has a reason), so an
+unmapped defect or a dead/hallucinated proof citation is caught standalone in
+any repo:
+
+```bash
+if bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--check-defect-coverage'; then
+  bash "$_TA_ENGINE" --check-defect-coverage
+fi
+```
+
+- Exit 0 with `defect coverage: dirs=N rows=N findings=0` — every defect dir is
+  dispositioned and every declared proof is live; clean.
+- Exit 0 with `defect coverage inactive — ...` / `REGISTRY=absent` —
+  registry-gated skip (no test-spec registry, no `defect_coverage:` axis, or no
+  `work-items/defects/` dir); a repo that hasn't adopted the ledger passes
+  vacuously. Not a finding.
+- Exit 1 — each `FINDING: defect-coverage — ...` line is one STAGE-1 finding;
+  quote it verbatim with the `stage1/` prefix
+  (`FINDING: stage1/defect-coverage — <engine line>`). An unmapped defect dir
+  (forward), a dangling row, a `covered-by` citing a nonexistent or
+  non-deterministic `categories:` row, a dead anchor, or an empty waiver reason
+  is the finding.
+- Engine without `--check-defect-coverage` (an older deployed engine) — skip
+  cleanly with a one-line note; not a finding (the ledger simply isn't present).
+
 ## Fresh-context dispatch (standalone posture — REQUIRED)
 
 At top level (standalone), Stages 2+3 MUST be executed by ONE fresh

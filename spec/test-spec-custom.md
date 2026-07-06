@@ -720,6 +720,15 @@ units:
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
     purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
+  - id: validate-check-32
+    family: validate
+    label: "Check 32 — defect-coverage ledger (every defect dir maps to a live proof row)"
+    anchor: "=== Check 32:"
+    source: scripts/validate.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pre-commit pr-ci"
+    purpose: "The defect-coverage ledger check: every defect work-item dir under work-items/defects/ maps to exactly one defect_coverage: row (keyed by full dir path), and every row's disposition-specific proof is live — a covered-by resolves to exactly one DETERMINISTIC categories: regression row (an agentic citation is a finding: the deterministic-only ledger rule), a covered-by-anchor greps live in its source, a waived row has a non-empty reason. Calls test-spec.sh --check-defect-coverage. Registry-gated: skips when the engine is absent or the check reports inactive (no registry / no axis / no defects dir — a consumer passes vacuously)."
   # ---- validate family: the portability audit engine (repo-custom test logic) ----
   - id: portability-audit
     family: validate
@@ -1747,4 +1756,168 @@ categories:
     doc: "docs/tests/workflow/CI-push/cj-goal-gate-shape.md"
     purpose: "The cj_goal build-gate shape guard — proves no CJ_goal_* orchestrator runs an inline slow doc-sync (/CJ_document-release) or agent-judged test-sync sweep: Step 5.5 is a deterministic doc-regen and QA's 8.6a/8.6b agentic sweep is DEFER_SYNC-gated, so the agentic doc/test sync defers to the nightly audit. Deterministic (grep, no model), runs per-PR; the complement to the doc-sync workflow test that proves the nightly safety net."
     topic: cj-goal-gate
+# ---- defect_coverage (F000085): the defect↔proof LEDGER — one row per defect
+#      work-item dir, keyed by the FULL path relative to work-items/defects/
+#      (bare D-IDs are ambiguous: D000021 exists twice). Three closed
+#      dispositions: covered-by (a named deterministic regression categories:
+#      row), covered-by-anchor (proof inside a shared file — a scripts/test.sh
+#      inline banner, a shared suite's named case, scripts/test-deploy.sh, or a
+#      validate.sh check — anchor greps LIVE via grep -F), waived (a reason;
+#      gaps are `waived: "gap — …"` + a todo pointer at their TODOS.md row).
+#      Enforced by test-spec.sh --check-defect-coverage (validate.sh Check 32 +
+#      /CJ_test_audit Stage 1). Every row below was VERIFIED against the live
+#      repo at backfill time (anchor grepped / drill located) — the ledger
+#      declares proof, never folklore. This block stays LAST in the overlay. ----
+defect_coverage:
+  # ---- ops/ (ship / skills-deploy / workflow) ----
+  - defect: ops/ship/D000008_ship_gh_pr_merge_auto_requires_method_flag
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000008): CLAUDE.md merge convention guard"
+  - defect: ops/skills-deploy/D000005_skills_deploy_windows_jq_crlf
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000005): Windows jq CRLF wrapper present"
+  - defect: ops/skills-deploy/D000013_skills_deploy_auto_sync_hook
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000013): setup-hooks.sh installs post-merge auto-sync hook"
+  - defect: ops/skills-deploy/D000015_skills_deploy_install_overwrite_default
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000015): skills-deploy install overwrites drifted templates by default"
+  - defect: ops/skills-deploy/D000021_setup_sh_missing_hook_wiring
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "D000021: setup.sh bootstrap must wire setup-hooks.sh"
+  - defect: ops/skills-deploy/D000022_setup_hooks_blind_clobber
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "D000022: the git-hook installer must not blind-clobber"
+  - defect: ops/workflow/D000001_milestones_artifact_placement
+    disposition: waived
+    reason: "surface migrated — the milestones artifact placement this defect fixed was folded into the ROADMAP template during the feature-summary+milestones migration; the original placement surface no longer exists"
+  - defect: ops/workflow/D000002_workitem_format_consistency
+    disposition: waived
+    reason: "process/convention defect — work-item format consistency is enforced broadly by the template + manifest structural checks (the D000014 count-drift guard among them), not by one isolated drill"
+  - defect: ops/workflow/D000007_workflow_template_single_source_of_truth
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000007): contract.json eliminated; templates are the single source of truth"
+  - defect: ops/workflow/D000014_workflow_md_artifact_count_drift_and_extra_detection
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000014): WORKFLOW.md type-to-artifact counts match manifest"
+  # ---- personal-workflow/ ----
+  - defect: personal-workflow/D000009_personal_workflow_feature_missing_design_doc
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000009): feature type requires DESIGN.md artifact"
+  - defect: personal-workflow/D000012_personal_workflow_template_deploy_drift
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000012): deployed workflow templates stay in sync with workbench"
+  - defect: personal-workflow/D000016_test_deploy_stale_templates
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Integration: test-deploy.sh end-to-end (D000016)"
+  - defect: personal-workflow/D000018_qa_e2e_subagent_structural_inspection
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000018): QA E2E dispatch keeps the leaf-node + parent-inline execution contract"
+  # ---- skills/ ----
+  - defect: skills/D000019_pipeline_type_aware_gates
+    disposition: waived
+    reason: "gap — a deterministic drill would prove the QA pipeline's type-aware gate semantics (defect/task rows treat an ambiguous E2E verdict as the canonical not-applicable marker instead of halting; the pre-scan covers defect/task inputs + the skills/*/scripts/ trust boundary)"
+    todo: "TODOS:10 (author the D000019 type-aware QA-gate shape-guard)"
+  - defect: skills/D000020_investigate_idempotency_edge_cases
+    disposition: waived
+    reason: "surface retired — the investigate orchestrator this defect patched was reshaped into the defect verb (/CJ_goal_defect); its Step-3 idempotency dispatch table no longer exists as a live surface"
+  # ---- suggest/ ----
+  - defect: suggest/D000017_cj_suggest_zsh_crash
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "S000078: suggest.sh ranks on"
+  # ---- uncategorized/ ----
+  - defect: uncategorized/D000021_drain_one_todo_worktree_init_path_resolution
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "tests/drain-one-todo-worktree-resolve.test.sh"
+  - defect: uncategorized/D000024_drain_silent_fallthrough_inplace_scaffold
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "tests/drain-one-todo-helper-unavailable.test.sh"
+  - defect: uncategorized/D000025_d_id_allocator_resolver_shallow_find_maxdepth_2_sc
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000025): D-ID allocator find sites carry no -maxdepth cap"
+  - defect: uncategorized/D000026_cj_goal_feature_preamble_doc_sync_auq_recommends_a
+    disposition: waived
+    reason: "surface removed — the doc-sync preamble AUQ whose recommendation polarity this defect fixed was retired wholesale with the post-merge marker mechanism; no orchestrator preamble carries the AUQ block anymore"
+  - defect: uncategorized/D000027_that_docs_skill_category_doesn_t_inlcude_my_copilo
+    disposition: waived
+    reason: "doc/catalog-mapping defect — a one-time docs categorization fix with no isolated failure mode to drill; the doc contract checks own the docs-completeness surface broadly"
+  - defect: uncategorized/D000028_cj_worktree_cleanup_sh_root_refresh_guard_skips_ma
+    disposition: covered-by-anchor
+    source: tests/cj-worktree-cleanup.test.sh
+    anchor: "Case 12b: root-refresh proceeds on untracked-only root"
+  - defect: uncategorized/D000029_post_merge_phase_3_lifecycle_gate_hook_mis_links_p
+    disposition: covered-by-anchor
+    source: tests/setup-hooks.test.sh
+    anchor: "post-merge hook has no Phase-3 / check-gates-update tracker auto-tick"
+  - defect: uncategorized/D000030_the_cj_document_release_wrapper_can_t_resolve_its
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "the consumer-repo simulation — the D000030/D000032"
+  - defect: uncategorized/D000031_cj_goal_defect_step_7_4_promotes_a_structurally_mi
+    disposition: waived
+    reason: "agent-judged pipeline-prose surface — the promotion gate is orchestrator prose executed by an agent; a deterministic drill would need a full pipeline fixture, and the deterministic-only ledger rule excludes an agentic one"
+  - defect: uncategorized/D000033_cj_portability_audit_skill_md_advisory_rationale_i
+    disposition: waived
+    reason: "surface retired — the standalone portability-audit verb whose stale advisory prose this defect fixed now lives under deprecated/; the engine + Check 18 that remain are covered as infra categories rows"
+  - defect: uncategorized/D000034_doc_audit_no_remediation_pointer
+    disposition: covered-by-anchor
+    source: tests/doc-spec-overlay.test.sh
+    anchor: "8b-2. a declared-exists finding ALSO emits the read-mostly REMEDIATION pointer"
+  - defect: uncategorized/D000035_test_spec_sh_reverse_sweep_per_namespace_floors_mi
+    disposition: covered-by-anchor
+    source: tests/test-spec.test.sh
+    anchor: "surface-existence gating of the reverse floors (D000035)"
+  - defect: uncategorized/D000036_skills_deploy_is_workbench_self_repo_false_positiv
+    disposition: covered-by-anchor
+    source: tests/seed-contracts.test.sh
+    anchor: "Case B2: CONSUMER with a hand-authored overlay + NO catalog is NOT self"
+  - defect: uncategorized/D000037_complete_consumer_adoption_skips_a_hand_authored_o
+    disposition: covered-by-anchor
+    source: scripts/test-deploy.sh
+    anchor: "Test S000117b: hand-authored overlay adoption — refresh + append-only declare (D000037)"
+  - defect: uncategorized/D000038_jq_crlf_output_breaks_the_spec_engines_on_windows
+    disposition: covered-by-anchor
+    source: tests/workflow-spec-render.test.sh
+    anchor: "T7: the CRLF-jq drill"
+  - defect: uncategorized/D000039_cj_id_claim_sh_reap_regex_misses_id_tracker_md_fea
+    disposition: covered-by-anchor
+    source: tests/cj-id-claim.test.sh
+    anchor: "SLUG-LESS feature tracker"
+  - defect: uncategorized/D000040_jq_crlf_class_in_orchestrator_helpers_on_windows
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "tests/cj-goal-jq-crlf.test.sh"
+  - defect: uncategorized/D000042_version_notification_release_tag_inertness
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "tests/tag-release.test.sh"
+  - defect: uncategorized/D000043_doctor_misses_crlf_template_line_ending_drift
+    disposition: covered-by-anchor
+    source: scripts/test-deploy.sh
+    anchor: "Test 8c: Doctor flags CRLF template drift"
+  # ---- work-copilot/ ----
+  - defect: work-copilot/D000010_copilot_deploy_security_hardening
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "path-traversal defense in doctor"
+  - defect: work-copilot/D000011_copilot_bundle_install_requires_full_repo
+    disposition: covered-by-anchor
+    source: scripts/validate.sh
+    anchor: "Error check 10: work-copilot bundle existence check"
 ```
