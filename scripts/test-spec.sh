@@ -1848,16 +1848,27 @@ $(grep -E '^# Warning check' "$_VAL_SRC")
 EOF
   fi
 
-  # (2) tests/*.test.sh on disk -> exactly one family:test row whose anchor is
-  # the literal runner path AND whose source is scripts/test.sh. This is the
+  # (2) test files on disk -> exactly one family:test row whose anchor is the
+  # literal runner path AND whose source is scripts/test.sh. This is the
   # silent-skip catch: the row's FORWARD anchor proves the file is wired into
   # scripts/test.sh; this REVERSE pass proves every file on disk has a row at
   # all. The source pin is load-bearing — a row pointing source at the test
   # file itself would self-satisfy the forward grep (the file names itself in
   # its header), turning the catch back into a convention.
-  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  #
+  # TOKEN GRAMMAR (F000085): the glob recurses — flat tests/*.test.sh PLUS the
+  # two-axis category homes tests/<category>/<layer>/*.test.sh — and the token
+  # is the FULL path relative to the repo root (not the basename: a basename
+  # token for a nested file would grep-match nothing in scripts/test.sh, and
+  # two same-named files at different depths would collide on one token). The
+  # $5 == "scripts/test.sh" source pin is PRESERVED unchanged — a nested file
+  # is wired into the same hand-wired runner, so its row keeps
+  # source: scripts/test.sh and only its anchor: carries the nested path. This
+  # is what closed the green-but-inert orphan class: a nested *.test.sh that
+  # nothing invokes was invisible to the flat glob.
+  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_tf" ] || continue
-    _tok="tests/$(basename "$_tf")"
+    _tok="${_tf#"$REPO_ROOT_RESOLVED"/}"
     _TOKENS=$((_TOKENS + 1))
     _NS_TESTS=$((_NS_TESTS + 1))
     _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want && $5 == "scripts/test.sh"' | grep -c . || true)
@@ -1939,7 +1950,9 @@ EOF
   # counts via the same `awk -F'\t' '$2==<family>'` shape as the reverse sweep.)
   _SURF_VALIDATE=0; [ -f "$REPO_ROOT_RESOLVED/scripts/validate.sh" ] && _SURF_VALIDATE=1
   _SURF_TESTS=0
-  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  # Same recursed glob as the reverse sweep (F000085): flat + the two-axis
+  # tests/<category>/<layer>/ homes both count as the test-file surface.
+  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_t" ] && { _SURF_TESTS=1; break; }
   done
   _SURF_WF=0

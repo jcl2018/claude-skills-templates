@@ -2098,6 +2098,24 @@ else
   fail_test "tests/audit-nightly.test.sh failed (rc=$_an_rc) — run \`bash tests/audit-nightly.test.sh\` directly to see"
 fi
 
+# The doc-sync workflow-category front door (F000078; wired by F000085's sweep
+# recursion — this file was the live green-but-inert orphan the flat glob could
+# not see): the lighter workflow-level assertion the `doc-sync` categories: row
+# points at. Deterministic + model-free: asserts `audit-nightly.sh --dry-run`
+# (the row's exact command) either prints its DRY-RUN plan or self-gates with a
+# leading SKIP:, and never runs a real audit. COEXISTS with
+# tests/audit-nightly.test.sh above (which drills the runner's parse/report/
+# issue halves with claude+gh stubbed). Registration is MANDATORY — discovery
+# is hand-wired, not glob-based.
+echo ""
+echo "Running tests/workflow/local-hook/doc-sync.test.sh (doc-sync workflow front door — dry-run honesty)..."
+if bash "$REPO_ROOT/tests/workflow/local-hook/doc-sync.test.sh" >/dev/null 2>&1; then
+  ok "tests/workflow/local-hook/doc-sync.test.sh: audit-nightly --dry-run plans or SKIPs cleanly (no real audit, no model spend)"
+else
+  _ds_rc=$?
+  fail_test "tests/workflow/local-hook/doc-sync.test.sh failed (rc=$_ds_rc) — run \`bash tests/workflow/local-hook/doc-sync.test.sh\` directly to see"
+fi
+
 # F000071 Part B / S000121: the local-E2E harness (scripts/e2e-local.sh +
 # tests/e2e-local/lib/{sandbox,report}.sh). This runs the harness's DETERMINISTIC
 # half only (no Claude, no gstack, no API key): the SKIP path (flag unset →

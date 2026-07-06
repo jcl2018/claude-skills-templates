@@ -789,6 +789,15 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "The DETERMINISTIC (no-Claude, no-network) half of scripts/audit-nightly.sh — the relocated (now on-demand) agent-judged audit runner: SKIP without a model key, the --dry-run plan, the two-count findings parse + report emission, and the create/update/none-clean GitHub-issue decision — all with claude + gh stubbed on PATH."
+  - id: test-doc-sync-workflow
+    family: test
+    label: "doc-sync workflow front door — audit-nightly dry-run honesty"
+    anchor: "tests/workflow/local-hook/doc-sync.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "The doc-sync workflow category's deterministic front door: audit-nightly --dry-run (the categories row's exact command) either prints its dry-run plan or self-gates with a leading SKIP, never runs a real audit and never spends a model token; the lighter workflow-level assertion coexisting with the audit-nightly suite's stubbed parse/report/issue drills. The first NESTED tests/<category>/<layer>/ file the recursed reverse sweep owns (formerly a green-but-inert orphan invisible to the flat glob)."
   - id: test-e2e-local
     family: test
     label: "e2e-local suite — local happy-path E2E harness deterministic half"
