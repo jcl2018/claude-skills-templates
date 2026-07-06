@@ -1,6 +1,6 @@
 ---
 name: CJ_test_audit
-description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries them, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo) and --check-workflow-coverage (the forward+reverse workflow-coverage gate, the same owner validate.sh Check 28 calls — so a documented-but-untested CJ_goal_* orchestrator is caught standalone), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Stage 1 ALSO carries the category-based test contract: --check-structure runs the six structural checks a-f (tests/ folder, one tests/<category>/<layer>/ subfolder per (category,layer) pair with a FILE-backed test — the TWO orthogonal axes category {workflow, regression, infra} x layer {CI-push, CI-nightly, pipeline-gate, local-hook}, command-only rows exempt, a category-scoped spec, one docs/tests/<category>/<layer>/<name>.md per declared test, a docs/tests/ INDEX, and — check (f), the front-door rule — each per-test doc carries the three sections '## What it is' / '## How to run' / '## Explanation') as findings-not-crashes, preceded by an idempotent --seed-docs that seeds missing per-test doc stubs (already carrying the three front-door sections) + the index (present => skip) but NEVER moves test scripts — standalone-safe on a repo it does not own; an unadopted repo reports the honest 'category contract not adopted / inactive' note. Stage 2 ALSO judges each per-test category doc's front-door content is TRUTHFUL (the '## How to run' command matches the category's declared command; the What it is / Explanation are accurate) — the doc-level anchor-greps-while-the-doc-rots catch. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
+description: "Three-stage test audit against a repo's test contract — runnable standalone in ANY repo. Ensures the two-tier test contract is CANONICAL via test-spec.sh --classify: absent → seed-deliver spec/test-spec.md (seeded: yes; idempotent seeded: no on re-run); canonical → ok; duplicate → an advisory RECONCILE: directive in the Stage-1 report (NO auto-write; run /CJ_test_audit --reconcile — a dedup/no-op, since test-spec's fenced-yaml format never diverged, so unlike doc-spec there is no legacy migration). Stage 1 (deterministic — engine): test-spec.sh --validate + --check-coverage (forward anchor-grep per unit, reverse sweep of live surfaces, >=20-token floor — all units-gated, so a rules-only consumer repo gets a named 'coverage cross-check inactive' note, never a misleading finding) PLUS, when the engine carries them, --render-docs --check (the generated docs/tests/ test-catalog freshness gate, the same owner validate.sh Check 26 calls — so a stale catalog is caught standalone in any repo) --check-workflow-coverage (the forward+reverse workflow-coverage gate, the same owner validate.sh Check 28 calls — so a documented-but-untested CJ_goal_* orchestrator is caught standalone), and --check-topic-contract + --check-topic-docs (the three-layer topic contract + its topic-docs companion, the same owners validate.sh Checks 30/31 call — every ENROLLED topic must reach CI-push + CI-nightly + local-hook{deterministic}, each row with its front-door doc, plus a dream doc + topic subdir; a missing local-hook AGENTIC test is an ADVISORY per-topic note reported verbatim, never a finding), findings prefixed stage1/. Stage 2 (requirement compliance — agent-judged, evidence-forced): each general RULE's statement quoted and judged with cited evidence (suite-green cites the freshest full-suite run; new-code-tested cites the diff-vs-units comparison), each overlay UNIT's purpose/label judged for truthfulness against the source at its anchor (the anchor-greps-while-the-description-rots catch), AND — when the overlay declares the behavior-coverage axis — each declared BEHAVIOR judged for substance the deterministic check can't reach (statement falsifiable/specific? level correct? linked test proves vs merely mentions? one broad test over-claimed?), findings prefixed stage2/behavior:&lt;id&gt;. Stage 3 (implementation drift — agent-judged): enumerate live verification surfaces (tests on disk, validate banners, workflows, hooks), judge coverage-in-substance — a unit row that no longer reflects reality, or a NEW surface class the rules don't contemplate. Stage 1 ALSO carries the category-based test contract: --check-structure runs the six structural checks a-f (tests/ folder, one tests/<category>/<layer>/ subfolder per (category,layer) pair with a FILE-backed test — the TWO orthogonal axes category {workflow, regression, infra} x layer {CI-push, CI-nightly, pipeline-gate, local-hook}, command-only rows exempt, a category-scoped spec, one docs/tests/<category>/<layer>/<name>.md per declared test, a docs/tests/ INDEX, and — check (f), the front-door rule — each per-test doc carries the three sections '## What it is' / '## How to run' / '## Explanation') as findings-not-crashes, preceded by an idempotent --seed-docs that seeds missing per-test doc stubs (already carrying the three front-door sections) + the index (present => skip) but NEVER moves test scripts — standalone-safe on a repo it does not own; an unadopted repo reports the honest 'category contract not adopted / inactive' note. Stage 2 ALSO judges each per-test category doc's front-door content is TRUTHFUL (the '## How to run' command matches the category's declared command; the What it is / Explanation are accurate) — the doc-level anchor-greps-while-the-doc-rots catch. Standalone runs MUST dispatch Stages 2+3 to ONE fresh-context subagent (Agent tool; the same subagent MAY judge both audits when run together); inside a QA subagent (qa.md Step 8.6d) they run INLINE (a subagent cannot spawn subagents). Per-stage report: TEST_AUDIT: <ok|findings> + FINDINGS= + STAGE1/2/3_FINDINGS= + UNITS_AUDITED= + seeded: + three --- stage N --- sections. Findings never crash the audit — a broken contract IS the report. Engine resolution repo-local scripts/test-spec.sh then ~/.claude/_cj-shared/scripts/. Use when: 'audit this repo's tests', 'are tests aligned with the test spec', 'check the test coverage contract'."
 version: 0.4.0
 allowed-tools:
   - Bash
@@ -50,8 +50,11 @@ named stages**, symmetric with `/CJ_doc_audit` (one shape, both audits):
   `## How to run` / `## Explanation`, preceded by an idempotent `--seed-docs` that
   seeds missing per-test docs — at the 2-deep `docs/tests/<category>/<layer>/<name>.md`
   path, already carrying those three sections — + the index but NEVER moves
-  scripts) — with the registry-existence probe and the units-gated floor
-  exactly as shipped. Findings carry the `stage1/` prefix.
+  scripts), and `--check-topic-contract` + `--check-topic-docs` (the three-layer
+  topic contract + its topic-docs companion — the same engines `validate.sh`
+  Checks 30/31 call; a missing local-hook agentic test surfaces as an advisory
+  per-topic `note:`, never a finding) — with the registry-existence probe and
+  the units-gated floor exactly as shipped. Findings carry the `stage1/` prefix.
 - **Stage 2 — requirement compliance (agent-judged, evidence-forced):** each
   general RULE's `statement` quoted and judged with cited evidence; each
   overlay UNIT's `purpose`/`label` text judged for truthfulness against the
@@ -334,6 +337,43 @@ fi
 - Engine without `--check-structure` (an older deployed engine) — skip cleanly
   with a one-line note; not a finding (the category axis simply isn't present).
 
+**Topic contract + topic docs (portable, any repo).** When the engine supports
+them, ALSO run the three-layer topic contract and its topic-docs companion as
+part of Stage 1 — the same engines the owner `validate.sh` Checks 30 + 31 call,
+so an under-covered or under-documented enrolled topic is caught standalone in
+any repo:
+
+```bash
+if bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--check-topic-contract'; then
+  bash "$_TA_ENGINE" --check-topic-contract
+fi
+if bash "$_TA_ENGINE" --help 2>/dev/null | grep -q -- '--check-topic-docs'; then
+  bash "$_TA_ENGINE" --check-topic-docs
+fi
+```
+
+- Exit 0 with `topic contract: enrolled=N findings=0` — every enrolled topic
+  (`topic_contracts:`) reaches CI-push + CI-nightly + local-hook{deterministic},
+  each row with its front-door doc; clean. Any `note: topic-contract — ...`
+  line is ADVISORY (an enrolled topic with no local-hook+agentic test — agentic
+  proofs run on-demand, never required): report it verbatim in the Stage-1
+  section, NOT as a finding.
+- Exit 0 with `topic contract inactive ...` / `REGISTRY=absent` — registry-gated
+  skip (no test-spec registry / no `categories:` axis / no `topic_contracts:`
+  enrollment); a consumer with no enrollment passes vacuously. Not a finding.
+- Exit 1 — each `FINDING: topic-contract — ...` line is one STAGE-1 finding;
+  quote it verbatim with the `stage1/` prefix
+  (`FINDING: stage1/topic-contract — <engine line>`). A missing deterministic
+  coverage point or a missing front-door doc is the finding.
+- Same grammar for `--check-topic-docs`: exit 0 with `topic docs contract:
+  enrolled=N findings=0` is clean; `topic docs contract inactive ...` is the
+  registry-gated skip; each exit-1 finding quotes verbatim as
+  `FINDING: stage1/topic-docs — <engine line>` (a missing dream doc, topic
+  index, dream-doc reference, or per-layer page).
+- Engine without `--check-topic-contract` / `--check-topic-docs` (an older
+  deployed engine) — skip cleanly with a one-line note; not a finding (the
+  topic contract simply isn't present).
+
 ## Fresh-context dispatch (standalone posture — REQUIRED)
 
 At top level (standalone), Stages 2+3 MUST be executed by ONE fresh
@@ -459,7 +499,20 @@ Every per-test doc touched by the current change MUST be checked; spot-coverage 
 the rest is acceptable but call out any doc whose How-to-run has visibly drifted
 from its command.
 
-Verdict grammar (one line per rule + one per judged unit + one per judged behavior + one per judged per-test doc):
+**4.5 — Per enrolled topic's agentic row (conditional)** (enumerate via the
+overlay's `topic_contracts:` list crossed with its `categories:` rows — skip this
+half cleanly with a one-line note when no enrolled topic declares a
+`local-hook` + `agentic` row; the topic contract treats the agentic point as
+ADVISORY, so this half is lawfully vacuous for agentic-row-less topics). Where an
+enrolled topic DOES declare an agentic row, judge that the row names a REAL
+sandbox test, not a hollow prompt: read the test at the row's `command` and
+verify it actually drives the claimed behavior through a model (a real sandbox
+setup + a live model invocation + an assertion on the SURFACED behavior, with a
+clean self-gated SKIP when the model is unavailable) rather than echoing a
+canned pass. A stub that can never fail, or a prompt that asks the model to
+recite the expected answer, is a `FINDING: stage2/topic:<t>`.
+
+Verdict grammar (one line per rule + one per judged unit + one per judged behavior + one per judged per-test doc + one per judged enrolled agentic row):
 
 ```
 <rule-id|unit-id>: satisfies — <evidence cited>
@@ -467,8 +520,10 @@ Verdict grammar (one line per rule + one per judged unit + one per judged behavi
 behavior:<id>: faithful — <level + proves-the-statement evidence cited>
 doc:<category>/<layer>/<name>: truthful — <how-to-run matches command + accurate what/why + resolving family link cited>
 FINDING: stage2/<rule-id|unit-id> — <clause/description not met: evidence>
+topic:<t>: real — <the declared agentic row's test drives a real sandbox + model call and asserts the surfaced behavior>
 FINDING: stage2/behavior:<id> — <vague | mis-leveled | mentions-not-proves | over-claimed: evidence>
 FINDING: stage2/doc:<category>/<layer>/<name> — <how-to-run mismatches command | inaccurate what/why | dead-or-mistargeted family link: evidence>
+FINDING: stage2/topic:<t> — <stubbed | hollow-prompt | asserts-nothing: evidence>
 ```
 
 Only `FINDING:` lines count toward `STAGE2_FINDINGS`.
