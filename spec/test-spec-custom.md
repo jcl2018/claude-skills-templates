@@ -375,6 +375,47 @@ dogfoods three rows: `run-test-sh` (free; the full suite covering
 validate+test+test-deploy+windows-smoke as ONE row), `run-eval` (paid), and
 `run-e2e-local` (local-only).
 
+### The `defect_coverage:` array (the defect↔proof ledger)
+
+One more overlay-only array (optional-on-schema-1; placed LAST in the machine
+block) answers a question none of the other axes can: **"is defect X still
+protected, and by what?"** One row per defect work-item dir under
+`work-items/defects/`, each naming its live proof — so proof is declared, not
+folklore, and a hallucinated citation is structurally impossible (every row is
+re-verified by the engine on every run).
+
+A `defect_coverage[]` entry (rows key on `- defect:`, the first field):
+
+- `defect` — the **full dir path relative to `work-items/defects/`** (e.g.
+  `ops/ship/D000008_<slug>`). Full paths, never bare D-IDs — the repo carries a
+  genuinely duplicated bare ID across two component dirs. Unique across the
+  ledger (duplicate keys are a `--validate` error).
+- `disposition` — the closed enum `covered-by | covered-by-anchor | waived`:
+  - **`covered-by`** + `test:` — a dedicated, runnable-by-name regression test:
+    `test` names a `categories:` row, which MUST be `mode: deterministic` (an
+    agentic proof is an engine FINDING — the deterministic-only ledger rule,
+    so a future agentic-test purge can never orphan defect coverage).
+  - **`covered-by-anchor`** + `source:`/`anchor:` — the proof lives inside a
+    shared file (a `scripts/test.sh` inline banner, a shared suite's named
+    case, `scripts/test-deploy.sh`, a `scripts/validate.sh` check): the
+    `anchor` must grep LIVE in `source` (fixed-string `grep -F`, the
+    `behavior_coverage` idiom).
+  - **`waived`** + `reason:` — no automatable proof: a process/doc-only defect,
+    a retired surface, or a coverage GAP. A gap waiver is
+    `reason: "gap — <what a drill would prove>"` plus an optional `todo:`
+    pointing at its TODOS.md follow-up row — gaps stay enumerable and never
+    block the ledger.
+
+`test-spec.sh --check-defect-coverage` mechanizes the ledger (surfaced by
+`validate.sh` Check 32 + `/CJ_test_audit` Stage 1): **forward**, every
+`work-items/defects/**/D??????_*` dir has exactly one row; **reverse**, every
+row's dir exists and its disposition-specific proof is live (covered-by resolves
+deterministic; covered-by-anchor greps; waived has a non-empty reason). Absent
+registry / no `defect_coverage:` axis / no `work-items/defects/` dir ⇒ the named
+`defect coverage inactive — <reason>` skip (exit 0), so a consumer repo passes
+vacuously. This file is an OPERATIONAL doc, so ledger fields may carry work-item
+IDs (nothing here renders into a human-doc).
+
 ## Machine registry (overlay)
 
 ```yaml
