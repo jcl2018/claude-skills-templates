@@ -1633,12 +1633,18 @@ categories:
   #              .github/workflows/*.yml, kept consistent by hand)
   #   mode     — {deterministic, agentic}; agentic (spends model tokens) => tier != free
   #   command / tier {free, paid, local-only} / optional doc / optional purpose.
-  # This axis COEXISTS with units:/behaviors:/runners: (their removal + the
-  # physical test-script move into tests/<category>/<layer>/ are a deferred
-  # follow-up); the command rows are script invocations pointing at their current
-  # flat paths (no move required). The regression category is not yet populated —
-  # migrating the 29 flat tests/*.test.sh into tests/regression/<layer>/ is the
-  # tracked deferred backfill.
+  # This axis COEXISTS with units:/behaviors:/runners: (their removal is a
+  # deferred follow-up). Physical placement is SCOPED, not bulk: only the PURE
+  # dedicated per-defect drills live in the contract home
+  # (tests/regression/CI-push/ — the regression rows below); the shared suites
+  # (setup-hooks, cj-worktree-cleanup, doc-spec-overlay, seed-contracts,
+  # cj-id-claim, ...) and the inline scripts/test.sh regression battery
+  # deliberately STAY at their current flat paths (single-owner: each proves
+  # more than one defect/feature, so the defect_coverage: ledger references
+  # them in place via covered-by-anchor rows, never by moving or re-owning
+  # them). There is NO planned bulk migration of the remaining flat
+  # tests/*.test.sh — a flat test moves only when it is a pure single-purpose
+  # drill for exactly one category row.
   #
   # ---- infra — the standing verification surface (the validator, the full suite,
   #      the deploy harness) ----
@@ -1765,6 +1771,44 @@ categories:
     doc: "docs/tests/workflow/CI-push/cj-goal-gate-shape.md"
     purpose: "The cj_goal build-gate shape guard — proves no CJ_goal_* orchestrator runs an inline slow doc-sync (/CJ_document-release) or agent-judged test-sync sweep: Step 5.5 is a deterministic doc-regen and QA's 8.6a/8.6b agentic sweep is DEFER_SYNC-gated, so the agentic doc/test sync defers to the nightly audit. Deterministic (grep, no model), runs per-PR; the complement to the doc-sync workflow test that proves the nightly safety net."
     topic: cj-goal-gate
+  # ---- regression — proves a specific past defect stays fixed (defects earn
+  #      these): the pure dedicated per-defect drills, migrated into the
+  #      contract home tests/regression/CI-push/ and runnable by name; each is
+  #      the covered-by proof of its defect_coverage: ledger row below. ALL
+  #      regression rows are mode: deterministic + tier: free by rule (the
+  #      ledger's mode gate FINDINGs on an agentic covered-by target). ----
+  - name: tag-release
+    category: regression
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/regression/CI-push/tag-release.test.sh"
+    tier: free
+    doc: "docs/tests/regression/CI-push/tag-release.md"
+    purpose: "The post-land release-tag drill: the tag-release helper publishes the v<VERSION> tag to a hermetic local bare origin — created + pushed, idempotent on re-run, --version override honored, non-semver rejected, and the strict-fails vs default-fail-softs push-failure split — guarding the once-inert version notification whose ls-remote tag compare starved when the land flow bumped VERSION without ever tagging."
+  - name: cj-goal-jq-crlf
+    category: regression
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/regression/CI-push/cj-goal-jq-crlf.test.sh"
+    tier: free
+    doc: "docs/tests/regression/CI-push/cj-goal-jq-crlf.md"
+    purpose: "The orchestrator-helper jq-CRLF drill: the CR-stripping jq() wrapper is present in the five cj-goal helpers and, under a CRLF-emitting jq shim, strips CR from jq output while preserving jq's non-zero exit status — so a Windows jq's CRLF can no longer re-taint the worktree/sync/pr-check phases."
+  - name: drain-one-todo-helper-unavailable
+    category: regression
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh"
+    tier: free
+    doc: "docs/tests/regression/CI-push/drain-one-todo-helper-unavailable.md"
+    purpose: "The drain fail-loud drill: when the worktree-init helper is unreachable everywhere (manifest source gone AND the in-repo fallback absent), the TODO drain halts with a named RESULT and a non-zero exit instead of silently scaffolding the drained TODO into the current (possibly dirty) branch."
+  - name: drain-one-todo-worktree-resolve
+    category: regression
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh"
+    tier: free
+    doc: "docs/tests/regression/CI-push/drain-one-todo-worktree-resolve.md"
+    purpose: "The drain deployed-path drill: a deployed drain helper resolves the worktree-init helper via the manifest source path (not a deploy-relative guess) and creates a real per-iteration worktree, so drained TODOs never collide on one branch."
 # ---- defect_coverage (F000085): the defect↔proof LEDGER — one row per defect
 #      work-item dir, keyed by the FULL path relative to work-items/defects/
 #      (bare D-IDs are ambiguous: D000021 exists twice). Three closed
@@ -1849,13 +1893,11 @@ defect_coverage:
     anchor: "S000078: suggest.sh ranks on"
   # ---- uncategorized/ ----
   - defect: uncategorized/D000021_drain_one_todo_worktree_init_path_resolution
-    disposition: covered-by-anchor
-    source: scripts/test.sh
-    anchor: "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh"
+    disposition: covered-by
+    test: drain-one-todo-worktree-resolve
   - defect: uncategorized/D000024_drain_silent_fallthrough_inplace_scaffold
-    disposition: covered-by-anchor
-    source: scripts/test.sh
-    anchor: "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh"
+    disposition: covered-by
+    test: drain-one-todo-helper-unavailable
   - defect: uncategorized/D000025_d_id_allocator_resolver_shallow_find_maxdepth_2_sc
     disposition: covered-by-anchor
     source: scripts/test.sh
@@ -1909,13 +1951,11 @@ defect_coverage:
     source: tests/cj-id-claim.test.sh
     anchor: "SLUG-LESS feature tracker"
   - defect: uncategorized/D000040_jq_crlf_class_in_orchestrator_helpers_on_windows
-    disposition: covered-by-anchor
-    source: scripts/test.sh
-    anchor: "tests/regression/CI-push/cj-goal-jq-crlf.test.sh"
+    disposition: covered-by
+    test: cj-goal-jq-crlf
   - defect: uncategorized/D000042_version_notification_release_tag_inertness
-    disposition: covered-by-anchor
-    source: scripts/test.sh
-    anchor: "tests/regression/CI-push/tag-release.test.sh"
+    disposition: covered-by
+    test: tag-release
   - defect: uncategorized/D000043_doctor_misses_crlf_template_line_ending_drift
     disposition: covered-by-anchor
     source: scripts/test-deploy.sh
