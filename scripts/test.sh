@@ -2059,12 +2059,12 @@ fi
 # scripts/test.sh discovery is hand-written, NOT glob-based; an unregistered
 # tests/*.test.sh silently never runs.
 echo ""
-echo "Running tests/cj-goal-jq-crlf.test.sh (CR-stripping jq() wrapper in the 5 orchestrator helpers)..."
-if bash "$REPO_ROOT/tests/cj-goal-jq-crlf.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-jq-crlf.test.sh: all 5 helpers strip jq CRLF (structural + CRLF-shim mechanism + worktree-phase e2e)"
+echo "Running tests/regression/CI-push/cj-goal-jq-crlf.test.sh (CR-stripping jq() wrapper in the 5 orchestrator helpers)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/cj-goal-jq-crlf.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/cj-goal-jq-crlf.test.sh: all 5 helpers strip jq CRLF (structural + CRLF-shim mechanism + worktree-phase e2e)"
 else
   _cgjc_rc=$?
-  fail_test "tests/cj-goal-jq-crlf.test.sh failed (rc=$_cgjc_rc) — run \`bash tests/cj-goal-jq-crlf.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/cj-goal-jq-crlf.test.sh failed (rc=$_cgjc_rc) — run \`bash tests/regression/CI-push/cj-goal-jq-crlf.test.sh\` directly to see"
 fi
 
 # F000071 Part A / S000120: the build-gate auto-answer seam verdict helper
@@ -2184,12 +2184,12 @@ fi
 # TODO in-place and lost per-iteration worktree isolation (the F000025/S000054
 # collision-avoidance the feature exists to provide).
 echo ""
-echo "Running tests/drain-one-todo-worktree-resolve.test.sh (deployed-path resolution)..."
-if bash "$REPO_ROOT/tests/drain-one-todo-worktree-resolve.test.sh" >/dev/null 2>&1; then
-  ok "tests/drain-one-todo-worktree-resolve.test.sh: deployed drain resolves cj-worktree-init.sh via manifest .source"
+echo "Running tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh (deployed-path resolution)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh: deployed drain resolves cj-worktree-init.sh via manifest .source"
 else
   _dwr_rc=$?
-  fail_test "tests/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/drain-one-todo-worktree-resolve.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh\` directly to see"
 fi
 
 # Regression test (drain-one-todo silent in-place scaffold when worktree
@@ -2202,12 +2202,12 @@ fi
 # current (possibly dirty / unrelated) branch. D000021 fixed only the path
 # resolution; its RCA Insights explicitly scoped this silent-fallthrough out.
 echo ""
-echo "Running tests/drain-one-todo-helper-unavailable.test.sh (unreachable-helper fail-loud)..."
-if bash "$REPO_ROOT/tests/drain-one-todo-helper-unavailable.test.sh" >/dev/null 2>&1; then
-  ok "tests/drain-one-todo-helper-unavailable.test.sh: drain halts loud when cj-worktree-init.sh unreachable (no in-place scaffold)"
+echo "Running tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh (unreachable-helper fail-loud)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh: drain halts loud when cj-worktree-init.sh unreachable (no in-place scaffold)"
 else
   _dhu_rc=$?
-  fail_test "tests/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/drain-one-todo-helper-unavailable.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh\` directly to see"
 fi
 
 # (F000035 v6.0.0 sunset: removed the `tests/cj-goal-investigate-did-allocator.test.sh`
@@ -2297,12 +2297,12 @@ fi
 # created + pushed, idempotent, --version override, non-semver → exit 1, and the
 # --strict-fails / default-fail-softs push-failure split.
 echo ""
-echo "Running tests/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
-if _tr_out=$(bash "$REPO_ROOT/tests/tag-release.test.sh" 2>&1); then
-  ok "tests/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
+echo "Running tests/regression/CI-push/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
+if _tr_out=$(bash "$REPO_ROOT/tests/regression/CI-push/tag-release.test.sh" 2>&1); then
+  ok "tests/regression/CI-push/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
 else
   _tr_rc=$?
-  fail_test "tests/tag-release.test.sh failed (rc=$_tr_rc):"
+  fail_test "tests/regression/CI-push/tag-release.test.sh failed (rc=$_tr_rc):"
   printf '%s\n' "$_tr_out" | sed 's/^/    [tag-release] /' >&2
 fi
 

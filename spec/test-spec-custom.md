@@ -828,7 +828,7 @@ units:
   - id: test-drain-one-todo-worktree-resolve
     family: test
     label: "drain-one-todo suite — deployed-path resolution"
-    anchor: "tests/drain-one-todo-worktree-resolve.test.sh"
+    anchor: "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh"
     source: scripts/test.sh
     layer: CI-push
     disposition: hard-fail
@@ -837,7 +837,7 @@ units:
   - id: test-drain-one-todo-helper-unavailable
     family: test
     label: "drain-one-todo suite — unreachable-helper fail-loud"
-    anchor: "tests/drain-one-todo-helper-unavailable.test.sh"
+    anchor: "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh"
     source: scripts/test.sh
     layer: CI-push
     disposition: hard-fail
@@ -882,7 +882,7 @@ units:
   - id: test-cj-goal-jq-crlf
     family: test
     label: "goal jq-CRLF drill — CR-stripping jq() wrapper in the 5 orchestrator helpers"
-    anchor: "tests/cj-goal-jq-crlf.test.sh"
+    anchor: "tests/regression/CI-push/cj-goal-jq-crlf.test.sh"
     source: scripts/test.sh
     layer: CI-push
     disposition: hard-fail
@@ -900,7 +900,7 @@ units:
   - id: test-tag-release
     family: test
     label: "tag-release suite — post-land v<VERSION> tag publish (the inert-notification fix)"
-    anchor: "tests/tag-release.test.sh"
+    anchor: "tests/regression/CI-push/tag-release.test.sh"
     source: scripts/test.sh
     layer: CI-push
     disposition: hard-fail
@@ -1851,11 +1851,11 @@ defect_coverage:
   - defect: uncategorized/D000021_drain_one_todo_worktree_init_path_resolution
     disposition: covered-by-anchor
     source: scripts/test.sh
-    anchor: "tests/drain-one-todo-worktree-resolve.test.sh"
+    anchor: "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh"
   - defect: uncategorized/D000024_drain_silent_fallthrough_inplace_scaffold
     disposition: covered-by-anchor
     source: scripts/test.sh
-    anchor: "tests/drain-one-todo-helper-unavailable.test.sh"
+    anchor: "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh"
   - defect: uncategorized/D000025_d_id_allocator_resolver_shallow_find_maxdepth_2_sc
     disposition: covered-by-anchor
     source: scripts/test.sh
@@ -1911,11 +1911,11 @@ defect_coverage:
   - defect: uncategorized/D000040_jq_crlf_class_in_orchestrator_helpers_on_windows
     disposition: covered-by-anchor
     source: scripts/test.sh
-    anchor: "tests/cj-goal-jq-crlf.test.sh"
+    anchor: "tests/regression/CI-push/cj-goal-jq-crlf.test.sh"
   - defect: uncategorized/D000042_version_notification_release_tag_inertness
     disposition: covered-by-anchor
     source: scripts/test.sh
-    anchor: "tests/tag-release.test.sh"
+    anchor: "tests/regression/CI-push/tag-release.test.sh"
   - defect: uncategorized/D000043_doctor_misses_crlf_template_line_ending_drift
     disposition: covered-by-anchor
     source: scripts/test-deploy.sh
