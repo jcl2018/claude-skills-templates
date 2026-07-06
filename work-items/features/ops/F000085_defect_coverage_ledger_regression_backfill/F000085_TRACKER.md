@@ -90,7 +90,7 @@ blocked_by: ""
 <!-- Chronological entries with dates and commit SHAs. -->
 
 - 2026-07-06: Created. Defect-coverage ledger (`defect_coverage:` overlay axis + Check 32 + verified 38-dir backfill) plus scoped migration of pure defect drills into `tests/regression/<layer>/`, one PR, ledger-first commits. Scaffolded from the APPROVED /office-hours design.
-- 2026-07-06: S000134 implemented — six ledger-first commits (`a6ffcd6` grammar+parser, `35c87f9` engine check, `b752856` Check 32 + negative test + verified 38-row backfill [Stage-1/descope point], `64776e1` sweep token grammar + doc-sync orphan wired, `434c3f7` the 4 `git mv` moves, `cabacea` regression rows + docs + flip). Live at HEAD: 38/38 dispositioned findings=0 (24 covered-by-anchor / 4 covered-by / 10 waived, 1 gap+todo); `validate.sh` PASS incl. Check 32; regression category 4/4 green model-free; Check 24 + structure a–f green.
+- 2026-07-06: S000134 implemented — six ledger-first commits (`a6ffcd6` grammar+parser, `35c87f9` engine check, `b752856` Check 32 + negative test + verified 38-row backfill [Stage-1/descope point], `64776e1` sweep token grammar + doc-sync orphan wired, `434c3f7` the 4 `git mv` moves, `cabacea` regression rows + docs + flip). Live at HEAD: 38/38 dispositioned findings=0 (26 covered-by-anchor / 4 covered-by / 8 waived, 1 gap+todo); `validate.sh` PASS incl. Check 32; regression category 4/4 green model-free; Check 24 + structure a–f green.
 
 ## PRs
 
