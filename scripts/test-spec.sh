@@ -142,6 +142,38 @@
 #                      testing is DOCUMENTED end to end). Declaration-only =>
 #                      CI-safe. Same registry-gated skips as --check-topic-contract.
 #                      Surfaced by validate.sh Check 31 + /CJ_test_audit Stage 1.
+#   --list-defect-coverage  (F000085) echo the parsed defect_coverage[] rows
+#                      machine-readably (tab-separated defect/disposition/test/
+#                      source/anchor/reason/todo; empty when no overlay declares
+#                      the axis). The defect_coverage: axis is OVERLAY-ONLY +
+#                      OPTIONAL — the defect↔proof LEDGER: one row per defect
+#                      work-item dir (keyed by the FULL dir path relative to
+#                      work-items/defects/ — bare D-IDs are ambiguous, the repo
+#                      carries a duplicated one), each carrying one of THREE
+#                      closed dispositions: covered-by (a named, deterministic
+#                      categories: regression test), covered-by-anchor (proof
+#                      lives inside a shared file: source + anchor, grep-live),
+#                      or waived (a reason; coverage gaps are
+#                      `waived: "gap — ..."` + a todo pointer, so gaps stay
+#                      enumerable and never block the ledger).
+#   --check-defect-coverage  (F000085) the defect-coverage ledger check. FORWARD:
+#                      every work-items/defects/**/D??????_* dir has EXACTLY ONE
+#                      ledger row. REVERSE per row: the dir exists; a covered-by
+#                      resolves to exactly one categories: row that is
+#                      mode: deterministic (an agentic proof is a FINDING — the
+#                      deterministic-only ledger rule, so a future agentic-test
+#                      purge can never orphan defect coverage); a
+#                      covered-by-anchor's anchor greps LIVE (fixed-string
+#                      grep -F, the behavior_coverage idiom) in its source; a
+#                      waived row has a non-empty reason. Registry-gated skips
+#                      (mirror of --check-topic-contract): absent registry =>
+#                      REGISTRY=absent; no defect_coverage: axis / no
+#                      work-items/defects/ dir => `defect coverage inactive —
+#                      <reason>` + exit 0 (a consumer passes vacuously). Active
+#                      output ends with the machine-classifiable summary
+#                      `defect coverage: dirs=<N> rows=<N> findings=<M>`; HARD
+#                      (exit 1) on any finding. Surfaced by validate.sh Check 32
+#                      + /CJ_test_audit Stage 1.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -284,7 +316,7 @@ _parse_rules_file() {
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
     /^rules:/                  { in_rules=1; next }
-    /^(units|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_rules=0; next }
+    /^(units|layers|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -341,7 +373,7 @@ _parse_units_file() {
       cur_purpose=""
     }
     /^units:/                  { in_units=1; next }
-    /^(rules|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_units=0; next }
+    /^(rules|layers|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -382,7 +414,7 @@ _parse_layers_file() {
       cur_id=""; cur_name=""; cur_disp=""
     }
     /^layers:/                 { in_layers=1; next }
-    /^(rules|units|gates|behaviors|behavior_coverage|runners|categories):/    { flush(); in_layers=0; next }
+    /^(rules|units|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/    { flush(); in_layers=0; next }
     !in_layers                 { next }
     /^[[:space:]]*#/           { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -420,7 +452,7 @@ _parse_gates_file() {
       cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
     }
     /^gates:/                  { in_gates=1; next }
-    /^(rules|units|layers|behaviors|behavior_coverage|runners|categories):/   { flush(); in_gates=0; next }
+    /^(rules|units|layers|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_gates=0; next }
     !in_gates                  { next }
     # A new gate entry.
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
@@ -496,7 +528,7 @@ _parse_behaviors_file() {
       cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""; cur_workflow=""
     }
     /^behaviors:/                                                { in_b=1; next }
-    /^(rules|units|layers|gates|behavior_coverage|runners|categories):/             { flush(); in_b=0; next }
+    /^(rules|units|layers|gates|behavior_coverage|runners|categories|defect_coverage):/             { flush(); in_b=0; next }
     !in_b              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -543,7 +575,7 @@ _parse_behavior_coverage_file() {
       cur_b=""; cur_unit=""; cur_src=""; cur_anchor=""
     }
     /^behavior_coverage:/                              { in_bc=1; next }
-    /^(rules|units|layers|gates|behaviors|runners|categories):/           { flush(); in_bc=0; next }
+    /^(rules|units|layers|gates|behaviors|runners|categories|defect_coverage):/           { flush(); in_bc=0; next }
     !in_bc             { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*behavior:/ { flush(); cur_b=$3; next }
@@ -594,7 +626,7 @@ _parse_runners_file() {
       cur_id=""; cur_cmd=""; cur_tier=""; cur_covers=""; cur_platform=""; cur_note=""
     }
     /^runners:/                                                    { in_r=1; next }
-    /^(rules|units|layers|gates|behaviors|behavior_coverage|categories):/     { flush(); in_r=0; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|categories|defect_coverage):/     { flush(); in_r=0; next }
     !in_r              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -668,7 +700,7 @@ _parse_categories_file() {
       cur_name=""; cur_cat=""; cur_layer=""; cur_mode=""; cur_cmd=""; cur_tier=""; cur_doc=""; cur_purpose=""; cur_topic=""
     }
     /^categories:/                                                          { in_c=1; next }
-    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners):/       { flush(); in_c=0; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners|defect_coverage):/       { flush(); in_c=0; next }
     !in_c              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*name:/ { flush(); cur_name=$3; next }
@@ -743,6 +775,68 @@ EOF
   true
 }
 
+# Parse one file's defect_coverage[] block into TSV rows (7 columns):
+#   defect, disposition, test, source, anchor, reason, todo
+# (F000085) Flag-based, key-anchored — UNLIKE the id-keyed blocks, a ledger row
+# keys on `- defect:` (the full defect work-item dir path RELATIVE to
+# work-items/defects/, e.g. ops/ship/D000008_<slug> — full paths because a bare
+# D-ID is ambiguous: the repo carries a genuinely duplicated bare ID across two
+# component dirs). disposition/test/source are bare tokens; anchor/reason/todo
+# are quoted single-line values stripped of the `key: "…"` wrapper. The three
+# closed dispositions select which fields are required (enforced by
+# --check-defect-coverage as FINDINGs; --validate enforces only the closed enum
+# + the duplicate-defect-key guard, the categories: precedent):
+#   covered-by        -> `test:` names a categories: row (must be deterministic)
+#   covered-by-anchor -> `source:` + `anchor:` (anchor greps LIVE in source)
+#   waived            -> `reason:` (a gap waiver is `"gap — ..."` + a `todo:`)
+# The optional fields use the nz()/`-` empty-field placeholder discipline
+# (tab-IFS collapses empty fields otherwise). The axis is OVERLAY-ONLY +
+# OPTIONAL (registry-gated, the behaviors:/runners:/categories: precedent) and
+# lives LAST in the overlay yaml. The overlay is an OPERATIONAL doc, so ledger
+# fields may carry work-item IDs (no rendered-field lint — nothing here renders
+# into a human-doc).
+_parse_defect_coverage_file() {
+  _extract_yaml_file "$1" | awk '
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_defect != "") {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_defect), nz(cur_disp), nz(cur_test), nz(cur_src), nz(cur_anchor), nz(cur_reason), nz(cur_todo)
+      }
+      cur_defect=""; cur_disp=""; cur_test=""; cur_src=""; cur_anchor=""; cur_reason=""; cur_todo=""
+    }
+    /^defect_coverage:/                                                               { in_dc=1; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners|categories|topic_contracts):/ { flush(); in_dc=0; next }
+    !in_dc             { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*defect:/ { flush(); cur_defect=$3; next }
+    /^[[:space:]]*disposition:/ { cur_disp=$2; next }
+    /^[[:space:]]*test:/        { cur_test=$2; next }
+    /^[[:space:]]*source:/      { cur_src=$2; next }
+    /^[[:space:]]*anchor:/      { cur_anchor=strip($0); next }
+    /^[[:space:]]*reason:/      { cur_reason=strip($0); next }
+    /^[[:space:]]*todo:/        { cur_todo=strip($0); next }
+    END { if (in_dc) flush() }
+  '
+}
+
+# Merged defect_coverage TSV across general + overlay (overlay-only in practice —
+# the general seed carries no ledger).
+_parse_defect_coverage() {
+  while IFS= read -r _rf; do
+    [ -n "$_rf" ] || continue
+    _parse_defect_coverage_file "$_rf"
+  done <<EOF
+$(_registry_files)
+EOF
+  true
+}
+
 # ---- Validation gates (run for every registry-reading subcommand) ----
 _run_registry_gates() {
   [ -f "$TEST_SPEC_PATH" ] || _emit_absent_and_exit
@@ -779,6 +873,7 @@ EOF
   _RUNNERS=$(_parse_runners)
   _CATEGORIES=$(_parse_categories)
   _TOPIC_CONTRACTS=$(_parse_topic_contracts)
+  _DEFECT_COVERAGE=$(_parse_defect_coverage)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -809,6 +904,11 @@ EOF
     _N_CT=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_CTU=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_CT" -eq "$_N_CTU" ] || emit_halt "duplicate category test name(s): $(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_DEFECT_COVERAGE" ]; then
+    _N_DC=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_DCU=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_DC" -eq "$_N_DCU" ] || emit_halt "duplicate defect_coverage defect key(s): $(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -1089,6 +1189,30 @@ EOF
     _N_TC=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
     _N_TCU=$(printf '%s\n' "$_TOPIC_CONTRACTS" | sort -u | grep -c . || true)
     [ "$_N_TC" -eq "$_N_TCU" ] || emit_halt "duplicate topic_contracts entr(ies): $(printf '%s\n' "$_TOPIC_CONTRACTS" | sort | uniq -d | tr '\n' ' ')"
+  fi
+
+  # Per-defect-coverage-row disposition closed enum (F000085). Runs INDEPENDENT
+  # of the units: gate (BEFORE the no-units early return) — the ledger coexists
+  # with, and does not depend on, units. --validate enforces ONLY the structural
+  # grammar here (a present disposition inside the closed enum; the duplicate
+  # defect-key guard above): whether the per-disposition proof fields are
+  # present AND live (a covered-by resolving to a deterministic categories: row,
+  # a covered-by-anchor grepping live, a waived reason being non-empty) is the
+  # --check-defect-coverage engine's job, reported as FINDINGs — so a
+  # mid-backfill overlay still validates while the dedicated check names the
+  # gaps.
+  if [ -n "$_DEFECT_COVERAGE" ]; then
+    while IFS="$(printf '\t')" read -r _dcdefect _dcdisp _dctest _dcsrc _dcanchor _dcreason _dctodo; do
+      [ -n "$_dcdefect" ] || continue
+      [ "$_dcdisp" = "-" ] && _dcdisp=""
+      [ -n "$_dcdisp" ] || emit_halt "defect_coverage row '$_dcdefect' is missing 'disposition'"
+      case "$_dcdisp" in
+        covered-by|covered-by-anchor|waived) : ;;
+        *) emit_halt "defect_coverage row '$_dcdefect' has disposition '$_dcdisp' outside the closed enum {covered-by, covered-by-anchor, waived}" ;;
+      esac
+    done <<EOF
+$_DEFECT_COVERAGE
+EOF
   fi
 
   # Per-unit required keys + closed enums + the rendered-field work-item-ID lint.
@@ -1480,6 +1604,130 @@ EOF
   [ "$_TD_FINDINGS" -eq 0 ]
 }
 
+# ---- --check-defect-coverage: the defect-coverage ledger check (F000085) --------
+# The deterministic enforcement that every defect work-item dir maps to exactly
+# one LIVE ledger row — the check that makes "is defect X still protected, and by
+# what?" machine-answerable and a hallucinated proof citation structurally
+# impossible. Mirrors --check-topic-contract's shape: findings printed verbatim,
+# a machine-classifiable summary line last, exit 1 on any finding.
+#   FORWARD  — every work-items/defects/**/D??????_* dir has EXACTLY ONE
+#              defect_coverage: row keyed by its full path relative to
+#              work-items/defects/ (0 = an unmapped defect; 2+ = duplicates,
+#              also a --validate halt).
+#   REVERSE  — per row: the defect dir exists on disk (a dangling row is a
+#              finding); then per disposition:
+#                covered-by        -> `test` resolves to EXACTLY ONE categories:
+#                                     row AND that row is mode: deterministic
+#                                     (an agentic proof is a FINDING — the
+#                                     deterministic-only ledger rule (tier is
+#                                     NOT separately enforced: the contract-wide
+#                                     mode:agentic => tier != free rule plus
+#                                     this mode gate already pin it));
+#                covered-by-anchor -> `source` exists AND `anchor` greps LIVE
+#                                     via fixed-string grep -F (the
+#                                     behavior_coverage idiom — ledger anchors
+#                                     are arbitrary proof prose, not the
+#                                     family-shaped _fwd_match tokens);
+#                waived            -> `reason` is non-empty.
+# Registry-gated skips: an ABSENT test-spec registry exits 0 via the
+# REGISTRY=absent path; no defect_coverage: axis / no work-items/defects/ dir
+# prints the named `defect coverage inactive — <reason>` note + exits 0 (a
+# consumer repo passes vacuously). Surfaced by validate.sh Check 32 +
+# /CJ_test_audit Stage 1.
+_run_defect_coverage() {
+  # test-spec registry-absent → inactive skip (callers must not parse halt prose).
+  if [ ! -f "$TEST_SPEC_PATH" ]; then
+    echo "defect coverage inactive — test-spec registry absent (no ledger to cross-check)"
+    return 0
+  fi
+  if [ -z "$_DEFECT_COVERAGE" ]; then
+    echo "defect coverage inactive — no defect_coverage: axis in spec/test-spec-custom.md; declare one ledger row per work-items/defects/ dir to activate"
+    return 0
+  fi
+  _DC_ROOT="$REPO_ROOT_RESOLVED/work-items/defects"
+  if [ ! -d "$_DC_ROOT" ]; then
+    echo "defect coverage inactive — no work-items/defects/ directory; nothing to enforce"
+    return 0
+  fi
+
+  _DC_FINDINGS=0
+
+  # The defect dirs on disk, as full paths relative to work-items/defects/
+  # (deterministic LC_ALL=C order). D??????_* = a D-ID (6 chars) + slug.
+  _DC_DIRS=$(find "$_DC_ROOT" -type d -name 'D??????_*' 2>/dev/null | sed "s|^$_DC_ROOT/||" | LC_ALL=C sort)
+
+  # FORWARD: every defect dir on disk resolves to exactly one ledger row.
+  while IFS= read -r _dcdir; do
+    [ -n "$_dcdir" ] || continue
+    _dc_c=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' -v want="$_dcdir" '$1 == want' | grep -c . || true)
+    if [ "$_dc_c" -ne 1 ]; then
+      echo "FINDING: defect-coverage — defect dir '$_dcdir' resolves to $_dc_c ledger row(s); want exactly one (an unmapped defect = 0 — add a defect_coverage: row with a covered-by / covered-by-anchor / waived disposition; a duplicate = 2+)"
+      _DC_FINDINGS=$((_DC_FINDINGS + 1))
+    fi
+  done <<EOF
+$_DC_DIRS
+EOF
+
+  # REVERSE: every ledger row's dir exists and its disposition-specific proof
+  # is live.
+  while IFS="$(printf '\t')" read -r _dcdefect _dcdisp _dctest _dcsrc _dcanchor _dcreason _dctodo; do
+    [ -n "$_dcdefect" ] || continue
+    [ "$_dctest" = "-" ] && _dctest=""
+    [ "$_dcsrc" = "-" ] && _dcsrc=""
+    [ "$_dcanchor" = "-" ] && _dcanchor=""
+    [ "$_dcreason" = "-" ] && _dcreason=""
+    if [ ! -d "$_DC_ROOT/$_dcdefect" ]; then
+      echo "FINDING: defect-coverage — ledger row '$_dcdefect' names a defect dir that does not exist under work-items/defects/ (dangling row — the dir was moved/renamed/removed; re-key the row on the current full path)"
+      _DC_FINDINGS=$((_DC_FINDINGS + 1))
+    fi
+    case "$_dcdisp" in
+      covered-by)
+        if [ -z "$_dctest" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is covered-by but names no 'test' (a covered-by row must name a categories: regression test)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        else
+          _dc_tc=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v want="$_dctest" '$1 == want' | grep -c . || true)
+          if [ "$_dc_tc" -ne 1 ]; then
+            echo "FINDING: defect-coverage — row '$_dcdefect' cites test '$_dctest' which resolves to $_dc_tc categories: row(s); want exactly one (a dangling citation = 0 — the exact hallucinated-proof class this ledger exists to kill)"
+            _DC_FINDINGS=$((_DC_FINDINGS + 1))
+          else
+            _dc_mode=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v want="$_dctest" '$1 == want {print $4; exit}')
+            if [ "$_dc_mode" != "deterministic" ]; then
+              echo "FINDING: defect-coverage — row '$_dcdefect' cites test '$_dctest' with mode '$_dc_mode'; a covered-by proof MUST be mode: deterministic (the deterministic-only ledger rule — an agentic-test purge must never orphan defect coverage)"
+              _DC_FINDINGS=$((_DC_FINDINGS + 1))
+            fi
+          fi
+        fi
+        ;;
+      covered-by-anchor)
+        if [ -z "$_dcsrc" ] || [ -z "$_dcanchor" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is covered-by-anchor but is missing 'source' and/or 'anchor' (both are required to locate the shared proof)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        elif [ ! -f "$REPO_ROOT_RESOLVED/$_dcsrc" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' anchor source '$_dcsrc' does not exist"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        elif ! grep -qF -- "$_dcanchor" "$REPO_ROOT_RESOLVED/$_dcsrc"; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' anchor not found LIVE (grep -F) in $_dcsrc (the proof was removed/renamed — re-anchor the row or re-disposition it): $_dcanchor"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        fi
+        ;;
+      waived)
+        if [ -z "$_dcreason" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is waived with an EMPTY reason (a waiver must say why: a process/doc-only defect, a retired surface, or 'gap — <what a drill would prove>' + a todo pointer)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        fi
+        ;;
+    esac
+  done <<EOF
+$_DEFECT_COVERAGE
+EOF
+
+  _DC_NDIRS=$(printf '%s\n' "$_DC_DIRS" | grep -c . || true)
+  _DC_NROWS=$(printf '%s\n' "$_DEFECT_COVERAGE" | grep -c . || true)
+  echo "defect coverage: dirs=$_DC_NDIRS rows=$_DC_NROWS findings=$_DC_FINDINGS"
+  [ "$_DC_FINDINGS" -eq 0 ]
+}
+
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
 # Forward + reverse + floor. Findings print as `FINDING: ...`; the summary line
 # is the last line either way. Exit 1 on any finding. The reverse sweep + floor
@@ -1618,16 +1866,27 @@ $(grep -E '^# Warning check' "$_VAL_SRC")
 EOF
   fi
 
-  # (2) tests/*.test.sh on disk -> exactly one family:test row whose anchor is
-  # the literal runner path AND whose source is scripts/test.sh. This is the
+  # (2) test files on disk -> exactly one family:test row whose anchor is the
+  # literal runner path AND whose source is scripts/test.sh. This is the
   # silent-skip catch: the row's FORWARD anchor proves the file is wired into
   # scripts/test.sh; this REVERSE pass proves every file on disk has a row at
   # all. The source pin is load-bearing — a row pointing source at the test
   # file itself would self-satisfy the forward grep (the file names itself in
   # its header), turning the catch back into a convention.
-  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  #
+  # TOKEN GRAMMAR (F000085): the glob recurses — flat tests/*.test.sh PLUS the
+  # two-axis category homes tests/<category>/<layer>/*.test.sh — and the token
+  # is the FULL path relative to the repo root (not the basename: a basename
+  # token for a nested file would grep-match nothing in scripts/test.sh, and
+  # two same-named files at different depths would collide on one token). The
+  # $5 == "scripts/test.sh" source pin is PRESERVED unchanged — a nested file
+  # is wired into the same hand-wired runner, so its row keeps
+  # source: scripts/test.sh and only its anchor: carries the nested path. This
+  # is what closed the green-but-inert orphan class: a nested *.test.sh that
+  # nothing invokes was invisible to the flat glob.
+  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_tf" ] || continue
-    _tok="tests/$(basename "$_tf")"
+    _tok="${_tf#"$REPO_ROOT_RESOLVED"/}"
     _TOKENS=$((_TOKENS + 1))
     _NS_TESTS=$((_NS_TESTS + 1))
     _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want && $5 == "scripts/test.sh"' | grep -c . || true)
@@ -1709,7 +1968,9 @@ EOF
   # counts via the same `awk -F'\t' '$2==<family>'` shape as the reverse sweep.)
   _SURF_VALIDATE=0; [ -f "$REPO_ROOT_RESOLVED/scripts/validate.sh" ] && _SURF_VALIDATE=1
   _SURF_TESTS=0
-  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  # Same recursed glob as the reverse sweep (F000085): flat + the two-axis
+  # tests/<category>/<layer>/ homes both count as the test-file surface.
+  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_t" ] && { _SURF_TESTS=1; break; }
   done
   _SURF_WF=0
@@ -2920,6 +3181,16 @@ case "${1:-}" in
     [ -n "$_BEHAVIOR_COVERAGE" ] && printf '%s\n' "$_BEHAVIOR_COVERAGE" | awk -F'\t' 'NF {print $1}'
     exit 0
     ;;
+  --list-defect-coverage)
+    # (F000085) The parsed defect_coverage[] ledger rows machine-readably: one
+    # row per defect dir, tab-separated defect (full dir path relative to
+    # work-items/defects/), disposition, test (`-` when unset), source (`-`),
+    # anchor (`-`), reason (`-`), todo (`-`). Empty when no overlay declares
+    # the axis.
+    _run_registry_gates
+    [ -n "$_DEFECT_COVERAGE" ] && printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' 'NF {print}'
+    exit 0
+    ;;
   --check-coverage)
     _run_registry_gates
     _run_coverage
@@ -2956,6 +3227,19 @@ case "${1:-}" in
     # validate.sh Check 31 + /CJ_test_audit Stage 1.
     _run_registry_gates
     _run_topic_docs
+    ;;
+  --check-defect-coverage)
+    # The defect-coverage ledger check (F000085): every work-items/defects/**
+    # dir maps to exactly one live defect_coverage: row (forward), and every
+    # row's disposition-specific proof is live (reverse — covered-by resolves
+    # to a deterministic categories: row, covered-by-anchor greps live, waived
+    # has a reason). Registry-gated skip: an ABSENT test-spec registry exits 0
+    # via the REGISTRY=absent path; no defect_coverage: axis / no
+    # work-items/defects/ dir prints the named inactive note + exits 0. HARD
+    # (exit 1) only on a real finding. Surfaced by validate.sh Check 32 +
+    # /CJ_test_audit Stage 1.
+    _run_registry_gates
+    _run_defect_coverage
     ;;
   --render-docs)
     # (F000069/S000114) Render the generated human test catalog from the merged
@@ -3000,10 +3284,12 @@ Usage:
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
+  test-spec.sh --list-defect-coverage # parsed defect_coverage[] ledger rows (defect/disposition/test/source/anchor/reason/todo; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
   test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic} with its front-door doc; a missing local-hook agentic test is an advisory note, never a finding (registry-gated skip)
   test-spec.sh --check-topic-docs # HARD (declaration-only, CI-safe): every enrolled topic has a docs/goals/<topic>.md dream doc + a docs/tests/topics/<topic>/ subdir (index refs the dream + a page per covered layer); registry-gated skip
+  test-spec.sh --check-defect-coverage # HARD: every work-items/defects/** dir maps to exactly one LIVE defect_coverage: row (covered-by resolves deterministic; covered-by-anchor greps; waived has a reason); registry-gated skip
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
@@ -3017,7 +3303,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--check-topic-docs|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--list-defect-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--check-topic-docs|--check-defect-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

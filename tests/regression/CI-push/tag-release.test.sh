@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/tag-release.test.sh
+# tests/regression/CI-push/tag-release.test.sh
 #
 # Hermetic regression for scripts/tag-release.sh — the post-land helper that
 # publishes the `v<VERSION>` release tag to origin so scripts/skills-update-check's
@@ -37,7 +37,7 @@ ok()        { echo "  OK:   $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)  # tests/regression/CI-push/ -> repo root
 HELPER="$REPO_ROOT/scripts/tag-release.sh"
 
 echo "=== tag-release.test.sh: post-land v<VERSION> tag publish (hermetic — local bare origin, no network / no real origin) ==="

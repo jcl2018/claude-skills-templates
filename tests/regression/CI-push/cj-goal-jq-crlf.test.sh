@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/cj-goal-jq-crlf.test.sh
+# tests/regression/CI-push/cj-goal-jq-crlf.test.sh
 #
 # Regression drill for the jq-CRLF class in the CJ_goal_* / check-* orchestrator
 # helpers (the Windows P0). A Windows jq build emits CRLF line endings, so a raw
@@ -46,7 +46,7 @@ ok()        { echo "  OK:   $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)  # tests/regression/CI-push/ -> repo root
 
 HELPERS=(
   "scripts/cj-goal-common.sh"

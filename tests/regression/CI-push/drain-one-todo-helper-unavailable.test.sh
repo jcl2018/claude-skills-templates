@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/drain-one-todo-helper-unavailable.test.sh
+# tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh
 #
 # Regression test for the "drain-one-todo.sh silent in-place scaffold when
 # cj-worktree-init.sh unavailable" defect (distinct from D000021).
@@ -40,7 +40,7 @@ ok()        { echo "  OK:   $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)  # tests/regression/CI-push/ -> repo root
 DRAIN="$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"
 
 [ -f "$DRAIN" ] || { echo "FAIL: $DRAIN not found"; exit 1; }

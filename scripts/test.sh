@@ -905,6 +905,82 @@ else
 fi
 rm -rf "$_C31_TMP"
 
+# Step 3k (F000085 / Check 32): the defect-coverage LEDGER — every defect
+# work-item dir maps to exactly one live defect_coverage: row. THE PARALLEL
+# test.sh EDIT the new validate.sh Check 32 needs (same zzz-mirror discipline as
+# Checks 30/31). Check 32 IS test-spec.sh --check-defect-coverage: forward, every
+# work-items/defects/**/D??????_* dir has exactly one ledger row; reverse, every
+# row's proof is live (covered-by resolves to a DETERMINISTIC categories: row;
+# covered-by-anchor greps; waived has a reason). The negative path plants TWO
+# faults HERMETICALLY (a temp repo via the REPO_ROOT override + a temp registry
+# via TEST_SPEC_PATH/TEST_SPEC_CUSTOM_PATH — the real tree is untouched):
+#   (1) an UNMAPPED defect dir -> expect the forward FINDING;
+#   (2) a covered-by row citing a mode: agentic categories row -> expect the
+#       mode FINDING (the deterministic-only ledger rule).
+# TARGETED (F000081/WS4): positive + negative invoke ONLY the engine, no
+# whole-validator re-run. Invocations go through `env` (not subshell exports) so
+# the REPO_ROOT override never trips SC2030/2031.
+# POSITIVE: on the live (fully-backfilled) tree Check 32 reports findings=0.
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1 | grep -qE '^defect coverage: .*findings=0$'; then
+  ok "Check 32: test-spec.sh --check-defect-coverage reports findings=0 on the live tree (targeted engine — every defect dir dispositioned, every proof live)"
+else
+  fail_test "Check 32: test-spec.sh --check-defect-coverage did not report findings=0 on the live tree"
+fi
+# NEGATIVE (hermetic): a temp repo with two defect dirs, a temp registry (the
+# real general seed + a minimal overlay) whose ledger maps only ONE of them —
+# via a covered-by citing a planted mode: agentic categories row. One run
+# surfaces BOTH planted faults; the live tree is never mutated (restore = the
+# positive assertion above, re-checked after cleanup below).
+_C32_TMP=$(mktemp -d -t test-sh-c32-XXXXXX)
+mkdir -p "$_C32_TMP/repo/work-items/defects/uncategorized/D999901_planted_mapped" \
+         "$_C32_TMP/repo/work-items/defects/uncategorized/D999902_planted_unmapped"
+cp "$REPO_ROOT/spec/test-spec.md" "$_C32_TMP/test-spec.md"
+cat > "$_C32_TMP/test-spec-custom.md" <<'C32EOF'
+# hermetic Check-32 drill overlay
+```yaml
+schema_version: 1
+categories:
+  - name: planted-agentic
+    category: regression
+    layer: local-hook
+    mode: agentic
+    command: "bash tests/planted.test.sh"
+    tier: local-only
+defect_coverage:
+  - defect: uncategorized/D999901_planted_mapped
+    disposition: covered-by
+    test: planted-agentic
+```
+C32EOF
+_C32_OUT=$(env REPO_ROOT="$_C32_TMP/repo" \
+               TEST_SPEC_PATH="$_C32_TMP/test-spec.md" \
+               TEST_SPEC_CUSTOM_PATH="$_C32_TMP/test-spec-custom.md" \
+               bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1) && _C32_RC=0 || _C32_RC=$?
+if [ "$_C32_RC" -eq 0 ]; then
+  fail_test "Check 32: --check-defect-coverage should have exited non-zero with an unmapped defect dir + an agentic covered-by planted, but exited 0; output: $_C32_OUT"
+else
+  # Plant 1: the unmapped defect dir fires the forward FINDING.
+  if echo "$_C32_OUT" | grep -qF "D999902_planted_unmapped" && echo "$_C32_OUT" | grep -qF "resolves to 0 ledger row(s)"; then
+    ok "Check 32: an unmapped defect dir triggers the forward defect-coverage FINDING + non-zero exit (targeted engine, hermetic)"
+  else
+    fail_test "Check 32: --check-defect-coverage exited non-zero but missing the expected unmapped-dir forward finding; output: $_C32_OUT"
+  fi
+  # Plant 2: the covered-by citing a mode: agentic row fires the mode FINDING.
+  if echo "$_C32_OUT" | grep -qF "MUST be mode: deterministic" && echo "$_C32_OUT" | grep -qF "planted-agentic"; then
+    ok "Check 32: a covered-by citing a mode: agentic categories row triggers the deterministic-only mode FINDING (targeted engine, hermetic)"
+  else
+    fail_test "Check 32: --check-defect-coverage exited non-zero but missing the expected agentic-mode finding; output: $_C32_OUT"
+  fi
+fi
+rm -rf "$_C32_TMP"
+# RESTORE -> PASS: the plants lived only in the temp fixture; the live tree
+# still reports findings=0 (each plant's restore returns the engine to green).
+if bash "$REPO_ROOT/scripts/test-spec.sh" --check-defect-coverage 2>&1 | grep -qE '^defect coverage: .*findings=0$'; then
+  ok "Check 32: live tree still reports findings=0 after the hermetic plants are removed (restore -> pass)"
+else
+  fail_test "Check 32: live tree no longer reports findings=0 after the hermetic drill (the drill leaked state)"
+fi
+
 # Step 4: frontmatter is parseable
 fm=$(sed -n '/^---$/,/^---$/p' "$SKILLS_DIR/zzz-test-scaffold/SKILL.md")
 if echo "$fm" | grep -q 'name:' && echo "$fm" | grep -q 'description:'; then
@@ -1573,6 +1649,44 @@ else
 fi
 
 echo ""
+echo "Regression test (D000018): QA E2E dispatch keeps the leaf-node + parent-inline execution contract..."
+
+# Background: the QA E2E subagent used to satisfy test rows by STRUCTURAL
+# INSPECTION (reading files) instead of executing them. The fix pinned two
+# load-bearing directives into skills/CJ_qa-work-item/qa.md: the dispatch
+# prompt's leaf-node constraint (a row genuinely needing recursive Agent
+# dispatch is marked ambiguous + deferred, never faked inline) and the
+# parent-inline execution path (the parent re-RUNS deferred recursive rows via
+# the Agent tool). This shape-guard fails loudly if either directive is edited
+# away in a qa.md refactor.
+_QA_MD="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
+if grep -qF -- 'needs recursive Agent — defer to parent-inline' "$_QA_MD" \
+   && grep -qF -- '**Recursive rows:** invoke the Agent tool per the row' "$_QA_MD"; then
+  ok "qa.md keeps the leaf-node ambiguous-defer directive + the parent-inline execution path (E2E rows are executed, not structurally inspected)"
+else
+  fail_test "qa.md lost the leaf-node/parent-inline E2E execution directives (D000018 guard)"
+fi
+
+echo ""
+echo "Regression test (D000025): D-ID allocator find sites carry no -maxdepth cap..."
+
+# Background: the D-ID allocator/resolver's find over work-items/defects/ used
+# a -maxdepth 2 cap that encoded a false structural assumption (defect dirs
+# live at varying component depths — ops/skills-deploy/D*, uncategorized/D*),
+# so nested dirs were invisible and already-used D-IDs were re-minted. The fix
+# dropped every depth cap. Guard: the DEFECTS_ROOT find site must exist AND no
+# find invocation in the defect pipeline may carry a -maxdepth cap.
+_DEF_PIPE="$REPO_ROOT/skills/CJ_goal_defect/pipeline.md"
+# shellcheck disable=SC2016 # literal $DEFECTS_ROOT is intentional — grepping for the exact source string in pipeline.md
+if ! grep -qF 'find "$DEFECTS_ROOT"' "$_DEF_PIPE"; then
+  fail_test "CJ_goal_defect pipeline.md lost its DEFECTS_ROOT find site — the D-ID allocator scan moved without updating the D000025 guard"
+elif grep -E 'find .*-maxdepth' "$_DEF_PIPE" >/dev/null 2>&1; then
+  fail_test "CJ_goal_defect pipeline.md re-introduced a -maxdepth cap on a find site — deep defect dirs become invisible to the D-ID allocator (D000025 guard)"
+else
+  ok "the defect pipeline's DEFECTS_ROOT find scans at any depth (no -maxdepth cap; deep defect dirs stay visible to the D-ID allocator)"
+fi
+
+echo ""
 echo "Regression test (S000079): skills-deploy copy-mode fallback (symlink-free install)..."
 
 # Background: on Git Bash `ln -s` copies-by-default / needs admin, so skills-deploy
@@ -1979,12 +2093,12 @@ fi
 # scripts/test.sh discovery is hand-written, NOT glob-based; an unregistered
 # tests/*.test.sh silently never runs.
 echo ""
-echo "Running tests/cj-goal-jq-crlf.test.sh (CR-stripping jq() wrapper in the 5 orchestrator helpers)..."
-if bash "$REPO_ROOT/tests/cj-goal-jq-crlf.test.sh" >/dev/null 2>&1; then
-  ok "tests/cj-goal-jq-crlf.test.sh: all 5 helpers strip jq CRLF (structural + CRLF-shim mechanism + worktree-phase e2e)"
+echo "Running tests/regression/CI-push/cj-goal-jq-crlf.test.sh (CR-stripping jq() wrapper in the 5 orchestrator helpers)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/cj-goal-jq-crlf.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/cj-goal-jq-crlf.test.sh: all 5 helpers strip jq CRLF (structural + CRLF-shim mechanism + worktree-phase e2e)"
 else
   _cgjc_rc=$?
-  fail_test "tests/cj-goal-jq-crlf.test.sh failed (rc=$_cgjc_rc) — run \`bash tests/cj-goal-jq-crlf.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/cj-goal-jq-crlf.test.sh failed (rc=$_cgjc_rc) — run \`bash tests/regression/CI-push/cj-goal-jq-crlf.test.sh\` directly to see"
 fi
 
 # F000071 Part A / S000120: the build-gate auto-answer seam verdict helper
@@ -2016,6 +2130,24 @@ if bash "$REPO_ROOT/tests/audit-nightly.test.sh" >/dev/null 2>&1; then
 else
   _an_rc=$?
   fail_test "tests/audit-nightly.test.sh failed (rc=$_an_rc) — run \`bash tests/audit-nightly.test.sh\` directly to see"
+fi
+
+# The doc-sync workflow-category front door (F000078; wired by F000085's sweep
+# recursion — this file was the live green-but-inert orphan the flat glob could
+# not see): the lighter workflow-level assertion the `doc-sync` categories: row
+# points at. Deterministic + model-free: asserts `audit-nightly.sh --dry-run`
+# (the row's exact command) either prints its DRY-RUN plan or self-gates with a
+# leading SKIP:, and never runs a real audit. COEXISTS with
+# tests/audit-nightly.test.sh above (which drills the runner's parse/report/
+# issue halves with claude+gh stubbed). Registration is MANDATORY — discovery
+# is hand-wired, not glob-based.
+echo ""
+echo "Running tests/workflow/local-hook/doc-sync.test.sh (doc-sync workflow front door — dry-run honesty)..."
+if bash "$REPO_ROOT/tests/workflow/local-hook/doc-sync.test.sh" >/dev/null 2>&1; then
+  ok "tests/workflow/local-hook/doc-sync.test.sh: audit-nightly --dry-run plans or SKIPs cleanly (no real audit, no model spend)"
+else
+  _ds_rc=$?
+  fail_test "tests/workflow/local-hook/doc-sync.test.sh failed (rc=$_ds_rc) — run \`bash tests/workflow/local-hook/doc-sync.test.sh\` directly to see"
 fi
 
 # F000071 Part B / S000121: the local-E2E harness (scripts/e2e-local.sh +
@@ -2086,12 +2218,12 @@ fi
 # TODO in-place and lost per-iteration worktree isolation (the F000025/S000054
 # collision-avoidance the feature exists to provide).
 echo ""
-echo "Running tests/drain-one-todo-worktree-resolve.test.sh (deployed-path resolution)..."
-if bash "$REPO_ROOT/tests/drain-one-todo-worktree-resolve.test.sh" >/dev/null 2>&1; then
-  ok "tests/drain-one-todo-worktree-resolve.test.sh: deployed drain resolves cj-worktree-init.sh via manifest .source"
+echo "Running tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh (deployed-path resolution)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh: deployed drain resolves cj-worktree-init.sh via manifest .source"
 else
   _dwr_rc=$?
-  fail_test "tests/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/drain-one-todo-worktree-resolve.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh failed (rc=$_dwr_rc) — run \`bash tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh\` directly to see"
 fi
 
 # Regression test (drain-one-todo silent in-place scaffold when worktree
@@ -2104,12 +2236,12 @@ fi
 # current (possibly dirty / unrelated) branch. D000021 fixed only the path
 # resolution; its RCA Insights explicitly scoped this silent-fallthrough out.
 echo ""
-echo "Running tests/drain-one-todo-helper-unavailable.test.sh (unreachable-helper fail-loud)..."
-if bash "$REPO_ROOT/tests/drain-one-todo-helper-unavailable.test.sh" >/dev/null 2>&1; then
-  ok "tests/drain-one-todo-helper-unavailable.test.sh: drain halts loud when cj-worktree-init.sh unreachable (no in-place scaffold)"
+echo "Running tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh (unreachable-helper fail-loud)..."
+if bash "$REPO_ROOT/tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh" >/dev/null 2>&1; then
+  ok "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh: drain halts loud when cj-worktree-init.sh unreachable (no in-place scaffold)"
 else
   _dhu_rc=$?
-  fail_test "tests/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/drain-one-todo-helper-unavailable.test.sh\` directly to see"
+  fail_test "tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh failed (rc=$_dhu_rc) — run \`bash tests/regression/CI-push/drain-one-todo-helper-unavailable.test.sh\` directly to see"
 fi
 
 # (F000035 v6.0.0 sunset: removed the `tests/cj-goal-investigate-did-allocator.test.sh`
@@ -2199,12 +2331,12 @@ fi
 # created + pushed, idempotent, --version override, non-semver → exit 1, and the
 # --strict-fails / default-fail-softs push-failure split.
 echo ""
-echo "Running tests/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
-if _tr_out=$(bash "$REPO_ROOT/tests/tag-release.test.sh" 2>&1); then
-  ok "tests/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
+echo "Running tests/regression/CI-push/tag-release.test.sh (post-land v<VERSION> tag publish, hermetic — local bare origin, no network / no real origin)..."
+if _tr_out=$(bash "$REPO_ROOT/tests/regression/CI-push/tag-release.test.sh" 2>&1); then
+  ok "tests/regression/CI-push/tag-release.test.sh: v<VERSION> created + pushed to a fake origin; idempotent no-op on re-run; --version override; non-semver → exit 1; strict-fails / default-fail-softs on a push failure"
 else
   _tr_rc=$?
-  fail_test "tests/tag-release.test.sh failed (rc=$_tr_rc):"
+  fail_test "tests/regression/CI-push/tag-release.test.sh failed (rc=$_tr_rc):"
   printf '%s\n' "$_tr_out" | sed 's/^/    [tag-release] /' >&2
 fi
 

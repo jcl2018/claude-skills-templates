@@ -95,6 +95,13 @@ preceded by an idempotent `--seed-docs` that seeds missing per-test doc stubs �
 already carrying those three sections — + the index (present ⇒ skip)
 but NEVER moves test scripts — findings are the product (exit 0 always), and an
 unadopted repo reports the honest "category contract not adopted / inactive" note;
+AND, when the engine carries it, `--check-defect-coverage` — the defect↔proof
+LEDGER check (the same owner `validate.sh` Check 32 calls): every
+`work-items/defects/**` dir maps to exactly one live `defect_coverage:` row (a
+`covered-by` resolves to a DETERMINISTIC `categories:` row, a
+`covered-by-anchor` greps live, a `waived` row has a reason), so an unmapped
+defect or a dead/hallucinated proof citation is caught standalone in any repo —
+an unadopted repo reports the named "defect coverage inactive" note;
 AND, when the engine carries them, `--check-topic-contract` + `--check-topic-docs`
 — the three-layer topic contract + its topic-docs companion (the same owners
 `validate.sh` Checks 30/31 call): every ENROLLED topic (`topic_contracts:`) must

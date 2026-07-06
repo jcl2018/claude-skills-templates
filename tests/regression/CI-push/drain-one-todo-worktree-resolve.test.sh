@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/drain-one-todo-worktree-resolve.test.sh
+# tests/regression/CI-push/drain-one-todo-worktree-resolve.test.sh
 #
 # Regression test for the "drain-one-todo worktree-init path resolution" defect.
 #
@@ -35,7 +35,7 @@ ok()        { echo "  OK:   $1"; }
 fail_test() { echo "  FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)  # tests/regression/CI-push/ -> repo root
 DRAIN="$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/drain-one-todo.sh"
 WT_HELPER="$REPO_ROOT/scripts/cj-worktree-init.sh"
 
