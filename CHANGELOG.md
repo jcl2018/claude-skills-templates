@@ -3,6 +3,48 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+
+## [6.0.125] - 2026-07-06
+
+### Changed
+- **F000086 — the three-layer topic contract no longer requires an agentic
+  test.** Enrolling a test topic used to demand all four coverage points,
+  including a `local-hook` + `agentic` proof — the hardest-to-build mode, which
+  needs a machine with Claude. That requirement blocked every topic but
+  `portability`. Now `test-spec.sh --check-topic-contract` requires only the
+  three DETERMINISTIC layers (CI-push + CI-nightly + local-hook), and a missing
+  agentic row prints a per-topic advisory `note:` instead of a hard finding —
+  the gap stays visible wherever the contract is read, without ever redding the
+  build. `portability`'s agentic test stays in the repo, declared and runnable
+  via `/CJ_test_run --topic portability --e2e`; it is simply no longer required.
+  Re-hardening is a one-line reversal in `_run_topic_contract`.
+  - `validate.sh` Check 30, the `spec/test-spec.md` topic-axis prose (mirrored
+    byte-identically into the `test-spec.sh --seed` heredoc), and the
+    `scripts/test.sh` Check 30 negative drill were all updated for the advisory
+    semantics; the drill now proves BOTH directions hermetically — a missing
+    deterministic point still hard-fails, a missing agentic row exits 0 with the
+    advisory note.
+  - `/CJ_test_audit` Stage 1 now actually invokes `--check-topic-contract` +
+    `--check-topic-docs` (an inherited drift: CLAUDE.md and the spec claimed that
+    surfacing since F000082, but the skill never made the calls). The conditional
+    Stage-2 judgment now fires only where an enrolled topic declares an agentic
+    row.
+
+### Added
+- **Two testing-infra topics enrolled in the topic contract:** `validator` and
+  `full-suite`. Each now reaches all three deterministic layers as HARD contract
+  (`topic_contracts: [portability, validator, full-suite]`), with four new
+  `categories:` rows (`validate-hook`, `validate-nightly`, `suite-nightly`,
+  `suite-local`) labelling surfaces that already run today — the pre-commit hook,
+  the nightly full-suite (`nightly.yml`), and the run-before-push harness. No new
+  test scripts and no new per-PR CI workload.
+  - Front-door docs for the four new rows, plus the Check 31 topic-docs
+    materialization for both topics — dream docs `docs/goals/validator.md` +
+    `docs/goals/full-suite.md` and topic subdirs under `docs/tests/topics/`.
+  - `deploy-harness` stays intentionally unenrolled: its missing CI-push point is
+    a deliberate F000081 speed decision, and claiming `windows-smoke` (already
+    labelled `portability`) for it would double-count.
+
 ## [6.0.124] - 2026-07-05
 
 ### Added
