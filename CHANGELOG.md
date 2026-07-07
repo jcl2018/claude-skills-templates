@@ -4,6 +4,28 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.127] - 2026-07-06
+
+### Added
+- **F000084 — the three cj_goal verbs (`goal-feature` / `goal-task` /
+  `goal-defect`) are now enrolled test topics under the three-layer contract,
+  deterministic-only.** Each verb was the workbench's main user-facing surface
+  yet had no topic-contract coverage (feature/task shared one bundled
+  `cj-goal-eval` topic covering only the local-hook agentic point; defect had no
+  categories row at all). This enrolls all three in `topic_contracts:`, each
+  reaching its three deterministic points: a fast CI-push shape smoke (incl. the
+  new `tests/cj-goal-defect-smoke.test.sh`), a new CI-nightly helper-chain drill
+  (`tests/goal-{feature,task,defect}-chain.test.sh`, `TEST_FAST`-gated off the
+  per-PR path), and an existing local-hook deterministic test of that verb's
+  plumbing. Each topic gets a dream doc (`docs/goals/goal-*.md`) + a topic subdir
+  (`docs/tests/topics/goal-*/`). The bundled `cj-goal-eval` label is retired; the
+  two agentic eval rows are re-topic'd per-verb and advisory (slated for removal —
+  deleting them cannot red the contract). A `Step 3k-topics` 3-arm negative drill
+  proves the contract bites (a removed CI-nightly point fails), stays green on
+  agentic-row removal, and covers the dream-doc rule. Reconciled at merge time
+  onto F000086's advisory-agentic single-list mechanism (the originally-designed
+  `topic_contracts_deterministic:` second list was superseded and dropped).
+
 ## [6.0.126] - 2026-07-06
 
 ### Added

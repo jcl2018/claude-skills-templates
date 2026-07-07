@@ -905,6 +905,86 @@ else
 fi
 rm -rf "$_C31_TMP"
 
+# Step 3k-topics: the three cj_goal verb topics (goal-feature / goal-task /
+# goal-defect) enrolled in the single advisory-agentic topic_contracts: list
+# (F000084, reconciled onto F000086's advisory mechanism) — a three-arm negative
+# drill. Each verb must reach the three DETERMINISTIC points (CI-push + CI-nightly
+# + local-hook{deterministic}); the agentic point is advisory for ALL topics, so
+# an agentic row is tolerated, never required. Three properties need non-vacuous
+# proof, each planted
+# HERMETICALLY (temp registry / docs copies via the TEST_SPEC_*/TESTDOC_OUT
+# overrides; the live tree is never mutated) and asserted against ONLY the
+# targeted test-spec.sh engine (the F000081/WS4 targeted-negative pattern —
+# no whole-validator re-run):
+#   arm 1 — the det arm BITES: removing a det-enrolled topic's CI-nightly row
+#           (goal-defect-chain) hard-fails --check-topic-contract naming the
+#           missing CI-nightly coverage.
+#   arm 2 — AGENTIC-REMOVAL ROBUSTNESS (the operator's future path): removing a
+#           re-topic'd agentic eval row (goal-feature-eval) leaves
+#           --check-topic-contract GREEN — a det-enrolled topic never depends
+#           on an agentic row, so deleting the evals later cannot red Check 30.
+#   arm 3 — Check 31 covers the UNION: hiding a det-enrolled topic's dream doc
+#           (docs/goals/goal-task.md, via a TESTDOC_OUT temp docs tree)
+#           hard-fails --check-topic-docs naming the missing dream doc.
+echo ""
+echo "=== Step 3k-topics: cj_goal verb topic enrollment (3-arm negative drill, engine-only) ==="
+# Arm 1: drop the 9-line `- name: goal-defect-chain` block (name..topic) from a
+# temp copy of the overlay; expect the CI-nightly topic-contract finding.
+_C3K_TMP=$(mktemp -d -t test-sh-c3k-XXXXXX)
+cp "$REPO_ROOT/spec/test-spec.md" "$_C3K_TMP/test-spec.md"
+awk '
+  /^  - name: goal-defect-chain$/ { skip=9 }
+  skip>0 { skip--; next }
+  { print }
+' "$REPO_ROOT/spec/test-spec-custom.md" > "$_C3K_TMP/arm1-custom.md"
+# `env`-prefixed (not export-in-subshell): a THIRD export of TEST_SPEC_PATH /
+# TESTDOC_OUT would make shellcheck's SC2030/SC2031 pair analysis flag the
+# pre-existing Step 3i/3j blocks too; `env` sidesteps the assignment parse.
+_C3K_OUT=$(env TEST_SPEC_PATH="$_C3K_TMP/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_C3K_TMP/arm1-custom.md" \
+  bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1) && _C3K_RC=0 || _C3K_RC=$?
+if [ "$_C3K_RC" -eq 0 ]; then
+  fail_test "Step 3k arm 1: --check-topic-contract should have exited non-zero with goal-defect's CI-nightly row removed, but exited 0; output: $_C3K_OUT"
+else
+  if echo "$_C3K_OUT" | grep -qF "missing a CI-nightly test" && echo "$_C3K_OUT" | grep -qF "goal-defect"; then
+    ok "Step 3k arm 1: removing the det-enrolled goal-defect CI-nightly row triggers the topic-contract FINDING + non-zero exit (det arm bites)"
+  else
+    fail_test "Step 3k arm 1: --check-topic-contract exited non-zero but missing the expected CI-nightly finding; output: $_C3K_OUT"
+  fi
+fi
+# Arm 2: drop the 9-line `- name: goal-feature-eval` block (the re-topic'd
+# agentic eval row); expect the engine to stay GREEN (findings=0) — the
+# det-enrolled topics require no agentic row, portability keeps its own.
+awk '
+  /^  - name: goal-feature-eval$/ { skip=9 }
+  skip>0 { skip--; next }
+  { print }
+' "$REPO_ROOT/spec/test-spec-custom.md" > "$_C3K_TMP/arm2-custom.md"
+_C3K_OUT2=$(env TEST_SPEC_PATH="$_C3K_TMP/test-spec.md" TEST_SPEC_CUSTOM_PATH="$_C3K_TMP/arm2-custom.md" \
+  bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-contract 2>&1) && _C3K_RC2=0 || _C3K_RC2=$?
+if [ "$_C3K_RC2" -eq 0 ] && echo "$_C3K_OUT2" | grep -qE '^topic contract: .*findings=0$'; then
+  ok "Step 3k arm 2: removing the re-topic'd agentic goal-feature-eval row leaves --check-topic-contract GREEN (agentic-removal robustness for det-enrolled topics)"
+else
+  fail_test "Step 3k arm 2: --check-topic-contract should stay green with the agentic eval row removed (rc=$_C3K_RC2); output: $_C3K_OUT2"
+fi
+# Arm 3: a TESTDOC_OUT temp docs tree with goal-task's dream doc OMITTED (the
+# topic subdirs + every other dream doc copied); expect the topic-docs finding.
+mkdir -p "$_C3K_TMP/docs/goals" "$_C3K_TMP/docs/tests"
+cp -R "$REPO_ROOT/docs/tests/topics" "$_C3K_TMP/docs/tests/topics"
+cp "$REPO_ROOT/docs/goals/"*.md "$_C3K_TMP/docs/goals/" 2>/dev/null || true
+rm -f "$_C3K_TMP/docs/goals/goal-task.md"   # the planted fault
+_C3K_OUT3=$(env TESTDOC_OUT="$_C3K_TMP/docs" \
+  bash "$REPO_ROOT/scripts/test-spec.sh" --check-topic-docs 2>&1) && _C3K_RC3=0 || _C3K_RC3=$?
+if [ "$_C3K_RC3" -eq 0 ]; then
+  fail_test "Step 3k arm 3: --check-topic-docs should have exited non-zero with goal-task's dream doc removed, but exited 0; output: $_C3K_OUT3"
+else
+  if echo "$_C3K_OUT3" | grep -qF "has no dream doc" && echo "$_C3K_OUT3" | grep -qF "goal-task"; then
+    ok "Step 3k arm 3: hiding the det-enrolled goal-task dream doc triggers the topic-docs FINDING + non-zero exit (Check 31 covers the union)"
+  else
+    fail_test "Step 3k arm 3: --check-topic-docs exited non-zero but missing the expected dream-doc finding; output: $_C3K_OUT3"
+  fi
+fi
+rm -rf "$_C3K_TMP"
+
 # Step 3k (F000085 / Check 32): the defect-coverage LEDGER — every defect
 # work-item dir maps to exactly one live defect_coverage: row. THE PARALLEL
 # test.sh EDIT the new validate.sh Check 32 needs (same zzz-mirror discipline as
@@ -1970,8 +2050,10 @@ echo ""
 # the biggest remaining CI-push cost after the negative-test speedup. It is re-layered
 # to CI-nightly: the per-PR gate (.github/workflows/validate.yml) runs test.sh with
 # TEST_FAST=1 to SKIP it, and the full nightly suite (.github/workflows/nightly.yml,
-# no flag) still runs it every night. TEST_FAST gates ONLY this heavy suite; every
-# fast unit sub-suite + the inline integration tests still run on every PR.
+# no flag) still runs it every night. TEST_FAST gates this heavy suite PLUS the three
+# CI-nightly goal-verb chain drills registered right below (goal-feature-chain /
+# goal-task-chain / goal-defect-chain — the same re-layered-to-nightly pattern);
+# every fast unit sub-suite + the inline integration tests still run on every PR.
 if [ "${TEST_FAST:-0}" = "1" ]; then
   echo "SKIP: scripts/test-deploy.sh (TEST_FAST=1 — the heavy skills-deploy fixture suite runs on the CI-nightly cadence via .github/workflows/nightly.yml, not per-PR)"
 else
@@ -1981,6 +2063,44 @@ else
   else
     _td_rc=$?
     fail_test "scripts/test-deploy.sh failed end-to-end (rc=$_td_rc) — run \`./scripts/test-deploy.sh\` directly to see failures"
+  fi
+fi
+
+# CI-nightly goal-verb chain drills (the deterministic helper chain of each
+# cj_goal verb, driven end to end in a hermetic temp sandbox — goal-feature /
+# goal-task / goal-defect topics, each topic's CI-nightly coverage point).
+# Heavier than the per-PR budget (real worktree adds + a real scaffold per
+# drill), so they ride the SAME TEST_FAST guard pattern as test-deploy above:
+# the per-PR gate (validate.yml, TEST_FAST=1) SKIPs them; the full nightly
+# suite (.github/workflows/nightly.yml, no flag) runs them every night.
+# Registration is MANDATORY — scripts/test.sh discovery is hand-wired, NOT
+# glob-based; an unregistered tests/*.test.sh silently never runs.
+echo ""
+if [ "${TEST_FAST:-0}" = "1" ]; then
+  echo "SKIP: tests/goal-feature-chain.test.sh + tests/goal-task-chain.test.sh + tests/goal-defect-chain.test.sh (TEST_FAST=1 — the CI-nightly goal-verb chain drills run via .github/workflows/nightly.yml, not per-PR)"
+else
+  echo "Running tests/goal-feature-chain.test.sh (feature-verb helper chain: worktree → sync/pr-check → design-gate seam → recap → cleanup)..."
+  if bash "$REPO_ROOT/tests/goal-feature-chain.test.sh" >/dev/null 2>&1; then
+    ok "tests/goal-feature-chain.test.sh: real worktree + assert-isolated + sync opt-out + pr-check + design-gate seam + recap + dry-run cleanup all pass"
+  else
+    _gfc_rc=$?
+    fail_test "tests/goal-feature-chain.test.sh failed (rc=$_gfc_rc) — run \`bash tests/goal-feature-chain.test.sh\` directly to see"
+  fi
+
+  echo "Running tests/goal-task-chain.test.sh (task-verb helper chain: worktree → task scaffold → recap → cleanup)..."
+  if bash "$REPO_ROOT/tests/goal-task-chain.test.sh" >/dev/null 2>&1; then
+    ok "tests/goal-task-chain.test.sh: real worktree + T-ID mint (type: task shape) + recap + dry-run cleanup all pass"
+  else
+    _gtc_rc=$?
+    fail_test "tests/goal-task-chain.test.sh failed (rc=$_gtc_rc) — run \`bash tests/goal-task-chain.test.sh\` directly to see"
+  fi
+
+  echo "Running tests/goal-defect-chain.test.sh (defect-verb helper chain: worktree → D-ID claim → pr-check → recap pair → land-sync preview → cleanup)..."
+  if bash "$REPO_ROOT/tests/goal-defect-chain.test.sh" >/dev/null 2>&1; then
+    ok "tests/goal-defect-chain.test.sh: real worktree + D-ID dry-run claim + pr-check + before/after recap pair + fixture land-sync preview + dry-run cleanup all pass"
+  else
+    _gdc_rc=$?
+    fail_test "tests/goal-defect-chain.test.sh failed (rc=$_gdc_rc) — run \`bash tests/goal-defect-chain.test.sh\` directly to see"
   fi
 fi
 
@@ -2406,6 +2526,22 @@ if bash "$REPO_ROOT/tests/cj-goal-feature-smoke.test.sh" >/dev/null 2>&1; then
 else
   _cgfs_rc=$?
   fail_test "tests/cj-goal-feature-smoke.test.sh failed (rc=$_cgfs_rc) — run \`bash tests/cj-goal-feature-smoke.test.sh\` directly to see"
+fi
+
+# The defect-path SHAPE smoke — the mirror of the feature smoke above for
+# /CJ_goal_defect (goal-defect topic, CI-push point): worktree entry
+# (--caller defect → cj-def-*), the shared helper's worktree/ship/telemetry
+# phases under --mode defect, and the workbench-owned leaf-dispatch targets
+# (qa / doc-sync) on disk. Fast + --dry-run based, so it runs per-PR.
+# MANDATORY — scripts/test.sh discovery is hand-wired, NOT glob-based; an
+# unregistered tests/*.test.sh silently never runs.
+echo ""
+echo "Running tests/cj-goal-defect-smoke.test.sh (defect-path shape: worktree entry + common phases + leaf targets)..."
+if bash "$REPO_ROOT/tests/cj-goal-defect-smoke.test.sh" >/dev/null 2>&1; then
+  ok "tests/cj-goal-defect-smoke.test.sh: worktree entry + worktree/ship/telemetry phases + leaf dispatch targets all pass"
+else
+  _cgds_rc=$?
+  fail_test "tests/cj-goal-defect-smoke.test.sh failed (rc=$_cgds_rc) — run \`bash tests/cj-goal-defect-smoke.test.sh\` directly to see"
 fi
 
 # Regression test (F000060 + F000063): the doc-spec two-tier overlay machinery —
