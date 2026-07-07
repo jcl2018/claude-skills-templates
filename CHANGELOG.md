@@ -19,6 +19,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   ledger row flips from `waived` to `covered-by-anchor` — closing the last open
   backlog-defect coverage gap (`--check-defect-coverage`: 38 rows, findings=0).
 
+### Fixed
+- **`validate.sh` Error check 2 (SKILL.md frontmatter) was timing-flaky under
+  `set -o pipefail`.** It piped `sed -n '/---/,/---/p' | grep -q name:`; on a skill
+  with a very long single-line `description` (e.g. `CJ_test_audit`, ~5000 chars),
+  `grep -q`'s early exit SIGPIPEs `sed` mid-write, and `pipefail` turns that into a
+  FALSE "missing required frontmatter" failure — passing on a fast host but reding a
+  slower CI runner. Replaced the pipe with a single read + `case` glob match (no
+  pipe, no SIGPIPE). Surfaced live blocking this PR's CI.
+
 ## [6.0.130] - 2026-07-07
 
 ### Added
