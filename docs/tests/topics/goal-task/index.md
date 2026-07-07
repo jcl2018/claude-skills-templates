@@ -22,8 +22,9 @@ grouped by the verification **layer** they run at.
 | E2E-harness readiness | — | — | ✅ `goal-task-e2e-det` |
 
 All three required deterministic points are filled; there is **no required
-agentic point** — this topic is enrolled deterministic-only
-(`topic_contracts_deterministic:` in `spec/test-spec-custom.md`), so the
+agentic point** — this topic is enrolled in `topic_contracts:`
+(`spec/test-spec-custom.md`), where the `local-hook`+`agentic` point is advisory
+for every enrolled topic, so the
 agent-executed pipeline prose has no required proof (the posture named in the
 [dream doc](../../../goals/goal-task.md)). The `goal-task-eval` agentic row and
 the real `e2e-local` harness run remain declared + runnable on demand while

@@ -22,8 +22,9 @@ grouped by the verification **layer** they run at.
 | Land-tail safety | — | ✅ (previewed in the chain) | ✅ `goal-defect-land-sync` |
 
 All three required deterministic points are filled; there is **no required
-agentic point** — this topic is enrolled deterministic-only
-(`topic_contracts_deterministic:` in `spec/test-spec-custom.md`), and the
+agentic point** — this topic is enrolled in `topic_contracts:`
+(`spec/test-spec-custom.md`), where the `local-hook`+`agentic` point is advisory
+for every enrolled topic, and the
 defect verb declares NO agentic row at all (its on-disk eval case stays
 undeclared by choice — the posture named in the
 [dream doc](../../../goals/goal-defect.md)).

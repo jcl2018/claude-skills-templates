@@ -113,32 +113,25 @@
 #                      orchestrators passes vacuously). HARD (exit 1) on any
 #                      forward/reverse finding. Surfaced by validate.sh Check 28
 #                      + /CJ_test_audit Stage 1.
-#   --check-topic-contract  (F000082; deterministic-only flavor F000084) the
-#                      three-layer topic contract, with TWO enrollment lists.
-#                      For every topic enrolled in `topic_contracts:` (the
-#                      both-modes list), require, HARD (exit 1 on any finding):
-#                      >=1 CI-push test, >=1 CI-nightly test, >=1
-#                      local-hook+deterministic test AND >=1 local-hook+agentic
-#                      test carrying `topic: <t>` on their categories: rows. For
-#                      every topic enrolled in `topic_contracts_deterministic:`
-#                      (the deterministic-only list), require the THREE
-#                      deterministic points only (>=1 CI-push + >=1 CI-nightly +
-#                      >=1 local-hook+deterministic); agentic rows are tolerated,
-#                      never required. Each required point carries its front-door
-#                      docs/tests/<cat>/<layer>/<name>.md. Both runners iterate
-#                      the UNION of the two lists (each topic judged under its
-#                      own list's rule); a topic duplicated across the lists is a
-#                      --validate error. Declaration-only => CI-safe, zero model
-#                      spend (the agentic BEHAVIOR is proven local-only by
-#                      /CJ_test_run --e2e; mode:agentic => tier!=free, so an
-#                      agentic row is present-in-CI-but-never-executed).
+#   --check-topic-contract  (F000082) the three-layer topic contract. For every
+#                      ENROLLED topic (an overlay `topic_contracts:` entry),
+#                      require, HARD (exit 1 on any finding): >=1 CI-push test,
+#                      >=1 CI-nightly test AND >=1 local-hook+deterministic test
+#                      carrying `topic: <t>` on their categories: rows, each with
+#                      its front-door docs/tests/<cat>/<layer>/<name>.md. The
+#                      (local-hook, agentic) point is ADVISORY: a missing agentic
+#                      row prints a per-topic `note:` (no finding, no exit-1) —
+#                      agentic proofs run on-demand, never required. Declaration-
+#                      only => CI-safe, zero model spend (an agentic BEHAVIOR,
+#                      where declared, is proven local-only by /CJ_test_run
+#                      --e2e; mode:agentic => tier!=free, so an agentic row is
+#                      present-in-CI-but-never-executed).
 #                      Registry-gated skip (mirror of --check-workflow-coverage):
-#                      absent test-spec registry / no categories: axis / BOTH
-#                      enrollment lists empty => inactive note + exit 0.
+#                      absent test-spec registry / no categories: axis / no
+#                      topic_contracts: enrollment => inactive note + exit 0.
 #                      Surfaced by validate.sh + /CJ_test_audit Stage 1.
 #   --check-topic-docs (F000083) the topic dream-doc + topic-subdir contract. For
-#                      every ENROLLED topic (the UNION of topic_contracts: +
-#                      topic_contracts_deterministic:), require, HARD (exit
+#                      every ENROLLED topic (topic_contracts:), require, HARD (exit
 #                      1 on any finding): a docs/goals/<topic>.md dream doc (the
 #                      end-goal WHAT), a docs/tests/topics/<topic>/index.md landing
 #                      page that REFERENCES the dream doc, and a per-layer page
@@ -149,6 +142,38 @@
 #                      testing is DOCUMENTED end to end). Declaration-only =>
 #                      CI-safe. Same registry-gated skips as --check-topic-contract.
 #                      Surfaced by validate.sh Check 31 + /CJ_test_audit Stage 1.
+#   --list-defect-coverage  (F000085) echo the parsed defect_coverage[] rows
+#                      machine-readably (tab-separated defect/disposition/test/
+#                      source/anchor/reason/todo; empty when no overlay declares
+#                      the axis). The defect_coverage: axis is OVERLAY-ONLY +
+#                      OPTIONAL — the defect↔proof LEDGER: one row per defect
+#                      work-item dir (keyed by the FULL dir path relative to
+#                      work-items/defects/ — bare D-IDs are ambiguous, the repo
+#                      carries a duplicated one), each carrying one of THREE
+#                      closed dispositions: covered-by (a named, deterministic
+#                      categories: regression test), covered-by-anchor (proof
+#                      lives inside a shared file: source + anchor, grep-live),
+#                      or waived (a reason; coverage gaps are
+#                      `waived: "gap — ..."` + a todo pointer, so gaps stay
+#                      enumerable and never block the ledger).
+#   --check-defect-coverage  (F000085) the defect-coverage ledger check. FORWARD:
+#                      every work-items/defects/**/D??????_* dir has EXACTLY ONE
+#                      ledger row. REVERSE per row: the dir exists; a covered-by
+#                      resolves to exactly one categories: row that is
+#                      mode: deterministic (an agentic proof is a FINDING — the
+#                      deterministic-only ledger rule, so a future agentic-test
+#                      purge can never orphan defect coverage); a
+#                      covered-by-anchor's anchor greps LIVE (fixed-string
+#                      grep -F, the behavior_coverage idiom) in its source; a
+#                      waived row has a non-empty reason. Registry-gated skips
+#                      (mirror of --check-topic-contract): absent registry =>
+#                      REGISTRY=absent; no defect_coverage: axis / no
+#                      work-items/defects/ dir => `defect coverage inactive —
+#                      <reason>` + exit 0 (a consumer passes vacuously). Active
+#                      output ends with the machine-classifiable summary
+#                      `defect coverage: dirs=<N> rows=<N> findings=<M>`; HARD
+#                      (exit 1) on any finding. Surfaced by validate.sh Check 32
+#                      + /CJ_test_audit Stage 1.
 #   --classify         (F000065) READ-ONLY generation detector, symmetric with
 #                      doc-spec.sh --classify. Emits GENERATION=<canonical|
 #                      absent|malformed>, POSITIONS=, DUPLICATE=<0|1>,
@@ -291,7 +316,7 @@ _parse_rules_file() {
       cur_id=""; cur_stmt=""; cur_scope=""; cur_enf=""
     }
     /^rules:/                  { in_rules=1; next }
-    /^(units|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_rules=0; next }
+    /^(units|layers|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_rules=0; next }
     !in_rules          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -348,7 +373,7 @@ _parse_units_file() {
       cur_purpose=""
     }
     /^units:/                  { in_units=1; next }
-    /^(rules|layers|gates|behaviors|behavior_coverage|runners|categories):/   { flush(); in_units=0; next }
+    /^(rules|layers|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_units=0; next }
     !in_units          { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -389,7 +414,7 @@ _parse_layers_file() {
       cur_id=""; cur_name=""; cur_disp=""
     }
     /^layers:/                 { in_layers=1; next }
-    /^(rules|units|gates|behaviors|behavior_coverage|runners|categories):/    { flush(); in_layers=0; next }
+    /^(rules|units|gates|behaviors|behavior_coverage|runners|categories|defect_coverage):/    { flush(); in_layers=0; next }
     !in_layers                 { next }
     /^[[:space:]]*#/           { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -427,7 +452,7 @@ _parse_gates_file() {
       cur_id=""; cur_layer=""; cur_order=""; cur_disp=""; cur_backing="0"; cur_markers=""; in_markers=0
     }
     /^gates:/                  { in_gates=1; next }
-    /^(rules|units|layers|behaviors|behavior_coverage|runners|categories):/   { flush(); in_gates=0; next }
+    /^(rules|units|layers|behaviors|behavior_coverage|runners|categories|defect_coverage):/   { flush(); in_gates=0; next }
     !in_gates                  { next }
     # A new gate entry.
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; cur_backing="0"; in_markers=0; next }
@@ -503,7 +528,7 @@ _parse_behaviors_file() {
       cur_id=""; cur_stmt=""; cur_level=""; cur_area=""; cur_purpose=""; cur_workflow=""
     }
     /^behaviors:/                                                { in_b=1; next }
-    /^(rules|units|layers|gates|behavior_coverage|runners|categories):/             { flush(); in_b=0; next }
+    /^(rules|units|layers|gates|behavior_coverage|runners|categories|defect_coverage):/             { flush(); in_b=0; next }
     !in_b              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -550,7 +575,7 @@ _parse_behavior_coverage_file() {
       cur_b=""; cur_unit=""; cur_src=""; cur_anchor=""
     }
     /^behavior_coverage:/                              { in_bc=1; next }
-    /^(rules|units|layers|gates|behaviors|runners|categories):/           { flush(); in_bc=0; next }
+    /^(rules|units|layers|gates|behaviors|runners|categories|defect_coverage):/           { flush(); in_bc=0; next }
     !in_bc             { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*behavior:/ { flush(); cur_b=$3; next }
@@ -601,7 +626,7 @@ _parse_runners_file() {
       cur_id=""; cur_cmd=""; cur_tier=""; cur_covers=""; cur_platform=""; cur_note=""
     }
     /^runners:/                                                    { in_r=1; next }
-    /^(rules|units|layers|gates|behaviors|behavior_coverage|categories):/     { flush(); in_r=0; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|categories|defect_coverage):/     { flush(); in_r=0; next }
     !in_r              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*id:/ { flush(); cur_id=$3; next }
@@ -675,7 +700,7 @@ _parse_categories_file() {
       cur_name=""; cur_cat=""; cur_layer=""; cur_mode=""; cur_cmd=""; cur_tier=""; cur_doc=""; cur_purpose=""; cur_topic=""
     }
     /^categories:/                                                          { in_c=1; next }
-    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners):/       { flush(); in_c=0; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners|defect_coverage):/       { flush(); in_c=0; next }
     !in_c              { next }
     /^[[:space:]]*#/   { next }
     /^[[:space:]]*-[[:space:]]*name:/ { flush(); cur_name=$3; next }
@@ -750,46 +775,62 @@ EOF
   true
 }
 
-# Parse one file's `topic_contracts_deterministic:` list (F000084) — the SECOND,
-# OVERLAY-ONLY, OPTIONAL enrollment list: the DETERMINISTIC-ONLY flavor of the
-# three-layer topic contract. Same slug grammar + the same two accepted YAML
-# shapes as topic_contracts: (inline flow list / block list). A topic enrolled
-# here is hard-checked for the THREE deterministic points (CI-push + CI-nightly +
-# local-hook{deterministic}); agentic rows are tolerated, never required — the
-# seam for topics whose agentic assets are scheduled for removal. A topic listed
-# in BOTH lists is a --validate error (cross-list duplicate guard). Absent => empty.
-_parse_topic_contracts_det_file() {
+# Parse one file's defect_coverage[] block into TSV rows (7 columns):
+#   defect, disposition, test, source, anchor, reason, todo
+# (F000085) Flag-based, key-anchored — UNLIKE the id-keyed blocks, a ledger row
+# keys on `- defect:` (the full defect work-item dir path RELATIVE to
+# work-items/defects/, e.g. ops/ship/D000008_<slug> — full paths because a bare
+# D-ID is ambiguous: the repo carries a genuinely duplicated bare ID across two
+# component dirs). disposition/test/source are bare tokens; anchor/reason/todo
+# are quoted single-line values stripped of the `key: "…"` wrapper. The three
+# closed dispositions select which fields are required (enforced by
+# --check-defect-coverage as FINDINGs; --validate enforces only the closed enum
+# + the duplicate-defect-key guard, the categories: precedent):
+#   covered-by        -> `test:` names a categories: row (must be deterministic)
+#   covered-by-anchor -> `source:` + `anchor:` (anchor greps LIVE in source)
+#   waived            -> `reason:` (a gap waiver is `"gap — ..."` + a `todo:`)
+# The optional fields use the nz()/`-` empty-field placeholder discipline
+# (tab-IFS collapses empty fields otherwise). The axis is OVERLAY-ONLY +
+# OPTIONAL (registry-gated, the behaviors:/runners:/categories: precedent) and
+# lives LAST in the overlay yaml. The overlay is an OPERATIONAL doc, so ledger
+# fields may carry work-item IDs (no rendered-field lint — nothing here renders
+# into a human-doc).
+_parse_defect_coverage_file() {
   _extract_yaml_file "$1" | awk '
-    /^topic_contracts_deterministic:[[:space:]]*\[/ {
-      # Inline flow list on the same line: topic_contracts_deterministic: [a, b]
-      v=$0
-      sub(/^topic_contracts_deterministic:[[:space:]]*\[/, "", v)
-      sub(/\].*$/, "", v)
-      n=split(v, parts, ",")
-      for (i=1; i<=n; i++) {
-        t=parts[i]; gsub(/[[:space:]]/, "", t)
-        if (t != "") print t
+    function strip(line,   v) {
+      v=line
+      sub(/^[[:space:]]*[a-z_]+:[[:space:]]*"?/, "", v)
+      sub(/"[[:space:]]*$/, "", v)
+      return v
+    }
+    function nz(v) { return (v == "" ? "-" : v) }
+    function flush() {
+      if (cur_defect != "") {
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nz(cur_defect), nz(cur_disp), nz(cur_test), nz(cur_src), nz(cur_anchor), nz(cur_reason), nz(cur_todo)
       }
-      next
+      cur_defect=""; cur_disp=""; cur_test=""; cur_src=""; cur_anchor=""; cur_reason=""; cur_todo=""
     }
-    /^topic_contracts_deterministic:[[:space:]]*$/ { in_tc=1; next }
-    # A new top-level key closes the block list.
-    in_tc && /^[a-z_]+:/ { in_tc=0 }
-    in_tc && /^[[:space:]]*-[[:space:]]*/ {
-      t=$0; sub(/^[[:space:]]*-[[:space:]]*/, "", t)
-      sub(/[[:space:]]*#.*$/, "", t); gsub(/[[:space:]]/, "", t)
-      if (t != "") print t
-      next
-    }
-  ' "$1"
+    /^defect_coverage:/                                                               { in_dc=1; next }
+    /^(rules|units|layers|gates|behaviors|behavior_coverage|runners|categories|topic_contracts):/ { flush(); in_dc=0; next }
+    !in_dc             { next }
+    /^[[:space:]]*#/   { next }
+    /^[[:space:]]*-[[:space:]]*defect:/ { flush(); cur_defect=$3; next }
+    /^[[:space:]]*disposition:/ { cur_disp=$2; next }
+    /^[[:space:]]*test:/        { cur_test=$2; next }
+    /^[[:space:]]*source:/      { cur_src=$2; next }
+    /^[[:space:]]*anchor:/      { cur_anchor=strip($0); next }
+    /^[[:space:]]*reason:/      { cur_reason=strip($0); next }
+    /^[[:space:]]*todo:/        { cur_todo=strip($0); next }
+    END { if (in_dc) flush() }
+  '
 }
 
-# Merged topic_contracts_deterministic across general + overlay (overlay-only in
-# practice). Registry order.
-_parse_topic_contracts_det() {
+# Merged defect_coverage TSV across general + overlay (overlay-only in practice —
+# the general seed carries no ledger).
+_parse_defect_coverage() {
   while IFS= read -r _rf; do
     [ -n "$_rf" ] || continue
-    _parse_topic_contracts_det_file "$_rf"
+    _parse_defect_coverage_file "$_rf"
   done <<EOF
 $(_registry_files)
 EOF
@@ -832,7 +873,7 @@ EOF
   _RUNNERS=$(_parse_runners)
   _CATEGORIES=$(_parse_categories)
   _TOPIC_CONTRACTS=$(_parse_topic_contracts)
-  _TOPIC_CONTRACTS_DET=$(_parse_topic_contracts_det)
+  _DEFECT_COVERAGE=$(_parse_defect_coverage)
   [ -n "$_RULES" ] || emit_halt "the test-spec registry declares no rules (empty rules[] list — the general contract must carry the portable rules)"
 
   # Duplicate-id guards (per namespace, across the merged registry).
@@ -863,6 +904,11 @@ EOF
     _N_CT=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | grep -c . || true)
     _N_CTU=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
     [ "$_N_CT" -eq "$_N_CTU" ] || emit_halt "duplicate category test name(s): $(printf '%s\n' "$_CATEGORIES" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
+  fi
+  if [ -n "$_DEFECT_COVERAGE" ]; then
+    _N_DC=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | grep -c . || true)
+    _N_DCU=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | sort -u | grep -c . || true)
+    [ "$_N_DC" -eq "$_N_DCU" ] || emit_halt "duplicate defect_coverage defect key(s): $(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' '{print $1}' | sort | uniq -d | tr '\n' ' ')"
   fi
 
   # Per-rule required keys.
@@ -1126,14 +1172,11 @@ $_CATEGORIES
 EOF
   fi
 
-  # Per-enrolled-topic slug validation (F000082; det list F000084). Runs
-  # INDEPENDENT of the units: gate (BEFORE the no-units early return). Each
-  # `topic_contracts:` / `topic_contracts_deterministic:` entry must be a slug;
-  # whether an enrolled topic actually reaches its required layers is the
+  # Per-enrolled-topic slug validation (F000082). Runs INDEPENDENT of the units:
+  # gate (BEFORE the no-units early return). Each `topic_contracts:` entry must be
+  # a slug; whether an enrolled topic actually reaches all three layers is the
   # --check-topic-contract engine's job, NOT a --validate halt (so a mid-adoption
-  # overlay still validates). A DUPLICATE enrolled topic — within either list OR
-  # ACROSS the two lists (a topic cannot be held to both rules at once) — is a
-  # validate error.
+  # overlay still validates). A DUPLICATE enrolled topic is a validate error.
   if [ -n "$_TOPIC_CONTRACTS" ]; then
     while IFS= read -r _tc; do
       [ -n "$_tc" ] || continue
@@ -1147,24 +1190,29 @@ EOF
     _N_TCU=$(printf '%s\n' "$_TOPIC_CONTRACTS" | sort -u | grep -c . || true)
     [ "$_N_TC" -eq "$_N_TCU" ] || emit_halt "duplicate topic_contracts entr(ies): $(printf '%s\n' "$_TOPIC_CONTRACTS" | sort | uniq -d | tr '\n' ' ')"
   fi
-  if [ -n "$_TOPIC_CONTRACTS_DET" ]; then
-    while IFS= read -r _tcd; do
-      [ -n "$_tcd" ] || continue
-      case "$_tcd" in
-        *[!a-z0-9-]*) emit_halt "topic_contracts_deterministic entry '$_tcd' is not a slug ([a-z0-9-]+ only)" ;;
+
+  # Per-defect-coverage-row disposition closed enum (F000085). Runs INDEPENDENT
+  # of the units: gate (BEFORE the no-units early return) — the ledger coexists
+  # with, and does not depend on, units. --validate enforces ONLY the structural
+  # grammar here (a present disposition inside the closed enum; the duplicate
+  # defect-key guard above): whether the per-disposition proof fields are
+  # present AND live (a covered-by resolving to a deterministic categories: row,
+  # a covered-by-anchor grepping live, a waived reason being non-empty) is the
+  # --check-defect-coverage engine's job, reported as FINDINGs — so a
+  # mid-backfill overlay still validates while the dedicated check names the
+  # gaps.
+  if [ -n "$_DEFECT_COVERAGE" ]; then
+    while IFS="$(printf '\t')" read -r _dcdefect _dcdisp _dctest _dcsrc _dcanchor _dcreason _dctodo; do
+      [ -n "$_dcdefect" ] || continue
+      [ "$_dcdisp" = "-" ] && _dcdisp=""
+      [ -n "$_dcdisp" ] || emit_halt "defect_coverage row '$_dcdefect' is missing 'disposition'"
+      case "$_dcdisp" in
+        covered-by|covered-by-anchor|waived) : ;;
+        *) emit_halt "defect_coverage row '$_dcdefect' has disposition '$_dcdisp' outside the closed enum {covered-by, covered-by-anchor, waived}" ;;
       esac
     done <<EOF
-$_TOPIC_CONTRACTS_DET
+$_DEFECT_COVERAGE
 EOF
-    _N_TCD=$(printf '%s\n' "$_TOPIC_CONTRACTS_DET" | grep -c . || true)
-    _N_TCDU=$(printf '%s\n' "$_TOPIC_CONTRACTS_DET" | sort -u | grep -c . || true)
-    [ "$_N_TCD" -eq "$_N_TCDU" ] || emit_halt "duplicate topic_contracts_deterministic entr(ies): $(printf '%s\n' "$_TOPIC_CONTRACTS_DET" | sort | uniq -d | tr '\n' ' ')"
-  fi
-  # Cross-list duplicate guard: the two enrollment lists are mutually exclusive —
-  # a topic is judged under exactly ONE rule (both-modes OR deterministic-only).
-  if [ -n "$_TOPIC_CONTRACTS" ] && [ -n "$_TOPIC_CONTRACTS_DET" ]; then
-    _TC_XDUP=$(printf '%s\n%s\n' "$_TOPIC_CONTRACTS" "$_TOPIC_CONTRACTS_DET" | awk 'NF' | sort | uniq -d | tr '\n' ' ')
-    [ -z "$_TC_XDUP" ] || emit_halt "topic(s) enrolled in BOTH topic_contracts and topic_contracts_deterministic (a topic is judged under exactly one rule): $_TC_XDUP"
   fi
 
   # Per-unit required keys + closed enums + the rendered-field work-item-ID lint.
@@ -1377,91 +1425,27 @@ EOF
   [ "$_WFC_FINDINGS" -eq 0 ]
 }
 
-# ---- --check-topic-contract: the three-layer topic contract (F000082; ----------
-# ---- deterministic-only flavor F000084) ----------------------------------------
+# ---- --check-topic-contract: the three-layer topic contract (F000082) ----------
 # The HARD, declaration-only (CI-safe, zero model spend) enforcement that every
-# ENROLLED topic reaches its enrollment list's required coverage points. TWO
-# enrollment lists, one union runner:
-#   topic_contracts: (both-modes) — all three verification layers AND both modes
-#     at local-hook: >=1 CI-push, >=1 CI-nightly, >=1 local-hook+deterministic,
-#     >=1 local-hook+agentic.
-#   topic_contracts_deterministic: (deterministic-only) — the THREE deterministic
-#     points only: >=1 CI-push, >=1 CI-nightly, >=1 local-hook+deterministic.
-#     Agentic rows are tolerated, never required — deleting an agentic row later
-#     must not red this check for a det-enrolled topic.
-# Mirrors --check-workflow-coverage's shape: forward per-enrolled-topic requirement
-# checks over the categories: rows, findings printed verbatim, a summary line last
-# (enrolled= counts the UNION of the two lists), exit 1 on any finding. Each
-# required point carries its front-door docs/tests/<cat>/<layer>/<name>.md.
+# ENROLLED topic (topic_contracts:) reaches all three verification layers
+# deterministically. Mirrors --check-workflow-coverage's shape: forward
+# per-enrolled-topic requirement checks over the categories: rows, findings
+# printed verbatim, a summary line last, exit 1 on any finding. For each enrolled
+# topic, require (each with its front-door docs/tests/<cat>/<layer>/<name>.md):
+#   >=1 CI-push test,
+#   >=1 CI-nightly test,
+#   >=1 local-hook + deterministic test.
+# The 4th point — a local-hook + agentic test — is ADVISORY: absence prints a
+# per-topic `note:` line and never increments the findings counter (agentic
+# proofs run on-demand, never a requirement; the note keeps the gap visible
+# wherever the contract is read).
 # Registry-gated skip: an ABSENT test-spec registry exits 0 via the REGISTRY=absent
-# path; an overlay with NO categories: axis OR BOTH enrollment lists empty prints
+# path; an overlay with NO categories: axis OR NO topic_contracts: enrollment prints
 # the inactive note + exits 0 (a consumer with no enrollment passes vacuously). Only
-# DECLARATION is proven here (the row + its front-door doc exist) — the agentic
-# BEHAVIOR is proven by /CJ_test_run --e2e, local-only (mode:agentic ⇒ tier≠free, so
-# an agentic row is present-in-CI-but-never-executed). Surfaced by validate.sh
-# Check 30 + /CJ_test_audit Stage 1.
-
-# Check ONE enrolled topic under its list's rule. $1 = topic, $2 = rule
-# (both-modes | deterministic). Increments _TC_FINDINGS in the calling shell
-# (invoked via `done <<EOF` heredocs, never a subshell).
-_tc_check_one_topic() {
-  _tct="$1"
-  _tc_rule="$2"
-
-  # The rows carrying this topic (field 9 == topic). name<t>cat<t>layer<t>mode<t>tier.
-  _TC_ROWS=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v t="$_tct" 'NF && $9 == t {print $1"\t"$2"\t"$3"\t"$4"\t"$6}')
-
-  if [ -z "$_TC_ROWS" ]; then
-    echo "FINDING: topic-contract — enrolled topic '$_tct' has NO categories: row carrying 'topic: $_tct' (an enrolled topic must have tests attributed to it across the three layers)"
-    _TC_FINDINGS=$((_TC_FINDINGS + 1))
-    return 0
-  fi
-
-  # The required coverage points per rule. "req_label|awk-filter".
-  #   both-modes:    (CI-push, any), (CI-nightly, any), (local-hook, deterministic),
-  #                  (local-hook, agentic) — the four-point F000082 rule, unchanged.
-  #   deterministic: the first three only — agentic tolerated, never required.
-  if [ "$_tc_rule" = "deterministic" ]; then
-    _tc_reqs="a CI-push test|\$3 == \"CI-push\"
-a CI-nightly test|\$3 == \"CI-nightly\"
-a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\""
-    _tc_rule_msg="the deterministic-only contract requires CI-push + CI-nightly + local-hook{deterministic}; agentic rows are tolerated, never required"
-  else
-    _tc_reqs="a CI-push test|\$3 == \"CI-push\"
-a CI-nightly test|\$3 == \"CI-nightly\"
-a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\"
-a local-hook + agentic test|\$3 == \"local-hook\" && \$4 == \"agentic\""
-    _tc_rule_msg="the three-layer contract requires CI-push + CI-nightly + local-hook{deterministic,agentic}"
-  fi
-  while IFS= read -r _tc_req; do
-    [ -n "$_tc_req" ] || continue
-    _tc_lbl=${_tc_req%%|*}
-    _tc_filt=${_tc_req#*|}
-    _tc_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' "$_tc_filt" | grep -c . || true)
-    if [ "$_tc_hit" -lt 1 ]; then
-      echo "FINDING: topic-contract — enrolled topic '$_tct' is missing $_tc_lbl ($_tc_rule_msg); declare one in spec/test-spec-custom.md categories: with topic: $_tct"
-      _TC_FINDINGS=$((_TC_FINDINGS + 1))
-    fi
-  done <<REQS
-$_tc_reqs
-REQS
-
-  # Front-door doc presence for every row of this topic (its declared coverage
-  # must be documented — the same front-door rule --check-structure (d) enforces,
-  # asserted here per-enrolled-topic so an enrolled topic's rows can't be doc-less).
-  while IFS="$(printf '\t')" read -r _tc_name _tc_cat _tc_layer _tc_mode _tc_tier; do
-    [ -n "$_tc_name" ] || continue
-    _tc_doc="$_TC_DOCS/tests/$_tc_cat/$_tc_layer/$_tc_name.md"
-    if [ ! -f "$_tc_doc" ]; then
-      echo "FINDING: topic-contract — enrolled topic '$_tct' test '$_tc_name' ($_tc_cat/$_tc_layer) has no front-door doc at docs/tests/$_tc_cat/$_tc_layer/$_tc_name.md (an enrolled topic's tests must be documented); run /CJ_test_audit to seed the stub"
-      _TC_FINDINGS=$((_TC_FINDINGS + 1))
-    fi
-  done <<INNER
-$_TC_ROWS
-INNER
-  return 0
-}
-
+# DECLARATION is proven here (the row + its front-door doc exist) — an agentic
+# BEHAVIOR, where a topic declares one, is proven by /CJ_test_run --e2e, local-only
+# (mode:agentic ⇒ tier≠free, so an agentic row is present-in-CI-but-never-executed).
+# Surfaced by validate.sh (a hard Check) + /CJ_test_audit Stage 1.
 _run_topic_contract() {
   # test-spec registry-absent → inactive skip (callers must not parse halt prose).
   if [ ! -f "$TEST_SPEC_PATH" ]; then
@@ -1472,44 +1456,83 @@ _run_topic_contract() {
     echo "topic contract inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (with a topic:) + topic_contracts: to activate"
     return 0
   fi
-  # Inactive ONLY when BOTH enrollment lists are empty — either list alone
-  # activates the contract (the det-only list is real, never vacuously green).
-  if [ -z "$_TOPIC_CONTRACTS" ] && [ -z "$_TOPIC_CONTRACTS_DET" ]; then
-    echo "topic contract inactive — no topic_contracts: / topic_contracts_deterministic: enrollment in spec/test-spec-custom.md; enroll a topic to activate the three-layer contract"
+  if [ -z "$_TOPIC_CONTRACTS" ]; then
+    echo "topic contract inactive — no topic_contracts: enrollment in spec/test-spec-custom.md; enroll a topic (topic_contracts: [<topic>]) to activate the three-layer contract"
     return 0
   fi
 
   _TC_DOCS=$(_STRUCT_DOCS_DEFAULT)
   _TC_FINDINGS=0
 
-  # Iterate the UNION of the two lists — each topic judged under ITS list's rule
-  # (both-modes for topic_contracts:, deterministic-only for
-  # topic_contracts_deterministic:; a cross-list duplicate is a --validate error).
+  # For each enrolled topic, assert the three required DETERMINISTIC (layer,
+  # mode) coverage points exist AND each satisfying row has its front-door doc.
+  # A required point with NO row is a coverage finding; a row present but its
+  # front-door doc missing is a doc finding (the row is declared but
+  # under-documented). The (local-hook, agentic) point is ADVISORY: absence
+  # prints a per-topic note, never a finding.
   while IFS= read -r _tct; do
     [ -n "$_tct" ] || continue
-    _tc_check_one_topic "$_tct" both-modes
+
+    # The rows carrying this topic (field 9 == topic). name<t>cat<t>layer<t>mode<t>tier.
+    _TC_ROWS=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v t="$_tct" 'NF && $9 == t {print $1"\t"$2"\t"$3"\t"$4"\t"$6}')
+
+    if [ -z "$_TC_ROWS" ]; then
+      echo "FINDING: topic-contract — enrolled topic '$_tct' has NO categories: row carrying 'topic: $_tct' (an enrolled topic must have tests attributed to it across the three layers)"
+      _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      continue
+    fi
+
+    # The three required DETERMINISTIC coverage points: (CI-push, any),
+    # (CI-nightly, any), (local-hook, deterministic). "req_label|awk-filter".
+    for _tc_req in \
+      "a CI-push test|\$3 == \"CI-push\"" \
+      "a CI-nightly test|\$3 == \"CI-nightly\"" \
+      "a local-hook + deterministic test|\$3 == \"local-hook\" && \$4 == \"deterministic\""; do
+      _tc_lbl=${_tc_req%%|*}
+      _tc_filt=${_tc_req#*|}
+      _tc_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' "$_tc_filt" | grep -c . || true)
+      if [ "$_tc_hit" -lt 1 ]; then
+        echo "FINDING: topic-contract — enrolled topic '$_tct' is missing $_tc_lbl (the three-layer contract requires CI-push + CI-nightly + local-hook{deterministic}); declare one in spec/test-spec-custom.md categories: with topic: $_tct"
+        _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      fi
+    done
+
+    # The (local-hook, agentic) coverage point is ADVISORY — never a FINDING,
+    # never a counter increment: agentic proofs run on-demand (they need a
+    # machine with Claude), so enrollment is never gated on the hardest-to-build
+    # test mode. Absence prints a per-topic note so the gap stays visible
+    # wherever the contract is read, without redding the build. Re-hardening is
+    # a one-line reversal (move this entry back into the FINDING loop above).
+    _tc_ag_hit=$(printf '%s\n' "$_TC_ROWS" | awk -F'\t' '$3 == "local-hook" && $4 == "agentic"' | grep -c . || true)
+    if [ "$_tc_ag_hit" -lt 1 ]; then
+      echo "note: topic-contract — enrolled topic '$_tct' has no local-hook+agentic test (advisory — agentic proofs run on-demand, not required)"
+    fi
+
+    # Front-door doc presence for every row of this topic (its declared coverage
+    # must be documented — the same front-door rule --check-structure (d) enforces,
+    # asserted here per-enrolled-topic so an enrolled topic's rows can't be doc-less).
+    while IFS="$(printf '\t')" read -r _tc_name _tc_cat _tc_layer _tc_mode _tc_tier; do
+      [ -n "$_tc_name" ] || continue
+      _tc_doc="$_TC_DOCS/tests/$_tc_cat/$_tc_layer/$_tc_name.md"
+      if [ ! -f "$_tc_doc" ]; then
+        echo "FINDING: topic-contract — enrolled topic '$_tct' test '$_tc_name' ($_tc_cat/$_tc_layer) has no front-door doc at docs/tests/$_tc_cat/$_tc_layer/$_tc_name.md (an enrolled topic's tests must be documented); run /CJ_test_audit to seed the stub"
+        _TC_FINDINGS=$((_TC_FINDINGS + 1))
+      fi
+    done <<INNER
+$_TC_ROWS
+INNER
   done <<EOF
 $_TOPIC_CONTRACTS
 EOF
-  while IFS= read -r _tct; do
-    [ -n "$_tct" ] || continue
-    _tc_check_one_topic "$_tct" deterministic
-  done <<EOF
-$_TOPIC_CONTRACTS_DET
-EOF
 
-  # enrolled= counts the UNION (both lists) — the summary-line format callers
-  # parse (`topic contract: enrolled=N findings=M`) is byte-shape preserved.
-  _TC_N=$(printf '%s\n%s\n' "$_TOPIC_CONTRACTS" "$_TOPIC_CONTRACTS_DET" | grep -c . || true)
+  _TC_N=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
   echo "topic contract: enrolled=$_TC_N findings=$_TC_FINDINGS"
   [ "$_TC_FINDINGS" -eq 0 ]
 }
 
 # ---- --check-topic-docs: the topic dream-doc + topic-subdir contract (F000083) --
 # The HARD, declaration-only (CI-safe, zero model spend) enforcement that every
-# ENROLLED topic (the UNION of topic_contracts: + topic_contracts_deterministic: —
-# the doc rule is the same under either enrollment flavor) materializes its
-# testing LEGIBLY:
+# ENROLLED topic (topic_contracts:) materializes its testing LEGIBLY:
 #   1. a "dream doc" at docs/goals/<topic>.md (the end goal + properties — the WHAT),
 #   2. a topic subdir index at docs/tests/topics/<topic>/index.md (the HOW landing),
 #   3. that index REFERENCES the dream doc (a link to goals/<topic>.md), and
@@ -1530,19 +1553,13 @@ _run_topic_docs() {
     echo "topic docs contract inactive — no categories: axis in spec/test-spec-custom.md; declare category tests (with a topic:) + topic_contracts: to activate"
     return 0
   fi
-  # Inactive ONLY when BOTH enrollment lists are empty — either list alone
-  # activates the docs contract (mirror of _run_topic_contract's gate).
-  if [ -z "$_TOPIC_CONTRACTS" ] && [ -z "$_TOPIC_CONTRACTS_DET" ]; then
-    echo "topic docs contract inactive — no topic_contracts: / topic_contracts_deterministic: enrollment in spec/test-spec-custom.md; enroll a topic to activate"
+  if [ -z "$_TOPIC_CONTRACTS" ]; then
+    echo "topic docs contract inactive — no topic_contracts: enrollment in spec/test-spec-custom.md; enroll a topic (topic_contracts: [<topic>]) to activate"
     return 0
   fi
 
   _TD_DOCS=$(_STRUCT_DOCS_DEFAULT)
   _TD_FINDINGS=0
-
-  # The UNION of the two enrollment lists — the dream-doc + topic-subdir rule is
-  # identical under either enrollment flavor.
-  _TD_UNION=$(printf '%s\n%s\n' "$_TOPIC_CONTRACTS" "$_TOPIC_CONTRACTS_DET" | awk 'NF')
 
   while IFS= read -r _tdt; do
     [ -n "$_tdt" ] || continue
@@ -1579,14 +1596,136 @@ _run_topic_docs() {
 $_td_layers
 LAYERS
   done <<EOF
-$_TD_UNION
+$_TOPIC_CONTRACTS
 EOF
 
-  # enrolled= counts the UNION — the summary-line format callers parse
-  # (`topic docs contract: enrolled=N findings=M`) is byte-shape preserved.
-  _TD_N=$(printf '%s\n' "$_TD_UNION" | grep -c . || true)
+  _TD_N=$(printf '%s\n' "$_TOPIC_CONTRACTS" | grep -c . || true)
   echo "topic docs contract: enrolled=$_TD_N findings=$_TD_FINDINGS"
   [ "$_TD_FINDINGS" -eq 0 ]
+}
+
+# ---- --check-defect-coverage: the defect-coverage ledger check (F000085) --------
+# The deterministic enforcement that every defect work-item dir maps to exactly
+# one LIVE ledger row — the check that makes "is defect X still protected, and by
+# what?" machine-answerable and a hallucinated proof citation structurally
+# impossible. Mirrors --check-topic-contract's shape: findings printed verbatim,
+# a machine-classifiable summary line last, exit 1 on any finding.
+#   FORWARD  — every work-items/defects/**/D??????_* dir has EXACTLY ONE
+#              defect_coverage: row keyed by its full path relative to
+#              work-items/defects/ (0 = an unmapped defect; 2+ = duplicates,
+#              also a --validate halt).
+#   REVERSE  — per row: the defect dir exists on disk (a dangling row is a
+#              finding); then per disposition:
+#                covered-by        -> `test` resolves to EXACTLY ONE categories:
+#                                     row AND that row is mode: deterministic
+#                                     (an agentic proof is a FINDING — the
+#                                     deterministic-only ledger rule (tier is
+#                                     NOT separately enforced: the contract-wide
+#                                     mode:agentic => tier != free rule plus
+#                                     this mode gate already pin it));
+#                covered-by-anchor -> `source` exists AND `anchor` greps LIVE
+#                                     via fixed-string grep -F (the
+#                                     behavior_coverage idiom — ledger anchors
+#                                     are arbitrary proof prose, not the
+#                                     family-shaped _fwd_match tokens);
+#                waived            -> `reason` is non-empty.
+# Registry-gated skips: an ABSENT test-spec registry exits 0 via the
+# REGISTRY=absent path; no defect_coverage: axis / no work-items/defects/ dir
+# prints the named `defect coverage inactive — <reason>` note + exits 0 (a
+# consumer repo passes vacuously). Surfaced by validate.sh Check 32 +
+# /CJ_test_audit Stage 1.
+_run_defect_coverage() {
+  # test-spec registry-absent → inactive skip (callers must not parse halt prose).
+  if [ ! -f "$TEST_SPEC_PATH" ]; then
+    echo "defect coverage inactive — test-spec registry absent (no ledger to cross-check)"
+    return 0
+  fi
+  if [ -z "$_DEFECT_COVERAGE" ]; then
+    echo "defect coverage inactive — no defect_coverage: axis in spec/test-spec-custom.md; declare one ledger row per work-items/defects/ dir to activate"
+    return 0
+  fi
+  _DC_ROOT="$REPO_ROOT_RESOLVED/work-items/defects"
+  if [ ! -d "$_DC_ROOT" ]; then
+    echo "defect coverage inactive — no work-items/defects/ directory; nothing to enforce"
+    return 0
+  fi
+
+  _DC_FINDINGS=0
+
+  # The defect dirs on disk, as full paths relative to work-items/defects/
+  # (deterministic LC_ALL=C order). D??????_* = a D-ID (6 chars) + slug.
+  _DC_DIRS=$(find "$_DC_ROOT" -type d -name 'D??????_*' 2>/dev/null | sed "s|^$_DC_ROOT/||" | LC_ALL=C sort)
+
+  # FORWARD: every defect dir on disk resolves to exactly one ledger row.
+  while IFS= read -r _dcdir; do
+    [ -n "$_dcdir" ] || continue
+    _dc_c=$(printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' -v want="$_dcdir" '$1 == want' | grep -c . || true)
+    if [ "$_dc_c" -ne 1 ]; then
+      echo "FINDING: defect-coverage — defect dir '$_dcdir' resolves to $_dc_c ledger row(s); want exactly one (an unmapped defect = 0 — add a defect_coverage: row with a covered-by / covered-by-anchor / waived disposition; a duplicate = 2+)"
+      _DC_FINDINGS=$((_DC_FINDINGS + 1))
+    fi
+  done <<EOF
+$_DC_DIRS
+EOF
+
+  # REVERSE: every ledger row's dir exists and its disposition-specific proof
+  # is live.
+  while IFS="$(printf '\t')" read -r _dcdefect _dcdisp _dctest _dcsrc _dcanchor _dcreason _dctodo; do
+    [ -n "$_dcdefect" ] || continue
+    [ "$_dctest" = "-" ] && _dctest=""
+    [ "$_dcsrc" = "-" ] && _dcsrc=""
+    [ "$_dcanchor" = "-" ] && _dcanchor=""
+    [ "$_dcreason" = "-" ] && _dcreason=""
+    if [ ! -d "$_DC_ROOT/$_dcdefect" ]; then
+      echo "FINDING: defect-coverage — ledger row '$_dcdefect' names a defect dir that does not exist under work-items/defects/ (dangling row — the dir was moved/renamed/removed; re-key the row on the current full path)"
+      _DC_FINDINGS=$((_DC_FINDINGS + 1))
+    fi
+    case "$_dcdisp" in
+      covered-by)
+        if [ -z "$_dctest" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is covered-by but names no 'test' (a covered-by row must name a categories: regression test)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        else
+          _dc_tc=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v want="$_dctest" '$1 == want' | grep -c . || true)
+          if [ "$_dc_tc" -ne 1 ]; then
+            echo "FINDING: defect-coverage — row '$_dcdefect' cites test '$_dctest' which resolves to $_dc_tc categories: row(s); want exactly one (a dangling citation = 0 — the exact hallucinated-proof class this ledger exists to kill)"
+            _DC_FINDINGS=$((_DC_FINDINGS + 1))
+          else
+            _dc_mode=$(printf '%s\n' "$_CATEGORIES" | awk -F'\t' -v want="$_dctest" '$1 == want {print $4; exit}')
+            if [ "$_dc_mode" != "deterministic" ]; then
+              echo "FINDING: defect-coverage — row '$_dcdefect' cites test '$_dctest' with mode '$_dc_mode'; a covered-by proof MUST be mode: deterministic (the deterministic-only ledger rule — an agentic-test purge must never orphan defect coverage)"
+              _DC_FINDINGS=$((_DC_FINDINGS + 1))
+            fi
+          fi
+        fi
+        ;;
+      covered-by-anchor)
+        if [ -z "$_dcsrc" ] || [ -z "$_dcanchor" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is covered-by-anchor but is missing 'source' and/or 'anchor' (both are required to locate the shared proof)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        elif [ ! -f "$REPO_ROOT_RESOLVED/$_dcsrc" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' anchor source '$_dcsrc' does not exist"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        elif ! grep -qF -- "$_dcanchor" "$REPO_ROOT_RESOLVED/$_dcsrc"; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' anchor not found LIVE (grep -F) in $_dcsrc (the proof was removed/renamed — re-anchor the row or re-disposition it): $_dcanchor"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        fi
+        ;;
+      waived)
+        if [ -z "$_dcreason" ]; then
+          echo "FINDING: defect-coverage — row '$_dcdefect' is waived with an EMPTY reason (a waiver must say why: a process/doc-only defect, a retired surface, or 'gap — <what a drill would prove>' + a todo pointer)"
+          _DC_FINDINGS=$((_DC_FINDINGS + 1))
+        fi
+        ;;
+    esac
+  done <<EOF
+$_DEFECT_COVERAGE
+EOF
+
+  _DC_NDIRS=$(printf '%s\n' "$_DC_DIRS" | grep -c . || true)
+  _DC_NROWS=$(printf '%s\n' "$_DEFECT_COVERAGE" | grep -c . || true)
+  echo "defect coverage: dirs=$_DC_NDIRS rows=$_DC_NROWS findings=$_DC_FINDINGS"
+  [ "$_DC_FINDINGS" -eq 0 ]
 }
 
 # ---- Coverage cross-check (the Check 24 engine, ported) ----
@@ -1727,16 +1866,27 @@ $(grep -E '^# Warning check' "$_VAL_SRC")
 EOF
   fi
 
-  # (2) tests/*.test.sh on disk -> exactly one family:test row whose anchor is
-  # the literal runner path AND whose source is scripts/test.sh. This is the
+  # (2) test files on disk -> exactly one family:test row whose anchor is the
+  # literal runner path AND whose source is scripts/test.sh. This is the
   # silent-skip catch: the row's FORWARD anchor proves the file is wired into
   # scripts/test.sh; this REVERSE pass proves every file on disk has a row at
   # all. The source pin is load-bearing — a row pointing source at the test
   # file itself would self-satisfy the forward grep (the file names itself in
   # its header), turning the catch back into a convention.
-  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  #
+  # TOKEN GRAMMAR (F000085): the glob recurses — flat tests/*.test.sh PLUS the
+  # two-axis category homes tests/<category>/<layer>/*.test.sh — and the token
+  # is the FULL path relative to the repo root (not the basename: a basename
+  # token for a nested file would grep-match nothing in scripts/test.sh, and
+  # two same-named files at different depths would collide on one token). The
+  # $5 == "scripts/test.sh" source pin is PRESERVED unchanged — a nested file
+  # is wired into the same hand-wired runner, so its row keeps
+  # source: scripts/test.sh and only its anchor: carries the nested path. This
+  # is what closed the green-but-inert orphan class: a nested *.test.sh that
+  # nothing invokes was invisible to the flat glob.
+  for _tf in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_tf" ] || continue
-    _tok="tests/$(basename "$_tf")"
+    _tok="${_tf#"$REPO_ROOT_RESOLVED"/}"
     _TOKENS=$((_TOKENS + 1))
     _NS_TESTS=$((_NS_TESTS + 1))
     _c=$(printf '%s\n' "$_UNITS" | awk -F'\t' -v want="$_tok" '$2 == "test" && $4 == want && $5 == "scripts/test.sh"' | grep -c . || true)
@@ -1818,7 +1968,9 @@ EOF
   # counts via the same `awk -F'\t' '$2==<family>'` shape as the reverse sweep.)
   _SURF_VALIDATE=0; [ -f "$REPO_ROOT_RESOLVED/scripts/validate.sh" ] && _SURF_VALIDATE=1
   _SURF_TESTS=0
-  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh; do
+  # Same recursed glob as the reverse sweep (F000085): flat + the two-axis
+  # tests/<category>/<layer>/ homes both count as the test-file surface.
+  for _t in "$REPO_ROOT_RESOLVED"/tests/*.test.sh "$REPO_ROOT_RESOLVED"/tests/*/*/*.test.sh; do
     [ -e "$_t" ] && { _SURF_TESTS=1; break; }
   done
   _SURF_WF=0
@@ -2744,9 +2896,11 @@ not a per-category test level, so it is excluded here:
 - **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
   that would slow every PR, moved off the PR path onto a nightly cadence
   (`mode: deterministic`).
-- **local-hook** — a *quick agentic* check that verifies locally on demand
-  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
-  on their own machine, never on a CI schedule.
+- **local-hook** — a *quick local* check a maintainer runs on their own machine:
+  deterministic by default (`mode: deterministic`, `tier: free` — the pre-commit
+  hook / run-before-push proof), optionally joined by an agentic proof
+  (`mode: agentic`, so `tier ≠ free`) that spends model tokens on demand, never
+  on a CI schedule.
 
 An empty (category, level) cell is a *coverage gap*, not an error: some cells are
 intentionally empty and a category need not fill all three. `test-spec.sh
@@ -2825,49 +2979,37 @@ overlay-only — the machine block in this general file is unchanged):
   are hard-checked, so adopting the contract for one topic never reds the build for
   the topics that are not yet ready.
 
-**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
-test can run*: an agentic test needs a machine with Claude, which is the
-`local-hook` layer, so agentic model spend stays out of CI by construction. An
-enrolled topic must therefore reach **all three verification layers AND carry both
-modes at local-hook**:
+**The three-deterministic-layers rule.** An enrolled topic must reach **all three
+verification layers deterministically**:
 
 - ≥1 `CI-push` test (the fast per-PR signal),
 - ≥1 `CI-nightly` test (the heavier cadence off the PR path),
-- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
-  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
-  deterministic layer structurally cannot (a stubbed test can pass while the real
-  behavior an operator sees is broken).
+- ≥1 `local-hook` + `deterministic` test (the quick local proof).
+
+A `local-hook` + `agentic` test is **advisory, never required**. Agentic proofs
+run on-demand — they need a machine with Claude, which is why an agentic test
+lives at `local-hook`, keeping model spend out of CI by construction — so
+enrollment is never gated on the hardest-to-build test mode. Where an enrolled
+topic has no agentic row, the check prints a per-topic advisory `note:`, keeping
+the gap visible wherever the contract is read without redding the build; where a
+topic does declare one, that proof catches the *green-but-inert* bugs the
+deterministic layer structurally cannot (a stubbed test can pass while the real
+behavior an operator sees is broken).
 
 Each required coverage point must also carry its front-door
 `docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
-mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
-or doc); it is **declaration-only**, so it runs in plain CI with **zero model
-spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
-but never *executed* there. The hard Check proves the coverage is DECLARED; the
-executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
-A repo with no `categories:` axis or no enrollment in either list reports "topic
+mechanizes this for every enrolled topic — HARD (exit 1) on any missing
+deterministic coverage point or front-door doc, an advisory `note:` (never a
+finding) for a missing agentic row; it is **declaration-only**, so it runs in
+plain CI with **zero model spend** — because `mode: agentic ⇒ tier ≠ free`, an
+agentic row is present in CI but never *executed* there. The hard Check proves
+the deterministic coverage is DECLARED; the executor (`/CJ_test_run --topic <t>
+--e2e`, local-only) proves the agentic BEHAVIOR where a topic declares one.
+A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
 contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
 owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
-with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
-hollow prompt.
-
-**The deterministic-only enrollment flavor.** Some topics must be held to the
-contract without depending on agentic rows at all — e.g. when a repo plans to
-remove its agentic tests, chaining enrollment to them would bake in a dependency
-already scheduled for deletion. A repo MAY therefore enroll a topic in a SECOND
-overlay-level list, **`topic_contracts_deterministic:`** (same slug grammar and
-YAML shapes; a topic listed in BOTH lists is a validate error — each topic is
-judged under exactly one rule). A deterministically-enrolled topic must reach the
-**three deterministic points** — ≥1 `CI-push` test, ≥1 `CI-nightly` test, and ≥1
-`local-hook` + `deterministic` test, each with its front-door doc — while agentic
-rows carrying the topic are *tolerated, never required*: deleting an agentic row
-later cannot red the check for a deterministically-enrolled topic. The check
-iterates the **union** of the two lists (each topic under its own list's rule) and
-reports "topic contract inactive" only when BOTH lists are empty; the topic-docs
-companion check applies the same dream-doc + topic-subdir rule to the same union.
-The conscious trade: a deterministically-enrolled topic re-opens the
-green-but-inert blind spot the agentic point exists to close — name that posture
-in the topic's dream doc.
+with Stage 2 judging — where an enrolled topic declares an agentic row — that the
+row names a real sandbox test, not a hollow prompt.
 
 ## The canonical contract-file template
 
@@ -3039,6 +3181,16 @@ case "${1:-}" in
     [ -n "$_BEHAVIOR_COVERAGE" ] && printf '%s\n' "$_BEHAVIOR_COVERAGE" | awk -F'\t' 'NF {print $1}'
     exit 0
     ;;
+  --list-defect-coverage)
+    # (F000085) The parsed defect_coverage[] ledger rows machine-readably: one
+    # row per defect dir, tab-separated defect (full dir path relative to
+    # work-items/defects/), disposition, test (`-` when unset), source (`-`),
+    # anchor (`-`), reason (`-`), todo (`-`). Empty when no overlay declares
+    # the axis.
+    _run_registry_gates
+    [ -n "$_DEFECT_COVERAGE" ] && printf '%s\n' "$_DEFECT_COVERAGE" | awk -F'\t' 'NF {print}'
+    exit 0
+    ;;
   --check-coverage)
     _run_registry_gates
     _run_coverage
@@ -3054,30 +3206,40 @@ case "${1:-}" in
     _run_workflow_coverage
     ;;
   --check-topic-contract)
-    # The three-layer topic contract (F000082; det-only flavor F000084): every
-    # ENROLLED topic reaches its enrollment list's required points — the
-    # both-modes list (topic_contracts:) requires all three layers + both modes
-    # at local-hook; the deterministic-only list (topic_contracts_deterministic:)
-    # requires the three deterministic points and merely tolerates agentic rows.
-    # Each required point carries its front-door doc. Declaration-only → CI-safe,
-    # zero model spend. Registry-gated skip: an ABSENT test-spec registry exits 0
-    # via the REGISTRY=absent path; an overlay with no categories: axis OR BOTH
-    # enrollment lists empty prints the inactive note + exits 0. HARD (exit 1)
-    # only on a real coverage/doc finding. Surfaced by validate.sh + /CJ_test_audit.
+    # The three-layer topic contract (F000082): every ENROLLED topic
+    # (topic_contracts:) reaches all three layers deterministically, each row with
+    # its front-door doc; a missing local-hook+agentic test is an ADVISORY note,
+    # never a finding. Declaration-only → CI-safe, zero model spend. Registry-gated
+    # skip: an ABSENT test-spec registry exits 0 via the REGISTRY=absent path; an
+    # overlay with no categories: axis OR no topic_contracts: enrollment prints the
+    # inactive note + exits 0. HARD (exit 1) only on a real deterministic-coverage /
+    # doc finding. Surfaced by validate.sh + /CJ_test_audit.
     _run_registry_gates
     _run_topic_contract
     ;;
   --check-topic-docs)
     # The topic dream-doc + topic-subdir contract (F000083): every ENROLLED topic
-    # (the UNION of topic_contracts: + topic_contracts_deterministic:) has a
-    # docs/goals/<topic>.md dream doc AND a
+    # (topic_contracts:) has a docs/goals/<topic>.md dream doc AND a
     # docs/tests/topics/<topic>/ subdir (index referencing the dream + a per-layer
     # page for each layer it covers). Declaration-only → CI-safe. Registry-gated
-    # skip (absent registry / no categories: axis / both enrollment lists empty →
-    # inactive + exit 0). HARD (exit 1) only on a real missing-doc finding.
-    # Surfaced by validate.sh Check 31 + /CJ_test_audit Stage 1.
+    # skip (absent registry / no categories: axis / no enrollment → inactive +
+    # exit 0). HARD (exit 1) only on a real missing-doc finding. Surfaced by
+    # validate.sh Check 31 + /CJ_test_audit Stage 1.
     _run_registry_gates
     _run_topic_docs
+    ;;
+  --check-defect-coverage)
+    # The defect-coverage ledger check (F000085): every work-items/defects/**
+    # dir maps to exactly one live defect_coverage: row (forward), and every
+    # row's disposition-specific proof is live (reverse — covered-by resolves
+    # to a deterministic categories: row, covered-by-anchor greps live, waived
+    # has a reason). Registry-gated skip: an ABSENT test-spec registry exits 0
+    # via the REGISTRY=absent path; no defect_coverage: axis / no
+    # work-items/defects/ dir prints the named inactive note + exits 0. HARD
+    # (exit 1) only on a real finding. Surfaced by validate.sh Check 32 +
+    # /CJ_test_audit Stage 1.
+    _run_registry_gates
+    _run_defect_coverage
     ;;
   --render-docs)
     # (F000069/S000114) Render the generated human test catalog from the merged
@@ -3122,10 +3284,12 @@ Usage:
   test-spec.sh --list-gates      # every declared gate id (overlay gates[]; sorted; empty without an overlay)
   test-spec.sh --list-behaviors  # every declared behavior id (overlay behaviors[]; registry order; empty without an overlay)
   test-spec.sh --list-behavior-coverage # every behavior_coverage row's behavior key (registry order; empty without an overlay)
+  test-spec.sh --list-defect-coverage # parsed defect_coverage[] ledger rows (defect/disposition/test/source/anchor/reason/todo; empty without an overlay)
   test-spec.sh --check-coverage  # forward anchors + reverse sweep + floor (units-gated) + behavior coverage (behaviors-gated)
   test-spec.sh --check-workflow-coverage # forward+reverse gate: every declared CJ_goal_* orchestrator has a level:workflow behavior + no orphan workflow: link (registry-gated skip)
-  test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic reaches its list's required points — topic_contracts: (both-modes) CI-push + CI-nightly + local-hook{deterministic,agentic}; topic_contracts_deterministic: (det-only) CI-push + CI-nightly + local-hook{deterministic}, agentic tolerated — each with its front-door doc (registry-gated skip)
-  test-spec.sh --check-topic-docs # HARD (declaration-only, CI-safe): every enrolled topic (union of both enrollment lists) has a docs/goals/<topic>.md dream doc + a docs/tests/topics/<topic>/ subdir (index refs the dream + a page per covered layer); registry-gated skip
+  test-spec.sh --check-topic-contract # HARD (declaration-only, CI-safe): every enrolled topic (topic_contracts:) reaches CI-push + CI-nightly + local-hook{deterministic} with its front-door doc; a missing local-hook agentic test is an advisory note, never a finding (registry-gated skip)
+  test-spec.sh --check-topic-docs # HARD (declaration-only, CI-safe): every enrolled topic has a docs/goals/<topic>.md dream doc + a docs/tests/topics/<topic>/ subdir (index refs the dream + a page per covered layer); registry-gated skip
+  test-spec.sh --check-defect-coverage # HARD: every work-items/defects/** dir maps to exactly one LIVE defect_coverage: row (covered-by resolves deterministic; covered-by-anchor greps; waived has a reason); registry-gated skip
   test-spec.sh --render-docs     # render the generated human test catalog (docs/tests/<family>.md + docs/test-catalog.md) from the merged registry
   test-spec.sh --render-docs --check  # render to a temp dir, diff vs on-disk; exit 0 if fresh, 1 + findings if stale/missing
   test-spec.sh --classify        # READ-ONLY generation detector: emits
@@ -3139,7 +3303,7 @@ USAGE
     exit 0
     ;;
   "")
-    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--check-topic-docs|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
+    echo "Usage: $0 {--validate|--list-rules|--list-units [--with-family]|--list-runners|--list-categories [--names|--category <c>]|--check-structure|--seed-docs|--list-layers|--list-gates|--list-behaviors|--list-behavior-coverage|--list-defect-coverage|--check-coverage|--check-workflow-coverage|--check-topic-contract|--check-topic-docs|--check-defect-coverage|--render-docs [--check]|--classify|--reconcile|--seed}" >&2
     exit 2
     ;;
   *)

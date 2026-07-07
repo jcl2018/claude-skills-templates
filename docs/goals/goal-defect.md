@@ -30,8 +30,9 @@ properties.
 
 ## The deliberate deterministic-only posture
 
-This topic is enrolled in the topic contract's **deterministic-only** flavor
-(`topic_contracts_deterministic:`): its three required coverage points are all
+This topic is enrolled in the topic contract (`topic_contracts:`), where the
+`local-hook`+`agentic` point is **advisory for every enrolled topic**, so
+this topic's three required coverage points are all
 `mode: deterministic`. The defect verb has NO declared agentic row at all — its
 on-disk eval case stays undeclared on the category axis by choice (no new
 agentic dependencies while the agentic assets are scheduled for removal). The

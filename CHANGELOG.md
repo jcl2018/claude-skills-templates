@@ -3,6 +3,78 @@
 All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+
+## [6.0.126] - 2026-07-06
+
+### Added
+- **F000085 — every defect now earns a declared, machine-checked regression
+  proof.** The test contract promised "defects earn regression tests," but the
+  38 defect work-item dirs under `work-items/defects/` had zero `regression`
+  rows and their proofs were scattered across dedicated test files, inline
+  `scripts/test.sh` guards, and — for a few — nothing at all. You couldn't
+  answer "is defect X still protected, and by what?" without archaeology (an
+  agent auditing this in-session confidently cited two test files that don't
+  exist). This adds a **`defect_coverage:` overlay axis** in
+  `spec/test-spec-custom.md` that maps every defect dir (keyed by full path, so
+  the duplicated `D000021` is unambiguous) to exactly one of three dispositions:
+  `covered-by` a named deterministic regression test, `covered-by-anchor` a live
+  grep into a shared suite / inline guard, or `waived` with a reason. The new
+  `test-spec.sh --check-defect-coverage` engine + **`validate.sh` Check 32**
+  (HARD, registry-gated, vacuous-skip for consumer repos) prove every dir is
+  dispositioned and every cited proof is live — a hermetic negative test drills
+  both an unmapped dir and the deterministic-only rule (a `covered-by` citing a
+  `mode: agentic` row is a finding, so a future agentic-test purge can't orphan
+  the ledger). `/CJ_test_audit` Stage 1 surfaces the check in any repo.
+- **The four pure defect drills now live in `tests/regression/CI-push/`** with
+  first-class `categories:` rows (`regression` / `CI-push` / deterministic /
+  free) + front-door docs, so `/CJ_test_run --category regression` runs them by
+  name, model-free. The reverse-sweep token grammar moved to full relative-path
+  tokens + a recursed glob so nested test dirs are visible, and the
+  long-orphaned `tests/workflow/local-hook/doc-sync.test.sh` is now wired into
+  the suite with its own `units:` row.
+
+
+## [6.0.125] - 2026-07-06
+
+### Changed
+- **F000086 — the three-layer topic contract no longer requires an agentic
+  test.** Enrolling a test topic used to demand all four coverage points,
+  including a `local-hook` + `agentic` proof — the hardest-to-build mode, which
+  needs a machine with Claude. That requirement blocked every topic but
+  `portability`. Now `test-spec.sh --check-topic-contract` requires only the
+  three DETERMINISTIC layers (CI-push + CI-nightly + local-hook), and a missing
+  agentic row prints a per-topic advisory `note:` instead of a hard finding —
+  the gap stays visible wherever the contract is read, without ever redding the
+  build. `portability`'s agentic test stays in the repo, declared and runnable
+  via `/CJ_test_run --topic portability --e2e`; it is simply no longer required.
+  Re-hardening is a one-line reversal in `_run_topic_contract`.
+  - `validate.sh` Check 30, the `spec/test-spec.md` topic-axis prose (mirrored
+    byte-identically into the `test-spec.sh --seed` heredoc), and the
+    `scripts/test.sh` Check 30 negative drill were all updated for the advisory
+    semantics; the drill now proves BOTH directions hermetically — a missing
+    deterministic point still hard-fails, a missing agentic row exits 0 with the
+    advisory note.
+  - `/CJ_test_audit` Stage 1 now actually invokes `--check-topic-contract` +
+    `--check-topic-docs` (an inherited drift: CLAUDE.md and the spec claimed that
+    surfacing since F000082, but the skill never made the calls). The conditional
+    Stage-2 judgment now fires only where an enrolled topic declares an agentic
+    row.
+
+### Added
+- **Two testing-infra topics enrolled in the topic contract:** `validator` and
+  `full-suite`. Each now reaches all three deterministic layers as HARD contract
+  (`topic_contracts: [portability, validator, full-suite]`), with four new
+  `categories:` rows (`validate-hook`, `validate-nightly`, `suite-nightly`,
+  `suite-local`) labelling surfaces that already run today — the pre-commit hook,
+  the nightly full-suite (`nightly.yml`), and the run-before-push harness. No new
+  test scripts and no new per-PR CI workload.
+  - Front-door docs for the four new rows, plus the Check 31 topic-docs
+    materialization for both topics — dream docs `docs/goals/validator.md` +
+    `docs/goals/full-suite.md` and topic subdirs under `docs/tests/topics/`.
+  - `deploy-harness` stays intentionally unenrolled: its missing CI-push point is
+    a deliberate F000081 speed decision, and claiming `windows-smoke` (already
+    labelled `portability`) for it would double-count.
+
 ## [6.0.124] - 2026-07-05
 
 ### Added

@@ -1,6 +1,6 @@
 ---
 skill: CJ_test_audit
-last-updated: "2026-07-03T23:28:27Z"
+last-updated: "2026-07-06T16:58:45Z"
 ---
 
 # Using /CJ_test_audit
@@ -94,7 +94,22 @@ carrying the three front-door section headings `## What it is` / `## How to run`
 preceded by an idempotent `--seed-docs` that seeds missing per-test doc stubs —
 already carrying those three sections — + the index (present ⇒ skip)
 but NEVER moves test scripts — findings are the product (exit 0 always), and an
-unadopted repo reports the honest "category contract not adopted / inactive" note.
+unadopted repo reports the honest "category contract not adopted / inactive" note;
+AND, when the engine carries it, `--check-defect-coverage` — the defect↔proof
+LEDGER check (the same owner `validate.sh` Check 32 calls): every
+`work-items/defects/**` dir maps to exactly one live `defect_coverage:` row (a
+`covered-by` resolves to a DETERMINISTIC `categories:` row, a
+`covered-by-anchor` greps live, a `waived` row has a reason), so an unmapped
+defect or a dead/hallucinated proof citation is caught standalone in any repo —
+an unadopted repo reports the named "defect coverage inactive" note;
+AND, when the engine carries them, `--check-topic-contract` + `--check-topic-docs`
+— the three-layer topic contract + its topic-docs companion (the same owners
+`validate.sh` Checks 30/31 call): every ENROLLED topic (`topic_contracts:`) must
+reach CI-push + CI-nightly + local-hook{deterministic}, each row with its
+front-door doc, plus a dream doc (`docs/goals/<topic>.md`) + topic-by-layer
+subdir (`docs/tests/topics/<topic>/`); a missing local-hook AGENTIC test is an
+ADVISORY per-topic `note:` reported verbatim, never a finding (agentic proofs
+run on-demand, not required).
 Findings carry the `stage1/` prefix.
 **Stage 2 (requirement compliance — agent-judged, evidence-forced):** each
 general RULE's `statement` is quoted and judged with cited evidence
@@ -110,7 +125,10 @@ each per-test category DOC (`docs/tests/<category>/<layer>/<name>.md`) is judged
 front-door truthfulness the check-(f) heading presence can't reach (does
 `## How to run` match the declared `command`? are `## What it is` /
 `## Explanation` accurate? does the family cross-link resolve?), findings prefixed
-`stage2/doc:<category>/<layer>/<name>`. **Stage 3
+`stage2/doc:<category>/<layer>/<name>`, AND — where an enrolled topic declares a
+`local-hook`+`agentic` row (conditional; lawfully vacuous for agentic-row-less
+topics under the advisory posture) — that row is judged to name a REAL sandbox
+test, not a hollow prompt, findings prefixed `stage2/topic:<t>`. **Stage 3
 (implementation drift — agent-judged):** the live verification surfaces
 (tests on disk, validate banners, workflows, hooks) are enumerated first,
 then coverage-in-substance is judged — where Stage 1 proves a mapping EXISTS,

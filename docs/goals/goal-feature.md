@@ -28,8 +28,9 @@ verb's *deterministic* machinery. The goal decomposes into three properties.
 
 ## The deliberate deterministic-only posture
 
-This topic is enrolled in the topic contract's **deterministic-only** flavor
-(`topic_contracts_deterministic:`): its three required coverage points are all
+This topic is enrolled in the topic contract (`topic_contracts:`), where the
+`local-hook`+`agentic` point is **advisory for every enrolled topic**, so
+this topic's three required coverage points are all
 `mode: deterministic`, and the verb's agentic eval (the `goal-feature-eval` row,
 a real `claude --print` run of the orchestrator) is *tolerated, never required*
 — it remains runnable on demand while it exists, but deleting it cannot red the

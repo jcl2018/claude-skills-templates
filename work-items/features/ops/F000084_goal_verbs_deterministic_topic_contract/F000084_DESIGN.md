@@ -126,3 +126,11 @@ LAST edit inside it):
 - Child story: [S000133_det_only_enrollment_goal_verb_topics/S000133_TRACKER.md](S000133_det_only_enrollment_goal_verb_topics/S000133_TRACKER.md)
 - Source /office-hours design doc: `~/.gstack/projects/jcl2018-claude-skills-templates/chang-claude-festive-margulis-b0841b-design-20260706-011500.md` (Status: APPROVED)
 - Predecessor features: `work-items/features/ops/F000082_three_layer_test_contract_per_topic/` (the topic contract + Check 30), `work-items/features/ops/F000083_portability_test_contract_materialize_enforce/` (Check 31 + the portability doc surfaces)
+
+## Reconciliation note (post-build)
+
+The `topic_contracts_deterministic:` two-list engine seam (Big Decision / Part 1)
+was DROPPED at merge time: parallel feature F000086 (v6.0.125) landed the same
+goal via a global advisory-agentic demotion of the single `topic_contracts:`
+list. The three goal verbs enroll in that single list; all tests + docs are
+unchanged. See the F000084_TRACKER.md decision entry dated 2026-07-06.

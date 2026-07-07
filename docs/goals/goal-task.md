@@ -29,8 +29,9 @@ properties.
 
 ## The deliberate deterministic-only posture
 
-This topic is enrolled in the topic contract's **deterministic-only** flavor
-(`topic_contracts_deterministic:`): its three required coverage points are all
+This topic is enrolled in the topic contract (`topic_contracts:`), where the
+`local-hook`+`agentic` point is **advisory for every enrolled topic**, so
+this topic's three required coverage points are all
 `mode: deterministic`, and the verb's agentic eval (the `goal-task-eval` row, a
 real `claude --print` run driving the orchestrator to its complexity halt) is
 *tolerated, never required* — runnable on demand while it exists, but deleting

@@ -155,9 +155,11 @@ not a per-category test level, so it is excluded here:
 - **CI-nightly** — a *large deterministic* check: the heavier deterministic runs
   that would slow every PR, moved off the PR path onto a nightly cadence
   (`mode: deterministic`).
-- **local-hook** — a *quick agentic* check that verifies locally on demand
-  (`mode: agentic`, so `tier ≠ free`): the model-spending proof a maintainer runs
-  on their own machine, never on a CI schedule.
+- **local-hook** — a *quick local* check a maintainer runs on their own machine:
+  deterministic by default (`mode: deterministic`, `tier: free` — the pre-commit
+  hook / run-before-push proof), optionally joined by an agentic proof
+  (`mode: agentic`, so `tier ≠ free`) that spends model tokens on demand, never
+  on a CI schedule.
 
 An empty (category, level) cell is a *coverage gap*, not an error: some cells are
 intentionally empty and a category need not fill all three. `test-spec.sh
@@ -236,49 +238,37 @@ overlay-only — the machine block in this general file is unchanged):
   are hard-checked, so adopting the contract for one topic never reds the build for
   the topics that are not yet ready.
 
-**The both-modes-at-local rule.** Deterministic and agentic are drawn by *where a
-test can run*: an agentic test needs a machine with Claude, which is the
-`local-hook` layer, so agentic model spend stays out of CI by construction. An
-enrolled topic must therefore reach **all three verification layers AND carry both
-modes at local-hook**:
+**The three-deterministic-layers rule.** An enrolled topic must reach **all three
+verification layers deterministically**:
 
 - ≥1 `CI-push` test (the fast per-PR signal),
 - ≥1 `CI-nightly` test (the heavier cadence off the PR path),
-- ≥1 `local-hook` + `deterministic` test AND ≥1 `local-hook` + `agentic` test — the
-  quick local proofs, where the agentic one catches the *green-but-inert* bugs the
-  deterministic layer structurally cannot (a stubbed test can pass while the real
-  behavior an operator sees is broken).
+- ≥1 `local-hook` + `deterministic` test (the quick local proof).
+
+A `local-hook` + `agentic` test is **advisory, never required**. Agentic proofs
+run on-demand — they need a machine with Claude, which is why an agentic test
+lives at `local-hook`, keeping model spend out of CI by construction — so
+enrollment is never gated on the hardest-to-build test mode. Where an enrolled
+topic has no agentic row, the check prints a per-topic advisory `note:`, keeping
+the gap visible wherever the contract is read without redding the build; where a
+topic does declare one, that proof catches the *green-but-inert* bugs the
+deterministic layer structurally cannot (a stubbed test can pass while the real
+behavior an operator sees is broken).
 
 Each required coverage point must also carry its front-door
 `docs/tests/<category>/<layer>/<name>.md`. `test-spec.sh --check-topic-contract`
-mechanizes this HARD for every enrolled topic (exit 1 on any missing coverage point
-or doc); it is **declaration-only**, so it runs in plain CI with **zero model
-spend** — because `mode: agentic ⇒ tier ≠ free`, the agentic row is present in CI
-but never *executed* there. The hard Check proves the coverage is DECLARED; the
-executor (`/CJ_test_run --topic <t> --e2e`, local-only) proves the agentic BEHAVIOR.
-A repo with no `categories:` axis or no enrollment in either list reports "topic
+mechanizes this for every enrolled topic — HARD (exit 1) on any missing
+deterministic coverage point or front-door doc, an advisory `note:` (never a
+finding) for a missing agentic row; it is **declaration-only**, so it runs in
+plain CI with **zero model spend** — because `mode: agentic ⇒ tier ≠ free`, an
+agentic row is present in CI but never *executed* there. The hard Check proves
+the deterministic coverage is DECLARED; the executor (`/CJ_test_run --topic <t>
+--e2e`, local-only) proves the agentic BEHAVIOR where a topic declares one.
+A repo with no `categories:` axis or no `topic_contracts:` enrollment reports "topic
 contract inactive" and stays green (a consumer passes vacuously). Surfaced by the
 owner validator (a hard Check) + `/CJ_test_audit` Stage 1 (verbatim engine output),
-with Stage 2 judging the enrolled agentic row names a real sandbox test, not a
-hollow prompt.
-
-**The deterministic-only enrollment flavor.** Some topics must be held to the
-contract without depending on agentic rows at all — e.g. when a repo plans to
-remove its agentic tests, chaining enrollment to them would bake in a dependency
-already scheduled for deletion. A repo MAY therefore enroll a topic in a SECOND
-overlay-level list, **`topic_contracts_deterministic:`** (same slug grammar and
-YAML shapes; a topic listed in BOTH lists is a validate error — each topic is
-judged under exactly one rule). A deterministically-enrolled topic must reach the
-**three deterministic points** — ≥1 `CI-push` test, ≥1 `CI-nightly` test, and ≥1
-`local-hook` + `deterministic` test, each with its front-door doc — while agentic
-rows carrying the topic are *tolerated, never required*: deleting an agentic row
-later cannot red the check for a deterministically-enrolled topic. The check
-iterates the **union** of the two lists (each topic under its own list's rule) and
-reports "topic contract inactive" only when BOTH lists are empty; the topic-docs
-companion check applies the same dream-doc + topic-subdir rule to the same union.
-The conscious trade: a deterministically-enrolled topic re-opens the
-green-but-inert blind spot the agentic point exists to close — name that posture
-in the topic's dream doc.
+with Stage 2 judging — where an enrolled topic declares an agentic row — that the
+row names a real sandbox test, not a hollow prompt.
 
 ## The canonical contract-file template
 

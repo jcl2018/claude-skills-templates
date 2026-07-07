@@ -22,8 +22,9 @@ grouped by the verification **layer** they run at.
 | Gate-seam safety | — | ✅ (both verdicts in the chain) | ✅ `goal-feature-gate-seam` |
 
 All three required deterministic points are filled; there is **no required
-agentic point** — this topic is enrolled deterministic-only
-(`topic_contracts_deterministic:` in `spec/test-spec-custom.md`), so the
+agentic point** — this topic is enrolled in `topic_contracts:`
+(`spec/test-spec-custom.md`), where the `local-hook`+`agentic` point is advisory
+for every enrolled topic, so the
 agent-executed pipeline prose has no required proof (the posture named in the
 [dream doc](../../../goals/goal-feature.md)). The `goal-feature-eval` agentic
 row remains declared + runnable on demand while it exists, required by nothing.

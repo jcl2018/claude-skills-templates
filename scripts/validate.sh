@@ -1138,42 +1138,39 @@ else
   pass ".cj-e2e-sandbox is not tracked (the E2E build-gate seam guard marker cannot ship)"
 fi
 
-# Check 30: every ENROLLED test topic reaches its enrollment list's required
-# coverage points (the three-layer topic contract, HARD, registry-gated). F000082
-# added a first-class `topic:` axis to the categories: rows + the both-modes
-# `topic_contracts:` enrollment list; F000084 added the SECOND, deterministic-only
-# list `topic_contracts_deterministic:`. This Check calls test-spec.sh
-# --check-topic-contract, which iterates the UNION of the two lists and judges
-# each topic under its own list's rule:
-#   topic_contracts: (both-modes — portability today): >=1 CI-push + >=1
-#     CI-nightly + >=1 local-hook{deterministic} + >=1 local-hook{agentic};
-#   topic_contracts_deterministic: (det-only — goal-feature / goal-task /
-#     goal-defect today): the three deterministic points only, with agentic rows
-#     tolerated, never required (deleting an agentic row cannot red this Check
-#     for a det-enrolled topic).
-# Each required point carries its front-door docs/tests/<cat>/<layer>/<name>.md.
-# This makes a documented-but-under-covered topic structurally impossible for an
-# enrolled topic, while unenrolled topics keep the advisory matrix (the grandfather
-# seam). Declaration-only ⇒ CI-safe, ZERO model spend (an agentic BEHAVIOR is
-# proven local-only by /CJ_test_run --e2e; mode:agentic ⇒ tier≠free, so an agentic
-# row is present-in-CI-but-never-executed). Engine: scripts/test-spec.sh
+# Check 30: every ENROLLED test topic reaches all three verification layers
+# deterministically (the three-layer topic contract, HARD, registry-gated).
+# F000082 adds a first-class `topic:` axis to the categories: rows and an
+# overlay-level `topic_contracts:` enrollment list; this Check calls test-spec.sh
+# --check-topic-contract to assert that every enrolled topic (portability /
+# validator / full-suite, today) carries >=1 CI-push + >=1 CI-nightly + >=1
+# local-hook{deterministic} test, each with its front-door
+# docs/tests/<cat>/<layer>/<name>.md. A missing local-hook{agentic} test is
+# ADVISORY (F000086): the engine prints a per-topic `note:` line, never a finding
+# — agentic proofs run on-demand, never a requirement, so enrollment is not gated
+# on the hardest-to-build test mode. This makes a documented-but-under-covered
+# topic structurally impossible for an enrolled topic, while unenrolled topics
+# keep the advisory matrix (the grandfather seam). Declaration-only ⇒ CI-safe,
+# ZERO model spend (an agentic BEHAVIOR, where declared, is proven local-only by
+# /CJ_test_run --e2e; mode:agentic ⇒ tier≠free, so an agentic row is
+# present-in-CI-but-never-executed). Engine: scripts/test-spec.sh
 # --check-topic-contract (which registry-gates itself). Registry-gated: skips when
 # the test-spec engine is absent OR the contract reports inactive (no test-spec
-# registry / no categories: axis / BOTH enrollment lists empty — a consumer with
+# registry / no categories: axis / no topic_contracts: enrollment — a consumer with
 # no enrollment passes vacuously). Mirror of Check 24/26/27/28's engine-absent skip.
 echo ""
-echo "=== Check 30: every enrolled test topic reaches its enrollment list's required layers/modes (topic contract, two lists) ==="
+echo "=== Check 30: every enrolled test topic reaches all three layers deterministically (topic contract; agentic advisory) ==="
 TESTSPEC_TC="$REPO_ROOT/scripts/test-spec.sh"
 if [ ! -f "$TESTSPEC_TC" ]; then
   echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
 else
   C30_OUT=$(bash "$TESTSPEC_TC" --check-topic-contract 2>&1) && C30_RC=0 || C30_RC=$?
   if printf '%s\n' "$C30_OUT" | grep -qE '^(REGISTRY=absent|topic contract inactive)'; then
-    echo "  SKIP: topic contract inactive (no test-spec registry, no categories: axis, or neither topic_contracts: nor topic_contracts_deterministic: enrollment — registry-gated)"
+    echo "  SKIP: topic contract inactive (no test-spec registry, no categories: axis, or no topic_contracts: enrollment — registry-gated)"
   elif [ "$C30_RC" -eq 0 ]; then
-    pass "every enrolled topic reaches its list's required points — both-modes: CI-push + CI-nightly + local-hook{deterministic,agentic}; deterministic-only: the three deterministic points, agentic tolerated ($(printf '%s\n' "$C30_OUT" | grep '^topic contract:' | head -1))"
+    pass "every enrolled topic reaches CI-push + CI-nightly + local-hook{deterministic} with its front-door doc — a missing agentic test is advisory ($(printf '%s\n' "$C30_OUT" | grep '^topic contract:' | head -1))"
   else
-    echo "  ERROR: the topic contract has findings — an enrolled topic is missing a required layer/mode coverage point or its front-door doc"
+    echo "  ERROR: the topic contract has findings — an enrolled topic is missing a required deterministic coverage point or its front-door doc"
     printf '%s\n' "$C30_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
     ERRORS=$((ERRORS+1))
   fi
@@ -1182,16 +1179,13 @@ fi
 # Check 31: every ENROLLED test topic is DOCUMENTED end to end — a docs/goals/<topic>.md
 # dream doc + a docs/tests/topics/<topic>/ subdir (index referencing the dream + a
 # per-layer page for each layer it covers). F000083's doc-legibility companion to
-# Check 30: Check 30 proves the enrolled topic's TESTS reach its required layers;
-# Check 31 proves its testing is DOCUMENTED as a whole (the WHAT — a dream doc —
-# plus the HOW — a topic-by-layer subdir), so a maintainer can learn from the docs
-# what the topic proves and how, and the docs cannot rot back to one-line stubs.
-# The engine iterates the UNION of the two enrollment lists (topic_contracts: +
-# topic_contracts_deterministic: — the doc rule is identical under either
-# enrollment flavor). Declaration-only ⇒
+# Check 30: Check 30 proves the enrolled topic's TESTS reach all layers; Check 31
+# proves its testing is DOCUMENTED as a whole (the WHAT — a dream doc — plus the HOW —
+# a topic-by-layer subdir), so a maintainer can learn from the docs what the topic
+# proves and how, and the docs cannot rot back to one-line stubs. Declaration-only ⇒
 # CI-safe. Engine: scripts/test-spec.sh --check-topic-docs (registry-gates itself).
 # Registry-gated: skips when the engine is absent OR the contract reports inactive
-# (no test-spec registry / no categories: axis / BOTH enrollment lists empty).
+# (no test-spec registry / no categories: axis / no topic_contracts: enrollment).
 echo ""
 echo "=== Check 31: every enrolled test topic is documented (dream doc + topic-by-layer subdir) ==="
 TESTSPEC_TD="$REPO_ROOT/scripts/test-spec.sh"
@@ -1200,12 +1194,48 @@ if [ ! -f "$TESTSPEC_TD" ]; then
 else
   C31_OUT=$(bash "$TESTSPEC_TD" --check-topic-docs 2>&1) && C31_RC=0 || C31_RC=$?
   if printf '%s\n' "$C31_OUT" | grep -qE '^(REGISTRY=absent|topic docs contract inactive)'; then
-    echo "  SKIP: topic docs contract inactive (no test-spec registry, no categories: axis, or neither topic_contracts: nor topic_contracts_deterministic: enrollment — registry-gated)"
+    echo "  SKIP: topic docs contract inactive (no test-spec registry, no categories: axis, or no topic_contracts: enrollment — registry-gated)"
   elif [ "$C31_RC" -eq 0 ]; then
     pass "every enrolled topic has its dream doc + topic-by-layer subdir ($(printf '%s\n' "$C31_OUT" | grep '^topic docs contract:' | head -1))"
   else
     echo "  ERROR: the topic docs contract has findings — an enrolled topic is missing its dream doc or a per-layer topic page"
     printf '%s\n' "$C31_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
+    ERRORS=$((ERRORS+1))
+  fi
+fi
+
+# Check 32: every defect work-item dir maps to exactly one LIVE defect-coverage
+# ledger row (the defect↔proof ledger, HARD, registry-gated). F000085 adds an
+# overlay-level `defect_coverage:` axis to spec/test-spec-custom.md — one row per
+# work-items/defects/** dir (keyed by the FULL path relative to
+# work-items/defects/), each carrying one of three closed dispositions:
+# covered-by (a named deterministic regression categories: row), covered-by-anchor
+# (a shared-file proof: source + anchor, grep-live), or waived (a reason; gaps are
+# `waived: "gap — …"` + a todo pointer). This Check calls test-spec.sh
+# --check-defect-coverage: FORWARD, an unmapped (or duplicated) defect dir is an
+# ERROR; REVERSE, a dangling row, a covered-by citing a nonexistent or
+# NON-DETERMINISTIC categories row (the deterministic-only ledger rule — a future
+# agentic-test purge must never orphan defect coverage), a dead anchor, or an
+# empty waiver reason is an ERROR. So "is defect X still protected, and by what?"
+# is machine-answerable and a hallucinated proof citation cannot ship.
+# Registry-gated: skips when the test-spec engine is absent OR the check reports
+# inactive (no test-spec registry / no defect_coverage: axis / no
+# work-items/defects/ dir — a consumer repo passes vacuously). Mirror of Check
+# 24/26/27/28/30/31's engine-absent skip.
+echo ""
+echo "=== Check 32: every defect dir maps to a live defect-coverage ledger row (defect coverage) ==="
+TESTSPEC_DC="$REPO_ROOT/scripts/test-spec.sh"
+if [ ! -f "$TESTSPEC_DC" ]; then
+  echo "  SKIP: scripts/test-spec.sh not present (non-adopting repo)"
+else
+  C32_OUT=$(bash "$TESTSPEC_DC" --check-defect-coverage 2>&1) && C32_RC=0 || C32_RC=$?
+  if printf '%s\n' "$C32_OUT" | grep -qE '^(REGISTRY=absent|defect coverage inactive)'; then
+    echo "  SKIP: defect coverage inactive (no test-spec registry, no defect_coverage: axis, or no work-items/defects/ — registry-gated)"
+  elif [ "$C32_RC" -eq 0 ]; then
+    pass "every defect dir is dispositioned and every declared proof is live ($(printf '%s\n' "$C32_OUT" | grep '^defect coverage:' | head -1))"
+  else
+    echo "  ERROR: the defect-coverage ledger has findings — an unmapped defect dir, a dangling row, a dead proof, or a non-deterministic covered-by target"
+    printf '%s\n' "$C32_OUT" | grep -E '^FINDING:' | head -10 | while IFS= read -r _cl; do echo "    $_cl"; done
     ERRORS=$((ERRORS+1))
   fi
 fi
