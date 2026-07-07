@@ -4,6 +4,35 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.128] - 2026-07-06
+
+### Removed
+- **F000087 — retired the paid `run-eval` agentic test harness (`scripts/eval.sh`)
+  in favor of in-session Claude verification (Testing roadmap Phase 0).** The
+  `run-eval` runner spawned a headless `claude --print` per eval case (metered
+  model spend); it is gone, along with the orphaned runner libs it exclusively
+  drove (`tests/eval/lib/*`, `tests/eval/README.md`). The durable
+  `tests/eval/<skill>/<case>/` specs (prompt + schema + fixture) are KEPT as
+  in-session verification specs, and the free automatic drift gate (`validate.sh`
+  Check 28, driven by the `behaviors:`/`behavior_coverage:` axis) stays green — so
+  `$0` recurring, structural drift still reds the PR.
+
+### Changed
+- `suite-eval` re-anchored off the deleted `scripts/eval.sh` onto the live
+  `tests/eval/` specs (specs-only, verified in-session); the `run-eval` `runners:`
+  row removed and `run-test-sh`'s `covers:` note reframed (the `eval` family stays
+  declared, not orphaned).
+- Removed the `goal-task-eval` + `goal-feature-eval` `categories: workflow` rows +
+  their front-door docs (Approach C — F000084 had re-topic'd them per-verb and
+  ADVISORY, "slated for removal"; the newly-enrolled `goal-feature` / `goal-task` /
+  `goal-defect` topics stay Check-30-green via their deterministic rows, with an
+  advisory "no agentic test" note).
+- De-leaked all four `tests/eval/*/prompt.md` (state the scenario, not the expected
+  output; Check-28 `behavior_coverage` anchors preserved), incl. retargeting the
+  `goal-task` anchor to a non-leaking scenario descriptor.
+- Cleared dangling `scripts/eval.sh` references on live surfaces (`CLAUDE.md`,
+  `docs/reference.md`, `docs/philosophy.md`, `docs/tests/test-hierarchy.md`).
+
 ## [6.0.127] - 2026-07-06
 
 ### Added
