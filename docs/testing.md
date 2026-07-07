@@ -121,6 +121,9 @@ tier, topic, and its front-door doc. Run any row by name with
 | validate | infra | CI-push | deterministic | free | validator | `docs/tests/infra/CI-push/validate.md` |
 | suite | infra | CI-push | deterministic | free | full-suite | `docs/tests/infra/CI-push/suite.md` |
 | test-deploy | infra | CI-nightly | deterministic | free | deploy-harness | `docs/tests/infra/CI-nightly/test-deploy.md` |
+| test-run-self | infra | CI-push | deterministic | free |  | `docs/tests/infra/CI-push/test-run-self.md` |
+| test-spec-self | infra | CI-push | deterministic | free |  | `docs/tests/infra/CI-push/test-spec-self.md` |
+| cj-audit-self | infra | CI-push | deterministic | free |  | `docs/tests/infra/CI-push/cj-audit-self.md` |
 | validate-hook | infra | local-hook | deterministic | free | validator | `docs/tests/infra/local-hook/validate-hook.md` |
 | validate-nightly | infra | CI-nightly | deterministic | free | validator | `docs/tests/infra/CI-nightly/validate-nightly.md` |
 | suite-nightly | infra | CI-nightly | deterministic | free | full-suite | `docs/tests/infra/CI-nightly/suite-nightly.md` |

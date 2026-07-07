@@ -39,6 +39,9 @@ organized by layer.
 | `suite-nightly` | `infra` | `CI-nightly` | deterministic | free | full-suite | [docs/tests/infra/CI-nightly/suite-nightly.md](tests/infra/CI-nightly/suite-nightly.md) |
 | `suite-local` | `infra` | `local-hook` | deterministic | free | full-suite | [docs/tests/infra/local-hook/suite-local.md](tests/infra/local-hook/suite-local.md) |
 | `test-deploy` | `infra` | `CI-nightly` | deterministic | free | deploy-harness | [docs/tests/infra/CI-nightly/test-deploy.md](tests/infra/CI-nightly/test-deploy.md) |
+| `test-run-self` | `infra` | `CI-push` | deterministic | free | — | [docs/tests/infra/CI-push/test-run-self.md](tests/infra/CI-push/test-run-self.md) |
+| `test-spec-self` | `infra` | `CI-push` | deterministic | free | — | [docs/tests/infra/CI-push/test-spec-self.md](tests/infra/CI-push/test-spec-self.md) |
+| `cj-audit-self` | `infra` | `CI-push` | deterministic | free | — | [docs/tests/infra/CI-push/cj-audit-self.md](tests/infra/CI-push/cj-audit-self.md) |
 | `cj-goal-gate-shape` | `workflow` | `CI-push` | deterministic | free | cj-goal-workflows | [docs/tests/workflow/CI-push/cj-goal-gate-shape.md](tests/workflow/CI-push/cj-goal-gate-shape.md) |
 | `doc-sync` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/doc-sync.md](tests/workflow/local-hook/doc-sync.md) |
 | `e2e-local` | `workflow` | `local-hook` | agentic | local-only | cj-goal-workflows | [docs/tests/workflow/local-hook/e2e-local.md](tests/workflow/local-hook/e2e-local.md) |

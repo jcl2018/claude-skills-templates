@@ -82,8 +82,17 @@ for name in $(jq -r '.[].name' "$CATALOG"); do
   if [ -z "$skill_file" ] || [ ! -f "$skill_file" ]; then
     continue
   fi
-  if sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'name:' &&
-     sed -n '/^---$/,/^---$/p' "$skill_file" | grep -q 'description:'; then
+  # Read the frontmatter block ONCE, then match it with `case` globs — NOT a
+  # `sed | grep -q` pipe. `grep -q` early-exits on the match, which SIGPIPEs `sed`
+  # while it is still writing a very long `description:` line; under
+  # `set -o pipefail` that non-zero pipe status flips the check to a FALSE FAIL.
+  # It is timing-flaky (passes on a fast host, fails on a slower CI runner) and
+  # only bites skills with a huge single-line description (hit live on
+  # CJ_test_audit, whose description is a ~5000-char line). `case` avoids the pipe.
+  _fm=$(sed -n '/^---$/,/^---$/p' "$skill_file")
+  case "$_fm" in *name:*) _fm_name=1 ;; *) _fm_name=0 ;; esac
+  case "$_fm" in *description:*) _fm_desc=1 ;; *) _fm_desc=0 ;; esac
+  if [ "$_fm_name" = 1 ] && [ "$_fm_desc" = 1 ]; then
     pass "$name has name and description frontmatter"
   else
     fail "$name SKILL.md is missing required frontmatter (name, description)"

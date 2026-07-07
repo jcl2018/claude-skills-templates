@@ -1743,6 +1743,37 @@ categories:
     doc: "docs/tests/infra/CI-nightly/test-deploy.md"
     purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1 (the same guard that gates the three goal-verb chain drills), so it gates via the nightly full-suite (nightly.yml), not per-PR."
     topic: deploy-harness
+  # ---- infra: the tooling-tests-itself self-test suites — the three fixture-repo
+  #      test suites that prove the contract ENGINES themselves (test-run.sh,
+  #      test-spec.sh, cj-audit-skills.sh) behave, promoted to first-class
+  #      categories: rows so "the tooling tests itself" is a legible verification
+  #      surface (each ALSO a units: row: test-test-run / test-test-spec /
+  #      test-cj-audit-skills). Untopic'd — self-tests are not enrolled in the
+  #      three-layer topic contract; they are the CI-push infra that gates each PR. ----
+  - name: test-run-self
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/test-run.test.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-push/test-run-self.md"
+    purpose: "The self-test of the test-contract EXECUTOR (scripts/test-run.sh + the runners:/categories: axes) against TEMP-DIR fixture registries — proves the runner engine parses, plans, tier-gates, and reports pass/fail correctly WITHOUT ever running the real test.sh; the tooling-tests-itself signal at CI-push."
+  - name: test-spec-self
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/test-spec.test.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-push/test-spec-self.md"
+    purpose: "The self-test of the test-contract PARSER (scripts/test-spec.sh two-tier registry merge + coverage drills) — proves the engine that every other check depends on round-trips the registry, splits absent-vs-invalid, and cross-checks coverage correctly; the tooling-tests-itself signal at CI-push."
+  - name: cj-audit-self
+    category: infra
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/cj-audit-skills.test.sh"
+    tier: free
+    doc: "docs/tests/infra/CI-push/cj-audit-self.md"
+    purpose: "The self-test of the audit-skills surface (tests/cj-audit-skills.test.sh) — proves the /CJ_doc_audit + /CJ_test_audit engines' shared helpers behave; the tooling-tests-itself signal at CI-push."
   # ---- infra: the validator + the full suite at their other two layers — the
   #      CI-push level of each is carried by the EXISTING validate/suite rows
   #      above; these rows fill CI-nightly + local-hook for the enrolled
@@ -2057,9 +2088,9 @@ defect_coverage:
     anchor: "Regression test (D000018): QA E2E dispatch keeps the leaf-node + parent-inline execution contract"
   # ---- skills/ ----
   - defect: skills/D000019_pipeline_type_aware_gates
-    disposition: waived
-    reason: "gap — a deterministic drill would prove the QA pipeline's type-aware gate semantics (defect/task rows treat an ambiguous E2E verdict as the canonical not-applicable marker instead of halting; the pre-scan covers defect/task inputs + the skills/*/scripts/ trust boundary)"
-    todo: "TODOS:10 (author the D000019 type-aware QA-gate shape-guard)"
+    disposition: covered-by-anchor
+    source: scripts/test.sh
+    anchor: "Regression test (D000019): QA gates stay type-aware"
   - defect: skills/D000020_investigate_idempotency_edge_cases
     disposition: waived
     reason: "surface retired — the investigate orchestrator this defect patched was reshaped into the defect verb (/CJ_goal_defect); its Step-3 idempotency dispatch table no longer exists as a live surface"
