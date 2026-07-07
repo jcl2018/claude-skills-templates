@@ -4,6 +4,22 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.129] - 2026-07-06
+
+### Added
+- **F000088 — `docs/testing.md`, a generated single-source-of-truth front door for
+  the test suite (Testing roadmap Phase 1).** Extends `test-spec.sh --render-docs`
+  to emit a new `docs/testing.md` from the merged test-spec registry — nine
+  sections: what testing proves + the model at a glance (both linking to
+  `docs/philosophy.md` / `spec/test-spec.md`, not duplicating them), how to **run**
+  (`/CJ_test_run`), **audit** (`/CJ_test_audit`), and **verify in-session** (drive
+  `tests/eval/<skill>/`), plus live indexes of every `behaviors:` (17) and
+  `categories:` (28) item and the enrolled topics (6). Declared in
+  `spec/doc-spec-custom.md`; kept drift-proof by the existing `validate.sh` Check 26
+  (render-freshness) — it renders on `--render-docs` and is diffed by
+  `--render-docs --check`, so a hand-edit reds the PR. "Read the test logic" now
+  means "open `docs/testing.md`."
+
 ## [6.0.128] - 2026-07-06
 
 ### Removed
