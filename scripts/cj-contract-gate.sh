@@ -98,7 +98,13 @@ resolve_engine() {
     # Stale repo-local engine: fall through to the shared / self copy.
   fi
   if [ -x "$shared" ]; then echo "$shared"; return 0; fi
-  if [ -x "$self_local" ]; then echo "$self_local"; return 0; fi
+  # Own-dir last resort (vendored .cj-contract/): accept a READABLE file, not just
+  # an executable one. Engines are always invoked via `bash "$engine"`, so the exec
+  # bit is never actually needed here — and on Windows Git-Bash copy-mode a `chmod
+  # +x` on a freshly-written file is a no-op, so a vendored sibling can land 644.
+  # Requiring -x would make the bare-runner path (the reason vendoring exists) fail
+  # on Windows. Readability is sufficient (the co-located self-vend is trusted).
+  if [ -r "$self_local" ]; then echo "$self_local"; return 0; fi
   echo ""
 }
 
