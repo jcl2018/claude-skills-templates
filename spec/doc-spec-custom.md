@@ -49,6 +49,7 @@ operational (path-derived, not declared). Cells may not contain a literal `|`.
 | Doc | Purpose | Requirement |
 |-----|---------|-------------|
 | `spec/permission-policy.md` | The cj_goal allow/ask/deny permission contract (parsed by scripts/permission-policy.sh). | Present; one fenced yaml policy registry parsing with schema_version 1; risky verbs enumerated as deny/ask. |
+| `docs/adopting-the-contract.md` | HAND-AUTHORED consumer-facing guide to adopting the drift-proofing contract in any repo with one command (skills-deploy install-contract-gate → seed contracts, vendor the gate into .cj-contract/, drop the CI workflow, install the pre-commit hook); what to commit, that structural drift then reds the PR, and that portability proves cross-machine. | Present; hand-authored; human-readable; no work-item IDs. |
 | `CONTRIBUTING.md` | Contributor authoring guide. | Present; surfaced by GitHub from the repo root. |
 | `spec/doc-spec-custom.md` | This repo's doc-contract overlay (this file) — the custom-tier rows merged into the general contract by scripts/doc-spec.sh. | Present; one registry table of repo-specific docs (including itself); no path duplicated against the general file. |
 | `spec/test-spec-custom.md` | This repo's test-contract overlay — the unit-level enumeration of the verification surface plus the per-mode pipeline gates (parsed by scripts/test-spec.sh). | Present; one fenced yaml registry of units + gates parsing with schema_version 1; every anchor present in its declared source (validate.sh Check 24). |

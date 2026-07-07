@@ -1534,6 +1534,117 @@ unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
 unset CJ_SHARED_SCRIPTS
 teardown_env
 
+# Test S000138: install-contract-gate vendors the 4 engines + drops the CI workflow,
+# the vendored gate runs on a BARE runner (no _cj-shared), --remove reverses it, and
+# the workbench self-repo is skipped. F000089/S000138 — the consumer's PUSH path is
+# made self-contained: the 4 gate engines are copied into .cj-contract/ (stamped, LF,
+# +x) and a CI workflow is dropped that runs `bash .cj-contract/cj-contract-gate.sh
+# --repo .`. The BARE-RUNNER proof (the whole point) runs the vendored gate with
+# CJ_SHARED_SCRIPTS pointed at an EMPTY dir + HOME re-pointed away from any
+# ~/.claude/_cj-shared: it must exit 0 on a clean seeded contract and non-zero on a
+# planted structural violation, resolving its 3 sibling engines from its own
+# co-located dir. Engines + gate resolve from a pinned _cj-shared for the adopt step.
+echo "Test S000138: vendor gate + drop CI workflow + bare-runner green/red + remove + self-skip"
+setup_env
+SHARED_TARGET="$SKILLS_DEPLOY_TARGET/_cj-shared/scripts"
+export SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET="$SHARED_TARGET"
+export CJ_SHARED_SCRIPTS="$SHARED_TARGET"
+# Populate _cj-shared with the engines + the gate via an install.
+"$DEPLOY" install >/dev/null 2>&1
+s138_ok=yes
+VENDOR_SENTINEL='# vendored from claude-skills-templates by skills-deploy install-contract-gate'
+# Executable-bit probe (mirrors the SYMLINK_CAPABLE idiom): on Windows Git-Bash
+# copy-mode a `chmod +x` on a freshly-written file is a no-op, so the vendored
+# engines legitimately land 644 there. Where chmod works (POSIX) we assert -x;
+# where it does not, we assert readability (the gate invokes engines via `bash`,
+# so it resolves a readable co-located sibling — proven functionally by the
+# bare-runner check below). This keeps the assertion honest on both platforms.
+CHMOD_STICKS=no
+__cx=$(mktemp); chmod +x "$__cx" 2>/dev/null; [ -x "$__cx" ] && CHMOD_STICKS=yes; rm -f "$__cx"
+# (1) Adopt into a scratch consumer repo with the DOCUMENTED one command:
+# install-contract-gate ALONE must seed the contracts, complete adoption, vendor
+# the gate, and drop the CI workflow — so the bare-runner proof below has a real
+# contract to check WITHOUT a separate seed step (the turnkey one-command promise).
+vconsumer=$(mktemp -d)
+git -C "$vconsumer" init -q
+vinst_out=$( cd "$vconsumer" && "$DEPLOY" install-contract-gate 2>&1 )
+printf '%s\n' "$vinst_out" | grep -q 'VENDOR: vendored' || { fail_test "S000138: install-contract-gate did not vendor the engines"; s138_ok=no; }
+# (1-seed) install-contract-gate must SEED the contracts itself (the one-command
+# promise): a bare consumer ends up with spec/ registries, not an inert all-SKIP gate.
+[ -f "$vconsumer/spec/test-spec.md" ] || { fail_test "S000138: install-contract-gate did not seed spec/ — the gate would be inert (all REGISTRY=absent SKIPs)"; s138_ok=no; }
+# (1a) The 4 engines are vendored into .cj-contract/, each stamped + runnable.
+for e in cj-contract-gate.sh doc-spec.sh test-spec.sh workflow-spec.sh; do
+  vf="$vconsumer/.cj-contract/$e"
+  [ -f "$vf" ] || { fail_test "S000138: $e not vendored into .cj-contract/"; s138_ok=no; continue; }
+  if [ "$CHMOD_STICKS" = yes ]; then
+    [ -x "$vf" ] || { fail_test "S000138: vendored $e is not executable"; s138_ok=no; }
+  else
+    [ -r "$vf" ] || { fail_test "S000138: vendored $e is not readable"; s138_ok=no; }
+  fi
+  grep -qF "$VENDOR_SENTINEL" "$vf" 2>/dev/null || { fail_test "S000138: vendored $e lacks the stamped sentinel header"; s138_ok=no; }
+done
+# (2) The CI workflow is dropped, triggering on pull_request + push:main, running the vendored gate.
+vwf="$vconsumer/.github/workflows/cj-contract-gate.yml"
+[ -f "$vwf" ] || { fail_test "S000138: CI workflow cj-contract-gate.yml not dropped"; s138_ok=no; }
+grep -q 'pull_request:' "$vwf" 2>/dev/null || { fail_test "S000138: workflow missing pull_request trigger"; s138_ok=no; }
+grep -q 'branches: \[main\]' "$vwf" 2>/dev/null || { fail_test "S000138: workflow missing push:main trigger"; s138_ok=no; }
+grep -qF 'bash .cj-contract/cj-contract-gate.sh --repo .' "$vwf" 2>/dev/null || { fail_test "S000138: workflow does not run the vendored gate"; s138_ok=no; }
+grep -qF "$VENDOR_SENTINEL" "$vwf" 2>/dev/null || { fail_test "S000138: dropped workflow lacks the sentinel"; s138_ok=no; }
+# (3) BARE-RUNNER PROOF: run the VENDORED gate with CJ_SHARED_SCRIPTS + HOME pointed
+# at empty dirs (no ~/.claude/_cj-shared anywhere), so the gate MUST resolve its 3
+# sibling engines from its own co-located .cj-contract/ dir. Green on clean.
+bare_empty=$(mktemp -d)     # empty CJ_SHARED_SCRIPTS
+bare_home=$(mktemp -d)      # HOME with no .claude
+if env -u SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET HOME="$bare_home" CJ_SHARED_SCRIPTS="$bare_empty" \
+     bash "$vconsumer/.cj-contract/cj-contract-gate.sh" --repo "$vconsumer" --quiet >/dev/null 2>&1; then
+  : # clean seeded contract → exit 0 on a bare runner
+else
+  fail_test "S000138: bare-runner gate did NOT exit 0 on a clean adopted consumer (own-dir engine resolution broken)"; s138_ok=no
+fi
+# (3b) Plant a structural violation (an undeclared orphan doc) → the gate must go non-zero.
+mkdir -p "$vconsumer/docs"; printf '# orphan\n' > "$vconsumer/docs/orphan.md"
+if env -u SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET HOME="$bare_home" CJ_SHARED_SCRIPTS="$bare_empty" \
+     bash "$vconsumer/.cj-contract/cj-contract-gate.sh" --repo "$vconsumer" --quiet >/dev/null 2>&1; then
+  fail_test "S000138: bare-runner gate exited 0 despite a planted undeclared orphan (drift not caught)"; s138_ok=no
+else
+  : # non-zero on the planted violation → correct
+fi
+rm -f "$vconsumer/docs/orphan.md"
+# (4) --remove reverses the vendored .cj-contract/ + the dropped workflow (sentinel-gated);
+# a hand-edited file is preserved.
+# Pre-place a hand-edited (sentinel-stripped) file in .cj-contract/ that must survive.
+printf '#!/usr/bin/env bash\n# my own helper\n' > "$vconsumer/.cj-contract/mine.sh"
+"$DEPLOY" install-contract-gate --repo "$vconsumer" --remove >/dev/null 2>&1
+[ -f "$vwf" ] && { fail_test "S000138: --remove did not delete the dropped CI workflow"; s138_ok=no; }
+for e in cj-contract-gate.sh doc-spec.sh test-spec.sh workflow-spec.sh; do
+  [ -f "$vconsumer/.cj-contract/$e" ] && { fail_test "S000138: --remove left the vendored $e behind"; s138_ok=no; }
+done
+[ -f "$vconsumer/.cj-contract/mine.sh" ] || { fail_test "S000138: --remove clobbered a hand-edited .cj-contract/ file"; s138_ok=no; }
+# (5) A hand-authored workflow (no sentinel) is left UNTOUCHED with a skip-note.
+vhand=$(mktemp -d)
+git -C "$vhand" init -q
+mkdir -p "$vhand/.github/workflows"
+printf 'name: my own gate\non: push\n' > "$vhand/.github/workflows/cj-contract-gate.yml"
+vhand_out=$( cd "$vhand" && "$DEPLOY" install-contract-gate 2>&1 )
+printf '%s\n' "$vhand_out" | grep -q 'hand-authored' || { fail_test "S000138: hand-authored workflow not skip-noted"; s138_ok=no; }
+grep -q 'my own gate' "$vhand/.github/workflows/cj-contract-gate.yml" 2>/dev/null || { fail_test "S000138: hand-authored workflow was clobbered"; s138_ok=no; }
+# (6) The workbench self-repo drops NO .cj-contract/ / workflow (manifest source == its toplevel).
+vself=$(mktemp -d)
+git -C "$vself" init -q
+vself_top=$(git -C "$vself" rev-parse --show-toplevel)
+vself_manifest=$(mktemp)
+printf '{"source":"%s","bundle_path":"%s"}\n' "$vself_top" "$vself_top" > "$vself_manifest"
+( cd "$vself" && SKILLS_DEPLOY_MANIFEST="$vself_manifest" "$DEPLOY" install-contract-gate >/dev/null 2>&1 )
+[ -d "$vself/.cj-contract" ] && { fail_test "S000138: workbench self-repo vendored a .cj-contract/ (self-skip breached)"; s138_ok=no; }
+[ -f "$vself/.github/workflows/cj-contract-gate.yml" ] && { fail_test "S000138: workbench self-repo got a dropped CI workflow (self-skip breached)"; s138_ok=no; }
+rm -rf "$vconsumer" "$bare_empty" "$bare_home" "$vhand" "$vself" "$vself_manifest"
+if [ "$s138_ok" = yes ]; then
+  ok "vendor: 4 engines stamped into .cj-contract/ + CI workflow dropped; bare-runner gate green/red; --remove reverses (hand-edit preserved); hand-authored workflow + workbench-self skipped"
+fi
+unset SKILLS_DEPLOY_SHARED_SCRIPTS_TARGET
+unset CJ_SHARED_SCRIPTS
+teardown_env
+
 echo ""
 if [ "$ERRORS" -eq 0 ]; then
   echo "All tests passed."

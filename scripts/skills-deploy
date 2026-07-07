@@ -703,6 +703,196 @@ exit 0
 GATEHOOK
 }
 
+# --- vendored gate + CI workflow (F000089 / S000138) ---
+
+# The 4 gate engines vendored into a consumer's .cj-contract/ so the gate is
+# self-contained on a bare CI runner (no ~/.claude/_cj-shared). The gate resolves
+# its 3 sibling engines from its OWN dir as a last resort, so co-locating all 4
+# under one dir makes `bash .cj-contract/cj-contract-gate.sh --repo .` work with
+# nothing installed.
+CJ_VENDOR_DIR=".cj-contract"
+CJ_VENDOR_SCRIPTS="cj-contract-gate.sh doc-spec.sh test-spec.sh workflow-spec.sh"
+# The sentinel that marks a workbench-OWNED vendored copy / CI drop. Prepended to
+# each vendored script + the workflow so `--remove` + drift-detection recognize an
+# unmodified auto-vendored file (a hand-edited one — sentinel stripped — is left
+# untouched, symmetric with the hook's foreign-file protection).
+CJ_VENDOR_SENTINEL="# vendored from claude-skills-templates by skills-deploy install-contract-gate"
+
+# Read the workbench collection version for the vendor stamp. Repo-local VERSION
+# (running from the workbench) → the manifest source's VERSION → "unknown".
+cj_vendor_version() {
+  if [ -f "$REPO_ROOT/VERSION" ]; then
+    tr -d '[:space:]' < "$REPO_ROOT/VERSION"; return 0
+  fi
+  local m msrc
+  m=$(manifest_read 2>/dev/null || echo '{}')
+  msrc=$(echo "$m" | jq -r '.source // empty' 2>/dev/null || echo "")
+  if [ -n "$msrc" ] && [ -f "$msrc/VERSION" ]; then
+    tr -d '[:space:]' < "$msrc/VERSION"; return 0
+  fi
+  echo "unknown"
+}
+
+# Resolve the SOURCE dir the 4 gate scripts are copied FROM. Repo-local scripts/
+# when running inside the workbench checkout, else the deployed _cj-shared home
+# (the same resolution the update-check / gate use). Echoes the dir (empty if
+# neither carries the gate).
+cj_vendor_source_dir() {
+  if [ -x "$SHARED_SCRIPTS_SRC/cj-contract-gate.sh" ]; then
+    echo "$SHARED_SCRIPTS_SRC"; return 0
+  fi
+  if [ -x "$SHARED_SCRIPTS_TARGET/cj-contract-gate.sh" ]; then
+    echo "$SHARED_SCRIPTS_TARGET"; return 0
+  fi
+  echo ""
+}
+
+# The CI-workflow body, emitted from an embedded heredoc (mirrors gate_hook_body).
+# 'CIGATE'-quoted: nothing expands here — it is a static YAML template. The
+# sentinel comment marks it workbench-auto-dropped so `--remove` + the
+# hand-authored-protection check can recognize an unmodified auto-drop.
+ci_workflow_body() {
+  cat <<'CIGATE'
+# vendored from claude-skills-templates by skills-deploy install-contract-gate — re-run to re-sync; do not hand-edit
+name: Contract Gate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  contract-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Run the deterministic contract gate
+        run: bash .cj-contract/cj-contract-gate.sh --repo .
+CIGATE
+}
+
+# Vendor the 4 gate engines into <target>/.cj-contract/, GUARDED (F000089/S000138).
+# For each script: prepend the sentinel + version stamp header, LF-normalize the
+# body, write, chmod +x. Overwrite by default (sync semantics). Guards mirror the
+# hook install: non-git → no-op, workbench-self → SKIP, no usable source → note.
+# Echoes VENDOR: outcome lines. Always returns 0 (best-effort; never halts).
+# Usage: vendor_gate_engines <target-repo>
+vendor_gate_engines() {
+  local target="$1"
+  if ! git -C "$target" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "  VENDOR: $target is not a git repository — nothing to vendor (no-op)"
+    return 0
+  fi
+  target=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)
+  if [ "$(is_workbench_self_repo "$target")" = "yes" ]; then
+    echo "  VENDOR: $target is the workbench self-repo (authors the engines) — skipping vendor"
+    return 0
+  fi
+  local src
+  src=$(cj_vendor_source_dir)
+  if [ -z "$src" ]; then
+    echo "  VENDOR: no usable source for the gate engines (repo-local scripts/ + _cj-shared absent) — skipping vendor"
+    return 0
+  fi
+  local ver
+  ver=$(cj_vendor_version)
+  local dest="$target/$CJ_VENDOR_DIR"
+  mkdir -p "$dest" 2>/dev/null || true
+  local script vendored=0 missing=0
+  for script in $CJ_VENDOR_SCRIPTS; do
+    if [ ! -f "$src/$script" ]; then
+      echo "  VENDOR: source $script not found under $src — skipping it"
+      missing=$((missing + 1))
+      continue
+    fi
+    local out="$dest/$script"
+    {
+      echo "$CJ_VENDOR_SENTINEL v$ver — re-run 'skills-deploy install-contract-gate' to re-sync; do not hand-edit"
+      # LF-normalize the source body (strip any CR) so the vendored copy is LF.
+      tr -d '\r' < "$src/$script"
+    } > "$out"
+    chmod +x "$out" 2>/dev/null || true
+    vendored=$((vendored + 1))
+  done
+  echo "  VENDOR: vendored $vendored gate engine(s) into $CJ_VENDOR_DIR/ (stamped v$ver, LF, +x)$([ "$missing" -gt 0 ] && echo " — $missing source(s) missing")"
+  return 0
+}
+
+# Drop the CI workflow into <target>/.github/workflows/cj-contract-gate.yml,
+# GUARDED (F000089/S000138). Skip-with-note if a hand-authored (non-sentinel)
+# workflow of that name already exists; overwrite only a prior sentinel auto-drop.
+# Guards mirror vendor: non-git → no-op, workbench-self → SKIP. Echoes CI-TEMPLATE:
+# outcome lines. Always returns 0 (best-effort; never halts).
+# Usage: drop_ci_workflow <target-repo>
+drop_ci_workflow() {
+  local target="$1"
+  if ! git -C "$target" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "  CI-TEMPLATE: $target is not a git repository — nothing to drop (no-op)"
+    return 0
+  fi
+  target=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)
+  if [ "$(is_workbench_self_repo "$target")" = "yes" ]; then
+    echo "  CI-TEMPLATE: $target is the workbench self-repo — skipping CI-workflow drop"
+    return 0
+  fi
+  local wf="$target/.github/workflows/cj-contract-gate.yml"
+  if [ -f "$wf" ] && ! grep -qF "$CJ_VENDOR_SENTINEL" "$wf" 2>/dev/null; then
+    echo "  CI-TEMPLATE: $wf exists and is hand-authored (no sentinel) — left untouched (skip-with-note)"
+    return 0
+  fi
+  mkdir -p "$target/.github/workflows" 2>/dev/null || true
+  ci_workflow_body > "$wf"
+  echo "  CI-TEMPLATE: dropped .github/workflows/cj-contract-gate.yml (runs the vendored gate on pull_request + push:main)"
+  return 0
+}
+
+# Remove the vendored .cj-contract/ + the dropped CI workflow, SENTINEL-GATED
+# (F000089/S000138) — symmetric with the hook removal. A vendored script or the
+# workflow is deleted ONLY when it carries the workbench sentinel (unmodified /
+# auto-vendored); a hand-edited file (sentinel stripped) is left UNTOUCHED. The
+# .cj-contract/ dir is removed only when every remaining file was sentinel-owned
+# (so it is empty after the sweep). Echoes VENDOR:/CI-TEMPLATE: outcome lines.
+# Usage: remove_vendored_gate <target-repo>
+remove_vendored_gate() {
+  local target="$1"
+  target=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null || echo "$target")
+  local dest="$target/$CJ_VENDOR_DIR"
+  if [ -d "$dest" ]; then
+    local script removed=0 kept=0
+    for script in $CJ_VENDOR_SCRIPTS; do
+      local f="$dest/$script"
+      [ -f "$f" ] || continue
+      if grep -qF "$CJ_VENDOR_SENTINEL" "$f" 2>/dev/null; then
+        rm -f "$f" 2>/dev/null || true
+        removed=$((removed + 1))
+      else
+        kept=$((kept + 1))
+      fi
+    done
+    # Remove the dir only if nothing (sentinel-owned or foreign) remains in it.
+    if [ -z "$(ls -A "$dest" 2>/dev/null)" ]; then
+      rmdir "$dest" 2>/dev/null || true
+      echo "  VENDOR: removed $CJ_VENDOR_DIR/ ($removed vendored engine(s) deleted)"
+    else
+      echo "  VENDOR: deleted $removed sentinel-owned engine(s); kept $kept hand-edited/foreign file(s) — $CJ_VENDOR_DIR/ left in place"
+    fi
+  else
+    echo "  VENDOR: no $CJ_VENDOR_DIR/ to remove (no-op)"
+  fi
+  local wf="$target/.github/workflows/cj-contract-gate.yml"
+  if [ -f "$wf" ]; then
+    if grep -qF "$CJ_VENDOR_SENTINEL" "$wf" 2>/dev/null; then
+      rm -f "$wf" 2>/dev/null || true
+      echo "  CI-TEMPLATE: removed .github/workflows/cj-contract-gate.yml (sentinel auto-drop)"
+    else
+      echo "  CI-TEMPLATE: .github/workflows/cj-contract-gate.yml is hand-authored (no sentinel) — left untouched"
+    fi
+  else
+    echo "  CI-TEMPLATE: no cj-contract-gate.yml to remove (no-op)"
+  fi
+  return 0
+}
+
 # Install the contract-gate pre-commit hook into a TARGET repo, GUARDED
 # (F000069 / S000117). Reuses the shared cj_install_hook safety (sentinel-aware
 # idempotent; back-up-a-non-workbench-hook-with-a-WARN). Guards, in order:
@@ -784,11 +974,28 @@ do_install_contract_gate() {
       foreign) echo "install-contract-gate --remove: $hook_dir/pre-commit is NOT workbench-owned — left untouched" ;;
       absent)  echo "install-contract-gate --remove: no pre-commit hook at $hook_dir — nothing to remove (no-op)" ;;
     esac
+    # Symmetric with the hook removal (F000089/S000138): also delete the vendored
+    # .cj-contract/ engines + the dropped CI workflow, sentinel-gated (a hand-edited
+    # file is left untouched). The workbench self-repo never vendored either, so
+    # remove_vendored_gate is a clean no-op there.
+    if [ "$(is_workbench_self_repo "$target")" != "yes" ]; then
+      remove_vendored_gate "$target"
+    fi
     return 0
   fi
-  # Complete adoption first (refresh generated surfaces + auto-declare repo docs)
-  # so the installed FULLY-HARD gate passes from the next commit — UNLESS this is
-  # the workbench self-repo (it authors its own contracts; never mutate them) or a
+  # Seed the portable contracts FIRST (idempotent; present⇒skip; self-repo-skipped
+  # + non-git no-op inside do_seed_contracts, corruption-guarded temp→--validate→mv)
+  # so ONE command turns a fresh consumer into a LIVE gate — not an inert all-SKIP
+  # one — matching docs/adopting-the-contract.md step 1. Without this, a fresh
+  # adopter's vendored gate resolves fine but every check REGISTRY=absent-SKIPs
+  # (vacuous PASS), so drift is never caught.
+  if [ "$(is_workbench_self_repo "$target")" != "yes" ]; then
+    echo "install-contract-gate: seeding the portable contracts (idempotent)"
+    do_seed_contracts --repo "$target"
+  fi
+  # Complete adoption (refresh generated surfaces + auto-declare repo docs) so the
+  # installed FULLY-HARD gate passes from the next commit — UNLESS this is the
+  # workbench self-repo (it authors its own contracts; never mutate them) or a
   # repo that has not adopted any contract (no spec/ registry — nothing to refresh).
   if [ "$(is_workbench_self_repo "$target")" != "yes" ] \
      && { [ -f "$target/spec/doc-spec.md" ] || [ -f "$target/spec/test-spec.md" ] || [ -f "$target/spec/workflow-spec.md" ]; }; then
@@ -797,6 +1004,14 @@ do_install_contract_gate() {
   fi
   echo "install-contract-gate: installing the cj-contract-gate pre-commit hook into $target"
   install_contract_gate_hook "$target"
+  # Vendor the 4 gate engines + drop the CI workflow (F000089/S000138) so the
+  # consumer's PUSH path enforces the gate on a bare runner — consumer-only,
+  # self-repo-skipped inside each helper. Best-effort; never halts.
+  if [ "$(is_workbench_self_repo "$target")" != "yes" ]; then
+    echo "install-contract-gate: vendoring the gate engines + dropping the CI workflow"
+    vendor_gate_engines "$target"
+    drop_ci_workflow "$target"
+  fi
   return 0
 }
 
@@ -1440,6 +1655,13 @@ do_install() {
       # clobbered. Best-effort — never halts the install.
       echo "Contract gate — installing the consumer pre-commit enforcement hook:"
       install_contract_gate_hook "$_seed_cwd"
+      # Vendor the 4 gate engines into .cj-contract/ + drop the CI workflow
+      # (F000089/S000138) so the consumer's PUSH path also enforces the gate on a
+      # bare CI runner with no ~/.claude. Consumer-only (this block already excludes
+      # the workbench self-repo); each helper is self-repo-skipped + best-effort.
+      echo "Contract gate — vendoring the gate engines + dropping the CI workflow:"
+      vendor_gate_engines "$_seed_cwd"
+      drop_ci_workflow "$_seed_cwd"
     fi
   else
     echo "Contracts — skipped (install run from a non-git directory)"
@@ -2109,12 +2331,15 @@ case "${1:-}" in
     echo "                                    (--seed → non-empty + --validate-clean → mv). The workbench"
     echo "                                    self-repo is skipped (data-loss guard); a non-git dir is a no-op."
     echo "  install-contract-gate [--repo <path>] [--remove]"
-    echo "                                    Install (or --remove) the cj-contract-gate pre-commit hook on a"
-    echo "                                    CONSUMER repo (cwd, or --repo). The hook runs the deterministic"
-    echo "                                    Stage-1 contract gate on every commit; a hard finding blocks it."
-    echo "                                    Guarded: workbench-self / custom core.hooksPath (husky) are"
-    echo "                                    skipped; a non-workbench hook is backed up, not clobbered."
-    echo "                                    --remove uninstalls ONLY the sentinel (workbench-owned) hook."
+    echo "                                    Install (or --remove) the cj-contract-gate enforcement on a"
+    echo "                                    CONSUMER repo (cwd, or --repo): the pre-commit hook PLUS the"
+    echo "                                    vendored gate engines in .cj-contract/ and a dropped CI workflow"
+    echo "                                    (.github/workflows/cj-contract-gate.yml) that runs the vendored"
+    echo "                                    gate on a bare runner with no ~/.claude. A hard finding blocks"
+    echo "                                    the commit / reds the PR. Guarded: workbench-self / custom"
+    echo "                                    core.hooksPath (husky) are skipped; a non-workbench hook and a"
+    echo "                                    hand-authored workflow are left untouched. --remove reverses the"
+    echo "                                    hook + .cj-contract/ + workflow, but ONLY sentinel-marked copies."
     exit 1
     ;;
 esac
