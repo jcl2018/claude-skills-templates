@@ -1748,6 +1748,60 @@ else
 fi
 
 echo ""
+echo "Regression test (D000019): QA gates stay type-aware (defect/task ambiguous=N/A, not halt)..."
+
+# Background: pipeline gate semantics were originally user-story-only and were
+# not type-aware. Two bugs followed (see
+# work-items/defects/skills/D000019_pipeline_type_aware_gates/): (1) Step 7's
+# halt rule treated an ambiguous E2E verdict uniformly, so a defect/task could
+# structurally never reach green (their inner E2E subagent never dispatches — the
+# ambiguous verdict is the canonical N/A marker, not "uncertain"); (2) the Step
+# 5.1 pre-scan's input selection + regex missed the skills/*/scripts/ trust
+# boundary, shipping new executable skill scripts auto-approved. The fix pinned
+# type-aware semantics into skills/CJ_qa-work-item/qa.md (the per-type dispatch
+# table + the E2E-always-empty-for-defect/task path) and kept the skills/*/scripts/
+# surface in the sensitive-surface pre-scan (now carried by the todo_fix.sh gate).
+# This shape-guard fails loudly if any of those load-bearing clauses is edited
+# away — the deterministic proof that the type-aware gate semantics stay intact.
+_QA_MD="$REPO_ROOT/skills/CJ_qa-work-item/qa.md"
+_TF_SH="$REPO_ROOT/skills/CJ_goal_todo_fix/scripts/todo_fix.sh"
+_D19_OK=1
+
+# (a) The per-type dispatch table's defect + task rows (test-row source + no E2E).
+# shellcheck disable=SC2016 # backticks + literal $-free strings are intentional grep needles matching qa.md verbatim, not shell expansions
+if grep -qF -- '| `defect` | `*_test-plan.md` (`## Regression Test Cases` table — all rows treated as smoke-equivalent) | NO |' "$_QA_MD" \
+   && grep -qF -- '| `task` | `*_test-plan.md` (`## Regression Test Cases` table — all rows treated as smoke-equivalent) | NO |' "$_QA_MD"; then
+  ok "qa.md keeps the per-type dispatch table's defect + task rows (test-plan source; no E2E subagent) (D000019a)"
+else
+  fail_test "qa.md lost the per-type dispatch table's defect/task rows — QA's type-dispatch went untyped (D000019a guard)"
+  _D19_OK=0
+fi
+
+# (b1) The defect/task "ambiguous is the canonical N/A marker, not a halt" clause:
+# E2E is structurally empty for defect/task, so the pipeline treats a
+# defect/task's ambiguous E2E as N/A and proceeds to green (never halts).
+# shellcheck disable=SC2016 # backticks + `E2E_ROWS` are intentional grep needles matching qa.md verbatim, not shell expansions
+if grep -qF -- 'Set `E2E_ROWS = []` (empty) — defects and tasks do not dispatch the E2E' "$_QA_MD" \
+   && grep -qF -- '**For defect/task: E2E always empty** (skipped per type dispatch)' "$_QA_MD"; then
+  ok "qa.md keeps the defect/task E2E-always-empty clause (ambiguous is the canonical N/A marker, not a halt) (D000019b)"
+else
+  fail_test "qa.md lost the defect/task E2E-always-empty clause — an ambiguous E2E would falsely halt defect/task QA (D000019b guard)"
+  _D19_OK=0
+fi
+
+# (b2) The pre-scan's skills/*/scripts/ trust-boundary surface: a new executable
+# under a skill's scripts/ dir must trip the sensitive-surface gate (the D000019
+# Edit #2a broaden). Carried by the todo_fix.sh sensitive-surface scan.
+if grep -qF -- 'skills/[^/]+/scripts/' "$_TF_SH"; then
+  ok "the sensitive-surface pre-scan still covers the skills/*/scripts/ trust boundary (D000019b input-selection)"
+else
+  fail_test "the sensitive-surface pre-scan dropped the skills/*/scripts/ trust boundary — new executable skill scripts would ship auto-approved (D000019b guard)"
+  _D19_OK=0
+fi
+
+[ "$_D19_OK" -eq 1 ] && ok "D000019 type-aware QA-gate shape-guard: all clauses intact"
+
+echo ""
 echo "Regression test (D000025): D-ID allocator find sites carry no -maxdepth cap..."
 
 # Background: the D-ID allocator/resolver's find over work-items/defects/ used
