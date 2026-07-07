@@ -98,7 +98,7 @@ if [ "$DRY_RUN" = "1" ]; then
 fi
 
 # --- Run the audits headless. GH tokens are unset inside the subshell so the
-#     model-driven run can never read them (defense-in-depth; run-case.sh idiom). -
+#     model-driven run can never read them (defense-in-depth token-scrub idiom). -
 echo "Running the nightly doc/test audit via claude --print (budget \$$AUDIT_BUDGET_USD)..." >&2
 audit_out=$(
   unset GITHUB_TOKEN GH_TOKEN NPM_TOKEN

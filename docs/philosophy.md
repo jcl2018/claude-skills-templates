@@ -261,8 +261,7 @@ kind of guarantee:
   gates the PR — the fast merge signal.
 - **CI-nightly** — runs on a nightly schedule (GitHub Actions). It owns the
   heavier checks that would slow every PR run, deferred off the PR path: the
-  Windows-native `skills-deploy` suite, the behavioral eval harness, the
-  agent-judged doc/test audit.
+  Windows-native `skills-deploy` suite and the agent-judged doc/test audit.
 - **pipeline-gate** — runs *during* a cj_goal orchestrator run. It owns the claim
   that this run did the right thing before it reached the PR: the inline halts for
   isolation, design-summary approval, QA, doc-sync, and ship. These

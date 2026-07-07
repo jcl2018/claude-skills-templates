@@ -200,7 +200,8 @@ local-hook), plus the three cj_goal verb topics **`goal-feature` / `goal-task` /
 `tests/goal-{feature,task,defect}-chain.test.sh` gated off the per-PR path by
 `TEST_FAST=1`, and existing local-hook deterministic fills; the former bundled
 `cj-goal-eval` label is retired, its two agentic eval rows re-topic'd per-verb and
-ADVISORY, slated for removal — deleting them cannot red Check 30). The remaining
+ADVISORY, then REMOVED by F000087 together with the paid `scripts/eval.sh` runner —
+Check-30-safe since the agentic point is advisory). The remaining
 labeled topics (deploy-harness — deliberately unenrolled: its missing CI-push
 point is a conscious speed decision, and claiming windows-smoke, portability's
 row, would double-count — plus doc-sync, e2e, cj-goal-gate) keep the advisory
@@ -623,7 +624,6 @@ To create a new skill, create the directory and files manually (no scaffolding s
 | `validate.sh` | Checks catalog against filesystem | Before every commit |
 | `test.sh` | Full test suite (superset of validate) | Before pushing |
 | `test-deploy.sh` | Tests `skills-deploy` in isolated temp dirs | When changing `skills-deploy` |
-| `eval.sh` | Behavioral eval harness (F000013 V1) — spawns `claude --print` against scratch worktrees per case in `tests/eval/<skill>/<case>/`, validates structured JSON output via `--json-schema`. Per-case `--max-budget-usd 0.50`, aggregate `EVAL_TOTAL_BUDGET_USD` (default $10). F000080 removed the former `.github/workflows/eval-nightly.yml` nightly CI job; the harness now runs on-demand only. | On-demand / local (`bash scripts/eval.sh`) |
 | `audit-nightly.sh` | On-demand agent-judged doc/test-drift audit (F000076; re-homed off nightly CI by F000080) — the off-build-path home of the three-stage `/CJ_doc_audit` + `/CJ_test_audit` that the four `CJ_goal_*` orchestrators no longer run inline. Runs both audits headless (`claude --print`) against the repo, parses their findings, and files/updates a single GitHub issue labelled `audit-drift` (opens on new findings, updates the open issue, closes/notes when clean). SKIPs cleanly (exit 0) without a usable model key, so a normal `test.sh` / non-model CI never invokes it. (The former `.github/workflows/audit-nightly.yml` nightly CI job was removed by F000080; the script name is retained.) | On-demand / local (`bash scripts/audit-nightly.sh`) |
 | `collection-version.sh` | Get/bump/manifest for collection version | Maintainer tool (internal) |
 | `doctor.sh` | Diagnoses skill health issues | Periodic checkup |

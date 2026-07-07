@@ -8,7 +8,6 @@ Host:      posix
 | id | command | tier | rc | outcome | covered families | units | duration |
 |----|---------|------|----|---------|------------------|-------|----------|
 | run-test-sh | `bash scripts/test.sh` | free | 0 | pass | validate test test-deploy eval windows-smoke | 77 | 214s |
-| run-eval | `bash scripts/eval.sh` | paid | — | skipped(tier-not-selected) | eval | 1 | n/a |
 | run-e2e-local | `CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh` | local-only | — | skipped(tier-not-selected) | test | 44 | n/a |
 
 ## Runner-less families (by design — not skipped)
