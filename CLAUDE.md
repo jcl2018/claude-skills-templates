@@ -184,7 +184,7 @@ zero model spend**: because `mode: agentic ⇒ tier ≠ free`, an agentic row is
 present in CI but never executed there — the hard Check proves the deterministic
 coverage is DECLARED, while the executor (`/CJ_test_run --topic <t> --e2e`,
 local-only) proves the agentic BEHAVIOR where a topic declares one. Enrollment is
-opt-in (the grandfather seam): **three topics are enrolled** — `portability`
+opt-in (the grandfather seam): **six topics are enrolled** — `portability`
 (which ALSO declares the advisory agentic proof it earned,
 `tests/portability-version-agentic.test.sh`, driving the `skills-update-check`
 preamble through `claude --print` in a repo-neutral sandbox — the reusable
@@ -194,16 +194,23 @@ green-but-inert blind spot the deterministic version-check cannot see), plus
 `validator` and `full-suite` (deterministic three-layer enrollments: the existing
 per-PR `validate`/`suite` rows carry CI-push; the new `validate-nightly` /
 `suite-nightly` and `validate-hook` / `suite-local` rows fill CI-nightly +
-local-hook). The 5 remaining labeled topics (deploy-harness — deliberately
-unenrolled: its missing CI-push point is a conscious speed decision, and claiming
-windows-smoke, portability's row, would double-count — plus cj-goal-eval,
-doc-sync, e2e, cj-goal-gate) keep the advisory matrix until their missing
-deterministic points are built (follow-up TODOs). Wired into `validate.sh` as
-**Check 30** (HARD, registry-gated) + a targeted `scripts/test.sh` negative drill
-proving BOTH directions (a removed deterministic point still FINDINGs + exits
-non-zero; a removed agentic row exits 0 with the advisory note present — invoking
-ONLY the engine, hermetic temp registries), surfaced in `/CJ_test_audit` Stage 1;
-`/CJ_test_run` gains a `--topic`
+local-hook), plus the three cj_goal verb topics **`goal-feature` / `goal-task` /
+`goal-defect`** (F000084 — per-verb CI-push smokes incl. the NEW
+`tests/cj-goal-defect-smoke.test.sh`, NEW CI-nightly helper-chain drills
+`tests/goal-{feature,task,defect}-chain.test.sh` gated off the per-PR path by
+`TEST_FAST=1`, and existing local-hook deterministic fills; the former bundled
+`cj-goal-eval` label is retired, its two agentic eval rows re-topic'd per-verb and
+ADVISORY, slated for removal — deleting them cannot red Check 30). The remaining
+labeled topics (deploy-harness — deliberately unenrolled: its missing CI-push
+point is a conscious speed decision, and claiming windows-smoke, portability's
+row, would double-count — plus doc-sync, e2e, cj-goal-gate) keep the advisory
+matrix until their missing deterministic points are built (follow-up TODOs). Wired
+into `validate.sh` as **Check 30** (HARD, registry-gated) + targeted
+`scripts/test.sh` negative drills proving BOTH directions (a removed deterministic
+point still FINDINGs + exits non-zero; a removed agentic row exits 0 with the
+advisory note present — invoking ONLY the engine, hermetic temp registries; incl.
+the F000084 `Step 3k-topics` 3-arm goal-verb drill), surfaced in `/CJ_test_audit`
+Stage 1; `/CJ_test_run` gains a `--topic`
 selector. A repo with no `categories:` axis or no `topic_contracts:` enrollment
 reports "topic contract inactive" and passes vacuously.
 
@@ -792,7 +799,9 @@ contract — enforced SEPARATELY by `validate.sh` Check 30
 reach all three layers deterministically (a missing `local-hook`+`agentic` test is
 an ADVISORY per-topic note, never a finding — F000086); declaration-only, so it is
 CI-safe (an agentic behavior, where a topic declares one, runs local-only via
-`/CJ_test_run --topic <t> --e2e`). See
+`/CJ_test_run --topic <t> --e2e`). The six enrolled topics are `portability`,
+`validator`, `full-suite`, and the three cj_goal verbs `goal-feature` /
+`goal-task` / `goal-defect` (F000084). See
 `## Doc contract (doc-spec.md)` Check 30 + the topic-axis section in
 `spec/test-spec.md`. Both `units:` and `behaviors:` are enforced by `validate.sh`
 Check 24 — a MIXED check: validate-the-merge + the HARD coverage cross-check
@@ -895,7 +904,8 @@ source, the prose explains it.
 - **Check 30** — the **three-layer topic contract** (HARD, registry-gated,
   F000082; advisory-agentic semantics F000086): every ENROLLED topic (a
   `spec/test-spec-custom.md` `topic_contracts:` entry — `portability`, `validator`,
-  `full-suite` today) MUST carry ≥1 `CI-push` + ≥1 `CI-nightly` + ≥1
+  `full-suite`, and the three cj_goal verbs `goal-feature` / `goal-task` /
+  `goal-defect` (F000084) today) MUST carry ≥1 `CI-push` + ≥1 `CI-nightly` + ≥1
   `local-hook`+`deterministic` test attributed to it
   (via the `topic:` field on its `categories:` rows), each with its front-door
   `docs/tests/<cat>/<layer>/<name>.md` — so an enrolled topic cannot ship
@@ -910,10 +920,12 @@ source, the prose explains it.
   consumer passes vacuously). Also surfaced in `/CJ_test_audit` Stage 1 (+ Stage-2
   judging — where an enrolled topic declares an agentic row — that it names a real
   sandbox test, not a hollow prompt).
-  Paired with a targeted `scripts/test.sh` negative drill proving BOTH directions
+  Paired with targeted `scripts/test.sh` negative drills proving BOTH directions
   (hermetic temp registry copies, invoking ONLY the engine: removing a
   deterministic point still yields the finding + non-zero exit; removing
-  portability's agentic row yields exit 0, findings=0, and the advisory note).
+  portability's agentic row — or a re-topic'd goal-verb agentic eval row — yields
+  exit 0, findings=0, and the advisory note; the F000084 `Step 3k-topics` 3-arm
+  goal-verb drill).
 - **Check 31** — the **topic docs contract** (HARD, registry-gated, F000083): the
   doc-legibility companion to Check 30. Every ENROLLED topic MUST also be DOCUMENTED
   end to end — a **dream doc** at `docs/goals/<topic>.md` (the end goal + the
@@ -922,9 +934,10 @@ source, the prose explains it.
   per-layer page `<layer>.md` for each layer the topic spans — the HOW, grouped by
   layer). Check 30 proves the enrolled topic's TESTS reach every layer; Check 31
   proves its testing is LEGIBLE (a maintainer can learn from the docs what the topic
-  proves and how) and cannot rot back to one-line stubs. Engine:
+  proves and how) and cannot rot back to one-line stubs. Applies to every enrolled
+  `topic_contracts:` topic. Engine:
   `test-spec.sh --check-topic-docs`; **declaration-only ⇒ CI-safe**. SKIPs when the
-  registry / `categories:` axis / `topic_contracts:` enrollment is absent (a consumer
+  registry / `categories:` axis / the `topic_contracts:` enrollment is absent (a consumer
   passes vacuously). Surfaced in `/CJ_test_audit` Stage 1. Paired with a targeted
   `scripts/test.sh` negative test (a temp docs tree via the `TESTDOC_OUT` override
   with the dream doc omitted → expect the finding, invoking ONLY the engine). The

@@ -33,8 +33,9 @@ ratchet property (a ratchet unit also runs in `CI-push`).
 
 ### Handled by `CI-push` (every push / PR, on a clean runner — hard-fail)
 
-The bulk of the surface. Four kinds, each its own table below. (The sole remaining
-`CI-nightly` row — the `windows-nightly` workflow — is in its own subsection below.
+The bulk of the surface. Four kinds, each its own table below. (The `CI-nightly`
+rows — the `nightly` + `windows-nightly` workflows, the re-layered `test-deploy`
+suite, and the three goal-verb chain drills — are in their own subsection below.
 The former `eval-nightly` / `audit-nightly` workflows were removed with F000080, and
 `suite-eval` + the agentic eval / doc-sync category tests now run on-demand at the
 `local-hook` layer.)
@@ -93,6 +94,7 @@ sub-suites* and the *inline `test.sh` families*:
 | goal-common sync suite — pre-build skills-sync phase | Dry-run, opt-out, guard-refusal and real-run paths emit the four-key schema. |
 | cj-id-claim suite — atomic work-item ID claim | Concurrent-race uniqueness, both reap modes, prefix isolation and reuse. |
 | feature-path smoke suite — worktree entry + common phases | Feature worktree entry, the shared helper's phases, and leaf dispatch targets. |
+| defect-path smoke suite — worktree entry + common phases | Defect worktree entry (cj-def-*), the shared helper's phases under --mode defect, and the qa/doc-sync leaf targets. |
 | doc-spec overlay suite — two-tier merge semantics | Overlay merge, duplicate-path guard, seed byte identity, the Stage-1 battery. |
 | test-spec suite — two-tier registry parser + coverage drills | Parser round-trip, absent-vs-invalid split, the floor note, coverage drift drills. |
 | audit-skills suite — seed delivery + audit engines | Seed delivery, idempotence, seeded-violation findings, per-stage report contract. |
@@ -128,7 +130,7 @@ see the section below.)
 
 | Check / Unit | What it asserts |
 |---|---|
-| validate workflow — PR gate | Runs the validator, the FAST test subset (`TEST_FAST=1` — skips the heavy `test-deploy` suite) and shellcheck on every PR. |
+| validate workflow — PR gate | Runs the validator, the FAST test subset (`TEST_FAST=1` — skips the heavy `test-deploy` suite AND the three goal-verb chain drills) and shellcheck on every PR. |
 | windows workflow — Git Bash smoke gate | Runs the fast Windows smoke under Git Bash on PR + push-main (CI-push cadence). |
 
 ### Handled by `CI-nightly` (heavier DETERMINISTIC checks off the PR path, on a nightly schedule)
@@ -136,14 +138,19 @@ see the section below.)
 Deterministic-only. Two scheduled workflows run here: `nightly.yml` (the ubuntu
 full `scripts/test.sh`, F000081/WS4) and `windows-nightly.yml` (the windows-latest
 skills-deploy suite, F000080). The heavy `skills-deploy` / `test-deploy` suite is
-re-layered to this cadence (F000081 follow-up): the per-PR `test.sh` skips it under
-`TEST_FAST=1`, so it gates via `nightly.yml` rather than on every PR. The
-`portability-deploy` workflow-category test shares this cadence.
+re-layered to this cadence (F000081 follow-up), and the three goal-verb chain
+drills (`goal-feature-chain` / `goal-task-chain` / `goal-defect-chain`) share it:
+the per-PR `test.sh` skips them all under `TEST_FAST=1`, so they gate via
+`nightly.yml` rather than on every PR. The `portability-deploy` workflow-category
+test shares this cadence.
 
 | Check / Unit | What it asserts |
 |---|---|
-| nightly workflow — full test suite | Runs the FULL scripts/test.sh (including test-deploy.sh) on ubuntu-latest nightly + on dispatch (CI-nightly cadence). |
+| nightly workflow — full test suite | Runs the FULL scripts/test.sh (including test-deploy.sh + the chain drills) on ubuntu-latest nightly + on dispatch (CI-nightly cadence). |
 | skills-deploy suite — install/doctor/remove in isolation | Template ownership, drift overwrite, copy-mode and doctor verdicts in temp homes; re-layered from CI-push (the per-PR test.sh skips it under TEST_FAST=1). |
+| goal-feature chain drill — feature-verb deterministic helper chain | Real worktree + assert-isolated + sync opt-out + pr-check + design-gate seam + recap + dry-run cleanup, end to end in a temp sandbox. |
+| goal-task chain drill — task-verb deterministic helper chain | Real worktree + the bash scaffolder's T-ID mint (type: task shape) + recap + dry-run cleanup, end to end in a temp sandbox. |
+| goal-defect chain drill — defect-verb deterministic helper chain | Real worktree + D-ID dry-run claim + pr-check + the before/after recap pair + a fixture land-sync preview + dry-run cleanup. |
 | windows-nightly workflow — nightly skills-deploy suite | Runs the full skills-deploy suite (test-deploy.sh) on windows-latest nightly + on dispatch (CI-nightly cadence). |
 
 ### Handled by `local-hook` (at `git commit`, or run on-demand before code leaves the machine)
@@ -710,7 +717,7 @@ units:
     layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability / validator / full-suite today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} test, each with its front-door doc; a missing local-hook{agentic} test is an ADVISORY per-topic note, never a finding (agentic proofs run on-demand, not required). Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — an agentic behavior, where declared, is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
+    purpose: "The three-layer topic contract: every ENROLLED topic (topic_contracts:, portability / validator / full-suite / goal-feature / goal-task / goal-defect today) must carry a CI-push + a CI-nightly + a local-hook{deterministic} test, each with its front-door doc; a missing local-hook{agentic} test is an ADVISORY per-topic note, never a finding (agentic proofs run on-demand, not required). Calls test-spec.sh --check-topic-contract; declaration-only, so it is CI-safe (zero model spend — an agentic behavior, where declared, is proven local-only by /CJ_test_run --e2e). Registry-gated: skips when the engine is absent or the contract reports inactive."
   - id: validate-check-31
     family: validate
     label: "Check 31 — topic docs contract (enrolled topics have a dream doc + topic-by-layer subdir)"
@@ -719,7 +726,7 @@ units:
     layer: CI-push
     disposition: hard-fail
     trigger: "pre-commit pr-ci"
-    purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability / validator / full-suite today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
+    purpose: "The topic docs contract (the doc-legibility companion to Check 30): every ENROLLED topic (topic_contracts:, portability / validator / full-suite / goal-feature / goal-task / goal-defect today) must have a docs/goals/<topic>.md dream doc AND a docs/tests/topics/<topic>/ subdir — an index that references the dream doc plus a per-layer page for each layer the topic spans. Calls test-spec.sh --check-topic-docs; declaration-only, so it is CI-safe. Registry-gated: skips when the engine is absent or the contract reports inactive."
   - id: validate-check-32
     family: validate
     label: "Check 32 — defect-coverage ledger (every defect dir maps to a live proof row)"
@@ -942,6 +949,42 @@ units:
     disposition: hard-fail
     trigger: "pr-ci"
     purpose: "Feature-caller worktree entry, the shared helper's worktree/ship/telemetry phases, and leaf dispatch targets present on disk."
+  - id: test-cj-goal-defect-smoke
+    family: test
+    label: "defect-path smoke suite — worktree entry + common phases"
+    anchor: "tests/cj-goal-defect-smoke.test.sh"
+    source: scripts/test.sh
+    layer: CI-push
+    disposition: hard-fail
+    trigger: "pr-ci"
+    purpose: "Defect-caller worktree entry (cj-def-*), the shared helper's worktree/ship/telemetry phases under --mode defect, and the workbench-owned qa/doc-sync leaf dispatch targets present on disk — the mirror of the feature-path smoke for /CJ_goal_defect (the goal-defect topic's CI-push point)."
+  - id: test-goal-feature-chain
+    family: test
+    label: "goal-feature chain drill — feature-verb deterministic helper chain (CI-nightly)"
+    anchor: "tests/goal-feature-chain.test.sh"
+    source: scripts/test.sh
+    layer: CI-nightly
+    disposition: hard-fail
+    trigger: "nightly"
+    purpose: "The feature verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL cj-feat-* worktree + the --assert-isolated verdict, the sync phase's --no-sync short-circuit, the read-only pr-check, the design-gate auto-answer seam (inactive bare / continue under the double guard), the at-PR 3-part recap, and the dry-run janitor preview. Registered under the TEST_FAST=1 guard, so it gates via the nightly full suite (nightly.yml), not per-PR — the goal-feature topic's CI-nightly point."
+  - id: test-goal-task-chain
+    family: test
+    label: "goal-task chain drill — task-verb deterministic helper chain (CI-nightly)"
+    anchor: "tests/goal-task-chain.test.sh"
+    source: scripts/test.sh
+    layer: CI-nightly
+    disposition: hard-fail
+    trigger: "nightly"
+    purpose: "The task verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL cj-task-* worktree, the REAL bash scaffolder minting a T-ID work-item inside it (frontmatter type: task + test-plan.md — the no-design scaffold that replaces /office-hours on the task path), the at-PR 3-part recap, and the dry-run janitor preview. Registered under the TEST_FAST=1 guard, so it gates via the nightly full suite (nightly.yml), not per-PR — the goal-task topic's CI-nightly point."
+  - id: test-goal-defect-chain
+    family: test
+    label: "goal-defect chain drill — defect-verb deterministic helper chain (CI-nightly)"
+    anchor: "tests/goal-defect-chain.test.sh"
+    source: scripts/test.sh
+    layer: CI-nightly
+    disposition: hard-fail
+    trigger: "nightly"
+    purpose: "The defect verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL cj-def-* worktree, the D-ID atomic-claim engine previewed (--prefix D --floor N --dry-run — no claim dir created), the read-only pr-check, the true BEFORE+AFTER recap pair the landing verbs emit around the land, the post-land-sync tail previewed against a temp fixture manifest (never the real ~/.claude), and the dry-run janitor preview. Registered under the TEST_FAST=1 guard, so it gates via the nightly full suite (nightly.yml), not per-PR — the goal-defect topic's CI-nightly point."
   - id: test-doc-spec-overlay
     family: test
     label: "doc-spec overlay suite — two-tier merge semantics"
@@ -1611,7 +1654,7 @@ runners:
 # the advisory per-category × 3-layer matrix (the grandfather seam), so enrolling
 # one topic never reds the build for the rest.
 #
-# Three enrolled topics:
+# Six enrolled topics:
 # - `portability` — CI-push (portability-check18-lint / portability-smoke) +
 #   CI-nightly (portability-deploy) + local-hook{deterministic}
 #   (portability-version-check); ALSO declares the advisory local-hook agentic
@@ -1623,16 +1666,24 @@ runners:
 # - `full-suite` — CI-push (the existing `suite` row) + CI-nightly (suite-nightly)
 #   + local-hook{deterministic} (suite-local). No agentic row (advisory note
 #   expected).
+# - `goal-feature` / `goal-task` / `goal-defect` (F000084) — the three cj_goal
+#   verbs, per-verb topics. Each fills its three deterministic points with a
+#   CI-push smoke/scaffold suite, a CI-nightly chain drill, and an existing
+#   local-hook deterministic test. The two agentic eval rows (goal-feature-eval /
+#   goal-task-eval) are re-topic'd per-verb but ADVISORY, never required — the
+#   agentic point is advisory for all topics, and these evals are slated for
+#   removal (deleting them cannot red Check 30). The former bundled `cj-goal-eval`
+#   label is RETIRED. `goal-defect` declares no agentic row (advisory note
+#   expected).
 #
 # `deploy-harness` stays deliberately UNENROLLED: its missing CI-push point is a
 # conscious speed decision (test-deploy.sh runs nightly, off the per-PR gate), and
 # claiming windows-smoke as its CI-push row would double-count — windows-smoke is
-# portability's row, and honest coverage beats complete-looking coverage. The 5
-# remaining labeled topics (deploy-harness / cj-goal-eval / doc-sync / e2e /
-# cj-goal-gate) are labeled but UNENROLLED — each needs its missing deterministic
-# coverage points built before it can enroll (tracked as follow-up TODOs in
-# TODOS.md).
-topic_contracts: [portability, validator, full-suite]
+# portability's row, and honest coverage beats complete-looking coverage. The 3
+# remaining labeled topics (deploy-harness / doc-sync / e2e / cj-goal-gate) are
+# labeled but UNENROLLED — each needs its missing deterministic coverage points
+# built before it can enroll (tracked as follow-up TODOs in TODOS.md).
+topic_contracts: [portability, validator, full-suite, goal-feature, goal-task, goal-defect]
 categories:
   # ---- the categories: axis (F000074; two-axis reframe F000078): the
   # category-based test contract ----
@@ -1692,7 +1743,7 @@ categories:
     command: "bash scripts/test-deploy.sh"
     tier: free
     doc: "docs/tests/infra/CI-nightly/test-deploy.md"
-    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it gates via the nightly full-suite (nightly.yml), not per-PR."
+    purpose: "The skills-deploy end-to-end suite in isolated temp dirs (install / remove / relink / doctor / drift) — the POSIX-host run, re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1 (the same guard that gates the three goal-verb chain drills), so it gates via the nightly full-suite (nightly.yml), not per-PR."
     topic: deploy-harness
   # ---- infra: the validator + the full suite at their other two layers — the
   #      CI-push level of each is carried by the EXISTING validate/suite rows
@@ -1794,7 +1845,7 @@ categories:
     tier: paid
     doc: "docs/tests/workflow/local-hook/goal-task-eval.md"
     purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex); agentic (spends model tokens), so it runs on-demand at the local-hook layer, never on a CI schedule or the free-tier default."
-    topic: cj-goal-eval
+    topic: goal-task
   - name: goal-feature-eval
     category: workflow
     layer: local-hook
@@ -1803,7 +1854,7 @@ categories:
     tier: paid
     doc: "docs/tests/workflow/local-hook/goal-feature-eval.md"
     purpose: "The /CJ_goal_feature workflow eval — drives the feature orchestrator through its dry-run chain-plan preview on the gstack-independent path (end_state dry_run_preview); backs the workflow-cj-goal-feature-runs level:workflow behavior; agentic, on-demand local-hook cadence."
-    topic: cj-goal-eval
+    topic: goal-feature
   - name: doc-sync
     category: workflow
     layer: local-hook
@@ -1831,6 +1882,92 @@ categories:
     doc: "docs/tests/workflow/CI-push/cj-goal-gate-shape.md"
     purpose: "The cj_goal build-gate shape guard — proves no CJ_goal_* orchestrator runs an inline slow doc-sync (/CJ_document-release) or agent-judged test-sync sweep: Step 5.5 is a deterministic doc-regen and QA's 8.6a/8.6b agentic sweep is DEFER_SYNC-gated, so the agentic doc/test sync defers to the nightly audit. Deterministic (grep, no model), runs per-PR; the complement to the doc-sync workflow test that proves the nightly safety net."
     topic: cj-goal-gate
+  # ---- workflow: the three goal-verb topics (goal-feature / goal-task /
+  #      goal-defect), each enrolled DETERMINISTIC-ONLY at all three points —
+  #      CI-push {a fast smoke/scaffold suite}, CI-nightly {a helper-chain
+  #      drill, TEST_FAST-gated off the per-PR path}, local-hook {an existing
+  #      deterministic test of that verb's plumbing} ----
+  - name: goal-feature-smoke
+    category: workflow
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/cj-goal-feature-smoke.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-push/goal-feature-smoke.md"
+    purpose: "The feature verb's fast per-PR shape smoke: worktree entry (cj-feat-*), the shared helper's worktree/ship/telemetry phases under --mode feature, and the scaffold/impl/qa leaf-dispatch targets on disk — the goal-feature topic's CI-push point."
+    topic: goal-feature
+  - name: goal-feature-chain
+    category: workflow
+    layer: CI-nightly
+    mode: deterministic
+    command: "bash tests/goal-feature-chain.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-nightly/goal-feature-chain.md"
+    purpose: "The feature verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL worktree + assert-isolated, the sync opt-out, pr-check, the design-gate auto-answer seam (both verdicts), the at-PR recap, and the dry-run janitor — TEST_FAST-gated to the nightly cadence; the goal-feature topic's CI-nightly point."
+    topic: goal-feature
+  - name: goal-feature-gate-seam
+    category: workflow
+    layer: local-hook
+    mode: deterministic
+    command: "bash tests/cj-e2e-gate.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/local-hook/goal-feature-gate-seam.md"
+    purpose: "The feature verb's build-gate auto-answer seam verdict matrix (scripts/cj-e2e-gate.sh): flag/marker double guard, the design-gate auto-approve the feature pipeline consumes, the {design-gate, qa-audit} allowlist, never auto-waiving findings — deterministic, runnable on demand before code leaves the machine; the goal-feature topic's local-hook deterministic point."
+    topic: goal-feature
+  - name: goal-task-scaffold
+    category: workflow
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/cj-task-scaffold.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-push/goal-task-scaffold.md"
+    purpose: "The task verb's fast per-PR suite: the HARD complexity gate's refusals (design -> feature, bug -> defect, large-scope), dry-run preview, the live T-ID scaffold, and idempotent re-runs of the bash scaffolder — the goal-task topic's CI-push point."
+    topic: goal-task
+  - name: goal-task-chain
+    category: workflow
+    layer: CI-nightly
+    mode: deterministic
+    command: "bash tests/goal-task-chain.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-nightly/goal-task-chain.md"
+    purpose: "The task verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL worktree, the REAL scaffolder minting a type: task work-item inside it, the at-PR recap, and the dry-run janitor — TEST_FAST-gated to the nightly cadence; the goal-task topic's CI-nightly point."
+    topic: goal-task
+  - name: goal-task-e2e-det
+    category: workflow
+    layer: local-hook
+    mode: deterministic
+    command: "bash tests/e2e-local.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/local-hook/goal-task-e2e-det.md"
+    purpose: "The DETERMINISTIC half of the local happy-path E2E harness that drives a real /CJ_goal_task build: the SKIP gate, the sandbox provision/teardown, the report generator, and the auth gate — no model spend; the goal-task topic's local-hook deterministic point (the agentic e2e-local run remains the separate on-demand harness)."
+    topic: goal-task
+  - name: goal-defect-smoke
+    category: workflow
+    layer: CI-push
+    mode: deterministic
+    command: "bash tests/cj-goal-defect-smoke.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-push/goal-defect-smoke.md"
+    purpose: "The defect verb's fast per-PR shape smoke (the mirror of the feature smoke): worktree entry (cj-def-*), the shared helper's worktree/ship/telemetry phases under --mode defect, and the workbench-owned qa/doc-sync leaf-dispatch targets on disk — the goal-defect topic's CI-push point."
+    topic: goal-defect
+  - name: goal-defect-chain
+    category: workflow
+    layer: CI-nightly
+    mode: deterministic
+    command: "bash tests/goal-defect-chain.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/CI-nightly/goal-defect-chain.md"
+    purpose: "The defect verb's deterministic helper chain end to end in a hermetic temp sandbox: a REAL worktree, the D-ID atomic-claim preview, pr-check, the BEFORE+AFTER recap pair, the fixture-manifest land-sync preview, and the dry-run janitor — TEST_FAST-gated to the nightly cadence; the goal-defect topic's CI-nightly point."
+    topic: goal-defect
+  - name: goal-defect-land-sync
+    category: workflow
+    layer: local-hook
+    mode: deterministic
+    command: "bash tests/post-land-sync.test.sh"
+    tier: free
+    doc: "docs/tests/workflow/local-hook/goal-defect-land-sync.md"
+    purpose: "The defect verb's post-land tail proven deterministically: post-land-sync.sh's guards refuse a bad .source and --dry-run previews the pull+install without mutating the live home — runnable on demand before a land; the goal-defect topic's local-hook deterministic point."
+    topic: goal-defect
   # ---- regression — proves a specific past defect stays fixed (defects earn
   #      these): the pure dedicated per-defect drills, migrated into the
   #      contract home tests/regression/CI-push/ and runnable by name; each is
