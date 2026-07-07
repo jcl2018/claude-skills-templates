@@ -2530,8 +2530,11 @@ _reconcile() {
 # (F000069/S000114) The SECOND instance of the proven README ↔ generate-readme.sh
 # ↔ validate.sh Check 25 primitive, applied to the test surface. The renderer is
 # PURE: the merged registry in → deterministic human docs out. It emits
-#   docs/tests/<family>.md  (one per unit `family` present in the registry), and
-#   docs/test-catalog.md     (the index grouped by family with per-family counts).
+#   docs/tests/<family>.md  (one per unit `family` present in the registry),
+#   docs/test-catalog.md     (the index grouped by family with per-family counts),
+#   docs/testing.md          (F000088/S000137 — the test-suite FRONT DOOR: fixed
+#                             narrative prose + the live behaviors / category-test /
+#                             enrolled-topic indexes; see _render_testing_page).
 # RENDERED FIELDS ONLY are emitted: label, purpose, layer, disposition, trigger,
 # and the anchor shown as an inline `code` reference next to its source path
 # (NEVER as a prose claim). label/purpose are already ID-free by the existing
@@ -2640,10 +2643,216 @@ _render_index_page() {
   done
 }
 
+# ---- docs/testing.md: the generated test-suite FRONT DOOR (F000088/S000137) ----
+# The SINGLE page a maintainer (or another machine) opens to understand, run,
+# audit, and verify the test suite — composed from the SAME merged registry as
+# the catalog, so it is rendered by --render-docs and diffed by
+# --render-docs --check (the existing validate.sh Check 26 keeps it fresh; no new
+# check). Approach A (hybrid): FIXED template prose for the narrative + three
+# registry-DERIVED indexes (behaviors / category tests / enrolled topics) reusing
+# the already-parsed $_BEHAVIORS / $_CATEGORIES + _parse_topic_contracts — so the
+# indexes track registry adds/removes automatically.
+#
+# DETERMINISM (load-bearing — Check 26 diffs byte-for-byte): the prose is fixed
+# strings; the behaviors index preserves registry order (the parser's stable
+# order); the categories index preserves registry order; the enrolled-topics list
+# preserves topic_contracts order. No timestamps, no run-specific metadata.
+#
+# NO work-item IDs in the output (it is a human-doc -> Check 19): the rendered
+# behavior/category fields are already ID-free by the rendered-field lint, but
+# every emitted cell is defensively masked via _mask_ids for symmetry with the
+# catalog renderer.
+
+# Render the behaviors index (section 6) to stdout: one row per $_BEHAVIORS entry
+# (behavior id / level / workflow). Empty table body when no behaviors declared.
+_render_testing_behaviors() {
+  echo "| Behavior | Level | Workflow |"
+  echo "|----------|-------|----------|"
+  [ -n "$_BEHAVIORS" ] || return 0
+  printf '%s\n' "$_BEHAVIORS" | while IFS="$(printf '\t')" read -r _id _stmt _level _area _purpose _workflow; do
+    [ -n "$_id" ] || continue
+    [ "$_level" = "-" ] && _level=""
+    [ "$_workflow" = "-" ] && _workflow=""
+    printf '| %s | %s | %s |\n' \
+      "$(_md_cell "$(_mask_ids "$_id")")" "$(_md_cell "$(_mask_ids "$_level")")" "$(_md_cell "$(_mask_ids "$_workflow")")"
+  done
+}
+
+# Render the category-test index (section 7) to stdout: one row per $_CATEGORIES
+# entry (name / category / layer / mode / tier / topic / doc). Empty table body
+# when no categories declared.
+_render_testing_categories() {
+  echo "| Test | Category | Layer | Mode | Tier | Topic | Doc |"
+  echo "|------|----------|-------|------|------|-------|-----|"
+  [ -n "$_CATEGORIES" ] || return 0
+  printf '%s\n' "$_CATEGORIES" | while IFS="$(printf '\t')" read -r _name _cat _layer _mode _cmd _tier _doc _purpose _topic; do
+    [ -n "$_name" ] || continue
+    [ "$_cat" = "-" ] && _cat=""
+    [ "$_layer" = "-" ] && _layer=""
+    [ "$_mode" = "-" ] && _mode=""
+    [ "$_tier" = "-" ] && _tier=""
+    [ "$_topic" = "-" ] && _topic=""
+    [ "$_doc" = "-" ] && _doc=""
+    # Doc is a repo-relative path; render it as an inline code reference.
+    _doc_ref=""
+    [ -n "$_doc" ] && _doc_ref="\`$(_mask_ids "$_doc")\`"
+    printf '| %s | %s | %s | %s | %s | %s | %s |\n' \
+      "$(_md_cell "$(_mask_ids "$_name")")" "$(_md_cell "$(_mask_ids "$_cat")")" \
+      "$(_md_cell "$(_mask_ids "$_layer")")" "$(_md_cell "$(_mask_ids "$_mode")")" \
+      "$(_md_cell "$(_mask_ids "$_tier")")" "$(_md_cell "$(_mask_ids "$_topic")")" "$_doc_ref"
+  done
+}
+
+# Render the enrolled-topics list (section 8) to stdout: one bullet per enrolled
+# topic (topic_contracts:), each linking its docs/goals/<topic>.md dream doc + its
+# docs/tests/topics/<topic>/ subdir. Empty when no topics enrolled.
+_render_testing_topics() {
+  _rtt_any=0
+  while IFS= read -r _topic; do
+    [ -n "$_topic" ] || continue
+    _rtt_any=1
+    _t=$(_mask_ids "$_topic")
+    echo "- **$_t** — [end goal](goals/$_t.md) · [how it's tested](tests/topics/$_t/)"
+  done <<EOF
+$(_parse_topic_contracts)
+EOF
+  [ "$_rtt_any" -eq 1 ] || echo "_No topics are enrolled in the three-layer topic contract._"
+}
+
+# Render the full docs/testing.md front-door page to stdout. Reads the already-
+# parsed $_BEHAVIORS / $_CATEGORIES and re-parses topic_contracts. Fixed prose +
+# the three registry indexes. LINKS out to philosophy / test-spec / the catalog +
+# index rather than duplicating their prose (Approach A).
+_render_testing_page() {
+  echo "# Testing"
+  echo ""
+  _render_banner "scripts/test-spec.sh --render-docs"
+  echo ""
+  echo "The single front door to this repo's test suite: what testing here proves,"
+  echo "how to run it, how to audit it, and how to verify it. The narrative is fixed;"
+  echo "the behaviors / category-test / enrolled-topic indexes below are rendered"
+  echo "live from the merged test-spec registry (\`spec/test-spec.md\` +"
+  echo "\`spec/test-spec-custom.md\`), so they track every add and remove automatically."
+  echo ""
+  # --- 1. What testing here proves -------------------------------------------
+  echo "## 1. What testing here proves"
+  echo ""
+  echo "Every change passes through a **continuous verification gate** — a quality"
+  echo "check at each step of the pipeline, with the verifier kept independent of the"
+  echo "doer. Tests are classified on two orthogonal axes (a **category** —"
+  echo "\`{workflow, regression, infra}\` — and a **layer** — \`{CI-push, CI-nightly,"
+  echo "pipeline-gate, local-hook}\`), so a green suite is a specific, owned set of"
+  echo "guarantees rather than a vague reassurance."
+  echo ""
+  echo "For the underlying principle and the full category×layer model, see"
+  echo "[docs/philosophy.md](philosophy.md) §\"Verification is a continuous gate\" and"
+  echo "its \"Topic: CI/CD\" section. This page does not duplicate that prose — it is"
+  echo "the operational front door to the surface those principles describe."
+  echo ""
+  # --- 2. The model at a glance ----------------------------------------------
+  echo "## 2. The model at a glance"
+  echo ""
+  echo "- **Category** (the *kind* of proof): \`workflow\` (a whole workflow runs end"
+  echo "  to end — features earn these), \`regression\` (a past defect stays fixed —"
+  echo "  defects earn these), \`infra\` (the standing verification surface — the"
+  echo "  validator, the full suite, the deploy harness)."
+  echo "- **Layer** (*where/when* it runs): \`CI-push\` (green per-PR to ship),"
+  echo "  \`CI-nightly\` (the slower cadence off the PR path), \`pipeline-gate\` (inline"
+  echo "  orchestrator halts), \`local-hook\` (pre-commit + local-only harnesses)."
+  echo "- **Mode**: \`deterministic\` or \`agentic\` (an agentic test spends model"
+  echo "  tokens, so \`agentic ⇒ tier ≠ free\` — it is declared in CI but only executed"
+  echo "  on-demand)."
+  echo "- **Topic contract**: a whole test *topic* (e.g. \`portability\`) can be held to"
+  echo "  all three deterministic layers at once — see the enrolled topics below."
+  echo ""
+  echo "The canonical map — the portable rules, the four-layer table, and the"
+  echo "machine-readable registry — is [spec/test-spec.md](../spec/test-spec.md)."
+  echo ""
+  # --- 3. How to RUN ----------------------------------------------------------
+  echo "## 3. How to run the tests"
+  echo ""
+  echo "\`/CJ_test_run\` executes the repo's test contract and reports"
+  echo "evidence-derived pass/fail. Selectors:"
+  echo ""
+  echo "- \`/CJ_test_run\` — run the whole tiered runner suite (default tier: \`free\`)."
+  echo "- \`/CJ_test_run --category <workflow|regression|infra>\` — run one category."
+  echo "- \`/CJ_test_run --layer <CI-push|CI-nightly|pipeline-gate|local-hook>\` — run one layer."
+  echo "- \`/CJ_test_run --topic <topic>\` — run one enrolled topic's tests."
+  echo "- \`/CJ_test_run <name>\` — run a single named category test."
+  echo ""
+  echo "**Cost tiers** keep model spend explicit: a default run touches only \`free\`"
+  echo "tests; add \`--evals\` for the paid eval tier, \`--e2e\` for local-only tests, or"
+  echo "\`--all\` for everything. A default run never spends model tokens."
+  echo ""
+  # --- 4. How to AUDIT --------------------------------------------------------
+  echo "## 4. How to audit the tests"
+  echo ""
+  echo "Where \`/CJ_test_run\` answers \"do the tests PASS?\", the audit verbs answer"
+  echo "\"are the declared tests WIRED and truthful?\" — each a three-stage audit"
+  echo "runnable standalone in any repo:"
+  echo ""
+  echo "- \`/CJ_test_audit\` — Stage 1 (deterministic engine checks: validate,"
+  echo "  coverage cross-check, catalog freshness, workflow + topic contracts),"
+  echo "  Stage 2 (requirement compliance — agent-judged), Stage 3 (implementation"
+  echo "  drift — agent-judged)."
+  echo "- \`/CJ_doc_audit\` — the doc-contract companion (the same three-stage shape"
+  echo "  against \`spec/doc-spec.md\`)."
+  echo ""
+  echo "The deterministic per-PR gate (\`scripts/validate.sh\` / the pre-commit hook /"
+  echo "CI) is what still stops a broken change on every PR; the agent-judged stages"
+  echo "run on-demand, off the build path."
+  echo ""
+  # --- 5. How to VERIFY (agentic, \$0) ----------------------------------------
+  echo "## 5. How to verify (agentic, \$0)"
+  echo ""
+  echo "Some proofs need a real agent, not a runner. The behavioral eval cases under"
+  echo "\`tests/eval/<skill>/<case>/\` are driven **in-session**: ask Claude to walk the"
+  echo "case against the repo and judge the structured outcome — no CI runner, no"
+  echo "surprise model spend. This is the on-demand \"verify\" surface that complements"
+  echo "the deterministic \"run\" and \"audit\" surfaces above; an agentic test lives at"
+  echo "the \`local-hook\` layer precisely so its model spend stays out of CI."
+  echo ""
+  # --- 6. Behaviors index -----------------------------------------------------
+  echo "## 6. Behaviors index"
+  echo ""
+  echo "Every \`behaviors:\` statement in the registry — the open-world claims the"
+  echo "suite must prove, each with its verification \`level\` (and, for a"
+  echo "\`workflow\`-level behavior, the \`CJ_goal_*\` orchestrator it covers)."
+  echo ""
+  _render_testing_behaviors
+  echo ""
+  # --- 7. Category-test index -------------------------------------------------
+  echo "## 7. Category-test index"
+  echo ""
+  echo "Every named test in the \`categories:\` axis — its category, layer, mode, cost"
+  echo "tier, topic, and its front-door doc. Run any row by name with"
+  echo "\`/CJ_test_run <name>\`."
+  echo ""
+  _render_testing_categories
+  echo ""
+  # --- 8. Enrolled topics -----------------------------------------------------
+  echo "## 8. Enrolled topics"
+  echo ""
+  echo "Topics enrolled in the three-layer topic contract (\`topic_contracts:\`): each"
+  echo "is held to at least one \`CI-push\` + one \`CI-nightly\` + one"
+  echo "\`local-hook\`+\`deterministic\` test, and is documented end to end by a dream doc"
+  echo "(the end goal) plus a per-layer topic subdir (how it's tested)."
+  echo ""
+  _render_testing_topics
+  echo ""
+  # --- 9. Drill-down links ----------------------------------------------------
+  echo "## 9. Drill down"
+  echo ""
+  echo "- [docs/test-catalog.md](test-catalog.md) — the verification surface grouped"
+  echo "  by family, with per-family unit counts and per-family pages."
+  echo "- [docs/tests/index.md](tests/index.md) — the category-test list, grouped by"
+  echo "  category, each linking its per-test front-door doc."
+}
+
 # Render the full catalog into a target docs dir. $1 = docs root (created if
-# absent). Writes docs/test-catalog.md + docs/tests/<family>.md per family.
-# Pure-ish: it writes files only under the given root (overridable via the caller
-# for --check's temp dir). Returns 0.
+# absent). Writes docs/test-catalog.md + docs/tests/<family>.md per family +
+# docs/testing.md (the front door). Pure-ish: it writes files only under the
+# given root (overridable via the caller for --check's temp dir). Returns 0.
 _render_into() {
   _ri_docs="$1"
   mkdir -p "$_ri_docs/tests"
@@ -2652,6 +2861,7 @@ _render_into() {
     [ -n "$_fam" ] || continue
     _render_family_page "$_fam" > "$_ri_docs/tests/$_fam.md"
   done
+  _render_testing_page > "$_ri_docs/testing.md"
   return 0
 }
 
@@ -2727,7 +2937,7 @@ EOF
   fi
   # Plain --render-docs: write into the live tree.
   _render_into "$_RD_DOCS"
-  echo "OK render — wrote $(_render_families | grep -c . || true) family page(s) + docs/test-catalog.md to $_RD_DOCS"
+  echo "OK render — wrote $(_render_families | grep -c . || true) family page(s) + docs/test-catalog.md + docs/testing.md to $_RD_DOCS"
   return 0
 }
 

@@ -1540,6 +1540,93 @@ else
   fail_test "S6 (F000081/WS1): inactive-path matrix leak (rc=$_MXNONE_RC): $_MXNONE"
 fi
 
+# ============================================================================
+# 11. docs/testing.md FRONT DOOR render (F000088/S000137)
+#     The generated test-suite front door emitted by --render-docs (and diffed by
+#     --render-docs --check, so validate.sh Check 26 keeps it fresh). Asserts:
+#       D1 (resilience)   — --render-docs twice into two TESTDOC_OUT temp dirs is
+#                           byte-identical (deterministic) and produces testing.md.
+#       D2 (core)         — testing.md carries all NINE section headings + the
+#                           GENERATED-FILE / Check-26 header.
+#       D3 (core)         — the behaviors + categories indexes have exactly as many
+#                           data rows as --list-behaviors / --list-categories emit.
+#       D4 (integration)  — --render-docs --check exits non-zero + names testing.md
+#                           after a hand-edit (the Check 26 catch), then 0 once
+#                           re-rendered.
+#       D5 (integration)  — the rendered testing.md is work-item-ID-free (Check 19).
+#     HERMETIC: renders into THROWAWAY temp dirs via the TESTDOC_OUT override; the
+#     committed docs/ tree is never mutated.
+# ============================================================================
+echo "--- 11. docs/testing.md front-door render (F000088/S000137) ---"
+
+# D1: two consecutive renders into two temp dirs are byte-identical + produce testing.md.
+_TD_A=$(mk_tmp); _TD_B=$(mk_tmp)
+TESTDOC_OUT="$_TD_A/docs" bash "$HELPER" --render-docs >/dev/null 2>&1
+TESTDOC_OUT="$_TD_B/docs" bash "$HELPER" --render-docs >/dev/null 2>&1
+if [ -f "$_TD_A/docs/testing.md" ] && diff -q "$_TD_A/docs/testing.md" "$_TD_B/docs/testing.md" >/dev/null 2>&1; then
+  ok "D1: --render-docs emits docs/testing.md, byte-identical across two runs (deterministic)"
+else
+  fail_test "D1: docs/testing.md missing or non-deterministic across renders"
+fi
+
+# D2: all nine section headings + the GENERATED-FILE / Check-26 header.
+_TD_PAGE="$_TD_A/docs/testing.md"
+_D2_OK=1
+grep -qF 'GENERATED FILE' "$_TD_PAGE" || { _D2_OK=0; }
+grep -qF 'Check 26 enforces freshness' "$_TD_PAGE" || { _D2_OK=0; }
+for _n in \
+  '## 1. What testing here proves' \
+  '## 2. The model at a glance' \
+  '## 3. How to run the tests' \
+  '## 4. How to audit the tests' \
+  '## 5. How to verify' \
+  '## 6. Behaviors index' \
+  '## 7. Category-test index' \
+  '## 8. Enrolled topics' \
+  '## 9. Drill down'; do
+  grep -qF "$_n" "$_TD_PAGE" || { _D2_OK=0; fail_test "D2: docs/testing.md missing section heading: $_n"; }
+done
+[ "$_D2_OK" -eq 1 ] && ok "D2: docs/testing.md carries all nine sections + the GENERATED-FILE/Check-26 header"
+
+# D3: the behaviors + categories indexes match the live registry row counts.
+_BEH_N=$(bash "$HELPER" --list-behaviors 2>/dev/null | grep -c . || true)
+_CAT_N=$(bash "$HELPER" --list-categories --names 2>/dev/null | grep -c . || true)
+# Data rows in each index table (exclude the header + separator).
+_BEH_RENDERED=$(awk '/^## 6\. Behaviors index/{s=1} /^## 7\./{s=0} s && /^\| / && !/^\| Behavior/ && !/^\|---/' "$_TD_PAGE" | grep -c . || true)
+_CAT_RENDERED=$(awk '/^## 7\. Category-test index/{s=1} /^## 8\./{s=0} s && /^\| / && !/^\| Test/ && !/^\|---/' "$_TD_PAGE" | grep -c . || true)
+if [ "$_BEH_RENDERED" -eq "$_BEH_N" ] && [ "$_CAT_RENDERED" -eq "$_CAT_N" ] && [ "$_BEH_N" -gt 0 ] && [ "$_CAT_N" -gt 0 ]; then
+  ok "D3: behaviors index ($_BEH_RENDERED) + categories index ($_CAT_RENDERED) match the live registry (--list-behaviors=$_BEH_N / --list-categories=$_CAT_N)"
+else
+  fail_test "D3: index counts diverge (behaviors rendered=$_BEH_RENDERED list=$_BEH_N; categories rendered=$_CAT_RENDERED list=$_CAT_N)"
+fi
+
+# D4: --render-docs --check catches a hand-edit to testing.md, then passes once re-rendered.
+_TD_C=$(mk_tmp)
+TESTDOC_OUT="$_TD_C/docs" bash "$HELPER" --render-docs >/dev/null 2>&1
+if TESTDOC_OUT="$_TD_C/docs" bash "$HELPER" --render-docs --check >/dev/null 2>&1; then
+  printf '\nHAND EDIT\n' >> "$_TD_C/docs/testing.md"
+  _D4_OUT=$(TESTDOC_OUT="$_TD_C/docs" bash "$HELPER" --render-docs --check 2>&1); _D4_RC=$?
+  if [ "$_D4_RC" -ne 0 ] && printf '%s\n' "$_D4_OUT" | grep -qF 'testing.md'; then
+    TESTDOC_OUT="$_TD_C/docs" bash "$HELPER" --render-docs >/dev/null 2>&1
+    if TESTDOC_OUT="$_TD_C/docs" bash "$HELPER" --render-docs --check >/dev/null 2>&1; then
+      ok "D4: --render-docs --check names testing.md on a hand-edit, then passes after a re-render (Check 26)"
+    else
+      fail_test "D4: --render-docs --check still red after re-rendering testing.md"
+    fi
+  else
+    fail_test "D4: --render-docs --check did not catch a testing.md hand-edit (rc=$_D4_RC): $_D4_OUT"
+  fi
+else
+  fail_test "D4: --render-docs --check was not green on a freshly-rendered tree"
+fi
+
+# D5: the rendered testing.md is work-item-ID-free (Check 19 by construction).
+if grep -qE '[FSTD][0-9]{6}' "$_TD_PAGE"; then
+  fail_test "D5: docs/testing.md contains a work-item ID (must be ID-free for Check 19)"
+else
+  ok "D5: docs/testing.md is work-item-ID-free (passes Check 19 by construction)"
+fi
+
 echo
 if [ "$ERRORS" -eq 0 ]; then
   echo "PASS: test-spec"
