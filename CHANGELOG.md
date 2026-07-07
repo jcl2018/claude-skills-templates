@@ -4,6 +4,21 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.131] - 2026-07-07
+
+### Added
+- **T000058 — completed two Phase-2 test-coverage gaps.** (1) The three `cj_test`
+  self-test suites (`test-run` / `test-spec` / `cj-audit-skills`) are now
+  first-class `categories: infra` CI-push rows (`test-run-self` / `test-spec-self`
+  / `cj-audit-self`) with front-door docs, so "the tooling tests itself" is
+  explicit and `/CJ_test_run --category infra` runs them (they also flow into the
+  generated `docs/testing.md` index). (2) A deterministic D000019 type-aware
+  QA-gate shape-guard drill in `scripts/test.sh` grep-pins the live `qa.md` per-type
+  dispatch rows + the defect/task "E2E always empty / ambiguous-is-N/A" clause + the
+  `skills/*/scripts/` sensitive-surface trust boundary, and its `defect_coverage:`
+  ledger row flips from `waived` to `covered-by-anchor` — closing the last open
+  backlog-defect coverage gap (`--check-defect-coverage`: 38 rows, findings=0).
+
 ## [6.0.130] - 2026-07-07
 
 ### Added
