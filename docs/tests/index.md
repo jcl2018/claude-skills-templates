@@ -42,5 +42,3 @@ organized by layer.
 | `cj-goal-gate-shape` | `workflow` | `CI-push` | deterministic | free | cj-goal-workflows | [docs/tests/workflow/CI-push/cj-goal-gate-shape.md](tests/workflow/CI-push/cj-goal-gate-shape.md) |
 | `doc-sync` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/doc-sync.md](tests/workflow/local-hook/doc-sync.md) |
 | `e2e-local` | `workflow` | `local-hook` | agentic | local-only | cj-goal-workflows | [docs/tests/workflow/local-hook/e2e-local.md](tests/workflow/local-hook/e2e-local.md) |
-| `goal-feature-eval` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/goal-feature-eval.md](tests/workflow/local-hook/goal-feature-eval.md) |
-| `goal-task-eval` | `workflow` | `local-hook` | agentic | paid | cj-goal-workflows | [docs/tests/workflow/local-hook/goal-task-eval.md](tests/workflow/local-hook/goal-task-eval.md) |

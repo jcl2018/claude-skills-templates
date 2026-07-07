@@ -35,8 +35,9 @@ ratchet property (a ratchet unit also runs in `CI-push`).
 
 The bulk of the surface. Four kinds, each its own table below. (The sole remaining
 `CI-nightly` row — the `windows-nightly` workflow — is in its own subsection below.
-The former `eval-nightly` / `audit-nightly` workflows were removed with F000080, and
-`suite-eval` + the agentic eval / doc-sync category tests now run on-demand at the
+The former `eval-nightly` / `audit-nightly` workflows were removed with F000080; the
+paid eval runner was retired entirely (F000087), so `suite-eval` is now specs-only,
+and the `doc-sync` / `e2e-local` agentic category tests now run on-demand at the
 `local-hook` layer.)
 
 **Validator checks** — `scripts/validate.sh` (also run at `pre-commit`, below).
@@ -150,18 +151,19 @@ re-layered to this cadence (F000081 follow-up): the per-PR `test.sh` skips it un
 
 The git hooks installed by `scripts/setup-hooks.sh` (the validator rows carry
 the `pre-commit pr-ci` trigger — the same checks, two firing points), plus the
-on-demand agentic proofs that F000080 moved off the CI schedule: the behavioral
-eval harness (`suite-eval`), the `goal-task-eval` / `goal-feature-eval` /
-`doc-sync` workflow-category tests, and the `e2e-local` happy-path harness. These
-spend model tokens, so they run only when the operator invokes them
-(`bash scripts/eval.sh`, `bash scripts/audit-nightly.sh`, `/CJ_test_run`), never
-unattended in CI.
+on-demand agentic proofs that F000080 moved off the CI schedule: the `doc-sync`
+workflow-category test and the `e2e-local` happy-path harness. These spend model
+tokens, so they run only when the operator invokes them (`bash
+scripts/audit-nightly.sh`, `/CJ_test_run`), never unattended in CI. The eval
+family is now specs-only: the `suite-eval` unit points at the durable
+`tests/eval/` verification specs Claude drives in-session (no paid runner), not
+an executable harness.
 
 | Check / Unit | What it asserts |
 |---|---|
 | pre-commit hook — validator at commit time | Runs the validator before every local commit; a failing check blocks it. |
 | post-merge hook — auto re-deploy | Re-deploys skills, templates and rules after pulls; best-effort, never blocks git. |
-| behavioral eval harness — headless skill evals | Spawns the headless CLI per eval case with JSON-schema output, budget-capped; run on-demand (`bash scripts/eval.sh`). |
+| eval-case verification specs — driven in-session by Claude | The durable `tests/eval/<skill>/<case>/` specs (prompt + schema + fixture) Claude drives in-session to confirm a workflow still reaches its declared outcome; specs-only, no paid runner. |
 
 ### Handled by `pipeline-gate` (during an orchestrated `CJ_goal_*` run)
 
@@ -371,9 +373,9 @@ A `runners[]` entry declares one runnable command:
 The axis is **registry-gated** like `behaviors:` — its absence changes no
 existing behavior. A declared registry with zero `runners:` rows is an honest
 `SKIP: no runners declared` (no report, no ledger, no inference). The workbench
-dogfoods three rows: `run-test-sh` (free; the full suite covering
-validate+test+test-deploy+windows-smoke as ONE row), `run-eval` (paid), and
-`run-e2e-local` (local-only).
+dogfoods two rows: `run-test-sh` (free; the full suite covering
+validate+test+test-deploy+windows-smoke as ONE row) and `run-e2e-local`
+(local-only).
 
 ### The `defect_coverage:` array (the defect↔proof ledger)
 
@@ -1216,13 +1218,13 @@ units:
     purpose: "Template ownership, drift overwrite, copy-mode fallback, shared-script orphan pruning (manifest-keyed, ownership-safe), and doctor verdicts (incl. the shared-scripts health section) in isolated temp homes; runs inside the test suite (via scripts/test.sh) and by hand. Re-layered to CI-nightly: the per-PR test.sh skips it under TEST_FAST=1, so it now gates via the nightly full-suite (.github/workflows/nightly.yml), NOT per-PR; its standalone Windows run is the nightly windows-nightly.yml (owned by ci-windows-nightly)."
   - id: suite-eval
     family: eval
-    label: "behavioral eval harness — headless skill evals"
-    anchor: "Behavioral eval harness"
-    source: scripts/eval.sh
+    label: "eval-case verification specs — driven in-session by Claude"
+    anchor: "naming the planned worktree + the office-hours/scaffold/implement/qa/ship chain"
+    source: tests/eval/CJ_goal_feature/dry-run-plan/prompt.md
     layer: local-hook
     disposition: hard-fail
     trigger: "manual"
-    purpose: "Spawns the headless CLI against scratch worktrees per eval case with JSON-schema output validation; budget-capped per case and per run. Run on-demand (bash scripts/eval.sh) — no longer on a nightly CI schedule."
+    purpose: "The durable, version-controlled tests/eval/<skill>/<case>/ verification specs (prompt.md + expected.schema.json + fixture) that Claude drives in-session to confirm a workflow still loads and reaches its declared outcome — the free replacement for the retired paid headless-CLI runner. Keeps the eval family declared (not orphaned) and its tests/eval/ prompt.md anchors the same ones the Check 28 workflow-coverage gate greps live."
   - id: suite-windows-smoke
     family: windows-smoke
     label: "Windows smoke — CRLF + portable date + copy-mode + parity (completeness/fidelity)"
@@ -1270,9 +1272,11 @@ units:
     trigger: "nightly manual"
     purpose: "Runs the FULL scripts/test.sh on ubuntu-latest on a nightly schedule, with a manual dispatch trigger — the safe-additive CI-nightly home for the heavy suite that would slow every PR; mirrors windows-nightly.yml. The per-PR validate.yml is UNTRIMMED (that trim is a deferred follow-up), so the suite still also runs on every PR."
   # (ci-eval-nightly + ci-audit-nightly removed with F000080: the eval-nightly.yml
-  # + audit-nightly.yml cron wrappers were deleted; the eval + audit runners
-  # (scripts/eval.sh, scripts/audit-nightly.sh) now run on-demand at the local-hook
-  # layer, so their CI-nightly workflow units no longer exist.)
+  # + audit-nightly.yml cron wrappers were deleted. The audit runner
+  # (scripts/audit-nightly.sh) now runs on-demand at the local-hook layer; the
+  # paid eval runner was retired entirely (F000087) — the eval family is now
+  # specs-only (the tests/eval/ verification specs, driven in-session). Neither
+  # has a CI-nightly workflow unit.)
   # ---- hook family: git hooks installed by scripts/setup-hooks.sh ----
   - id: hook-pre-commit
     family: hook
@@ -1533,7 +1537,7 @@ behavior_coverage:
   - behavior: workflow-cj-goal-task-runs
     unit: suite-eval
     source: tests/eval/CJ_goal_task/halt-too-complex/prompt.md
-    anchor: "emits `halted_at_too_complex` and suggests `/CJ_goal_feature`"
+    anchor: "routes to a design-first sibling verb, naming the design-rework signal it matched"
   - behavior: workflow-cj-goal-feature-runs
     unit: suite-eval
     source: tests/eval/CJ_goal_feature/dry-run-plan/prompt.md
@@ -1584,13 +1588,7 @@ runners:
     tier: free
     covers: [validate, test, test-deploy, eval, windows-smoke]
     platform: any
-    note: "The full suite. test.sh runs validate.sh, drives test-deploy.sh end-to-end AND runs windows-smoke.sh on ANY host — all four families are covered by this ONE runner; a separate windows-smoke row would double-execute on Windows and mis-report skipped(platform) on POSIX. (test.sh does NOT invoke eval.sh — the eval family is nominally covered here but run-eval owns real eval execution.)"
-  - id: run-eval
-    command: "bash scripts/eval.sh"
-    tier: paid
-    covers: [eval]
-    platform: any
-    note: "The behavioral eval harness — spawns headless claude --print per case (real model spend); runs only under --evals / --all."
+    note: "The full suite. test.sh runs validate.sh, drives test-deploy.sh end-to-end AND runs windows-smoke.sh on ANY host — all four families are covered by this ONE runner; a separate windows-smoke row would double-execute on Windows and mis-report skipped(platform) on POSIX. (The eval family is nominally covered here; it is now specs-only — the durable tests/eval/ verification specs Claude drives in-session — with no executable runner, so nothing runs it here.)"
   - id: run-e2e-local
     command: "CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh"
     tier: local-only
@@ -1627,11 +1625,10 @@ runners:
 # `deploy-harness` stays deliberately UNENROLLED: its missing CI-push point is a
 # conscious speed decision (test-deploy.sh runs nightly, off the per-PR gate), and
 # claiming windows-smoke as its CI-push row would double-count — windows-smoke is
-# portability's row, and honest coverage beats complete-looking coverage. The 5
-# remaining labeled topics (deploy-harness / cj-goal-eval / doc-sync / e2e /
-# cj-goal-gate) are labeled but UNENROLLED — each needs its missing deterministic
-# coverage points built before it can enroll (tracked as follow-up TODOs in
-# TODOS.md).
+# portability's row, and honest coverage beats complete-looking coverage. The 4
+# remaining labeled topics (deploy-harness / doc-sync / e2e / cj-goal-gate) are
+# labeled but UNENROLLED — each needs its missing deterministic coverage points
+# built before it can enroll (tracked as follow-up TODOs in TODOS.md).
 topic_contracts: [portability, validator, full-suite]
 categories:
   # ---- the categories: axis (F000074; two-axis reframe F000078): the
@@ -1786,24 +1783,6 @@ categories:
   # ---- workflow — proves a whole user-facing workflow runs end to end: the
   #      cj_goal orchestrators, the doc-sync pipeline, and the local happy-path E2E
   #      harness (the portability install/deploy harness rows moved to infra) ----
-  - name: goal-task-eval
-    category: workflow
-    layer: local-hook
-    mode: agentic
-    command: "bash scripts/eval.sh CJ_goal_task"
-    tier: paid
-    doc: "docs/tests/workflow/local-hook/goal-task-eval.md"
-    purpose: "The /CJ_goal_task workflow eval — drives the task orchestrator through a real gstack-independent path (task -> halted_at_too_complex); agentic (spends model tokens), so it runs on-demand at the local-hook layer, never on a CI schedule or the free-tier default."
-    topic: cj-goal-eval
-  - name: goal-feature-eval
-    category: workflow
-    layer: local-hook
-    mode: agentic
-    command: "bash scripts/eval.sh CJ_goal_feature"
-    tier: paid
-    doc: "docs/tests/workflow/local-hook/goal-feature-eval.md"
-    purpose: "The /CJ_goal_feature workflow eval — drives the feature orchestrator through its dry-run chain-plan preview on the gstack-independent path (end_state dry_run_preview); backs the workflow-cj-goal-feature-runs level:workflow behavior; agentic, on-demand local-hook cadence."
-    topic: cj-goal-eval
   - name: doc-sync
     category: workflow
     layer: local-hook

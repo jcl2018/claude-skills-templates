@@ -41,7 +41,7 @@ model-intelligence failure.
 |-------|----------------|---------------|---------------|
 | **Shell unit/integration tests** (`tests/*.test.sh`, esp. `tests/cj-goal-*.test.sh`, `tests/cj-goal-common-*.test.sh`) | The deterministic skeleton: each phase honors its `KEY=VALUE` contract + exit code; the worktree/sync/portability/recap/cleanup/telemetry plumbing; the PR-body splice idiom | Anything Claude-judged (design quality, code correctness, QA verdicts) | plain CI, no model, no API key — the bulk of the real regression net |
 | **`validate.sh` + the contract gates** (Checks 1–28, incl. the `doc-spec` / `test-spec` / `workflow-spec` registries) | Structural integrity: the catalog, the doc/test/workflow contracts, frontmatter, USAGE freshness, portability, and that every orchestrator *has* a `level: workflow` test (**Check 28**) | That the declared tests are *comprehensive*, or that they pass when actually run | plain CI |
-| **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, run by `scripts/eval.sh`) | A **real** `claude --print` run of a workflow's *entry + one gate path* — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | on-demand (`bash scripts/eval.sh`), needs the `ANTHROPIC_API_KEY` secret |
+| **Behavioral eval cases** (`tests/eval/CJ_goal_*/`, driven **in-session**) | A workflow's *entry + one gate path* driven by asking Claude in-session to run the case and check the outcome against its `expected.schema.json` — proof the skill still loads and Claude can drive it to a schema-valid decision | The happy path (topic → a correct PR); it deliberately stops before the gstack-dependent phases | on-demand, **in-session** (drive the `tests/eval/CJ_goal_*/` case and report) — no runner, no metered model spend (the paid `scripts/eval.sh` runner was retired) |
 | **Full happy-path E2E** (topic → scaffold → implement → qa → doc-sync → ship boundary) | The only thing that proves the *whole* workflow produces a correct result | n/a | **local-only, real run via the seam** — `scripts/e2e-local.sh` drives a real `/CJ_goal_task` build through the build-gate auto-answer seam in a sandbox to the `/ship` boundary and emits a **materialized report** (deterministic vs `claude --print`); its deterministic half is CI-tested (`tests/e2e-local.test.sh`), the real run needs gstack + a `claude` login (`ANTHROPIC_API_KEY` or `claude auth login`) + `gh` locally. No automated CI E2E (the gstack-in-CI blocker below) |
 
 ## What the eval cases honestly prove (and don't)
@@ -117,8 +117,8 @@ bash scripts/validate.sh                 # Checks 1–29, incl. Check 28 + the C
 bash scripts/test.sh                     # full suite (superset of validate)
 bash scripts/test-spec.sh --check-workflow-coverage   # orchestrators ↔ behaviors
 
-# A real workflow run via Claude (needs ANTHROPIC_API_KEY):
-bash scripts/eval.sh CJ_goal_task        # or read tests/eval/CJ_goal_task/halt-too-complex/
+# A real workflow run, verified in-session (no runner, no API key, no metered spend):
+#   ask Claude to drive tests/eval/CJ_goal_task/halt-too-complex/ and check vs expected.schema.json
 
 # The whole happy path, real, to the /ship boundary (LOCAL — needs gstack + key + gh):
 CJ_E2E_LOCAL=1 bash scripts/e2e-local.sh # provisions a sandbox, drives /CJ_goal_task, writes a report

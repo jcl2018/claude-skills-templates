@@ -2,16 +2,16 @@
 # agentic-sandbox.sh — reusable repo-neutral agentic-test sandbox helpers (F000082).
 #
 # SOURCE this file (do not execute). It generalizes the throwaway-sandbox pattern
-# that eval.sh --portability (tests/eval/lib/run-portability-case.sh) and the
-# local-E2E harness (tests/e2e-local/lib/sandbox.sh) each grew independently, so the
-# next topic that wants an agentic proof writes ~20 lines, not a new harness.
+# that the retired portability behavioral eval and the local-E2E harness
+# (tests/e2e-local/lib/sandbox.sh) each grew independently, so the next topic that
+# wants an agentic proof writes ~20 lines, not a new harness.
 #
 # It exposes THREE POSIX-sh helpers (YAGNI — only what the first consumer, the
 # portability version-notification agentic test, actually calls; no speculative 4th):
 #
 #   mk_neutral_sandbox
 #       Create a throwaway scratch dir that makes NO assumption about the current
-#       repo — the agentic-test analogue of eval.sh --portability's stripped repo.
+#       repo — the agentic-test analogue of a stripped, source-neutralized repo.
 #       Prints (last line) the scratch dir path. Inside it writes a `.source`-ABSENT
 #       manifest (`.skills-templates.json` with collection_version + upstream_url but
 #       NO `.source` git checkout) so skills-update-check's checkout-independent path
@@ -128,8 +128,8 @@ run_preamble_via_claude() {
   # The prompt: run the update-check exactly as a skill preamble does (the same
   # env-seamed invocation), then report whether the operator would SEE an upgrade
   # nudge — not merely that some banner text exists. The schema forces a
-  # machine-checkable verdict, mirroring run-portability-case.sh's
-  # {degraded_gracefully, evidence} shape.
+  # machine-checkable verdict, mirroring the retired portability behavioral
+  # eval's {degraded_gracefully, evidence} shape.
   _rpc_prompt="You are standing in for a Claude Code skill preamble in a throwaway sandbox at $_rpc_sandbox. This install is STALE: its manifest records an older collection_version than the newer release published on its upstream. Run the passive update check exactly as a skill preamble would, by executing this command and reading its output:
 
   SKILLS_TEMPLATES_MANIFEST='$_rpc_manifest' SKILLS_UPDATE_STATE_DIR='$_rpc_state' SKILLS_UPDATE_REMOTE_URL='$_rpc_remote' bash '$_rpc_uc'

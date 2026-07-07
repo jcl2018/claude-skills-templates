@@ -9,6 +9,6 @@ Drive the workflow through its preamble + the `--dry-run` chain-plan preview. De
 }
 ```
 
-The `--dry-run` path emits `dry_run_preview` and prints `DRY RUN:` lines naming the draft path + the investigate/promote/RCA/qa/ship chain. No writes happen.
+The `--dry-run` path prints `DRY RUN:` lines naming the draft path + the investigate/promote/RCA/qa/ship chain, then exits before any mutation. No writes happen. Determine the `end_state` it emits from the run itself.
 
 **Output only the JSON object.** First non-whitespace character `{`, last `}`. No prose.

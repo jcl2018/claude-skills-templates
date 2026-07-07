@@ -62,10 +62,11 @@ is situational: reach for it only when you're in that corner of the repo.
 - [GitHub Actions](https://docs.github.com/en/actions) — the CI under
   `.github/workflows/`. The per-PR gates are `validate.yml` + `windows.yml` (the
   fast Git Bash smoke); `windows-nightly.yml` (the slower `skills-deploy` suite on
-  `windows-latest`) runs on a nightly schedule instead of every PR. The behavioral
-  eval harness (`scripts/eval.sh`) and the doc/test-drift audit
-  (`scripts/audit-nightly.sh`) run on-demand / locally — they no longer have CI
-  workflows. Open the workflow file when a check passes locally but fails in CI.
+  `windows-latest`) runs on a nightly schedule instead of every PR. The doc/test-drift
+  audit (`scripts/audit-nightly.sh`) runs on-demand / locally — it no longer has a CI
+  workflow, and the behavioral eval cases under `tests/eval/CJ_goal_*/` are now verified
+  in-session (ask Claude to drive a case), not by a runner. Open the workflow file when
+  a check passes locally but fails in CI.
 - [Git for Windows](https://gitforwindows.org/) — the Git Bash shell this POSIX
   workbench supports on Windows (copy-mode install, the `windows-latest` smoke job);
   it bundles `git` and `jq`. Only relevant if you touch the cross-platform path.

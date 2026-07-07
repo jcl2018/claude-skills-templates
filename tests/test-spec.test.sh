@@ -329,11 +329,12 @@ _rebuild_fixture() {
   cp "$REPO_ROOT/scripts/setup-hooks.sh" "$_FIX/scripts/setup-hooks.sh"
   # rows anchored on script paths require the file to exist on disk
   : > "$_FIX/scripts/test-deploy.sh"
-  # suite-eval (F000080) now anchors on the CONTENT of scripts/eval.sh
-  # ("Behavioral eval harness") rather than a workflow `run: bash scripts/eval.sh`
-  # line (eval-nightly.yml was deleted), so the fixture needs the real eval.sh
-  # body, not an empty stub, for its forward anchor-grep to resolve LIVE.
-  cp "$REPO_ROOT/scripts/eval.sh" "$_FIX/scripts/eval.sh"
+  # suite-eval (F000087) is now specs-only: the paid eval runner script was
+  # retired, so suite-eval re-anchors onto a live tests/eval/ verification spec
+  # (its source is a tests/eval/<skill>/<case>/prompt.md — the same file its
+  # workflow-coverage behavior_coverage row references). That prompt is copied
+  # into the fixture by the behavior_coverage tests/eval/ loop below, so its
+  # forward anchor-grep resolves LIVE with no separate runner-script copy.
   : > "$_FIX/scripts/windows-smoke.sh"
   : > "$_FIX/scripts/cj-portability-audit.sh"
   cp "$REPO_ROOT"/.github/workflows/*.yml "$_FIX/.github/workflows/"
