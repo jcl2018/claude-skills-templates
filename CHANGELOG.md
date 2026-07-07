@@ -4,6 +4,31 @@ All notable changes to this collection will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 
+## [6.0.130] - 2026-07-07
+
+### Added
+- **F000089 — the drift-proofing contract now propagates to other repos,
+  enforced on push (Testing roadmap Phase 3).** `skills-deploy install-contract-gate`
+  in any consumer repo is now a true one-command adopt: it **seeds** the portable
+  contracts, **completes adoption**, **vendors** the four deterministic gate engines
+  (`cj-contract-gate.sh` + `doc-spec.sh` + `test-spec.sh` + `workflow-spec.sh`) into
+  `<consumer>/.cj-contract/`, and **drops** `.github/workflows/cj-contract-gate.yml`.
+  So the consumer's PUSH path enforces the contract on a **bare CI runner** (no
+  `~/.claude/_cj-shared` — the gate resolves its co-located siblings from its own
+  dir): structural drift (a stale catalog, an undeclared doc, an unregistered test,
+  a malformed registry) reds the PR there too. Registry-gated ("enforce what you
+  adopt"), agent-free, offline, `$0`. `--remove` reverses all of it (only the
+  workbench-owned unmodified copies); the workbench self-repo + hand-authored
+  workflows are skipped. Ships with a consumer-facing `docs/adopting-the-contract.md`
+  and a `test-deploy.sh` bare-runner case (green-on-clean / red-on-violation).
+
+### Fixed
+- `cj-contract-gate.sh` own-dir engine resolution now accepts a **readable** (not
+  only executable) co-located sibling — engines run via `bash`, and on Windows
+  Git-Bash copy-mode a `chmod +x` on a freshly-written file is a no-op, so a
+  vendored engine lands mode-644; requiring `-x` broke the bare-runner path on
+  Windows.
+
 ## [6.0.129] - 2026-07-06
 
 ### Added
